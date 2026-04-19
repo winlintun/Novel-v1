@@ -31,7 +31,8 @@ from typing import List, Dict, Optional
 import importlib.util
 
 # Add scripts to path
-sys.path.insert(0, str(Path(__file__).parent / "scripts"))
+# Add parent directory to path
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # ─────────────────────────────────────────────
 # ANSI Colors
@@ -66,7 +67,7 @@ signal.signal(signal.SIGTERM, signal_handler)
 
 def load_translator_module():
     """Dynamically load the translator module."""
-    spec = importlib.util.spec_from_file_location("translator", Path("scripts/translator.py"))
+    spec = importlib.util.spec_from_file_location("translator", Path(__file__).parent / "translator.py")
     translator_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(translator_module)
     return translator_module
@@ -74,7 +75,7 @@ def load_translator_module():
 
 def load_chunk_module():
     """Dynamically load the chunk_paragraph module."""
-    spec = importlib.util.spec_from_file_location("chunk_paragraph", Path("scripts/chunk_paragraph.py"))
+    spec = importlib.util.spec_from_file_location("chunk_paragraph", Path(__file__).parent / "chunk_paragraph.py")
     chunk_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(chunk_module)
     return chunk_module
@@ -593,7 +594,7 @@ def readability_check(novel_name: str) -> Dict:
     info(f"Running readability check: {novel_name}")
     
     # Load myanmar_checker module
-    spec = importlib.util.spec_from_file_location("myanmar_checker", Path("scripts/myanmar_checker.py"))
+    spec = importlib.util.spec_from_file_location("myanmar_checker", Path(__file__).parent / "myanmar_checker.py")
     checker_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(checker_module)
     
@@ -630,7 +631,7 @@ def postprocess_novel(novel_name: str) -> bool:
     info(f"Postprocessing: {novel_name}")
     
     # Load postprocess_translation module
-    spec = importlib.util.spec_from_file_location("postprocess_translation", Path("scripts/postprocess_translation.py"))
+    spec = importlib.util.spec_from_file_location("postprocess_translation", Path(__file__).parent / "postprocess_translation.py")
     postprocess_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(postprocess_module)
     

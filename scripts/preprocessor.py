@@ -63,7 +63,6 @@ def remove_noise(text: str) -> Tuple[str, int]:
         for pattern in NOISE_PATTERNS:
             if re.search(pattern, line):
                 is_noise = True
-                noise_count += 1
                 break
         
         if not is_noise:

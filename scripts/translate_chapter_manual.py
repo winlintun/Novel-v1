@@ -16,8 +16,8 @@ import argparse
 import requests
 from pathlib import Path
 
-# Add scripts to path
-sys.path.insert(0, str(Path(__file__).parent / "scripts"))
+# Add parent directory to path to import from scripts folder
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # ANSI Colors
 GREEN  = "\033[92m"

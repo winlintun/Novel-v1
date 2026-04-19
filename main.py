@@ -11,13 +11,13 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
-# Import our modules
-from preprocessor import preprocess
-from chunker import auto_chunk, split_into_paragraphs, print_chunk_analysis
-from translator import get_translator, get_system_prompt
-from checkpoint import CheckpointManager
-from postprocessor import postprocess
-from assembler import assemble
+# Import our modules from scripts folder
+from scripts.preprocessor import preprocess
+from scripts.chunker import auto_chunk, split_into_paragraphs, print_chunk_analysis
+from scripts.translator import get_translator, get_system_prompt
+from scripts.checkpoint import CheckpointManager
+from scripts.postprocessor import postprocess
+from scripts.assembler import assemble
 
 # Setup logging
 os.makedirs("working_data/logs", exist_ok=True)
@@ -136,11 +136,13 @@ def translate_single_file(
     
     # 6. Postprocess
     print(f"\n[5/7] Postprocessing...")
+    
+    # Load all checkpoints first
+    all_chunks = checkpoint.load_all()
+    full_text = '\n\n'.join(all_chunks[i] for i in sorted(all_chunks.keys()))
+    processed_text = full_text  # Default to unprocessed if postprocess fails
+    
     try:
-        # Load all checkpoints
-        all_chunks = checkpoint.load_all()
-        full_text = '\n\n'.join(all_chunks[i] for i in sorted(all_chunks.keys()))
-        
         # Postprocess
         processed_text = postprocess(full_text, names_path)
         
@@ -152,6 +154,7 @@ def translate_single_file(
     except Exception as e:
         logger.error(f"Postprocessing failed: {e}")
         print(f"✗ Postprocessing failed: {e}")
+        print(f"  Using unprocessed text for assembly.")
     
     # 7. Assemble
     print(f"\n[6/7] Assembling...")
@@ -203,7 +206,7 @@ def translate_single_file(
 
 def run_readability_check(text: str, chapter_name: str):
     """Run LLM readability check once after assembly."""
-    from translator import get_translator
+    from scripts.translator import get_translator
     
     # Use same model for readability check
     model = os.getenv("AI_MODEL", "openrouter")
@@ -246,7 +249,7 @@ Text:
 
 
 def scan_input_novels():
-    """Scan input_novels/ for .txt files."""
+    """Scan input_novels/ for .txt and .md files."""
     input_dir = Path("input_novels")
     
     if not input_dir.exists():
@@ -254,8 +257,11 @@ def scan_input_novels():
         input_dir.mkdir(parents=True, exist_ok=True)
         return []
     
+    # Support both .txt and .md files
     txt_files = list(input_dir.glob("*.txt"))
-    return sorted(txt_files)
+    md_files = list(input_dir.glob("*.md"))
+    all_files = txt_files + md_files
+    return sorted(all_files)
 
 
 def main():
@@ -284,9 +290,9 @@ Examples:
     )
     
     parser.add_argument("file", nargs="?", help="Single file to translate")
-    parser.add_argument("--model", default="openrouter",
+    parser.add_argument("--model", default=None,
                         choices=["openrouter", "gemini", "deepseek", "qwen", "ollama"],
-                        help="Translation model to use")
+                        help="Translation model to use (overrides .env AI_MODEL)")
     parser.add_argument("--max-chars", type=int, default=1800,
                         help="Maximum characters per chunk")
     parser.add_argument("--no-readability", action="store_true",
@@ -300,8 +306,14 @@ Examples:
     from dotenv import load_dotenv
     load_dotenv()
     
-    # Override model from .env if AI_MODEL is set
-    model = os.getenv("AI_MODEL", args.model)
+    # Use CLI model argument first, fallback to .env AI_MODEL, then default
+    # Priority: --model CLI arg > AI_MODEL env var > default (openrouter)
+    if args.model is not None:
+        # User explicitly provided --model, use it
+        model = args.model
+    else:
+        # Check if AI_MODEL is set in .env, otherwise use default
+        model = os.getenv("AI_MODEL", "openrouter")
     
     print("=" * 60)
     print("Chinese → Myanmar Novel Translator")
@@ -317,7 +329,7 @@ Examples:
     else:
         files = scan_input_novels()
         if not files:
-            print("No .txt files found in input_novels/")
+            print("No .txt or .md files found in input_novels/")
             print("Add files and run again.")
             return
         print(f"Found {len(files)} file(s) to translate:\n")
