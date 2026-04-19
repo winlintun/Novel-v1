@@ -1,0 +1,20 @@
+{
+  "model": "qwen:7b",
+  "provider": "ollama",
+  "ollama_endpoint": "http://localhost:11434/api/generate",
+  "source_language": "Chinese",
+  "target_language": "Burmese",
+  "chunk_size": 1500,
+  "chunk_overlap": 100,
+  "stream": true,
+  "preview_update_every_n_tokens": 10,
+  "request_timeout": 900,
+  "web_ui_port": 5000,
+  "auto_open_browser": true,
+  "myanmar_readability": {
+    "enabled": true,
+    "min_myanmar_ratio": 0.7,
+    "flag_on_fail": true,
+    "block_on_fail": false
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "chunks": {
+    "simple_data_chunk_00001_burmese": {
+      "timestamp": "2026-04-19T17:49:48.248801",
+      "checks": {
+        "myanmar_ratio": {
+          "value": 0.0,
+          "minimum": 0.7,
+          "passed": false,
+          "myanmar_chars": 0,
+          "total_chars": 98
+        },
+        "no_chinese": {
+          "value": 13,
+          "maximum": 0,
+          "passed": false
+        },
+        "sentence_boundaries": {
+          "value": 0,
+          "minimum": 1,
+          "passed": false
+        },
+        "encoding_integrity": {
+          "has_replacement_chars": false,
+          "passed": true
+        },
+        "length_ratio": {
+          "passed": true,
+          "skipped": true
+        }
+      },
+      "passed": false,
+      "flagged": true
+    }
+  },
+  "summary": {
+    "total_chunks": 1,
+    "passed": 0,
+    "flagged": 1,
+    "pass_rate": 0.0,
+    "updated_at": "2026-04-19T17:49:48.249174"
+  }
+}

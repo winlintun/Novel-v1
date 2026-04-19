@@ -1,0 +1,15 @@
+{
+  "novel_name": "simple_data",
+  "chapter_number": 1,
+  "chapter_title": "神仙群殴",
+  "total_chunks": 6,
+  "chunk_files": [
+    "working_data/chunks/simple_data/chapter_001/simple_data_ch001_chunk_00001.txt",
+    "working_data/chunks/simple_data/chapter_001/simple_data_ch001_chunk_00002.txt",
+    "working_data/chunks/simple_data/chapter_001/simple_data_ch001_chunk_00003.txt",
+    "working_data/chunks/simple_data/chapter_001/simple_data_ch001_chunk_00004.txt",
+    "working_data/chunks/simple_data/chapter_001/simple_data_ch001_chunk_00005.txt",
+    "working_data/chunks/simple_data/chapter_001/simple_data_ch001_chunk_00006.txt"
+  ],
+  "chapter_chars": 5830
+}

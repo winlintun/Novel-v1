@@ -1,0 +1,4 @@
+## အခန်း {{CHAPTER_NUMBER}} — {{CHAPTER_TITLE}}
+
+{{CHAPTER_CONTENT}}
+

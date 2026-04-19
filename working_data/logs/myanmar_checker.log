@@ -1,0 +1,6 @@
+2026-04-19 17:49:48,248 - myanmar_checker - INFO - Readability check: FLAGGED
+2026-04-19 17:49:48,248 - myanmar_checker - INFO -   - Myanmar ratio: 0.0% (min: 70%)
+2026-04-19 17:49:48,248 - myanmar_checker - INFO -   - Chinese chars: 13 (max: 0)
+2026-04-19 17:49:48,249 - myanmar_checker - INFO -   - Sentence enders: 0 (min: 1)
+2026-04-19 17:49:48,249 - myanmar_checker - INFO -   - Encoding errors: False
+2026-04-19 17:49:48,249 - myanmar_checker - INFO - Saved readability report: working_data/readability_reports/simple_data_readability.json

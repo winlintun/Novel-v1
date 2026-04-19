@@ -1,0 +1,10 @@
+{
+  "novel_name": "simple_data",
+  "chapter_number": 2,
+  "chapter_title": "蟠龙山",
+  "total_chunks": 1,
+  "chunk_files": [
+    "working_data/chunks/simple_data/chapter_002/simple_data_ch002_chunk_00001.txt"
+  ],
+  "chapter_chars": 9
+}

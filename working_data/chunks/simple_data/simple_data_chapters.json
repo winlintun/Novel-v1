@@ -1,0 +1,41 @@
+{
+  "novel_name": "simple_data",
+  "total_chapters": 2,
+  "total_chunks": 7,
+  "chapters": [
+    {
+      "chapter_number": 1,
+      "chapter_title": "神仙群殴",
+      "chapter_dir": "working_data/chunks/simple_data/chapter_001",
+      "total_chunks": 6,
+      "chunk_files": [
+        "working_data/chunks/simple_data/chapter_001/simple_data_ch001_chunk_00001.txt",
+        "working_data/chunks/simple_data/chapter_001/simple_data_ch001_chunk_00002.txt",
+        "working_data/chunks/simple_data/chapter_001/simple_data_ch001_chunk_00003.txt",
+        "working_data/chunks/simple_data/chapter_001/simple_data_ch001_chunk_00004.txt",
+        "working_data/chunks/simple_data/chapter_001/simple_data_ch001_chunk_00005.txt",
+        "working_data/chunks/simple_data/chapter_001/simple_data_ch001_chunk_00006.txt"
+      ],
+      "metadata_file": "working_data/chunks/simple_data/chapter_001/chapter_001_meta.json"
+    },
+    {
+      "chapter_number": 2,
+      "chapter_title": "蟠龙山",
+      "chapter_dir": "working_data/chunks/simple_data/chapter_002",
+      "total_chunks": 1,
+      "chunk_files": [
+        "working_data/chunks/simple_data/chapter_002/simple_data_ch002_chunk_00001.txt"
+      ],
+      "metadata_file": "working_data/chunks/simple_data/chapter_002/chapter_002_meta.json"
+    }
+  ],
+  "all_chunk_files": [
+    "working_data/chunks/simple_data/chapter_001/simple_data_ch001_chunk_00001.txt",
+    "working_data/chunks/simple_data/chapter_001/simple_data_ch001_chunk_00002.txt",
+    "working_data/chunks/simple_data/chapter_001/simple_data_ch001_chunk_00003.txt",
+    "working_data/chunks/simple_data/chapter_001/simple_data_ch001_chunk_00004.txt",
+    "working_data/chunks/simple_data/chapter_001/simple_data_ch001_chunk_00005.txt",
+    "working_data/chunks/simple_data/chapter_001/simple_data_ch001_chunk_00006.txt",
+    "working_data/chunks/simple_data/chapter_002/simple_data_ch002_chunk_00001.txt"
+  ]
+}

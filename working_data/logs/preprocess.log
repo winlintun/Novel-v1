@@ -1,0 +1,13 @@
+2026-04-19 17:48:39,750 - preprocess_novel - INFO - Starting preprocessing of input_novels/simple_data.txt
+2026-04-19 17:48:39,750 - preprocess_novel - INFO - Reading input file...
+2026-04-19 17:48:39,750 - preprocess_novel - INFO - Original text length: 5859 characters
+2026-04-19 17:48:39,750 - preprocess_novel - INFO - Removing headers, footers, and watermarks...
+2026-04-19 17:48:39,751 - preprocess_novel - INFO - Normalizing whitespace...
+2026-04-19 17:48:39,751 - preprocess_novel - INFO - Detecting chapter boundaries...
+2026-04-19 17:48:39,752 - preprocess_novel - INFO - Detected 2 potential chapter boundaries
+2026-04-19 17:48:39,752 - preprocess_novel - INFO - Writing cleaned file to working_data/clean/simple_data_clean.txt
+2026-04-19 17:48:39,752 - preprocess_novel - INFO - Preprocessing complete:
+2026-04-19 17:48:39,753 - preprocess_novel - INFO -   - Original length: 5859
+2026-04-19 17:48:39,753 - preprocess_novel - INFO -   - Cleaned length: 5857
+2026-04-19 17:48:39,753 - preprocess_novel - INFO -   - Reduction: 2 characters (0.0%)
+2026-04-19 17:48:39,753 - preprocess_novel - INFO -   - Chapters detected: 2
