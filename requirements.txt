@@ -1,24 +1,6 @@
-# Chinese-to-Burmese Novel Translation Pipeline
-# Required dependencies
-
-# Core translation client
-ollama>=0.1.0
-
-# Web UI
-flask>=2.0.0
-flask-socketio>=5.0.0
-
-# Progress display
-tqdm>=4.60.0
-
-# Unicode regex support
-regex>=2021.0.0
-
-# ICU Unicode library for Myanmar word/sentence boundary detection
-pyicu>=2.8
-
-# SocketIO client for emitting tokens
-python-socketio>=5.0.0
-
-# Additional utilities
-requests>=2.25.0
+requests>=2.31.0
+python-dotenv>=1.0.0
+tqdm>=4.66.0
+flake8>=7.0.0
+pylint>=3.0.0
+pytest>=8.0.0

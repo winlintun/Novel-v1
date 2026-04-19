@@ -1,4 +1,11 @@
-## အခန်း {{CHAPTER_NUMBER}} — {{CHAPTER_TITLE}}
+# {original_title} — မြန်မာဘာသာပြန်
+**အခန်း**  : {chapter_number}
+**မော်ဒယ်** : {model_name}
+**ရက်စွဲ**  : {date}
 
-{{CHAPTER_CONTENT}}
+---
 
+{translated_content}
+
+---
+*ဤဘာသာပြန်ချက်ကို AI ဖြင့် ဘာသာပြန်ထားပါသည်။*
