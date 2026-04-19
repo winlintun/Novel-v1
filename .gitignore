@@ -1,37 +1,119 @@
-# Python
+# =============================================================================
+# Novel Translator - Git Ignore File
+# =============================================================================
+
+# ── Environment & Secrets ────────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+secrets.json
+config.json
+
+# ── Python ───────────────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-*.egg-info/
-dist/
 build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
-# Virtual environments
+# ── Virtual Environments ─────────────────────────────────────────────────────
 venv/
 env/
 ENV/
+env.bak/
+venv.bak/
+.venv/
 
-# IDE
+# ── IDE & Editors ────────────────────────────────────────────────────────────
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
-
-# Working data (generated files)
-working_data/
-chinese_chapters/
-burmese_chapters/
-translated_novels/
-
-# Logs (keep structure but not content)
-*.log
-
-# Checkpoints
-working_data/checkpoints/*.json
-
-# OS
 .DS_Store
 Thumbs.db
+*.sublime-project
+*.sublime-workspace
+
+# ── Project Specific: Working Data ───────────────────────────────────────────
+# Checkpoints (temporary translation progress)
+working_data/checkpoints/*
+!working_data/checkpoints/.gitkeep
+
+# Logs
+working_data/logs/*.log
+working_data/logs/*.txt
+!working_data/logs/.gitkeep
+
+# Chunks (temporary files)
+working_data/chunks/*
+!working_data/chunks/.gitkeep
+
+# Translated chunks
+working_data/translated_chunks/*
+!working_data/translated_chunks/.gitkeep
+
+# ── Project Specific: Input/Output ────────────────────────────────────────────
+# Input novels (user files - don't commit)
+input_novels/*.txt
+input_novels/*.md
+!input_novels/.gitkeep
+
+# Translated output (generated files)
+translated_novels/*
+!translated_novels/.gitkeep
+
+# Data files
+data_file/*.txt
+data_file/*.md
+!data_file/.gitkeep
+
+# ── Testing ──────────────────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# ── Misc ─────────────────────────────────────────────────────────────────────
+*.log
+*.tmp
+*.bak
+*.orig
+*.patch
+*.diff
+*.err
+*.out
+
+# ── Jupyter Notebook ─────────────────────────────────────────────────────────
+.ipynb_checkpoints
+*.ipynb
+
+# ── MyPy ─────────────────────────────────────────────────────────────────────
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# ── Pyre type checker ────────────────────────────────────────────────────────
+.pyre/
