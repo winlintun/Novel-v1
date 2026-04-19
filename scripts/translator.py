@@ -6,6 +6,8 @@ Translation Engine - All model adapters with streaming
 import os
 import json
 import requests
+import urllib3
+import warnings
 from abc import ABC, abstractmethod
 from typing import Iterator, Optional
 from dotenv import load_dotenv
@@ -13,19 +15,37 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
+# SSL verification setting - only disable for local Ollama
+# Set VERIFY_SSL=false in .env only if you have certificate issues
+VERIFY_SSL = os.getenv("VERIFY_SSL", "true").lower() != "false"
+
+# Disable SSL warnings only if verification is disabled
+if not VERIFY_SSL:
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+    warnings.warn("SSL verification is disabled. This is insecure and should only be used for local development.", RuntimeWarning)
+
 
 def get_system_prompt(target_lang: str = "Myanmar (Burmese)", source_lang: str = "Chinese") -> str:
     """Get the shared system prompt template."""
-    return f"""You are an expert literary translator.
-Translate the following Chinese xianxia/cultivation novel text into {target_lang}.
+    return f"""You are an expert literary translator specializing in {source_lang} to {target_lang} translation.
+Translate the following Chinese xianxia/cultivation novel text into Myanmar language using Myanmar Unicode characters.
+
+CRITICAL INSTRUCTIONS:
+1. You MUST translate into MYANMAR LANGUAGE (Burmese) using Myanmar Unicode script
+2. Example of correct output: "ရှေးခေတ်လမ်းကြောင်းပေါ်တွင် လူသားများသည်..."
+3. Example of WRONG output: "The ancient path was where humans..." (English is NOT acceptable)
+4. Example of WRONG output: "古代的道路上，人类..." (Chinese is NOT acceptable)
+5. Your output MUST contain Myanmar characters like: က ခ ဂ ဃ င စ ဆ ဇ ဈ ဉ ည ဋ ဌ ဍ ဎ ဏ တ ထ ဒ ဓ န ပ ဖ ဗ ဘ မ ယ ရ လ ဝ ဠ ဟ အ
 
 Rules:
-1. Preserve the narrator's tone, style, and emotion exactly
-2. Keep character names in Pinyin (罗青 → Luo Qing)
-3. Keep place names in Pinyin with {target_lang} suffix
-4. Translate cultivation terms meaningfully with context
-5. Output ONLY the translated {target_lang} text
-6. No commentary, no explanations, no notes"""
+1. Translate the entire text into Myanmar (Burmese) language
+2. Preserve the narrator's tone, style, and emotion exactly
+3. Keep character names in Pinyin (罗青 → Luo Qing)
+4. Keep place names in Pinyin with Myanmar suffix
+5. Translate cultivation terms meaningfully with context
+6. Output ONLY the translated Myanmar text
+7. No commentary, no explanations, no notes
+8. If you cannot translate, respond with "ဘာသာပြန်မရပါ" (cannot translate)"""
 
 
 class BaseTranslator(ABC):
@@ -70,7 +90,7 @@ class OpenRouterTranslator(BaseTranslator):
             "stream": True
         }
         
-        response = requests.post(url, json=payload, headers=headers, stream=True, timeout=300)
+        response = requests.post(url, json=payload, headers=headers, stream=True, timeout=300, verify=VERIFY_SSL)
         response.raise_for_status()
         
         for line in response.iter_lines():
@@ -113,7 +133,7 @@ class GeminiTranslator(BaseTranslator):
             "generationConfig": {"temperature": 0.3}
         }
         
-        response = requests.post(url, json=payload, stream=True, timeout=300)
+        response = requests.post(url, json=payload, stream=True, timeout=300, verify=VERIFY_SSL)
         response.raise_for_status()
         
         for line in response.iter_lines():
@@ -163,7 +183,7 @@ class DeepSeekTranslator(BaseTranslator):
             "stream": True
         }
         
-        response = requests.post(url, json=payload, headers=headers, stream=True, timeout=300)
+        response = requests.post(url, json=payload, headers=headers, stream=True, timeout=300, verify=VERIFY_SSL)
         response.raise_for_status()
         
         for line in response.iter_lines():
@@ -212,7 +232,7 @@ class QwenTranslator(BaseTranslator):
             "stream": True
         }
         
-        response = requests.post(url, json=payload, headers=headers, stream=True, timeout=300)
+        response = requests.post(url, json=payload, headers=headers, stream=True, timeout=300, verify=VERIFY_SSL)
         response.raise_for_status()
         
         for line in response.iter_lines():
@@ -255,7 +275,7 @@ class OllamaTranslator(BaseTranslator):
             "stream": True
         }
         
-        response = requests.post(url, json=payload, stream=True, timeout=300)
+        response = requests.post(url, json=payload, stream=True, timeout=300, verify=False)
         response.raise_for_status()
         
         for line in response.iter_lines():
