@@ -77,13 +77,6 @@ class TranslationConfig(BaseModel):
         description="Request timeout in seconds"
     )
     
-    # Web UI settings
-    web_ui_port: int = Field(
-        default=5000, 
-        ge=1024, 
-        le=65535,
-        description="Web UI server port"
-    )
     auto_open_browser: bool = Field(
         default=True, 
         description="Automatically open browser on startup"

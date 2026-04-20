@@ -13,7 +13,6 @@ novel_translation_project/
 │
 ├── 📄 Core Application Files
 │   ├── main.py                     # Main orchestrator (entry point)
-│   ├── web_ui.py                   # Flask web interface for live monitoring
 │   ├── translate_novel.py          # Standalone translation script
 │   └── translate_manual.py         # Manual translation utility
 │
@@ -99,7 +98,6 @@ When you run `python main.py`, here's what happens automatically:
 - Manages the 7-step workflow
 - Handles error recovery with retry logic
 - Coordinates with checkpoint system for resume capability
-- Integrates with web UI for real-time monitoring
 
 **Configuration Options:**
 - Model selection (Ollama, OpenRouter, Gemini, DeepSeek, Qwen)
@@ -107,23 +105,7 @@ When you run `python main.py`, here's what happens automatically:
 - Retry attempts and delays
 - Readability check enable/disable
 
-### 2. Web UI (web_ui.py)
-
-**Purpose:** Flask-based web interface for monitoring translation progress.
-
-**Features:**
-- Real-time progress tracking at `localhost:5000`
-- Live streaming of translated text
-- Queue management for multiple novels
-- Status indicators (pending, in-progress, completed, failed)
-- Manual control (start/stop/resume)
-
-**Technology Stack:**
-- Flask web server
-- Socket.IO for real-time updates
-- WebSocket for live token streaming
-
-### 3. Scripts/ Directory (The Pipeline)
+### 2. Scripts### 2. Scripts/ Directory (The Pipeline)
 
 #### preprocessor.py
 - **Input:** Raw Chinese text files
@@ -191,7 +173,7 @@ When you run `python main.py`, here's what happens automatically:
   - UTF-8 encoding integrity
 - **Output:** Readability reports in JSON format
 
-### 4. Configuration Files
+### 3. Configuration Files
 
 #### names.json
 **Purpose:** Dictionary for consistent name translation
@@ -223,7 +205,7 @@ When you run `python main.py`, here's what happens automatically:
 - `DEEPSEEK_API_KEY`: API key for DeepSeek
 - `REQUEST_DELAY`: Delay between API requests
 
-### 5. Template System
+### 4. Template System
 
 #### chapter_template.md
 **Purpose:** Standardized chapter formatting
@@ -266,7 +248,7 @@ total_chapters: {count}
 {content}
 ```
 
-### 6. Working Data Directory
+### 5. Working Data Directory
 
 #### checkpoints/
 - JSON files storing translation state
@@ -309,7 +291,6 @@ total_chapters: {count}
 | Feature | Description |
 |---------|-------------|
 | **Multi-Model Support** | Works with Ollama (local), OpenRouter, Gemini, DeepSeek, Qwen |
-| **Live Web UI** | Real-time progress tracking at `localhost:5000` |
 | **Resume Capability** | Can stop and resume translation anytime using checkpoints |
 | **Name Consistency** | Maintains consistent character/place names across all chapters |
 | **Quality Checking** | Automatic Myanmar script validation and readability scoring |
@@ -346,10 +327,6 @@ The `names.json` file maintains consistency for:
 ### Programming Language
 - **Python 3.8+** - Core application language
 
-### Web Framework
-- **Flask** - Web server for monitoring interface
-- **Flask-SocketIO** - Real-time WebSocket communication
-
 ### AI/ML Integration
 - **Ollama** - Local LLM runner (supports Qwen, Llama, etc.)
 - **OpenRouter API** - Cloud model access (DeepSeek, GPT, Claude)
@@ -359,8 +336,6 @@ The `names.json` file maintains consistency for:
 ### Key Dependencies
 ```
 ollama>=0.1.0           # Local AI model runner
-flask>=2.0.0            # Web framework
-flask-socketio>=5.0.0   # Real-time updates
 python-dotenv>=0.19.0   # Environment management
 requests>=2.26.0        # HTTP client for APIs
 ```
@@ -399,13 +374,7 @@ python main.py
 python main.py --model openrouter --max-chars 2000
 ```
 
-### 4. Monitoring
-- Open browser to `http://localhost:5000`
-- Watch real-time progress
-- View live translation streaming
-- Check queue status
-
-### 5. Collection
+### 4. Collection
 - Find completed translations in `translated_novels/`
 - Readability reports in `working_data/readability_reports/`
 - Logs in `working_data/logs/`
@@ -438,7 +407,6 @@ python main.py --model openrouter --max-chars 2000
 | **Xianxia Terms** | Poor handling | Specialized dictionaries |
 | **Long Novels** | Timeout/errors | Checkpoint/resume system |
 | **Formatting** | Plain text | Structured Markdown |
-| **Monitoring** | None | Real-time web UI |
 | **Quality Control** | Manual only | Automated checking |
 
 ---

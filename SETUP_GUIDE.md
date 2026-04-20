@@ -37,9 +37,8 @@ When you run `main.py`, it handles the entire workflow without any manual steps:
 2.  For each novel — check if already translated (skip if done)
 3.  Preprocess the novel (clean text, enforce UTF-8)
 4.  Split into chunks (1000–2000 chars with overlap)
-5.  Auto-open the web UI in your browser (localhost:5000)
 6.  Translate each chunk via Ollama with live streaming
-7.  Show real-time progress in the web UI and terminal
+7. Show real-time progress in the terminal
 8.  Stream translated Burmese tokens to live preview as LLM generates
 9.  Save a checkpoint after every chunk (safe to cancel anytime)
 10. Run Myanmar readability check on each translated chunk
@@ -55,7 +54,7 @@ input_novels/
   └── my_novel.txt
          │
          ▼
-  [ Already translated? ] ──YES──→ Skip, show status in web UI
+  [ Already translated? ] ──YES──→ Skip
          │ NO
          ▼
   preprocess_novel.py     Clean + UTF-8
@@ -65,7 +64,6 @@ input_novels/
          │
          ▼
   translate_chunk.py      Ollama stream=True → tokens → live preview
-         │                                  → web UI streaming panel
          │                                  → checkpoint saved per chunk
          ▼
   myanmar_checker.py      Readability check on each translated chunk
@@ -111,14 +109,12 @@ input_novels/
 Install everything in one command after activating your virtual environment:
 
 ```bash
-pip install ollama flask flask-socketio tqdm regex pyicu
+pip install ollama tqdm regex pyicu
 ```
 
 | Package | Purpose |
 |---|---|
 | `ollama` | Python client — calls local LLM, supports streaming |
-| `flask` | Web server for the live UI |
-| `flask-socketio` | WebSocket push — sends live tokens to the browser |
 | `tqdm` | Terminal progress bar |
 | `regex` | Advanced Unicode regex for Myanmar script validation |
 | `pyicu` | ICU Unicode library for Myanmar word/sentence boundary detection |
@@ -133,7 +129,6 @@ pip install ollama flask flask-socketio tqdm regex pyicu
 novel_translation_project/
 │
 ├── main.py                         ← The only file you need to run
-├── web_ui.py                       ← Flask web server (auto-started by main.py)
 ├── AGENT.md                        ← OpenCode AI: agent role
 ├── SKILL.md                        ← OpenCode AI: translation skill & prompt
 ├── REVIEWER_AGENT.md               ← OpenCode AI: code review agent
@@ -201,7 +196,7 @@ source venv/bin/activate
 ### Step 4 — Install Python dependencies
 
 ```bash
-pip install ollama flask flask-socketio tqdm regex pyicu
+pip install ollama tqdm regex pyicu
 ```
 
 ### Step 5 — Create `config/config.json`
@@ -218,7 +213,6 @@ pip install ollama flask flask-socketio tqdm regex pyicu
   "stream": true,
   "preview_update_every_n_tokens": 10,
   "request_timeout": 900,
-  "web_ui_port": 5000,
   "auto_open_browser": true,
   "myanmar_readability": {
     "enabled": true,
@@ -235,7 +229,6 @@ pip install ollama flask flask-socketio tqdm regex pyicu
 |---|---|
 | `chunk_size` | Characters per chunk. Keep 1000–2000 for 16 GB RAM |
 | `chunk_overlap` | Chars shared between chunks to preserve narrative flow |
-| `preview_update_every_n_tokens` | How often the web UI refreshes during streaming |
 | `auto_open_browser` | `main.py` opens `localhost:5000` automatically on start |
 | `min_myanmar_ratio` | Fraction of output that must be Myanmar script (0.0–1.0) |
 | `flag_on_fail` | Mark failing chunks in the readability report |
@@ -376,7 +369,7 @@ Place a new `.txt` file in `input_novels/` at any time. `main.py` detects it on 
 1. Does `translated_novels/<name>_burmese.md` already exist?
 2. Does `working_data/checkpoints/<name>.json` show `"status": "completed"`?
 
-If both are true → skip and mark green in the web UI.  
+If both are true → skip.  
 If checkpoint exists but incomplete → resume from last saved chunk.  
 If neither exists → start fresh from chunk 1.
 
@@ -394,17 +387,7 @@ On startup, `main.py` scans every `.txt` in `input_novels/` and classifies each 
 | Resuming ↻ | Checkpoint exists but not completed | Resume from last chunk |
 | New | No checkpoint found | Start from chunk 1 |
 
-All statuses are visible in the web UI queue panel.
 
-### Feature 2 — Live Progress in Web UI
-
-The web UI at `http://localhost:5000` (opens automatically) shows:
-
-- Progress bar with chunk X of Y and percentage
-- Estimated time remaining (calculated from rolling average chunk speed)
-- Current Chinese source text alongside the live Burmese output
-- Status badges for every novel in the queue
-- Readability check result badge per chunk (green PASS / orange FLAGGED)
 
 ### Feature 3 — Live Streaming of Translated Text
 
@@ -421,7 +404,7 @@ working_data/preview/romance_novel_preview.md   ← open this anytime
 
 ### Feature 4 — Cancel Anytime, Resume Anytime
 
-**To cancel:** click **Stop** in the web UI, or press `Ctrl+C` in the terminal.
+**To cancel:** press `Ctrl+C` in the terminal.
 
 The program will:
 
@@ -533,7 +516,7 @@ Flagged chunks: 48, 112, 203, 267, 301
 
 | Setting | Effect |
 |---|---|
-| `flag_on_fail: true` | Marks chunk orange in web UI and report, continues translating |
+| `flag_on_fail: true` | Marks chunk orange in report, continues translating |
 | `block_on_fail: true` | Automatically retranslates the failing chunk once before continuing |
 
 ---
@@ -545,7 +528,6 @@ Flagged chunks: 48, 112, 203, 267, 301
 | `ollama: command not found` | Ollama not in PATH | Reinstall from [ollama.com](https://ollama.com/), restart terminal |
 | Model not found | Model not pulled yet | `ollama pull qwen3:7b` |
 | Out of memory during translation | Model too large for RAM | Switch to `qwen3:7b-q4_K_M`, reduce `chunk_size` |
-| Web UI doesn't open | Port 5000 in use | Change `web_ui_port` to `5001` in `config.json` |
 | Burmese text shows as boxes | Myanmar font missing | Install **Padauk** or **Noto Sans Myanmar** |
 | Preview file not updating | `stream` is false | Set `"stream": true` in `config.json` |
 | Novel not resuming | Checkpoint missing/corrupt | Delete the `.json` in `checkpoints/` and restart |
@@ -571,7 +553,6 @@ cp my_chinese_novel.txt input_novels/
 # 4. Run everything — one command
 python main.py
 # → Scans input_novels/ and skips already-translated files
-# → Web UI opens automatically at http://localhost:5000
 # → Watch live progress and streaming translation in browser
 # → Press Stop button or Ctrl+C to cancel safely at any time
 # → Run again to resume from checkpoint
@@ -584,7 +565,6 @@ python main.py
 1. Ollama — https://ollama.com/
 2. Qwen model library — https://ollama.com/library/qwen3
 3. MyanmarGPT-Big — https://huggingface.co/jojo-ai-mst/MyanmarGPT-Big
-4. Flask-SocketIO — https://flask-socketio.readthedocs.io/
 5. Myanmar Unicode Block — https://www.unicode.org/charts/PDF/U1000.pdf
 6. Padauk Myanmar Font — https://software.sil.org/padauk/
 7. Noto Sans Myanmar — https://fonts.google.com/noto/specimen/Noto+Sans+Myanmar

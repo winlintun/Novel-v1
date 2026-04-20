@@ -1,7 +1,7 @@
 # Skill: Novel Translation
 
 ## Description
-This skill enables the agent to perform high-quality literary translation from Chinese to Burmese (Myanmar script). It is optimized for processing long-form novel content in chunks while maintaining stylistic consistency, streaming output live to the web UI, and producing output that passes Myanmar readability validation.
+This skill enables the agent to perform high-quality literary translation from Chinese to Burmese (Myanmar script). It is optimized for processing long-form novel content in chunks while maintaining stylistic consistency, and producing output that passes Myanmar readability validation.
 
 ---
 
@@ -41,7 +41,7 @@ USER:
   - If `translated_novels/<name>_burmese.md` exists AND checkpoint is `completed` → **skip**
   - If checkpoint exists but is incomplete → **resume from last saved chunk**
   - If no checkpoint exists → **start from chunk 1**
-- **Output**: Status shown in terminal and web UI queue panel
+- **Output**: Status shown in terminal
 
 ### 3. Chunking
 - **Script**: `scripts/chunk_text.py`
@@ -56,10 +56,9 @@ USER:
 - **Streaming**:
   - Calls Ollama with `stream=True`
   - Each token is emitted as it is generated
-  - Tokens are pushed via WebSocket to the web UI streaming panel in real time
   - Tokens are also written to `working_data/preview/<novel_name>_preview.md` every 10 tokens
 - **Checkpoint**: After each chunk completes, progress is saved to `working_data/checkpoints/<novel_name>.json`
-- **Cancel safety**: If `Ctrl+C` or the web UI Stop button is pressed, the current token is flushed and the checkpoint is saved before exit
+- **Cancel safety**: If `Ctrl+C` is pressed, the current token is flushed and the checkpoint is saved before exit
 - **Model**: Configured in `config/config.json` under `"model"` (default: `qwen3:7b`)
 - **Output**: Translated chunks saved to `working_data/translated_chunks/`
 
@@ -76,7 +75,7 @@ USER:
   | Minimum length | Output ≥ 30% the length of input |
   | Encoding integrity | No replacement characters (U+FFFD) |
 
-- **On pass**: Green indicator in web UI, logged to readability report
+- **On pass**: Logged to readability report
 - **On fail**: Orange FLAGGED indicator; behavior controlled by `config.json`:
   - `flag_on_fail: true` → mark and continue
   - `block_on_fail: true` → retranslate once before continuing
@@ -134,18 +133,6 @@ total_chapters: N
 
 ---
 
-## Web UI Features (via `web_ui.py`)
-
-| Feature | Description |
-|---|---|
-| Live progress bar | Shows chunk X of Y, percentage, and ETA |
-| Streaming panel | Burmese tokens appear word-by-word as LLM generates |
-| Novel queue | Status badges for all novels (pending / translating / done / skipped) |
-| Readability badge | PASS (green) or FLAGGED (orange) per chunk |
-| Stop button | Gracefully cancels translation and saves checkpoint |
-| Auto-open | Browser opens automatically at `http://localhost:5000` on `main.py` start |
-
----
 
 ## Configuration Reference (`config/config.json`)
 
@@ -161,7 +148,6 @@ total_chapters: N
   "stream": true,
   "preview_update_every_n_tokens": 10,
   "request_timeout": 900,
-  "web_ui_port": 5000,
   "auto_open_browser": true,
   "myanmar_readability": {
     "enabled": true,

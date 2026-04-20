@@ -2,11 +2,10 @@
 """
 Translate Chinese text chunks to Burmese using Ollama with streaming support.
 
-This script calls Ollama with stream=True and emits tokens via Flask-SocketIO
-for real-time preview in the web UI.
+This script calls Ollama with stream=True.
 
 Usage:
-    python scripts/translate_chunk.py <chunk_file> <output_file> [--socketio-url URL]
+    python scripts/translate_chunk.py <chunk_file> <output_file>
     python scripts/translate_chunk.py working_data/chunks/my_novel/my_novel_chunk_00001.txt working_data/translated_chunks/my_novel/my_novel_chunk_00001_burmese.txt
 """
 
@@ -128,73 +127,6 @@ def save_checkpoint_atomic(novel_name, checkpoint_data):
         return False
 
 
-# Global SocketIO client for persistent connection
-_socketio_client = None
-
-def get_socketio_client(socketio_url=None):
-    """Get or create persistent SocketIO client."""
-    global _socketio_client
-    if _socketio_client is None:
-        try:
-            from socketio import Client
-            _socketio_client = Client()
-            server_url = socketio_url or "http://localhost:5000"
-            _socketio_client.connect(server_url)
-            logger.info(f"SocketIO connected to {server_url}")
-        except Exception as e:
-            logger.debug(f"Could not connect to SocketIO: {e}")
-            _socketio_client = None
-    return _socketio_client
-
-def disconnect_socketio():
-    """Disconnect the persistent SocketIO client."""
-    global _socketio_client
-    if _socketio_client is not None:
-        try:
-            _socketio_client.disconnect()
-            logger.debug("SocketIO disconnected")
-        except Exception as e:
-            logger.debug(f"Error disconnecting SocketIO: {e}")
-        finally:
-            _socketio_client = None
-
-def emit_token_via_socketio(token, novel_name, socketio_url=None):
-    """
-    Emit a token via Flask-SocketIO to the web UI.
-    
-    Args:
-        token: The translated token to emit
-        novel_name: Name of the novel being translated
-        socketio_url: Optional SocketIO server URL
-    """
-    try:
-        sio = get_socketio_client(socketio_url)
-        if sio:
-            sio.emit('translation_token', {
-                'novel': novel_name,
-                'token': token
-            })
-    except Exception as e:
-        # SocketIO server might not be running, that's OK
-        logger.debug(f"Could not emit token via SocketIO: {e}")
-
-
-def emit_progress_via_socketio(novel_name, chunk_num, total_chunks, percentage, eta=None, socketio_url=None):
-    """Emit progress update via SocketIO."""
-    try:
-        sio = get_socketio_client(socketio_url)
-        if sio:
-            sio.emit('progress_update', {
-                'novel': novel_name,
-                'chunk': chunk_num,
-                'total': total_chunks,
-                'percentage': percentage,
-                'eta': eta
-            })
-    except Exception as e:
-        logger.debug(f"Could not emit progress via SocketIO: {e}")
-
-
 def update_preview_file(novel_name, token, mode='a'):
     """Update the live preview file with a new token."""
     try:
@@ -210,7 +142,7 @@ def update_preview_file(novel_name, token, mode='a'):
         logger.error(f"Error updating preview file: {e}")
 
 
-def translate_with_ollama(text, config, novel_name, socketio_url=None):
+def translate_with_ollama(text, config, novel_name):
     """
     Translate text using Ollama with streaming support.
     
@@ -275,8 +207,6 @@ Output ONLY the Burmese translation. No Chinese characters. No romanization."""
                         translated_text += token
                         token_count += 1
                         
-                        # Emit token via SocketIO
-                        emit_token_via_socketio(token, novel_name, socketio_url)
                         
                         # Update preview file every N tokens
                         if token_count % preview_every == 0:
@@ -307,7 +237,7 @@ Output ONLY the Burmese translation. No Chinese characters. No romanization."""
         return "", False
 
 
-def translate_chunk(chunk_file, output_file, novel_name=None, socketio_url=None, max_retries=3):
+def translate_chunk(chunk_file, output_file, novel_name=None, max_retries=3):
     """
     Translate a single chunk file.
     
@@ -363,7 +293,7 @@ def translate_chunk(chunk_file, output_file, novel_name=None, socketio_url=None,
                 logger.info(f"Translation attempt {attempt}/{max_retries}")
                 
                 translated_text, success = translate_with_ollama(
-                    text, config, novel_name, socketio_url
+                    text, config, novel_name
                 )
                 
                 if success and translated_text.strip():
@@ -393,8 +323,6 @@ def translate_chunk(chunk_file, output_file, novel_name=None, socketio_url=None,
             logger.error(f"Error saving translation: {e}")
             raise
         
-        # Disconnect SocketIO after chunk is done
-        disconnect_socketio()
         
         return {
             'success': True,
@@ -408,8 +336,6 @@ def translate_chunk(chunk_file, output_file, novel_name=None, socketio_url=None,
         
     except Exception as e:
         logger.error(f"Error translating chunk: {e}")
-        # Disconnect SocketIO on error too
-        disconnect_socketio()
         return {
             'success': False,
             'novel_name': novel_name,
@@ -427,7 +353,6 @@ def main():
     parser.add_argument('chunk_file', help='Path to Chinese chunk file')
     parser.add_argument('output_file', help='Path to save translated Burmese text')
     parser.add_argument('--novel-name', help='Name of the novel (auto-detected if not provided)')
-    parser.add_argument('--socketio-url', help='SocketIO server URL for streaming')
     parser.add_argument('--max-retries', type=int, default=3, help='Maximum retry attempts')
     
     args = parser.parse_args()
@@ -437,7 +362,6 @@ def main():
             args.chunk_file,
             args.output_file,
             args.novel_name,
-            args.socketio_url,
             args.max_retries
         )
         

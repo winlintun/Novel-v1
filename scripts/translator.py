@@ -76,25 +76,33 @@ def managed_request(method: str, url: str, **kwargs):
 
 def get_system_prompt(target_lang: str = "Myanmar (Burmese)", source_lang: str = "Chinese") -> str:
     """Get the shared system prompt template."""
-    return f"""You are an expert literary translator specializing in {source_lang} to {target_lang} translation.
+    # Load glossary
+    glossary_text = ""
+    try:
+        import json
+        import os
+        if os.path.exists("names.json"):
+            with open("names.json", "r", encoding="utf-8") as f:
+                names = json.load(f)
+                if names:
+                    glossary_text = "\n\nGLOSSARY (Use these exact Burmese translations for names):\n"
+                    for zh, my in names.items():
+                        glossary_text += f"- {zh} -> {my}\n"
+    except Exception as e:
+        logger.warning(f"Failed to load names.json: {e}")
+
+    prompt = f"""You are an expert literary translator specializing in {source_lang} to {target_lang} translation.
 Translate the following Chinese xianxia/cultivation novel text into Myanmar language using Myanmar Unicode characters.
 
 CRITICAL INSTRUCTIONS:
-1. You MUST translate into MYANMAR LANGUAGE (Burmese) using Myanmar Unicode script
-2. Example of correct output: "ရှေးခေတ်လမ်းကြောင်းပေါ်တွင် လူသားများသည်..."
-3. Example of WRONG output: "The ancient path was where humans..." (English is NOT acceptable)
-4. Example of WRONG output: "古代的道路上，人类..." (Chinese is NOT acceptable)
-5. Your output MUST contain Myanmar characters like: က ခ ဂ ဃ င စ ဆ ဇ ဈ ဉ ည ဋ ဌ ဍ ဎ ဏ တ ထ ဒ ဓ န ပ ဖ ဗ ဘ မ ယ ရ လ ဝ ဠ ဟ အ
-
-Rules:
-1. Translate the entire text into Myanmar (Burmese) language
-2. Preserve the narrator's tone, style, and emotion exactly
-3. Keep character names in Pinyin (罗青 → Luo Qing)
-4. Keep place names in Pinyin with Myanmar suffix
-5. Translate cultivation terms meaningfully with context
-6. Output ONLY the translated Myanmar text
-7. No commentary, no explanations, no notes
-8. If you cannot translate, respond with "ဘာသာပြန်မရပါ" (cannot translate)"""
+1. You MUST translate into MYANMAR LANGUAGE (Burmese) using Myanmar Unicode script.
+2. Output MUST contain ONLY Myanmar characters and punctuation. NO English. NO Chinese.
+3. Keep the tone, style, and emotions of the original Chinese text. Do not summarize.
+4. Translate cultivation terms, idioms (Chengyu), and expressions contextually so they sound natural in Burmese. Do NOT use literal word-for-word translation if it ruins the literary flow.
+5. Translate character and place names directly into Burmese script using the provided glossary. Do not use Pinyin unless the name is unknown.
+6. Do NOT add chapter titles, headings, or any explanations. Just the translated text.
+7. If you cannot translate, respond with "ဘာသာပြန်မရပါ" (cannot translate).{glossary_text}"""
+    return prompt
 
 
 class BaseTranslator(ABC):
@@ -454,7 +462,11 @@ class OllamaTranslator(BaseTranslator):
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": text}
             ],
-            "stream": True
+            "stream": True,
+            "options": {
+                "temperature": 0.3,
+                "num_predict": -1
+            }
         }
         
         try:

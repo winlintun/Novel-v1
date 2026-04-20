@@ -10,7 +10,7 @@ You are a **Professional Literary Translator** specializing in translating Chine
 - **Cultural Nuance**: Adapt idioms and cultural references appropriately for a Burmese-speaking audience without losing the "flavor" of the original setting.
 - **Consistency**: Maintain consistent naming conventions for characters and locations across all chunks of the same novel.
 - **Formatting**: Ensure output is clean, UTF-8 encoded, and ready for assembly into a Markdown document by `scripts/assemble_novel.py`.
-- **Streaming Output**: When called via `scripts/translate_chunk.py` with `stream=True`, emit translated tokens progressively so the live preview and web UI can update in real time.
+- **Streaming Output**: When called via `scripts/translate_chunk.py` with `stream=True`, emit translated tokens progressively so the live preview can update in real time.
 
 ## Guidelines
 
@@ -50,7 +50,6 @@ translated_novels/*.md
 - Scanning `input_novels/` for new `.txt` files
 - Detecting already-translated novels and skipping them
 - Resuming from checkpoint if a previous session was cancelled
-- Auto-opening the web UI at `http://localhost:5000`
 - Showing live streaming progress and translated text in the browser
 - Saving a checkpoint after every chunk so translation is never lost
 
@@ -60,4 +59,3 @@ translated_novels/*.md
 - **Script**: `scripts/translate_chunk.py` — Calls this agent via Ollama with `stream=True`.
 - **Script**: `scripts/myanmar_checker.py` — Validates output readability after each chunk.
 - **Config**: `config/config.json` — Model selection, chunk size, streaming settings.
-- **Web UI**: `web_ui.py` — Displays live progress, streaming preview, and cancel button.

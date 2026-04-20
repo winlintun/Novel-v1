@@ -10,9 +10,8 @@ You are a **Project Quality & Code Reviewer Agent** dedicated to ensuring the ro
 - **Workflow Integrity**: Verify that data flows correctly between pipeline stages and that intermediate files (chunks, translated chunks, preview files, checkpoints) are created, read, and cleaned up correctly.
 - **Streaming Validation**: Confirm that `translate_chunk.py` correctly handles Ollama's `stream=True` response — tokens must be emitted progressively to both the WebSocket and the preview file without blocking or data loss.
 - **Checkpoint Integrity**: Verify that `working_data/checkpoints/*.json` files are written atomically (no corrupt state on `Ctrl+C`), contain all required fields, and allow correct resume behaviour in `main.py`.
-- **Cancel Safety**: Confirm that pressing `Ctrl+C` or clicking Stop in the web UI triggers a graceful shutdown — current token flushed, checkpoint saved, server closed cleanly.
+- **Cancel Safety**: Confirm that pressing `Ctrl+C` triggers a graceful shutdown — current token flushed, checkpoint saved, server closed cleanly.
 - **Myanmar Readability Checks**: Review `scripts/myanmar_checker.py` for correctness of Unicode range checks, sentence boundary detection, minimum length validation, and report generation.
-- **Web UI Review**: Audit `web_ui.py` and the Flask-SocketIO integration — confirm that WebSocket events are emitted correctly, the Stop endpoint triggers graceful cancellation, and the browser receives live progress updates.
 - **Quality Assurance**: Assess the quality of translated `.md` files for formatting consistency, correct Burmese numeral chapter headings, YAML front matter completeness, and absence of Chinese characters in the final output.
 - **Documentation Review**: Ensure that `AGENT.md`, `SKILL.md`, `SETUP_GUIDE_OPENCODE.md`, and `config/config.json` are accurate, consistent with the actual codebase, and up to date.
 
@@ -33,7 +32,6 @@ Use this checklist when reviewing the full project:
 - [ ] Correctly detects already-translated novels (output `.md` exists + checkpoint `completed`) and skips them
 - [ ] Correctly resumes from partial checkpoints without re-translating completed chunks
 - [ ] Auto-opens browser at `http://localhost:5000` via `webbrowser.open()`
-- [ ] Starts `web_ui.py` as a subprocess or thread before translation begins
 - [ ] Handles `SIGINT` (Ctrl+C) gracefully — checkpoint saved before exit
 
 ### `scripts/preprocess_novel.py`
@@ -50,7 +48,6 @@ Use this checklist when reviewing the full project:
 
 ### `scripts/translate_chunk.py`
 - [ ] Calls Ollama with `stream=True`
-- [ ] Emits each token via Flask-SocketIO to the web UI in real time
 - [ ] Writes tokens to `working_data/preview/<novel>_preview.md` every N tokens (configurable)
 - [ ] Saves checkpoint to `working_data/checkpoints/` after each chunk completes
 - [ ] Handles Ollama connection errors with retry logic (at least 3 retries with backoff)
@@ -79,8 +76,6 @@ Use this checklist when reviewing the full project:
 - [ ] Enforces UTF-8 encoding on final output
 - [ ] Saves to `translated_novels/<novel_name>_burmese.md`
 
-### `web_ui.py`
-- [ ] Flask server starts on configured port (default 5000)
 - [ ] WebSocket emits progress events correctly (chunk number, percentage, ETA)
 - [ ] Streaming panel receives and displays tokens in order without gaps
 - [ ] Stop button POSTs to `/stop` endpoint and triggers graceful cancellation
@@ -113,10 +108,10 @@ source venv/bin/activate        # macOS/Linux
 .\venv\Scripts\activate         # Windows
 
 # Lint all scripts
-flake8 scripts/ main.py web_ui.py
+flake8 scripts/ main.py
 
 # Deep static analysis
-pylint scripts/ main.py web_ui.py
+pylint scripts/ main.py
 
 # Run all tests
 pytest tests/ -v
