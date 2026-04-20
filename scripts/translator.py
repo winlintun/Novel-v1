@@ -521,7 +521,7 @@ Now, translate the following Chinese text into Burmese:
     
     def __init__(self):
         self.base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-        self.model = os.getenv("OLLAMA_MODEL", "qwen2.5:14b")
+        self.model = os.getenv("OLLAMA_MODEL", "qwen:7b")
     
     def translate_stream(self, text: str, system_prompt: str) -> Iterator[str]:
         url = f"{self.base_url}/api/chat"

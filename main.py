@@ -409,6 +409,12 @@ def translate_single_file(
     
     translate_time = time.time() - start_time
     
+    # Check if any chunks were successfully translated
+    if not translated_chunks:
+        logger.error(f"All translation chunks failed for {chapter_name}")
+        print(f"\n✗ Translation failed: No chunks were successfully translated")
+        return False
+    
     # 6. Postprocess
     print(f"\n[5/6] Postprocessing...")
     
@@ -448,7 +454,7 @@ def translate_single_file(
     if do_readability:
         print(f"\n[7] Readability check...")
         try:
-            run_readability_check(processed_text, chapter_name)
+            run_readability_check(processed_text, chapter_name, model_name)
         except Exception as e:
             logger.error(f"Readability check failed: {e}")
             print(f"⚠ Readability check failed: {e}")
@@ -469,19 +475,20 @@ def translate_single_file(
     return True
 
 
-def run_readability_check(text: str, chapter_name: str) -> None:
+def run_readability_check(text: str, chapter_name: str, model_name: str) -> None:
     """Run LLM readability check once after assembly.
     
     Args:
         text: Full translated text to check
         chapter_name: Name of the chapter for report file
+        model_name: Name of the model to use for readability check
     """
     from scripts.translator import get_translator
     
     logger.info(f"Running readability check for {chapter_name}")
     
-    # Use same model for readability check
-    model = os.getenv("AI_MODEL", "openrouter")
+    # Use same model for readability check as was used for translation
+    model = model_name
     
     try:
         translator = _load_translator_with_retry(model)
