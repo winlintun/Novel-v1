@@ -127,6 +127,21 @@ class BaseTranslator(ABC):
         """Yield tokens as they arrive from API."""
         pass
     
+    def translate(self, text: str, system_prompt: str) -> str:
+        """Translate text and return the full result.
+        
+        This is a non-streaming wrapper around translate_stream.
+        Collects all tokens and returns the complete translated text.
+        
+        Args:
+            text: Text to translate
+            system_prompt: System prompt for translation
+            
+        Returns:
+            Complete translated text as a string
+        """
+        return ''.join(self.translate_stream(text, system_prompt))
+    
     @property
     @abstractmethod
     def name(self) -> str:
