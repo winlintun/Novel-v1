@@ -87,6 +87,24 @@ def check_remaining_chinese(text: str) -> list:
     return matches
 
 
+def remove_non_myanmar_characters(text: str) -> str:
+    """Remove any characters that are not Myanmar script or common punctuation/numbers."""
+    # Myanmar Unicode range: U+1000 to U+109F
+    # Common punctuation, spaces, and numbers
+    # This regex allows Myanmar characters, basic Latin punctuation, spaces, and digits.
+    # It explicitly excludes Chinese and other non-Myanmar/non-Latin-basic characters.
+    # More comprehensive list of allowed punctuation might be needed based on actual output.
+    # Myanmar Unicode range: U+1000 to U+109F
+    # Basic Latin punctuation (often used with Burmese) and digits
+    # This regex keeps Myanmar characters, common punctuation, spaces, and digits.
+    # It removes any character that is NOT in these categories.
+    # The goal is to aggressively remove Chinese, English, and other foreign scripts.
+    pattern = re.compile(r'[^\u1000-\u109F\u0020-\u007E]+') # Allow Myanmar script and basic ASCII (punctuation, numbers, space)
+    cleaned_text = pattern.sub('', text)
+    # Further clean up any multiple spaces that might result from removal
+    cleaned_text = re.sub(r'\s+', ' ', cleaned_text).strip()
+    return cleaned_text
+
 def normalize_myanmar_whitespace(text: str) -> str:
     """Normalize Myanmar zero-width spaces."""
     # Myanmar zero-width space (U+200B) cleanup
@@ -100,9 +118,9 @@ def postprocess(text: str, names_json_path: str = "names.json") -> str:
     
     Steps:
     A) Punctuation fixes
-    B) Character name consistency
-    C) Cleanup remaining Chinese chars
-    D) Normalize whitespace
+    B) Character name consistency    # C) Check for remaining Chinese chars (for warning, not removal here as it's handled by remove_non_myanmar_characters)
+    # D) Remove any remaining non-Myanmar characters
+    # E) Normalize whitespace
     """
     print("Postprocessing...")
     
@@ -128,7 +146,10 @@ def postprocess(text: str, names_json_path: str = "names.json") -> str:
         if len(remaining) > 5:
             print(f"  ... and {len(remaining) - 5} more lines")
     
-    # D) Normalize Myanmar whitespace
+    # D) Remove any remaining non-Myanmar characters
+    text = remove_non_myanmar_characters(text)
+
+    # E) Normalize Myanmar whitespace
     text = normalize_myanmar_whitespace(text)
     
     return text

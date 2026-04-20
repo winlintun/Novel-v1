@@ -1,5 +1,5 @@
 {
-  "model": "qwen:7b",
+  "model": "translategemma:12b",
   "provider": "ollama",
   "ollama_endpoint": "http://localhost:11434/api/generate",
   "source_language": "Chinese",

@@ -75,7 +75,13 @@ def managed_request(method: str, url: str, **kwargs):
 
 
 def get_system_prompt(target_lang: str = "Myanmar (Burmese)", source_lang: str = "Chinese") -> str:
-    """Get the shared system prompt template."""
+    """Get the optimized system prompt with clear identity and task definition.
+    
+    Based on translation best practices:
+    - Clear identity: Professional literary translator fluent in Chinese and Burmese
+    - Specific task: Chinese web novel translation
+    - Strict output constraints to prevent hallucination
+    """
     # Load glossary
     glossary_text = ""
     try:
@@ -85,23 +91,31 @@ def get_system_prompt(target_lang: str = "Myanmar (Burmese)", source_lang: str =
             with open("names.json", "r", encoding="utf-8") as f:
                 names = json.load(f)
                 if names:
-                    glossary_text = "\n\nGLOSSARY (Use these exact Burmese translations for names):\n"
+                    glossary_text = "\n\nTERMINOLOGY MAPPING (Use these exact Burmese translations for names and terms):\n"
                     for zh, my in names.items():
                         glossary_text += f"- {zh} -> {my}\n"
     except Exception as e:
         logger.warning(f"Failed to load names.json: {e}")
 
-    prompt = f"""You are an expert literary translator specializing in {source_lang} to {target_lang} translation.
-Translate the following Chinese xianxia/cultivation novel text into Myanmar language using Myanmar Unicode characters.
+    prompt = f"""You are a professional literary translator fluent in Chinese and Burmese, specializing in Chinese web novels (xianxia/cultivation genre).
 
-CRITICAL INSTRUCTIONS:
-1. You MUST translate into MYANMAR LANGUAGE (Burmese) using Myanmar Unicode script.
-2. Output MUST contain ONLY Myanmar characters and punctuation. NO English. NO Chinese.
-3. Keep the tone, style, and emotions of the original Chinese text. Do not summarize.
-4. Translate cultivation terms, idioms (Chengyu), and expressions contextually so they sound natural in Burmese. Do NOT use literal word-for-word translation if it ruins the literary flow.
-5. Translate character and place names directly into Burmese script using the provided glossary. Do not use Pinyin unless the name is unknown.
-6. Do NOT add chapter titles, headings, or any explanations. Just the translated text.
-7. If you cannot translate, respond with "ဘာသာပြန်မရပါ" (cannot translate).{glossary_text}"""
+TASK:
+Translate the following Chinese novel excerpt into Burmese.
+
+REQUIREMENTS:
+1. Maintain the original literary style, emotional tone, and narrative voice of the Chinese text
+2. Ensure terminology is consistent throughout (use the TERMINOLOGY MAPPING provided)
+3. Translate cultivation terms, idioms (Chengyu), and genre-specific expressions contextually so they sound natural in Burmese
+4. Translate character and place names using the provided TERMINOLOGY MAPPING
+5. Output ONLY the Burmese translation - no explanations, notes, greetings, or meta-text
+6. Use Myanmar Unicode script exclusively - NO English, NO Chinese, NO romanization
+7. Do NOT add chapter titles, headings, or any conversational intro/outro text
+8. If you cannot translate, respond only with: ဘာသာပြန်မရပါ
+
+OUTPUT FORMAT:
+- Provide ONLY the translated Burmese text
+- No "Here is the translation" or similar phrases
+- No markdown formatting unless present in original{glossary_text}"""
     return prompt
 
 
@@ -447,7 +461,48 @@ class QwenTranslator(BaseTranslator):
 
 
 class OllamaTranslator(BaseTranslator):
-    """Ollama Local - no API key needed"""
+    def get_ollama_system_prompt(self, source_lang: str = "Chinese", target_lang: str = "Burmese") -> str:
+        glossary_text = ""
+        try:
+            import json
+            import os
+            if os.path.exists("names.json"):
+                with open("names.json", "r", encoding="utf-8") as f:
+                    names = json.load(f)
+                    if names:
+                        glossary_text = "\n\nTERMINOLOGY MAPPING (Use these exact Burmese translations for names and specific terms):\n"
+                        for zh, my in names.items():
+                            glossary_text += f"- {zh} -> {my}\n"
+        except Exception as e:
+            logger.warning(f"Failed to load names.json for Ollama prompt: {e}")
+
+        prompt = f"""You are an expert literary translator specializing in {source_lang} to {target_lang} translation, specifically for xianxia/cultivation novels.
+Your goal is to accurately convey the meaning, tone, style, and emotions of the original Chinese text while adhering to Burmese grammar, vocabulary, and cultural sensitivities.
+
+CRITICAL INSTRUCTIONS:
+1. Translate the following Chinese text into MYANMAR LANGUAGE (Burmese) using Myanmar Unicode script.
+2. Output MUST contain ONLY Myanmar characters and punctuation. NO English. NO Chinese. NO romanization.
+3. Maintain the literary tone, style, and emotional depth of the original Chinese xianxia novel. Do not summarize or simplify.
+4. Translate cultivation terms, idioms (Chengyu), and specific genre expressions contextually so they sound natural and appropriate in Burmese xianxia literature. Avoid literal word-for-word translation if it compromises literary flow or meaning.
+5. Use the provided TERMINOLOGY MAPPING for character names, place names, and specific terms. If a term is in the mapping, you MUST use its exact Burmese translation.
+6. Do NOT add any chapter titles, headings, explanations, or introductory/concluding remarks. Provide only the translated text.
+7. If you encounter untranslatable content or are unsure, respond with "ဘာသာပြန်မရပါ" (cannot translate) and nothing else.
+
+Here are a few examples to guide your translation style and ensure high quality:
+
+Example 1 (Chinese):
+罗青深吸一口气，眼中闪过一丝坚定。他知道，这条修仙之路，注定坎坷不平。
+Example 1 (Burmese):
+လော်ချင်သည် လေကိုပြင်းပြင်းရှူသွင်းလိုက်ပြီး မျက်လုံးထဲတွင် ခိုင်မာသောအရိပ်အယောင်တစ်ခု ဖြတ်ပြေးသွားသည်။ ဤကျင့်ကြံခြင်းလမ်းကြောင်းသည် ကြမ်းတမ်းခက်ခဲမည်ကို သူသိသည်။
+
+Example 2 (Chinese):
+“小六子，你可愿随我一同前往月波湖，探寻那传说中的灵药？”古堂主抚须笑道。
+Example 2 (Burmese):
+“ရှောင်လျိုဇီ၊ မင်းငါနဲ့အတူ လအိုင်ကိုသွားပြီး ဒဏ္ဍာရီလာဆေးဖက်ဝင်အပင်ကို ရှာဖွေချင်သလား” ဂိုဏ်းခွဲမှူး ကု က မုတ်ဆိတ်သပ်ရင်း ရယ်မောပြောဆိုလိုက်သည်။
+
+Now, translate the following Chinese text into Burmese:
+"""
+        return prompt
     
     def __init__(self):
         self.base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
@@ -456,16 +511,20 @@ class OllamaTranslator(BaseTranslator):
     def translate_stream(self, text: str, system_prompt: str) -> Iterator[str]:
         url = f"{self.base_url}/api/chat"
         
+        ollama_system_prompt = self.get_ollama_system_prompt()
         payload = {
             "model": self.model,
             "messages": [
-                {"role": "system", "content": system_prompt},
+                {"role": "system", "content": ollama_system_prompt},
                 {"role": "user", "content": text}
             ],
             "stream": True,
             "options": {
-                "temperature": 0.3,
-                "num_predict": -1
+                "temperature": 0.15,   # Changed from 0.3 for higher accuracy
+                "num_predict": -1,
+                "num_ctx": 8192,       # Added to prevent context overflow
+                "top_p": 0.9,          # Added for better sampling
+                "top_k": 40            # Added for better sampling
             }
         }
         

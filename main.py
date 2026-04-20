@@ -31,6 +31,7 @@ from scripts.assembler import assemble
 
 # Chunking constants
 DEFAULT_CHUNK_SIZE = 1800
+DEFAULT_OVERLAP_SIZE = 200
 MAX_CHUNK_SIZE = 5000
 MIN_CHUNK_SIZE = 100
 
@@ -216,7 +217,7 @@ def _preprocess_file(filepath: Path) -> str:
         raise
 
 
-def _chunk_text(clean_text: str, max_chars: int) -> tuple:
+def _chunk_text(clean_text: str, max_chars: int, overlap_chars: int) -> tuple:
     """Split text into chunks.
     
     Args:
@@ -228,7 +229,7 @@ def _chunk_text(clean_text: str, max_chars: int) -> tuple:
     """
     logger.info("Chunking text...")
     paragraphs = split_into_paragraphs(clean_text)
-    chunks = auto_chunk(clean_text, max_chars)
+    chunks = auto_chunk(clean_text, max_chars, overlap_chars=overlap_chars)
     logger.info(f"Created {len(chunks)} chunks from {len(paragraphs)} paragraphs")
     return paragraphs, chunks
 
@@ -262,9 +263,10 @@ def _translate_single_chunk(
     total_chunks: int,
     translator: BaseTranslator,
     system_prompt: str,
-    checkpoint: CheckpointManager
+    checkpoint: CheckpointManager,
+    previous_translation: Optional[str] = None
 ) -> Optional[str]:
-    """Translate a single chunk with checkpoint handling.
+    """Translate a single chunk with checkpoint handling and context retention.
     
     Args:
         chunk: Text chunk to translate
@@ -273,6 +275,7 @@ def _translate_single_chunk(
         translator: Translator instance
         system_prompt: System prompt for translation
         checkpoint: Checkpoint manager instance
+        previous_translation: Previous chunk's translation for context (sliding window)
         
     Returns:
         Translated text or None if translation failed
@@ -287,8 +290,22 @@ def _translate_single_chunk(
         f"{len(chunk)} chars using {translator.name}"
     )
     
+    # Build contextualized prompt with previous translation for consistency
+    user_content = chunk
+    if previous_translation and chunk_index > 1:
+        # Context retention: Provide previous translation as context
+        # This maintains consistency in dialogue, character names, and plot flow
+        context_preview = previous_translation[-500:] if len(previous_translation) > 500 else previous_translation
+        user_content = f"""PREVIOUS CONTEXT (for consistency):
+{context_preview}
+
+---
+
+CURRENT TEXT TO TRANSLATE:
+{chunk}"""
+    
     try:
-        translated_text = retry_translate_chunk(translator, chunk, system_prompt)
+        translated_text = retry_translate_chunk(translator, user_content, system_prompt)
         logger.info(f"Chunk {chunk_index} translated: {len(translated_text)} characters")
         
         # Save checkpoint
@@ -323,6 +340,7 @@ def translate_single_file(
     filepath: str,
     model_name: str,
     max_chars: int,
+    overlap_chars: int,
     do_readability: bool,
     names_path: str
 ) -> bool:
@@ -351,7 +369,7 @@ def translate_single_file(
     # 2. Chunk
     print("\n[2/7] Chunking...")
     try:
-        paragraphs, chunks = _chunk_text(clean_text, max_chars)
+        paragraphs, chunks = _chunk_text(clean_text, max_chars, overlap_chars)
         print_chunk_analysis(chunks, paragraphs)
     except Exception as e:
         logger.error(f"Chunking failed: {e}")
@@ -386,6 +404,7 @@ def translate_single_file(
     print("-" * 60)
     
     start_time = time.time()
+    previous_translation = None
     
     for i, chunk in enumerate(chunks, 1):
         result = _translate_single_chunk(
@@ -394,8 +413,13 @@ def translate_single_file(
             total_chunks=len(chunks),
             translator=translator,
             system_prompt=system_prompt,
-            checkpoint=checkpoint
+            checkpoint=checkpoint,
+            previous_translation=previous_translation
         )
+        
+        # Update previous translation for context retention (sliding window)
+        if result is not None:
+            previous_translation = result
         
         if result is None:
             # Already done or failed
@@ -594,6 +618,8 @@ Examples:
                         help="Translation model to use (overrides .env AI_MODEL)")
     parser.add_argument("--max-chars", type=int, default=DEFAULT_CHUNK_SIZE,
                         help=f"Maximum characters per chunk (default: {DEFAULT_CHUNK_SIZE})")
+    parser.add_argument("--overlap-chars", type=int, default=DEFAULT_OVERLAP_SIZE,
+                        help=f"Overlap characters between chunks (default: {DEFAULT_OVERLAP_SIZE})")
     parser.add_argument("--no-readability", action="store_true",
                         help="Skip readability check")
     parser.add_argument("--names", default="names.json",
@@ -624,7 +650,7 @@ Examples:
     
     logger.info("=" * 60)
     logger.info("Chinese → Myanmar Novel Translator Started")
-    logger.info(f"Model: {model}, Chunk size: {args.max_chars}")
+    logger.info(f"Model: {model}, Chunk size: {args.max_chars}, Overlap size: {args.overlap_chars}")
     logger.info("=" * 60)
     
     print("=" * 60)
@@ -632,6 +658,7 @@ Examples:
     print("=" * 60)
     print(f"Model: {model}")
     print(f"Max chars per chunk: {args.max_chars}")
+    print(f"Overlap chars: {args.overlap_chars}")
     print("=" * 60)
     print()
     
@@ -662,6 +689,7 @@ Examples:
             filepath=str(filepath),
             model_name=model,
             max_chars=args.max_chars,
+            overlap_chars=args.overlap_chars,
             do_readability=not args.no_readability,
             names_path=args.names
         )

@@ -9,7 +9,6 @@
 *.key
 *.pem
 secrets.json
-config.json
 
 # ── Python ───────────────────────────────────────────────────────────────────
 __pycache__/
@@ -54,22 +53,23 @@ Thumbs.db
 *.sublime-workspace
 
 # ── Project Specific: Working Data ───────────────────────────────────────────
-# Checkpoints (temporary translation progress)
+# All working_data contents (except .gitkeep)
+working_data/*
+!working_data/.gitkeep
 working_data/checkpoints/*
 !working_data/checkpoints/.gitkeep
-
-# Logs
-working_data/logs/*.log
-working_data/logs/*.txt
-!working_data/logs/.gitkeep
-
-# Chunks (temporary files)
 working_data/chunks/*
 !working_data/chunks/.gitkeep
-
-# Translated chunks
 working_data/translated_chunks/*
 !working_data/translated_chunks/.gitkeep
+working_data/preview/*
+!working_data/preview/.gitkeep
+working_data/readability_reports/*
+!working_data/readability_reports/.gitkeep
+working_data/logs/*
+!working_data/logs/.gitkeep
+working_data/clean/*
+!working_data/clean/.gitkeep
 
 # ── Project Specific: Input/Output ────────────────────────────────────────────
 # Input novels (user files - don't commit)
@@ -78,8 +78,12 @@ input_novels/*.md
 !input_novels/.gitkeep
 
 # Translated output (generated files)
-translated_novels/*
+translated_novels/*.md
 !translated_novels/.gitkeep
+
+# Chinese chapters (generated from extraction)
+chinese_chapters/*/
+!chinese_chapters/.gitkeep
 
 # Data files
 data_file/*.txt
@@ -110,10 +114,20 @@ coverage.xml
 .ipynb_checkpoints
 *.ipynb
 
-# ── MyPy ─────────────────────────────────────────────────────────────────────
+# ── Type Checkers ────────────────────────────────────────────────────────────
 .mypy_cache/
 .dmypy.json
 dmypy.json
-
-# ── Pyre type checker ────────────────────────────────────────────────────────
 .pyre/
+
+# ── PyInstaller ─────────────────────────────────────────────────────────────
+*.manifest
+*.spec
+
+# ── Cython ───────────────────────────────────────────────────────────────────
+*.pyx
+*.pxd
+*.pxi
+
+# ── Opencode ─────────────────────────────────────────────────────────────────
+.opencode/

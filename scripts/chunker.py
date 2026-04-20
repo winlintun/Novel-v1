@@ -1,6 +1,14 @@
 #!/usr/bin/env python3
 """
-Smart Auto-Chunker - Paragraph-boundary chunking with no overlap
+Smart Auto-Chunker - Paragraph-based chunking with context retention (sliding window)
+
+Chunking Strategy (based on translation best practices):
+- Paragraph-based Chunking: Safest method to ensure each block remains semantically complete
+- Context Retention (Sliding Window): When translating the current paragraph, provide the 
+  translation of the previous paragraph as context. This gives the model "short-term memory" 
+  to help maintain consistency in dialogue and plot.
+- Sentence-boundary splitting: Large paragraphs are split at sentence endings (。！？)
+  to preserve semantic coherence within chunks.
 """
 
 import re
@@ -54,14 +62,14 @@ def split_large_paragraph(paragraph: str, max_chars: int) -> List[str]:
     return chunks
 
 
-def auto_chunk(text: str, max_chars: int = 1800) -> List[str]:
+def auto_chunk(text: str, max_chars: int = 1800, overlap_chars: int = 200) -> List[str]:
     """
     Smart paragraph-boundary chunking with no overlap.
     
     Rules:
     - Each chunk stays UNDER max_chars total
     - NEVER split mid-paragraph
-    - NO overlap between chunks
+    - Overlap between chunks to maintain context
     - Large paragraphs split at sentence endings only
     """
     paragraphs = split_into_paragraphs(text)
@@ -74,7 +82,7 @@ def auto_chunk(text: str, max_chars: int = 1800) -> List[str]:
         para_size = len(paragraph)
         
         # If paragraph is too large, split it
-        if para_size > max_chars:
+        if para_size > max_chars - overlap_chars:
             # Save current chunk if any
             if current_chunk:
                 chunks.append('\n\n'.join(current_chunk))
@@ -82,7 +90,7 @@ def auto_chunk(text: str, max_chars: int = 1800) -> List[str]:
                 current_size = 0
             
             # Split large paragraph
-            para_chunks = split_large_paragraph(paragraph, max_chars)
+            para_chunks = split_large_paragraph(paragraph, max_chars - overlap_chars)
             chunks.extend(para_chunks)
             continue
         
@@ -96,9 +104,14 @@ def auto_chunk(text: str, max_chars: int = 1800) -> List[str]:
         else:
             # Save current chunk and start new one
             if current_chunk:
-                chunks.append('\n\n'.join(current_chunk))
-            current_chunk = [paragraph]
-            current_size = para_size
+                # Add overlap from the end of the previous chunk to the start of the new one
+                overlap_text = ""
+                if overlap_chars > 0:
+                    last_chunk_content = "\n\n".join(current_chunk)
+                    overlap_text = last_chunk_content[-overlap_chars:]
+                chunks.append("\n\n".join(current_chunk))
+            current_chunk = [overlap_text.strip(), paragraph] if overlap_text else [paragraph]
+            current_size = len("\n\n".join(current_chunk))
     
     # Don't forget the last chunk
     if current_chunk:
@@ -129,12 +142,13 @@ if __name__ == "__main__":
         sys.exit(1)
     
     max_chars = int(sys.argv[2]) if len(sys.argv) >= 3 else 1800
+    overlap_chars = int(sys.argv[3]) if len(sys.argv) >= 4 else 200
     
     with open(sys.argv[1], 'r', encoding='utf-8') as f:
         text = f.read()
     
     paragraphs = split_into_paragraphs(text)
-    chunks = auto_chunk(text, max_chars)
+    chunks = auto_chunk(text, max_chars, overlap_chars)
     
     print_chunk_analysis(chunks, paragraphs)
     

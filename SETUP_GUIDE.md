@@ -1,82 +1,42 @@
-# OpenCode AI — Chinese to Burmese Novel Translator
-## Project Setup Guide
+# Setup Guide - Chinese to Burmese Novel Translator
 
-> **Author:** Novel Translation Project  
-> **Date:** April 19, 2026  
-> **Target:** OpenCode AI agent with local Ollama LLM  
+Complete setup instructions for the Novel Translation Project.
+
+> **Date:** April 21, 2026  
+> **Target:** Python developers and AI translation users  
 > **Build:** Fully custom — no external translation framework required
 
 ---
 
 ## Table of Contents
 
-1. [Overview](#1-overview)
+1. [Prerequisites](#1-prerequisites)
 2. [Hardware Requirements](#2-hardware-requirements)
 3. [Software Requirements](#3-software-requirements)
-4. [Project Structure](#4-project-structure)
-5. [Step-by-Step Setup](#5-step-by-step-setup)
-6. [Model Setup (Ollama)](#6-model-setup-ollama)
-7. [OpenCode AI Agent Files](#7-opencode-ai-agent-files)
-8. [Running the Project](#8-running-the-project)
-9. [Feature Guide](#9-feature-guide)
-10. [Myanmar Readability Checker](#10-myanmar-readability-checker)
-11. [Troubleshooting](#11-troubleshooting)
+4. [Step-by-Step Installation](#4-step-by-step-installation)
+5. [Configuration](#5-configuration)
+6. [Running the Application](#6-running-the-application)
+7. [Troubleshooting](#7-troubleshooting)
 
 ---
 
-## 1. Overview
+## 1. Prerequisites
 
-This project is a **fully self-contained** Chinese-to-Burmese novel translator built from scratch. It uses a local LLM via Ollama and runs entirely on your machine — no external translation framework, no cloud API required.
+### What This System Does
 
-### What `main.py` does automatically
-
-When you run `main.py`, it handles the entire workflow without any manual steps:
+When you run `main.py`, it handles the entire workflow:
 
 ```
-1.  Scan input_novels/ for all *.txt files
-2.  For each novel — check if already translated (skip if done)
-3.  Preprocess the novel (clean text, enforce UTF-8)
-4.  Split into chunks (1000–2000 chars with overlap)
-6.  Translate each chunk via Ollama with live streaming
-7. Show real-time progress in the terminal
-8.  Stream translated Burmese tokens to live preview as LLM generates
-9.  Save a checkpoint after every chunk (safe to cancel anytime)
-10. Run Myanmar readability check on each translated chunk
-11. Postprocess (fix punctuation, character name consistency)
-12. Assemble all chunks into a final pretty .md file
-13. Write final output to translated_novels/
-```
-
-### Architecture
-
-```
-input_novels/
-  └── my_novel.txt
-         │
-         ▼
-  [ Already translated? ] ──YES──→ Skip
-         │ NO
-         ▼
-  preprocess_novel.py     Clean + UTF-8
-         │
-         ▼
-  chunk_text.py           Split 1000–2000 chars, slight overlap
-         │
-         ▼
-  translate_chunk.py      Ollama stream=True → tokens → live preview
-         │                                  → checkpoint saved per chunk
-         ▼
-  myanmar_checker.py      Readability check on each translated chunk
-         │
-         ▼
-  postprocess.py          Punctuation + name consistency fix
-         │
-         ▼
-  assemble_novel.py       Merge → pretty Burmese .md
-         │
-         ▼
-  translated_novels/
-    └── my_novel_burmese.md
+1. Scan input_novels/ for all *.txt and *.md files
+2. For each novel — check if already translated (skip if done)
+3. Preprocess the novel (clean text, enforce UTF-8)
+4. Split into chunks (1500-2000 chars with overlap)
+5. Translate each chunk via AI with live streaming
+6. Save checkpoint after every chunk (safe to cancel anytime)
+7. Run Myanmar readability check on each chunk
+8. Postprocess (fix punctuation, character name consistency)
+9. Assemble all chunks into final .md file
+10. Write output to translated_novels/
 ```
 
 ---
@@ -84,13 +44,13 @@ input_novels/
 ## 2. Hardware Requirements
 
 | Component | Minimum | Recommended |
-|---|---|---|
+|-----------|---------|-------------|
 | RAM | 16 GB | 32 GB |
 | Storage | 30 GB free | 60 GB free |
 | CPU | 4-core modern | 8-core or better |
-| GPU (optional) | — | 4 GB+ VRAM speeds up inference significantly |
+| GPU (optional) | — | 4 GB+ VRAM speeds up inference |
 
-> **16 GB RAM tip:** Use quantized models (`q4_K_M`). Close other heavy apps while translating. Stick to `chunk_size: 1500` or lower.
+> **16 GB RAM tip:** Use quantized models (q4_K_M). Close other heavy apps while translating. Stick to chunk_size: 1500 or lower.
 
 ---
 
@@ -99,89 +59,41 @@ input_novels/
 ### 3.1 Core Software
 
 | Software | Version | Install |
-|---|---|---|
+|----------|---------|---------|
 | Python | 3.8+ | [python.org](https://www.python.org/downloads/) |
 | Git | Latest | [git-scm.com](https://git-scm.com/) |
-| Ollama | Latest | [ollama.com](https://ollama.com/) |
+| Ollama (optional) | Latest | [ollama.com](https://ollama.com/) |
 
 ### 3.2 Python Dependencies
 
-Install everything in one command after activating your virtual environment:
-
 ```bash
-pip install ollama tqdm regex pyicu
+pip install -r requirements.txt
 ```
 
 | Package | Purpose |
-|---|---|
-| `ollama` | Python client — calls local LLM, supports streaming |
-| `tqdm` | Terminal progress bar |
-| `regex` | Advanced Unicode regex for Myanmar script validation |
-| `pyicu` | ICU Unicode library for Myanmar word/sentence boundary detection |
-
-> **Note on `pyicu`:** On Windows, install via `pip install PyICU` with the prebuilt wheel. On Ubuntu: `sudo apt install python3-icu` then `pip install pyicu`.
-
----
-
-## 4. Project Structure
-
-```
-novel_translation_project/
-│
-├── main.py                         ← The only file you need to run
-├── AGENT.md                        ← OpenCode AI: agent role
-├── SKILL.md                        ← OpenCode AI: translation skill & prompt
-├── REVIEWER_AGENT.md               ← OpenCode AI: code review agent
-├── SETUP_GUIDE_OPENCODE.md         ← This file
-│
-├── config/
-│   └── config.json                 ← All settings (model, chunk size, ports…)
-│
-├── scripts/
-│   ├── preprocess_novel.py         ← Clean raw .txt (encoding, noise removal)
-│   ├── chunk_text.py               ← Using nltk.sent_tokenize(text), Split into overlapping chunks
-│   ├── translate_chunk.py          ← Ollama stream → live preview + checkpoint
-│   ├── myanmar_checker.py          ← Readability checker for translated output
-│   ├── postprocess_translation.py  ← Fix punctuation & character names
-│   └── assemble_novel.py           ← Merge chunks → pretty .md
-│
-├── templates/
-│   ├── novel_template.md           ← Full novel Markdown structure
-│   └── chapter_template.md         ← Per-chapter formatting
-│
-├── input_novels/                   ← Drop your Chinese .txt files here
-├── translated_novels/              ← Final .md files appear here
-│
-└── working_data/
-    ├── chunks/                     ← Chinese text chunks (pre-translation)
-    ├── translated_chunks/          ← Translated Burmese chunks (raw)
-    ├── preview/                    ← Live in-progress .md (readable anytime)
-    ├── readability_reports/        ← Myanmar checker output per chunk
-    ├── logs/                       ← Full translation logs
-    └── checkpoints/                ← JSON resume state per novel
-```
+|---------|---------|
+| `requests` | HTTP client for API calls |
+| `python-dotenv` | Environment variable management |
+| `pydantic` | Configuration validation |
+| `ollama` | Ollama Python client |
+| `flask` | Web UI framework |
+| `flask-socketio` | Real-time WebSocket communication |
+| `eventlet` | Async server for WebSocket |
+| `gevent` | Alternative async server |
+| `tqdm` | Progress bars |
 
 ---
 
-## 5. Step-by-Step Setup
+## 4. Step-by-Step Installation
 
-### Step 1 — Create the project folder
+### Step 1: Create Project Directory
 
 ```bash
 mkdir novel_translation_project
 cd novel_translation_project
 ```
 
-### Step 2 — Create all subdirectories
-
-```bash
-mkdir -p config scripts templates input_novels translated_novels
-mkdir -p working_data/chunks working_data/translated_chunks
-mkdir -p working_data/preview working_data/readability_reports
-mkdir -p working_data/logs working_data/checkpoints
-```
-
-### Step 3 — Create virtual environment
+### Step 2: Create Virtual Environment
 
 ```bash
 python3 -m venv venv
@@ -193,17 +105,88 @@ source venv/bin/activate
 .\venv\Scripts\activate
 ```
 
-### Step 4 — Install Python dependencies
+### Step 3: Install Python Dependencies
 
 ```bash
-pip install ollama tqdm regex pyicu
+pip install -r requirements.txt
 ```
 
-### Step 5 — Create `config/config.json`
+### Step 4: Install Ollama (Optional - for local models)
+
+```bash
+# Verify Ollama is installed
+ollama --version
+
+# Pull your translation model
+ollama pull qwen2.5:14b
+
+# Ollama runs automatically after install
+# If not running, start manually:
+ollama serve
+```
+
+### Step 5: Configure Environment
+
+```bash
+# Copy environment template
+cp .env.example .env
+
+# Edit .env with your settings
+nano .env  # or use your preferred editor
+```
+
+### Step 6: Verify Configuration
+
+```bash
+# Validate config.json
+python config/settings.py validate
+```
+
+---
+
+## 5. Configuration
+
+### Environment Variables (.env)
+
+```bash
+# ── Model Selection ──────────────────────────────────
+# Options: openrouter | gemini | deepseek | qwen | ollama
+AI_MODEL=ollama
+
+# ── SSL Verification ─────────────────────────────────
+VERIFY_SSL=true
+
+# ── OpenRouter (one key = many free models) ───────────
+OPENROUTER_API_KEY=your_key_here
+OPENROUTER_MODEL=google/gemini-2.0-flash-exp:free
+
+# ── Google Gemini (AI Studio) ────────────────────────
+GEMINI_API_KEY=your_key_here
+GEMINI_MODEL=gemini-2.0-flash
+
+# ── DeepSeek ─────────────────────────────────────────
+DEEPSEEK_API_KEY=your_key_here
+DEEPSEEK_MODEL=deepseek-chat
+
+# ── Qwen (Alibaba DashScope) ─────────────────────────
+QWEN_API_KEY=your_key_here
+QWEN_MODEL=qwen-max
+
+# ── Ollama (Local) ───────────────────────────────────
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=qwen2.5:14b
+
+# ── Translation Settings ──────────────────────────────
+MAX_CHUNK_CHARS=1800
+REQUEST_DELAY=1.0
+READABILITY_CHECK=true
+```
+
+### Runtime Configuration (config/config.json)
 
 ```json
 {
-  "model": "qwen3:7b",
+  "model": "qwen2.5:14b",
   "provider": "ollama",
   "ollama_endpoint": "http://localhost:11434/api/generate",
   "source_language": "Chinese",
@@ -226,336 +209,94 @@ pip install ollama tqdm regex pyicu
 **Key settings explained:**
 
 | Setting | Description |
-|---|---|
-| `chunk_size` | Characters per chunk. Keep 1000–2000 for 16 GB RAM |
-| `chunk_overlap` | Chars shared between chunks to preserve narrative flow |
-| `auto_open_browser` | `main.py` opens `localhost:5000` automatically on start |
-| `min_myanmar_ratio` | Fraction of output that must be Myanmar script (0.0–1.0) |
-| `flag_on_fail` | Mark failing chunks in the readability report |
-| `block_on_fail` | If `true`, retranslate failing chunks instead of continuing |
+|---------|-------------|
+| `chunk_size` | Characters per chunk. Keep 1500-2000 for 16 GB RAM |
+| `chunk_overlap` | Chars shared between chunks for narrative flow |
+| `min_myanmar_ratio` | Minimum Myanmar script ratio (0.0-1.0) |
+| `flag_on_fail` | Mark failing chunks in report |
+| `block_on_fail` | Retranslate failing chunks before continuing |
 
-### Step 6 — Place OpenCode AI agent files
+### Character Names (names.json)
 
-Copy these four files into the root of `novel_translation_project/`:
+Add your novel's character names for consistent translation:
 
-```
-AGENT.md
-SKILL.md
-REVIEWER_AGENT.md
-SETUP_GUIDE_OPENCODE.md   ← this file
-```
-
-OpenCode AI reads these automatically when you open the project folder.
-
-### Step 7 — Install and start Ollama
-
-```bash
-# Verify Ollama is installed
-ollama --version
-
-# Pull your translation model (see Section 6 for options)
-ollama pull qwen3:7b
-
-# Ollama starts automatically as a background service after install.
-# If it's not running, start it manually:
-ollama serve
+```json
+{
+  "罗青": "လော်ချင်",
+  "蟠龙山": "ပန်လုံတောင်",
+  "魔教": "မိစ္ဆာဂိုဏ်း"
+}
 ```
 
 ---
 
-## 6. Model Setup (Ollama)
+## 6. Running the Application
 
-### Recommended Models for Chinese → Burmese
-
-| Model | RAM Usage | Quality | Command |
-|---|---|---|---|
-| `qwen3:7b` | ~6 GB | Good | `ollama pull qwen3:7b` |
-| `qwen3:14b` | ~10 GB | Better | `ollama pull qwen3:14b` |
-| `qwen3:7b-q4_K_M` | ~4.5 GB | Good (quantized) | `ollama pull qwen3:7b-q4_K_M` |
-
-> **For 16 GB RAM:** Use `qwen3:7b` or `qwen3:7b-q4_K_M`. The 14B model is possible but leaves little RAM for other processes.
-
-### Alternative — MyanmarGPT via Hugging Face
-
-If you want a Burmese-native model, `MyanmarGPT-Big` (1.42B) can be used in `translate_chunk.py` instead of Ollama. It loads automatically the first time:
-
-```python
-from transformers import AutoTokenizer, AutoModelForCausalLM
-tokenizer = AutoTokenizer.from_pretrained("jojo-ai-mst/MyanmarGPT-Big")
-model = AutoModelForCausalLM.from_pretrained("jojo-ai-mst/MyanmarGPT-Big")
-```
-
-Set `"provider": "myanmargpt"` in `config.json` to switch to this model.
-
-> **Note:** Streaming is not supported with MyanmarGPT. The live preview will update per-chunk instead of per-token.
-
-### Verify your model is ready
+### Start Translation
 
 ```bash
-ollama list
-# Should show: qwen3:7b  (or whichever model you pulled)
-```
-
----
-
-## 7. OpenCode AI Agent Files
-
-Three files define how OpenCode AI behaves in this project.
-
-### `AGENT.md` — Agent Role Definition
-
-Tells OpenCode AI it is a **Professional Literary Translator** (Chinese → Burmese). Key instructions:
-
-- Preserve the author's tone, style, and emotional depth
-- Output only Burmese Myanmar script — no explanations, no Chinese
-- Maintain consistent character and place name translations across the entire novel
-- Follow the project workflow defined in this guide
-
-### `SKILL.md` — Translation Skill & Prompt Template
-
-Every chunk is translated using this exact prompt:
-
-```
-SYSTEM:
-You are a professional literary translator.
-Translate the following Chinese novel text to Burmese (Myanmar script).
-Keep the tone, style, and emotions of the original.
-Do NOT add explanations. Output only the Burmese translation.
-
-USER:
-[CHINESE_TEXT_CHUNK]
-```
-
-### `REVIEWER_AGENT.md` — Code Review Agent
-
-A secondary agent for auditing the project scripts. Activate it in OpenCode AI when you want to:
-
-- Review `scripts/` for bugs or inefficiencies
-- Validate that checkpoints and data flow correctly between stages
-- Run automated checks with `flake8` or `pytest`
-
----
-
-## 8. Running the Project
-
-### Start everything with one command
-
-```bash
+# Translate all files in input_novels/
 python main.py
+
+# Translate specific file
+python main.py input_novels/novel.txt
+
+# Use different model
+python main.py --model openrouter
+python main.py --model gemini
+
+# Adjust settings
+python main.py --max-chars 2000 --no-readability
 ```
 
-**What happens immediately:**
-
-```
-[SCAN]    Found 3 novel(s) in input_novels/
-[STATUS]  romance_novel.txt       → not translated yet
-[STATUS]  wuxia_story.txt         → already translated ✓ (skip)
-[STATUS]  detective_story.txt     → partially done, resuming from chunk 87/210
-[BROWSER] Opening http://localhost:5000 ...
-[START]   Translating: romance_novel.txt
-[CHUNK]   1/340 ─────────────────────────── 0.3%
-```
-
-The browser opens automatically. You do not need to run anything else.
-
-### Drop new novels while running
-
-Place a new `.txt` file in `input_novels/` at any time. `main.py` detects it on its next scan cycle (every 60 seconds) and adds it to the queue.
-
-### Already-translated detection
-
-`main.py` checks two things for each `.txt` file:
-
-1. Does `translated_novels/<name>_burmese.md` already exist?
-2. Does `working_data/checkpoints/<name>.json` show `"status": "completed"`?
-
-If both are true → skip.  
-If checkpoint exists but incomplete → resume from last saved chunk.  
-If neither exists → start fresh from chunk 1.
-
----
-
-## 9. Feature Guide
-
-### Feature 1 — Scan and Skip Already-Translated Novels
-
-On startup, `main.py` scans every `.txt` in `input_novels/` and classifies each as:
-
-| Status | Condition | Action |
-|---|---|---|
-| Done ✓ | Output `.md` exists + checkpoint `completed` | Skip entirely |
-| Resuming ↻ | Checkpoint exists but not completed | Resume from last chunk |
-| New | No checkpoint found | Start from chunk 1 |
-
-
-
-### Feature 3 — Live Streaming of Translated Text
-
-As the LLM generates each Burmese token, it is sent simultaneously to:
-
-1. **The browser** — tokens appear word-by-word in the streaming panel via WebSocket
-2. **The preview file** — `working_data/preview/<novel_name>_preview.md` is updated every 10 tokens
-
-You can open the preview file in any Markdown viewer at any time to read the in-progress translation — even the chunk currently being generated.
-
-```
-working_data/preview/romance_novel_preview.md   ← open this anytime
-```
-
-### Feature 4 — Cancel Anytime, Resume Anytime
-
-**To cancel:** press `Ctrl+C` in the terminal.
-
-The program will:
-
-1. Finish writing the current streaming token
-2. Save checkpoint to `working_data/checkpoints/<novel_name>.json`
-3. Shut down the web server cleanly
-4. Exit
-
-**To resume:** run `python main.py` again.
-
-```
-[RESUME]  romance_novel.txt — checkpoint found at chunk 141/340. Resuming...
-```
-
-No chunk is ever translated twice. Already-completed chunks are loaded from `working_data/translated_chunks/` directly.
-
-### Feature 5 — Pretty Burmese Markdown Output
-
-The final file in `translated_novels/` follows this structure:
-
-```markdown
----
-title: "ဝတ္ထုခေါင်းစဉ်"
-source_title: "小说标题"
-language: Burmese (Myanmar Script)
-source_language: Chinese
-translated_date: 2026-04-19
-font_recommendation: "Padauk, Noto Sans Myanmar"
-total_chapters: 24
----
-
-# ဝတ္ထုခေါင်းစဉ်
-
----
-
-## အခန်း ၁ — နိဒါန်းပျိုး
-
-ပထမစာပိုဒ် မြန်မာဘာသာဖြင့်...
-
-ဒုတိယစာပိုဒ် မြန်မာဘာသာဖြင့်...
-
----
-
-## အခန်း ၂
-
-...
-```
-
-Formatting rules applied by `assemble_novel.py`:
-
-- YAML front matter with full metadata
-- `#` for novel title
-- `## အခန်း N` chapter headings using Burmese numeral script (၁ ၂ ၃…)
-- One blank line between every paragraph
-- `---` horizontal rule between chapters
-- UTF-8 enforced throughout
-- Zero Chinese characters in the final output
-
----
-
-## 10. Myanmar Readability Checker
-
-`scripts/myanmar_checker.py` runs automatically after each chunk is translated and reports whether the output is readable Burmese.
-
-### What it checks
-
-| Check | Pass condition |
-|---|---|
-| Myanmar script ratio | ≥ 70% of characters are Myanmar Unicode (U+1000–U+109F) |
-| No Chinese leakage | Zero Chinese characters (U+4E00–U+9FFF) in output |
-| Sentence boundary | At least one valid Myanmar sentence-ending marker (`။`) present |
-| Minimum length | Output is ≥ 30% the length of input (catches empty/truncated responses) |
-| Encoding integrity | No replacement characters (U+FFFD) — all bytes valid UTF-8 Myanmar |
-
-### Terminal output per chunk
-
-```
-[CHECKER] Chunk 47/340 → PASS   (Myanmar: 94%, Sentences: 12, Length: OK)
-[CHECKER] Chunk 48/340 → FLAGGED  (Myanmar: 31% — possible mixed-language output)
-```
-
-### Readability reports
-
-Full JSON reports are saved after each novel:
-
-```
-working_data/readability_reports/<novel_name>_readability.json
-```
-
-To view a summary after translation:
+### Using Make Commands
 
 ```bash
-python scripts/myanmar_checker.py --report working_data/readability_reports/romance_novel_readability.json
+make install    # Install dependencies
+make run        # Run main.py
+make resume     # Resume from checkpoint
+make clean      # Clean checkpoints and logs
+make lint       # Run linters
+make test       # Run tests
 ```
 
-Output:
+### Drop New Novels While Running
 
-```
-Readability Report — romance_novel.txt
-Total chunks :  340
-Passed       :  335  (98.5%)
-Flagged      :    5  (1.5%)
+Place a new `.txt` or `.md` file in `input_novels/` at any time. The system detects it on the next scan cycle.
 
-Flagged chunks: 48, 112, 203, 267, 301
-→ Review files in working_data/translated_chunks/
-```
+### Resume Translation
 
-### Behavior on failure (configured in `config.json`)
-
-| Setting | Effect |
-|---|---|
-| `flag_on_fail: true` | Marks chunk orange in report, continues translating |
-| `block_on_fail: true` | Automatically retranslates the failing chunk once before continuing |
+If translation is interrupted, run `python main.py` again. It automatically resumes from the last checkpoint.
 
 ---
 
-## 11. Troubleshooting
+## 7. Troubleshooting
 
 | Problem | Cause | Solution |
-|---|---|---|
-| `ollama: command not found` | Ollama not in PATH | Reinstall from [ollama.com](https://ollama.com/), restart terminal |
-| Model not found | Model not pulled yet | `ollama pull qwen3:7b` |
-| Out of memory during translation | Model too large for RAM | Switch to `qwen3:7b-q4_K_M`, reduce `chunk_size` |
-| Burmese text shows as boxes | Myanmar font missing | Install **Padauk** or **Noto Sans Myanmar** |
-| Preview file not updating | `stream` is false | Set `"stream": true` in `config.json` |
-| Novel not resuming | Checkpoint missing/corrupt | Delete the `.json` in `checkpoints/` and restart |
-| High readability failure rate | Wrong model or bad prompt | Try `qwen3:14b`, review the prompt in `SKILL.md` |
-| `pyicu` install fails (Windows) | Binary dependency | `pip install PyICU` with prebuilt wheel from [PyPI](https://pypi.org/project/PyICU/) |
-| Chinese characters remain in output | LLM ignored the prompt | Set `block_on_fail: true` in config to auto-retry |
+|---------|-------|----------|
+| `ollama: command not found` | Ollama not in PATH | Reinstall from ollama.com, restart terminal |
+| Model not found | Model not pulled | `ollama pull qwen2.5:14b` |
+| Out of memory | Model too large | Use 7B model, reduce chunk_size |
+| Burmese shows as boxes | Font missing | Install Padauk or Noto Sans Myanmar |
+| API errors | Invalid key | Check API keys in .env |
+| Resume failed | Corrupt checkpoint | Delete checkpoint JSON and restart |
+| SSL errors | Certificate issues | Set `VERIFY_SSL=false` in .env (insecure) |
 
----
-
-## Quick Reference
+### Quick Diagnostics
 
 ```bash
-# 1. Activate environment
-source venv/bin/activate          # macOS / Linux
-.\venv\Scripts\activate           # Windows
+# Test Ollama connection
+curl http://localhost:11434/api/tags
 
-# 2. Ensure Ollama is running
-ollama serve                      # only if not already running as a service
+# Check Python environment
+python --version
+pip list | grep -E "(requests|flask|ollama)"
 
-# 3. Drop your novel into the input folder
-cp my_chinese_novel.txt input_novels/
+# Validate configuration
+python config/settings.py validate
 
-# 4. Run everything — one command
-python main.py
-# → Scans input_novels/ and skips already-translated files
-# → Watch live progress and streaming translation in browser
-# → Press Stop button or Ctrl+C to cancel safely at any time
-# → Run again to resume from checkpoint
+# Check available models
+ollama list
 ```
 
 ---
@@ -563,12 +304,12 @@ python main.py
 ## References
 
 1. Ollama — https://ollama.com/
-2. Qwen model library — https://ollama.com/library/qwen3
-3. MyanmarGPT-Big — https://huggingface.co/jojo-ai-mst/MyanmarGPT-Big
-5. Myanmar Unicode Block — https://www.unicode.org/charts/PDF/U1000.pdf
-6. Padauk Myanmar Font — https://software.sil.org/padauk/
-7. Noto Sans Myanmar — https://fonts.google.com/noto/specimen/Noto+Sans+Myanmar
+2. Qwen models — https://ollama.com/library/qwen
+3. Myanmar Unicode — https://www.unicode.org/charts/PDF/U1000.pdf
+4. Padauk Font — https://software.sil.org/padauk/
 
 ---
 
-*Place this file in the root of `novel_translation_project/` alongside `AGENT.md`, `SKILL.md`, and `REVIEWER_AGENT.md`. OpenCode AI reads all four files as project context.*
+*Place this file in the root of your project alongside AGENTS.md and README.md.*
+
+**Last Updated**: April 21, 2026
