@@ -5,15 +5,21 @@ Translation Engine - All model adapters with streaming
 
 import os
 import json
+import logging
+import time
 import requests
 import urllib3
 import warnings
 from abc import ABC, abstractmethod
-from typing import Iterator, Optional
+from typing import Iterator, Optional, Dict, Any
+from contextlib import contextmanager
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 # SSL verification setting - only disable for local Ollama
 # Set VERIFY_SSL=false in .env only if you have certificate issues
@@ -23,6 +29,49 @@ VERIFY_SSL = os.getenv("VERIFY_SSL", "true").lower() != "false"
 if not VERIFY_SSL:
     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
     warnings.warn("SSL verification is disabled. This is insecure and should only be used for local development.", RuntimeWarning)
+
+# Connection pool for HTTP requests
+_session_pool: Optional[requests.Session] = None
+
+
+def get_session() -> requests.Session:
+    """Get or create a requests session with connection pooling."""
+    global _session_pool
+    if _session_pool is None:
+        _session_pool = requests.Session()
+        adapter = requests.adapters.HTTPAdapter(
+            pool_connections=5,
+            pool_maxsize=10,
+            max_retries=3
+        )
+        _session_pool.mount('https://', adapter)
+        _session_pool.mount('http://', adapter)
+    return _session_pool
+
+
+@contextmanager
+def managed_request(method: str, url: str, **kwargs):
+    """Context manager for HTTP requests to ensure proper resource cleanup.
+    
+    Args:
+        method: HTTP method (GET, POST, etc.)
+        url: Request URL
+        **kwargs: Additional arguments for requests
+        
+    Yields:
+        Response object
+    """
+    session = get_session()
+    response = None
+    try:
+        response = session.request(method, url, **kwargs)
+        yield response
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Request failed: {e}")
+        raise
+    finally:
+        if response is not None:
+            response.close()
 
 
 def get_system_prompt(target_lang: str = "Myanmar (Burmese)", source_lang: str = "Chinese") -> str:
@@ -88,26 +137,56 @@ class OpenRouterTranslator(BaseTranslator):
                 {"role": "user", "content": text}
             ],
             "stream": True
+            # Note: max_tokens removed as some OpenRouter models (e.g., minimax) have provider-side issues with it
         }
-        
-        response = requests.post(url, json=payload, headers=headers, stream=True, timeout=300, verify=VERIFY_SSL)
-        response.raise_for_status()
-        
-        for line in response.iter_lines():
-            if line:
-                line_str = line.decode('utf-8')
-                if line_str.startswith('data: '):
-                    line_str = line_str[6:]
-                    if line_str == '[DONE]':
-                        break
-                    try:
-                        data = json.loads(line_str)
-                        if 'choices' in data and data['choices']:
-                            delta = data['choices'][0].get('delta', {})
-                            if 'content' in delta:
-                                yield delta['content']
-                    except json.JSONDecodeError:
-                        continue
+
+        try:
+            with managed_request('POST', url, json=payload, headers=headers, 
+                               stream=True, timeout=300, verify=VERIFY_SSL) as response:
+                response.raise_for_status()
+                
+                for line in response.iter_lines():
+                    if line:
+                        try:
+                            line_str = line.decode('utf-8')
+                            if line_str.startswith('data: '):
+                                line_str = line_str[6:]
+                                if line_str == '[DONE]':
+                                    break
+                                try:
+                                    data = json.loads(line_str)
+                                    if 'choices' in data and data['choices']:
+                                        delta = data['choices'][0].get('delta', {})
+                                        if 'content' in delta:
+                                            yield delta['content']
+                                except json.JSONDecodeError:
+                                    logger.debug(f"JSON decode error for line: {line_str[:50]}")
+                                    continue
+                        except UnicodeDecodeError as e:
+                            logger.warning(f"Unicode decode error: {e}")
+                            continue
+                        except Exception as e:
+                            logger.error(f"Error processing stream line: {e}")
+                            continue
+        except requests.exceptions.HTTPError as e:
+            logger.error(f"HTTP error in OpenRouter: {e}")
+            if e.response is not None:
+                try:
+                    error_text = e.response.text
+                    error_data = json.loads(error_text)
+                    error_msg = error_data.get('error', {}).get('message', str(e))
+                    raise ValueError(f"OpenRouter API error: {error_msg}")
+                except json.JSONDecodeError:
+                    # Show raw error text if not JSON
+                    error_text = e.response.text[:500] if e.response.text else str(e)
+                    raise ValueError(f"OpenRouter API error: {error_text}")
+            raise
+        except requests.exceptions.Timeout:
+            logger.error("Request timeout in OpenRouter")
+            raise ValueError("Request timeout - the API took too long to respond")
+        except requests.exceptions.ConnectionError:
+            logger.error("Connection error in OpenRouter")
+            raise ValueError("Connection error - please check your internet connection")
     
     @property
     def name(self) -> str:
@@ -130,28 +209,66 @@ class GeminiTranslator(BaseTranslator):
         payload = {
             "system_instruction": {"parts": [{"text": system_prompt}]},
             "contents": [{"parts": [{"text": text}]}],
-            "generationConfig": {"temperature": 0.3}
+            "generationConfig": {
+                "temperature": 0.3,
+                "maxOutputTokens": 4096  # Limit output tokens for consistency
+            }
         }
         
-        response = requests.post(url, json=payload, stream=True, timeout=300, verify=VERIFY_SSL)
-        response.raise_for_status()
-        
-        for line in response.iter_lines():
-            if line:
+        try:
+            with managed_request('POST', url, json=payload, stream=True, 
+                               timeout=300, verify=VERIFY_SSL) as response:
+                response.raise_for_status()
+                
+                for line in response.iter_lines():
+                    if line:
+                        try:
+                            line_str = line.decode('utf-8')
+                            if line_str.startswith('data: '):
+                                line_str = line_str[6:]
+                            data = json.loads(line_str)
+                            
+                            # Handle API errors in response
+                            if 'error' in data:
+                                error_msg = data.get('error', {}).get('message', 'Unknown API error')
+                                logger.error(f"Gemini API error: {error_msg}")
+                                raise ValueError(f"Gemini API error: {error_msg}")
+                            
+                            if 'candidates' in data and data['candidates']:
+                                candidate = data['candidates'][0]
+                                # Check for safety blocks
+                                if 'finishReason' in candidate and candidate['finishReason'] == 'SAFETY':
+                                    logger.warning("Response blocked by safety settings")
+                                    raise ValueError("Translation blocked by safety settings")
+                                if 'content' in candidate and 'parts' in candidate['content']:
+                                    for part in candidate['content']['parts']:
+                                        if 'text' in part:
+                                            yield part['text']
+                        except (json.JSONDecodeError, KeyError, IndexError) as e:
+                            logger.debug(f"Parse error in Gemini stream: {e}")
+                            continue
+                        except UnicodeDecodeError as e:
+                            logger.warning(f"Unicode decode error: {e}")
+                            continue
+        except requests.exceptions.HTTPError as e:
+            logger.error(f"HTTP error in Gemini: {e}")
+            if e.response is not None:
                 try:
-                    line_str = line.decode('utf-8')
-                    if line_str.startswith('data: '):
-                        line_str = line_str[6:]
-                    data = json.loads(line_str)
-                    
-                    if 'candidates' in data and data['candidates']:
-                        candidate = data['candidates'][0]
-                        if 'content' in candidate and 'parts' in candidate['content']:
-                            for part in candidate['content']['parts']:
-                                if 'text' in part:
-                                    yield part['text']
-                except (json.JSONDecodeError, KeyError, IndexError):
-                    continue
+                    error_text = e.response.text
+                    error_data = json.loads(error_text)
+                    error_msg = error_data.get('error', {}).get('message', str(e))
+                    raise ValueError(f"Gemini API error: {error_msg}")
+                except json.JSONDecodeError:
+                    # Show raw error text if not JSON
+                    error_text = e.response.text[:500] if e.response.text else str(e)
+                    raise ValueError(f"Gemini API error: {error_text}")
+            raise
+        except requests.exceptions.Timeout:
+            logger.error("Request timeout in Gemini")
+            raise ValueError("Request timeout - the API took too long to respond")
+        except requests.exceptions.ConnectionError:
+            logger.error("Connection error in Gemini")
+            raise ValueError("Connection error - please check your internet connection")
     
     @property
     def name(self) -> str:
@@ -180,27 +297,62 @@ class DeepSeekTranslator(BaseTranslator):
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": text}
             ],
-            "stream": True
+            "stream": True,
+            "max_tokens": 4096  # Limit output tokens to avoid context window overflow
         }
         
-        response = requests.post(url, json=payload, headers=headers, stream=True, timeout=300, verify=VERIFY_SSL)
-        response.raise_for_status()
-        
-        for line in response.iter_lines():
-            if line:
-                line_str = line.decode('utf-8')
-                if line_str.startswith('data: '):
-                    line_str = line_str[6:]
-                    if line_str == '[DONE]':
-                        break
-                    try:
-                        data = json.loads(line_str)
-                        if 'choices' in data and data['choices']:
-                            delta = data['choices'][0].get('delta', {})
-                            if 'content' in delta:
-                                yield delta['content']
-                    except json.JSONDecodeError:
-                        continue
+        try:
+            with managed_request('POST', url, json=payload, headers=headers,
+                               stream=True, timeout=300, verify=VERIFY_SSL) as response:
+                response.raise_for_status()
+                
+                for line in response.iter_lines():
+                    if line:
+                        try:
+                            line_str = line.decode('utf-8')
+                            if line_str.startswith('data: '):
+                                line_str = line_str[6:]
+                                if line_str == '[DONE]':
+                                    break
+                                try:
+                                    data = json.loads(line_str)
+                                    # Check for API errors in stream
+                                    if 'error' in data:
+                                        error_msg = data['error'].get('message', 'Unknown API error')
+                                        logger.error(f"DeepSeek API error: {error_msg}")
+                                        raise ValueError(f"DeepSeek API error: {error_msg}")
+                                    if 'choices' in data and data['choices']:
+                                        delta = data['choices'][0].get('delta', {})
+                                        if 'content' in delta:
+                                            yield delta['content']
+                                except json.JSONDecodeError:
+                                    logger.debug(f"JSON decode error for line: {line_str[:50]}")
+                                    continue
+                        except UnicodeDecodeError as e:
+                            logger.warning(f"Unicode decode error: {e}")
+                            continue
+                        except Exception as e:
+                            logger.error(f"Error processing stream line: {e}")
+                            continue
+        except requests.exceptions.HTTPError as e:
+            logger.error(f"HTTP error in DeepSeek: {e}")
+            if e.response is not None:
+                try:
+                    error_text = e.response.text
+                    error_data = json.loads(error_text)
+                    error_msg = error_data.get('error', {}).get('message', str(e))
+                    raise ValueError(f"DeepSeek API error: {error_msg}")
+                except json.JSONDecodeError:
+                    # Show raw error text if not JSON
+                    error_text = e.response.text[:500] if e.response.text else str(e)
+                    raise ValueError(f"DeepSeek API error: {error_text}")
+            raise
+        except requests.exceptions.Timeout:
+            logger.error("Request timeout in DeepSeek")
+            raise ValueError("Request timeout - the API took too long to respond")
+        except requests.exceptions.ConnectionError:
+            logger.error("Connection error in DeepSeek")
+            raise ValueError("Connection error - please check your internet connection")
     
     @property
     def name(self) -> str:
@@ -229,27 +381,57 @@ class QwenTranslator(BaseTranslator):
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": text}
             ],
-            "stream": True
+            "stream": True,
+            "max_tokens": 4096  # Limit output tokens to avoid context window overflow
         }
         
-        response = requests.post(url, json=payload, headers=headers, stream=True, timeout=300, verify=VERIFY_SSL)
-        response.raise_for_status()
-        
-        for line in response.iter_lines():
-            if line:
-                line_str = line.decode('utf-8')
-                if line_str.startswith('data: '):
-                    line_str = line_str[6:]
-                    if line_str == '[DONE]':
-                        break
-                    try:
-                        data = json.loads(line_str)
-                        if 'choices' in data and data['choices']:
-                            delta = data['choices'][0].get('delta', {})
-                            if 'content' in delta:
-                                yield delta['content']
-                    except json.JSONDecodeError:
-                        continue
+        try:
+            with managed_request('POST', url, json=payload, headers=headers,
+                               stream=True, timeout=300, verify=VERIFY_SSL) as response:
+                response.raise_for_status()
+                
+                for line in response.iter_lines():
+                    if line:
+                        try:
+                            line_str = line.decode('utf-8')
+                            if line_str.startswith('data: '):
+                                line_str = line_str[6:]
+                                if line_str == '[DONE]':
+                                    break
+                                try:
+                                    data = json.loads(line_str)
+                                    if 'choices' in data and data['choices']:
+                                        delta = data['choices'][0].get('delta', {})
+                                        if 'content' in delta:
+                                            yield delta['content']
+                                except json.JSONDecodeError:
+                                    logger.debug(f"JSON decode error for line: {line_str[:50]}")
+                                    continue
+                        except UnicodeDecodeError as e:
+                            logger.warning(f"Unicode decode error: {e}")
+                            continue
+                        except Exception as e:
+                            logger.error(f"Error processing stream line: {e}")
+                            continue
+        except requests.exceptions.HTTPError as e:
+            logger.error(f"HTTP error in Qwen: {e}")
+            if e.response is not None:
+                try:
+                    error_text = e.response.text
+                    error_data = json.loads(error_text)
+                    error_msg = error_data.get('error', {}).get('message', str(e))
+                    raise ValueError(f"Qwen API error: {error_msg}")
+                except json.JSONDecodeError:
+                    # Show raw error text if not JSON
+                    error_text = e.response.text[:500] if e.response.text else str(e)
+                    raise ValueError(f"Qwen API error: {error_text}")
+            raise
+        except requests.exceptions.Timeout:
+            logger.error("Request timeout in Qwen")
+            raise ValueError("Request timeout - the API took too long to respond")
+        except requests.exceptions.ConnectionError:
+            logger.error("Connection error in Qwen")
+            raise ValueError("Connection error - please check your internet connection")
     
     @property
     def name(self) -> str:
@@ -275,17 +457,56 @@ class OllamaTranslator(BaseTranslator):
             "stream": True
         }
         
-        response = requests.post(url, json=payload, stream=True, timeout=300, verify=False)
-        response.raise_for_status()
-        
-        for line in response.iter_lines():
-            if line:
+        try:
+            # Ollama is local, so we use verify=False and a shorter timeout
+            with managed_request('POST', url, json=payload, stream=True, 
+                               timeout=300, verify=False) as response:
+                response.raise_for_status()
+                
+                for line in response.iter_lines():
+                    if line:
+                        try:
+                            data = json.loads(line.decode('utf-8'))
+                            # Check for errors
+                            if 'error' in data:
+                                error_msg = data['error']
+                                logger.error(f"Ollama error: {error_msg}")
+                                raise ValueError(f"Ollama error: {error_msg}")
+                            if 'message' in data and 'content' in data['message']:
+                                yield data['message']['content']
+                            # Check for done signal
+                            if data.get('done', False):
+                                break
+                        except json.JSONDecodeError as e:
+                            logger.debug(f"JSON decode error in Ollama: {e}")
+                            continue
+                        except UnicodeDecodeError as e:
+                            logger.warning(f"Unicode decode error: {e}")
+                            continue
+                        except Exception as e:
+                            logger.error(f"Error processing Ollama stream: {e}")
+                            continue
+        except requests.exceptions.HTTPError as e:
+            logger.error(f"HTTP error in Ollama: {e}")
+            if e.response is not None:
                 try:
-                    data = json.loads(line.decode('utf-8'))
-                    if 'message' in data and 'content' in data['message']:
-                        yield data['message']['content']
+                    error_data = e.response.json()
+                    error_msg = error_data.get('error', str(e))
+                    raise ValueError(f"Ollama API error: {error_msg}")
                 except json.JSONDecodeError:
-                    continue
+                    raise ValueError(f"Ollama API error: {e}")
+            raise
+        except requests.exceptions.Timeout:
+            logger.error("Request timeout in Ollama")
+            raise ValueError("Request timeout - Ollama took too long to respond. Check if model is loaded.")
+        except requests.exceptions.ConnectionError:
+            logger.error("Connection error in Ollama")
+            raise ValueError(
+                "Cannot connect to Ollama. Please ensure:\n"
+                "1. Ollama is running (run 'ollama serve')\n"
+                "2. The base URL is correct (current: {self.base_url})\n"
+                "3. The model '{self.model}' is pulled (run 'ollama pull {self.model}')"
+            )
     
     @property
     def name(self) -> str:

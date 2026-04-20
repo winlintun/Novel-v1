@@ -6,22 +6,57 @@ Main Orchestrator - Chinese → Myanmar Novel Translator
 import os
 import sys
 import time
+import random
 import argparse
 import logging
 from datetime import datetime
 from pathlib import Path
+from typing import Callable, TypeVar, Optional
+from functools import wraps
+
+# Define generic type variable for retry decorator
+T = TypeVar('T')
 
 # Import our modules from scripts folder
 from scripts.preprocessor import preprocess
 from scripts.chunker import auto_chunk, split_into_paragraphs, print_chunk_analysis
-from scripts.translator import get_translator, get_system_prompt
+from scripts.translator import get_translator, get_system_prompt, BaseTranslator
 from scripts.checkpoint import CheckpointManager
 from scripts.postprocessor import postprocess
 from scripts.assembler import assemble
 
-# Setup logging
-os.makedirs("working_data/logs", exist_ok=True)
-log_file = f"working_data/logs/translation_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+# =============================================================================
+# CONSTANTS
+# =============================================================================
+
+# Chunking constants
+DEFAULT_CHUNK_SIZE = 1800
+MAX_CHUNK_SIZE = 5000
+MIN_CHUNK_SIZE = 100
+
+# Retry constants
+MAX_RETRIES = 3
+INITIAL_RETRY_DELAY = 1.0  # seconds
+MAX_RETRY_DELAY = 60.0  # seconds
+BACKOFF_FACTOR = 2.0
+JITTER_FACTOR = 0.1
+
+# Translation constants
+DEFAULT_REQUEST_DELAY = 1.0  # seconds between chunks
+SAMPLE_SIZE_FOR_READABILITY = 2000  # characters
+MAX_READABILITY_REPORT_ITEMS = 10
+
+# Logging constants
+LOG_DIR = "working_data/logs"
+TRANSLATED_DIR = "translated_novels"
+INPUT_DIR = "input_novels"
+
+# =============================================================================
+# SETUP LOGGING
+# =============================================================================
+
+os.makedirs(LOG_DIR, exist_ok=True)
+log_file = f"{LOG_DIR}/translation_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
@@ -31,6 +66,257 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# RETRY LOGIC
+# =============================================================================
+
+class RetryExhaustedError(Exception):
+    """Raised when all retry attempts have been exhausted."""
+    pass
+
+
+def exponential_backoff_retry(
+    max_retries: int = MAX_RETRIES,
+    initial_delay: float = INITIAL_RETRY_DELAY,
+    max_delay: float = MAX_RETRY_DELAY,
+    backoff_factor: float = BACKOFF_FACTOR,
+    jitter: float = JITTER_FACTOR,
+    exceptions: tuple = (Exception,)
+) -> Callable:
+    """Decorator for exponential backoff retry logic.
+    
+    Args:
+        max_retries: Maximum number of retry attempts
+        initial_delay: Initial delay between retries (seconds)
+        max_delay: Maximum delay between retries (seconds)
+        backoff_factor: Multiplier for delay between retries
+        jitter: Random jitter factor (0-1) to add to delay
+        exceptions: Tuple of exception types to catch and retry
+        
+    Returns:
+        Decorated function with retry logic
+    """
+    def decorator(func: Callable[..., T]) -> Callable[..., T]:
+        @wraps(func)
+        def wrapper(*args, **kwargs) -> T:
+            delay = initial_delay
+            last_exception = None
+            
+            for attempt in range(max_retries + 1):
+                try:
+                    return func(*args, **kwargs)
+                except exceptions as e:
+                    last_exception = e
+                    if attempt == max_retries:
+                        logger.error(
+                            f"Function {func.__name__} failed after {max_retries + 1} attempts. "
+                            f"Last error: {e}"
+                        )
+                        raise RetryExhaustedError(
+                            f"Failed after {max_retries + 1} attempts: {e}"
+                        ) from e
+                    
+                    # Calculate delay with jitter
+                    jitter_amount = delay * jitter * (2 * random.random() - 1)
+                    actual_delay = min(delay + jitter_amount, max_delay)
+                    
+                    logger.warning(
+                        f"Attempt {attempt + 1}/{max_retries + 1} for {func.__name__} failed: {e}. "
+                        f"Retrying in {actual_delay:.1f}s..."
+                    )
+                    time.sleep(actual_delay)
+                    delay = min(delay * backoff_factor, max_delay)
+            
+            # Should never reach here
+            raise RetryExhaustedError("Unexpected exit from retry loop")
+        
+        return wrapper
+    return decorator
+
+
+def retry_translate_chunk(
+    translator: BaseTranslator,
+    chunk: str,
+    system_prompt: str,
+    max_retries: int = MAX_RETRIES
+) -> str:
+    """Translate a chunk with exponential backoff retry.
+    
+    Args:
+        translator: Translator instance
+        chunk: Text chunk to translate
+        system_prompt: System prompt for translation
+        max_retries: Maximum retry attempts
+        
+    Returns:
+        Translated text
+        
+    Raises:
+        RetryExhaustedError: If all retries fail
+    """
+    delay = INITIAL_RETRY_DELAY
+    last_error = None
+    
+    for attempt in range(max_retries + 1):
+        try:
+            translated = []
+            for token in translator.translate_stream(chunk, system_prompt):
+                translated.append(token)
+            return "".join(translated)
+        except Exception as e:
+            last_error = e
+            if attempt == max_retries:
+                logger.error(
+                    f"Translation failed after {max_retries + 1} attempts for chunk. "
+                    f"Last error: {e}"
+                )
+                raise RetryExhaustedError(
+                    f"Failed to translate chunk after {max_retries + 1} attempts: {e}"
+                ) from e
+            
+            # Calculate delay with jitter
+            jitter_amount = delay * JITTER_FACTOR * (2 * random.random() - 1)
+            actual_delay = min(delay + jitter_amount, MAX_RETRY_DELAY)
+            
+            logger.warning(
+                f"Translation attempt {attempt + 1}/{max_retries + 1} failed: {e}. "
+                f"Retrying in {actual_delay:.1f}s..."
+            )
+            time.sleep(actual_delay)
+            delay = min(delay * BACKOFF_FACTOR, MAX_RETRY_DELAY)
+    
+    raise RetryExhaustedError("Unexpected exit from retry loop")
+
+
+# =============================================================================
+# HELPER FUNCTIONS
+# =============================================================================
+
+def _preprocess_file(filepath: Path) -> str:
+    """Preprocess a file and return clean text.
+    
+    Args:
+        filepath: Path to the input file
+        
+    Returns:
+        Clean preprocessed text
+        
+    Raises:
+        Exception: If preprocessing fails
+    """
+    logger.info(f"Preprocessing file: {filepath}")
+    try:
+        clean_text = preprocess(str(filepath))
+        logger.info(f"Preprocessing complete: {len(clean_text)} characters")
+        return clean_text
+    except Exception as e:
+        logger.error(f"Preprocessing failed: {e}")
+        raise
+
+
+def _chunk_text(clean_text: str, max_chars: int) -> tuple:
+    """Split text into chunks.
+    
+    Args:
+        clean_text: Preprocessed text
+        max_chars: Maximum characters per chunk
+        
+    Returns:
+        Tuple of (paragraphs, chunks)
+    """
+    logger.info("Chunking text...")
+    paragraphs = split_into_paragraphs(clean_text)
+    chunks = auto_chunk(clean_text, max_chars)
+    logger.info(f"Created {len(chunks)} chunks from {len(paragraphs)} paragraphs")
+    return paragraphs, chunks
+
+
+def _load_translator_with_retry(model_name: str) -> BaseTranslator:
+    """Load translator with retry logic.
+    
+    Args:
+        model_name: Name of the translation model
+        
+    Returns:
+        Translator instance
+        
+    Raises:
+        ValueError: If translator cannot be loaded
+    """
+    @exponential_backoff_retry(
+        max_retries=2,
+        initial_delay=0.5,
+        exceptions=(ValueError, ConnectionError)
+    )
+    def _load():
+        return get_translator(model_name)
+    
+    return _load()
+
+
+def _translate_single_chunk(
+    chunk: str,
+    chunk_index: int,
+    total_chunks: int,
+    translator: BaseTranslator,
+    system_prompt: str,
+    checkpoint: CheckpointManager
+) -> Optional[str]:
+    """Translate a single chunk with checkpoint handling.
+    
+    Args:
+        chunk: Text chunk to translate
+        chunk_index: Index of the current chunk (1-based)
+        total_chunks: Total number of chunks
+        translator: Translator instance
+        system_prompt: System prompt for translation
+        checkpoint: Checkpoint manager instance
+        
+    Returns:
+        Translated text or None if translation failed
+    """
+    # Check if already done
+    if checkpoint.is_done(chunk_index):
+        logger.info(f"Chunk {chunk_index}/{total_chunks}: Already translated (checkpoint found)")
+        return None  # Signal to skip
+    
+    logger.info(
+        f"Translating chunk {chunk_index}/{total_chunks}: "
+        f"{len(chunk)} chars using {translator.name}"
+    )
+    
+    try:
+        translated_text = retry_translate_chunk(translator, chunk, system_prompt)
+        logger.info(f"Chunk {chunk_index} translated: {len(translated_text)} characters")
+        
+        # Save checkpoint
+        if checkpoint.save(chunk_index, translated_text):
+            logger.debug(f"Checkpoint saved for chunk {chunk_index}")
+        else:
+            logger.warning(f"Failed to save checkpoint for chunk {chunk_index}")
+        
+        return translated_text
+    except RetryExhaustedError as e:
+        logger.error(f"Chunk {chunk_index} translation failed after all retries: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"Unexpected error translating chunk {chunk_index}: {e}")
+        return None
+
+
+def _apply_delay_between_chunks(current_index: int, total_chunks: int) -> None:
+    """Apply delay between chunks based on environment settings.
+    
+    Args:
+        current_index: Current chunk index (1-based)
+        total_chunks: Total number of chunks
+    """
+    if current_index < total_chunks:
+        delay = float(os.getenv("REQUEST_DELAY", str(DEFAULT_REQUEST_DELAY)))
+        logger.debug(f"Waiting {delay}s before next chunk...")
+        time.sleep(delay)
 
 
 def translate_single_file(
@@ -55,7 +341,8 @@ def translate_single_file(
     # 1. Preprocess
     print("\n[1/7] Preprocessing...")
     try:
-        clean_text = preprocess(str(filepath))
+        clean_text = _preprocess_file(filepath)
+        print(f"✓ Preprocessed: {len(clean_text)} characters")
     except Exception as e:
         logger.error(f"Preprocessing failed: {e}")
         print(f"✗ Preprocessing failed: {e}")
@@ -64,8 +351,7 @@ def translate_single_file(
     # 2. Chunk
     print("\n[2/7] Chunking...")
     try:
-        paragraphs = split_into_paragraphs(clean_text)
-        chunks = auto_chunk(clean_text, max_chars)
+        paragraphs, chunks = _chunk_text(clean_text, max_chars)
         print_chunk_analysis(chunks, paragraphs)
     except Exception as e:
         logger.error(f"Chunking failed: {e}")
@@ -76,10 +362,10 @@ def translate_single_file(
     checkpoint = CheckpointManager(chapter_name)
     completed = checkpoint.print_resume_info(len(chunks))
     
-    # 4. Load translator
+    # 4. Load translator with retry
     print(f"\n[3/7] Loading translator: {model_name}")
     try:
-        translator = get_translator(model_name)
+        translator = _load_translator_with_retry(model_name)
         print(f"✓ Loaded: {translator.name}")
     except ValueError as e:
         logger.error(f"Failed to load translator: {e}")
@@ -87,6 +373,10 @@ def translate_single_file(
         print("\nTo fix this:")
         print("1. Edit .env file with your API key")
         print("2. Or use Ollama locally: python main.py --model ollama")
+        return False
+    except RetryExhaustedError as e:
+        logger.error(f"Failed to load translator after retries: {e}")
+        print(f"✗ Failed to load translator after retries: {e}")
         return False
     
     system_prompt = get_system_prompt()
@@ -98,39 +388,26 @@ def translate_single_file(
     start_time = time.time()
     
     for i, chunk in enumerate(chunks, 1):
-        # Check if already done
-        if checkpoint.is_done(i):
-            print(f"\n[{i}/{len(chunks)}] ✓ Checkpoint found — skipping")
-            continue
+        result = _translate_single_chunk(
+            chunk=chunk,
+            chunk_index=i,
+            total_chunks=len(chunks),
+            translator=translator,
+            system_prompt=system_prompt,
+            checkpoint=checkpoint
+        )
         
-        print(f"\n[{i}/{len(chunks)}] Translating • {len(chunk)} chars • {translator.name}")
-        print("-" * 60)
+        if result is None:
+            # Already done or failed
+            if checkpoint.is_done(i):
+                print(f"\n[{i}/{len(chunks)}] ✓ Checkpoint found — skipping")
+            else:
+                print(f"\n[{i}/{len(chunks)}] ✗ Translation failed — continuing to next chunk")
+        else:
+            print(f"\n[{i}/{len(chunks)}] ✓ Done — {len(result)} Myanmar chars written")
         
-        try:
-            # Stream translation
-            translated = []
-            for token in translator.translate_stream(chunk, system_prompt):
-                print(token, end="", flush=True)
-                translated.append(token)
-            
-            translated_text = "".join(translated)
-            print(f"\n✓ Done — {len(translated_text)} Myanmar chars written")
-            
-            # Save checkpoint
-            checkpoint.save(i, translated_text)
-            
-            # Delay between chunks
-            if i < len(chunks):
-                delay = float(os.getenv("REQUEST_DELAY", "1.0"))
-                time.sleep(delay)
-                
-        except Exception as e:
-            logger.error(f"Translation failed for chunk {i}: {e}")
-            print(f"\n✗ Translation failed: {e}")
-            print("Waiting 10s before retry...")
-            time.sleep(10)
-            # Continue to next chunk instead of failing entirely
-            continue
+        # Apply delay between chunks
+        _apply_delay_between_chunks(i, len(chunks))
     
     translate_time = time.time() - start_time
     
@@ -159,7 +436,7 @@ def translate_single_file(
     # 7. Assemble
     print(f"\n[6/7] Assembling...")
     try:
-        output_dir = Path("translated_novels")
+        output_dir = Path(TRANSLATED_DIR)
         output_dir.mkdir(exist_ok=True)
         output_file = output_dir / f"{chapter_name}_myanmar.md"
         
@@ -196,7 +473,7 @@ def translate_single_file(
     print(f"║ Model     : {translator.name[:35]:<35} ║")
     print(f"║ Chunks    : {len(chunks)} / {len(chunks):<25} ║")
     print(f"║ Time      : {translate_time/60:.1f}m{' ' * 30}║")
-    print(f"║ Output    : translated_novels/          ║")
+    print(f"║ Output    : {TRANSLATED_DIR}/          ║")
     print(f"║             {chapter_name[:30]}_myanmar.md ║")
     print("╚═════════════════════════════════════════╝")
     print("=" * 60)
@@ -204,22 +481,35 @@ def translate_single_file(
     return True
 
 
-def run_readability_check(text: str, chapter_name: str):
-    """Run LLM readability check once after assembly."""
+def run_readability_check(text: str, chapter_name: str) -> None:
+    """Run LLM readability check once after assembly.
+    
+    Args:
+        text: Full translated text to check
+        chapter_name: Name of the chapter for report file
+    """
     from scripts.translator import get_translator
+    
+    logger.info(f"Running readability check for {chapter_name}")
     
     # Use same model for readability check
     model = os.getenv("AI_MODEL", "openrouter")
-    translator = get_translator(model)
     
-    # Sample first 2000 chars for readability check
-    sample = text[:2000]
+    try:
+        translator = _load_translator_with_retry(model)
+    except Exception as e:
+        logger.error(f"Failed to load translator for readability check: {e}")
+        print(f"⚠ Could not load translator for readability check: {e}")
+        return
+    
+    # Sample first N chars for readability check
+    sample = text[:SAMPLE_SIZE_FOR_READABILITY]
     
     prompt = f"""Review this Myanmar translation excerpt and list:
 1. Unnatural sentence flow
 2. Missing Myanmar particles (တဲ့၊ပဲ၊တော့)
 3. Repeated awkward phrasing
-Return max 10 bullet points only. Be concise.
+Return max {MAX_READABILITY_REPORT_ITEMS} bullet points only. Be concise.
 
 Text:
 {sample}"""
@@ -230,30 +520,36 @@ Text:
     system_prompt = "You are a Myanmar language editor."
     
     try:
-        # Use non-streaming for readability check
-        response = []
-        for token in translator.translate_stream(prompt, system_prompt):
-            response.append(token)
-        
-        report = "".join(response)
-        print(report)
+        # Use retry logic for readability check
+        report_text = retry_translate_chunk(translator, prompt, system_prompt, max_retries=2)
+        print(report_text)
         
         # Save report
-        report_file = f"working_data/logs/{chapter_name}_readability.txt"
+        report_file = f"{LOG_DIR}/{chapter_name}_readability.txt"
         with open(report_file, 'w', encoding='utf-8') as f:
-            f.write(report)
+            f.write(report_text)
         print(f"\n✓ Report saved: {report_file}")
+        logger.info(f"Readability report saved: {report_file}")
         
+    except RetryExhaustedError as e:
+        logger.error(f"Readability check failed after retries: {e}")
+        print(f"⚠ Could not generate report after retries: {e}")
     except Exception as e:
-        print(f"Could not generate report: {e}")
+        logger.error(f"Error in readability check: {e}")
+        print(f"⚠ Could not generate report: {e}")
 
 
-def scan_input_novels():
-    """Scan input_novels/ for .txt and .md files."""
-    input_dir = Path("input_novels")
+def scan_input_novels() -> list:
+    """Scan input_novels/ for .txt and .md files.
+    
+    Returns:
+        List of Path objects for found files
+    """
+    input_dir = Path(INPUT_DIR)
     
     if not input_dir.exists():
-        print("No input_novels/ directory found. Creating...")
+        logger.info(f"Creating {INPUT_DIR}/ directory")
+        print(f"No {INPUT_DIR}/ directory found. Creating...")
         input_dir.mkdir(parents=True, exist_ok=True)
         return []
     
@@ -261,20 +557,23 @@ def scan_input_novels():
     txt_files = list(input_dir.glob("*.txt"))
     md_files = list(input_dir.glob("*.md"))
     all_files = txt_files + md_files
+    
+    logger.info(f"Found {len(all_files)} file(s) in {INPUT_DIR}/")
     return sorted(all_files)
 
 
-def main():
+def main() -> None:
+    """Main entry point for the translator CLI."""
     parser = argparse.ArgumentParser(
         description="Chinese → Myanmar Novel Translator",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
+        epilog=f"""
 Examples:
   # Auto-scan and translate all files
   python main.py
   
   # Single file
-  python main.py input_novels/chapter_001.txt
+  python main.py {INPUT_DIR}/chapter_001.txt
   
   # Switch model
   python main.py --model openrouter
@@ -282,7 +581,7 @@ Examples:
   python main.py --model ollama
   
   # Chunking options
-  python main.py --max-chars 1500
+  python main.py --max-chars {DEFAULT_CHUNK_SIZE}
   
   # Skip readability check
   python main.py --no-readability
@@ -293,8 +592,8 @@ Examples:
     parser.add_argument("--model", default=None,
                         choices=["openrouter", "gemini", "deepseek", "qwen", "ollama"],
                         help="Translation model to use (overrides .env AI_MODEL)")
-    parser.add_argument("--max-chars", type=int, default=1800,
-                        help="Maximum characters per chunk")
+    parser.add_argument("--max-chars", type=int, default=DEFAULT_CHUNK_SIZE,
+                        help=f"Maximum characters per chunk (default: {DEFAULT_CHUNK_SIZE})")
     parser.add_argument("--no-readability", action="store_true",
                         help="Skip readability check")
     parser.add_argument("--names", default="names.json",
@@ -315,6 +614,19 @@ Examples:
         # Check if AI_MODEL is set in .env, otherwise use default
         model = os.getenv("AI_MODEL", "openrouter")
     
+    # Validate chunk size
+    if not MIN_CHUNK_SIZE <= args.max_chars <= MAX_CHUNK_SIZE:
+        logger.warning(
+            f"Chunk size {args.max_chars} outside recommended range "
+            f"[{MIN_CHUNK_SIZE}, {MAX_CHUNK_SIZE}]. Using closest valid value."
+        )
+        args.max_chars = max(MIN_CHUNK_SIZE, min(args.max_chars, MAX_CHUNK_SIZE))
+    
+    logger.info("=" * 60)
+    logger.info("Chinese → Myanmar Novel Translator Started")
+    logger.info(f"Model: {model}, Chunk size: {args.max_chars}")
+    logger.info("=" * 60)
+    
     print("=" * 60)
     print("Chinese → Myanmar Novel Translator")
     print("=" * 60)
@@ -325,13 +637,16 @@ Examples:
     
     # Determine files to process
     if args.file:
-        files = [args.file]
+        files = [Path(args.file)]
+        logger.info(f"Processing single file: {args.file}")
     else:
         files = scan_input_novels()
         if not files:
-            print("No .txt or .md files found in input_novels/")
+            logger.warning(f"No files found in {INPUT_DIR}/")
+            print(f"No .txt or .md files found in {INPUT_DIR}/")
             print("Add files and run again.")
             return
+        logger.info(f"Found {len(files)} file(s) to process")
         print(f"Found {len(files)} file(s) to translate:\n")
         for f in files:
             print(f"  - {f.name}")
@@ -342,6 +657,7 @@ Examples:
     fail_count = 0
     
     for filepath in files:
+        logger.info(f"Processing file: {filepath}")
         success = translate_single_file(
             filepath=str(filepath),
             model_name=model,
@@ -352,12 +668,19 @@ Examples:
         
         if success:
             success_count += 1
+            logger.info(f"Successfully translated: {filepath}")
         else:
             fail_count += 1
+            logger.error(f"Failed to translate: {filepath}")
         
         print()
     
     # Summary
+    logger.info("=" * 60)
+    logger.info("Translation Summary")
+    logger.info(f"Total: {len(files)}, Success: {success_count}, Failed: {fail_count}")
+    logger.info("=" * 60)
+    
     print("=" * 60)
     print("Translation Summary")
     print("=" * 60)

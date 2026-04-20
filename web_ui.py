@@ -22,6 +22,7 @@ import logging
 import webbrowser
 import threading
 import time
+import secrets
 from pathlib import Path
 from datetime import datetime
 from flask import Flask, render_template_string, jsonify, request, Response
@@ -45,7 +46,7 @@ if not logger.handlers:
 
 # Flask app and SocketIO setup
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'novel-translation-secret-key'
+app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', secrets.token_hex(32))
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Global state

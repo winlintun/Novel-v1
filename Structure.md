@@ -1,372 +1,214 @@
-# Full Combined OpenCode Prompt
-# Chinese → Myanmar Novel Translator
-# Generated for OpenCode AI
-
----
-
-```
-Build a production-ready Chinese → Myanmar novel translator pipeline.
-Implement ALL sections below in order. Remove nothing.
-
-════════════════════════════════════════════════════════
- 1. PROJECT STRUCTURE
-════════════════════════════════════════════════════════
-
-novel_translator/
-├── main.py                        ← orchestrator, auto-scan input_novels/
-├── preprocessor.py                ← clean raw .txt input
-├── chunker.py                     ← smart paragraph-boundary chunking
-├── translator.py                  ← all model adapters + streaming
-├── postprocessor.py               ← punctuation + name consistency fix
-├── assembler.py                   ← merge chunks → final .md
-├── .env.example                   ← all config keys
-├── requirements.txt
-├── names.json                     ← character name map (editable)
-├── templates/
-│   └── chapter_template.md        ← final .md layout
-├── input_novels/                  ← drop .txt chapter files here
-├── working_data/
-│   ├── logs/                      ← per-run log files
-│   └── checkpoints/
-│       └── {chapter_name}/
-│           ├── chunk_001.txt
-│           ├── chunk_002.txt
-│           └── ...
-└── translated_novels/             ← final output .md files
-
-════════════════════════════════════════════════════════
- 2. .env.example
-════════════════════════════════════════════════════════
-
-# ── Model Selection ──────────────────────────────────
-# Options: openrouter | gemini | deepseek | qwen | ollama
-AI_MODEL=openrouter
-
-# ── OpenRouter (one key = many free models) ──────────
-OPENROUTER_API_KEY=your_key_here
-OPENROUTER_MODEL=google/gemini-2.0-flash-exp:free
-# OPENROUTER_MODEL=deepseek/deepseek-chat-v3-0324:free
-# OPENROUTER_MODEL=meta-llama/llama-3.3-70b-instruct:free
-# OPENROUTER_MODEL=qwen/qwen2.5-72b-instruct:free
-
-# ── Google Gemini (AI Studio) ─────────────────────────
-GEMINI_API_KEY=your_key_here
-GEMINI_MODEL=gemini-2.0-flash
-
-# ── DeepSeek ─────────────────────────────────────────
-DEEPSEEK_API_KEY=your_key_here
-DEEPSEEK_MODEL=deepseek-chat
-
-# ── Qwen (Alibaba DashScope) ──────────────────────────
-QWEN_API_KEY=your_key_here
-QWEN_MODEL=qwen-max
-
-# ── Ollama (Local — Qwen3.5 7B or 14B) ───────────────
-OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=qwen2.5:14b
-
-# ── Chunking ──────────────────────────────────────────
-MAX_CHUNK_CHARS=1800      # auto paragraph-boundary, no overlap
-
-# ── Translation ───────────────────────────────────────
-TARGET_LANGUAGE=Myanmar (Burmese)
-SOURCE_LANGUAGE=Chinese
-REQUEST_DELAY=1.0
-
-# ── Quality ───────────────────────────────────────────
-READABILITY_CHECK=true    # LLM readability report after assembly
-
-════════════════════════════════════════════════════════
- 3. PREPROCESSOR  (preprocessor.py)
-════════════════════════════════════════════════════════
-
-Implement preprocess(filepath) → str:
-
-  Step 1: Detect and fix encoding (try UTF-8, GBK, GB2312)
-  Step 2: Normalize line endings (CRLF → LF)
-  Step 3: Remove common web-novel noise:
-          - Site headers/footers (e.g. "本章完", "求收藏", "推荐票")
-          - Repeated chapter title lines (keep first only)
-          - Blank lines > 2 consecutive → collapse to 2
-          - Strip leading/trailing whitespace per line
-  Step 4: Print preprocessing report:
-          ┌──────────────────────────────────┐
-          │ Preprocessor Report              │
-          │ Encoding detected : UTF-8        │
-          │ Lines removed     : 12           │
-          │ Noise patterns    : 5 removed    │
-          │ Final char count  : 8,432        │
-          └──────────────────────────────────┘
-
-════════════════════════════════════════════════════════
- 4. SMART AUTO-CHUNKER  (chunker.py)
-════════════════════════════════════════════════════════
-
-Implement auto_chunk(text, max_chars=1800) → list[str]:
-
-  Step 1: Split text into paragraphs by "\n\n"
-  Step 2: Group consecutive paragraphs into chunks
-          - Each chunk stays UNDER max_chars total
-          - NEVER split mid-paragraph
-          - NO overlap between chunks
-  Step 3: If a single paragraph > max_chars:
-          - Split at sentence endings (。！？) only
-          - Still no overlap
-  Step 4: Print chunk analysis before translating:
-          ┌──────────────────────────────────┐
-          │ Chunk Analysis                   │
-          │ Total paragraphs : 42            │
-          │ Total chunks     : 8             │
-          │ Min chunk chars  : 890           │
-          │ Max chunk chars  : 1798          │
-          │ Avg chunk chars  : 1340          │
-          └──────────────────────────────────┘
-
-Remove any fixed line-count or overlap logic entirely.
-CLI: --max-chars (overrides MAX_CHUNK_CHARS in .env)
-
-════════════════════════════════════════════════════════
- 5. TRANSLATION ENGINE  (translator.py)
-════════════════════════════════════════════════════════
-
-── 5A. SYSTEM PROMPT TEMPLATE ───────────────────────
-
-All models use this shared prompt template:
-
-  "You are an expert literary translator.
-   Translate the following Chinese xianxia/cultivation
-   novel text into Myanmar (Burmese).
-
-   Rules:
-   1. Preserve the narrator's tone, style, and emotion exactly
-   2. Keep character names in Pinyin (罗青 → Luo Qing)
-   3. Keep place names in Pinyin with Myanmar suffix
-   4. Translate cultivation terms meaningfully with context
-   5. Output ONLY the translated Myanmar text
-   6. No commentary, no explanations, no notes"
-
-── 5B. MODEL ADAPTERS ────────────────────────────────
-
-Implement 5 adapter classes, all with translate_stream():
-
-  OpenRouterTranslator:
-    URL: https://openrouter.ai/api/v1/chat/completions
-    Required headers:
-      "HTTP-Referer": "https://github.com/novel-translator"
-      "X-Title":      "Novel Translator"
-    stream=True
-
-  GeminiTranslator:
-    URL: https://generativelanguage.googleapis.com/v1beta/
-         models/{model}:streamGenerateContent?key={key}
-    stream=True via SSE
-
-  DeepSeekTranslator:
-    URL: https://api.deepseek.com/chat/completions
-    OpenAI-compatible, stream=True
-
-  QwenTranslator:
-    URL: https://dashscope.aliyuncs.com/compatible-mode/
-         v1/chat/completions
-    OpenAI-compatible, stream=True
-
-  OllamaTranslator (LOCAL — no API key needed):
-    URL: {OLLAMA_BASE_URL}/api/chat
-    Model: OLLAMA_MODEL (e.g. qwen2.5:14b)
-    stream=True
-    No API key required — runs on local machine
-
-── 5C. STREAMING — Live Terminal Preview ─────────────
-
-Each translate_stream() must:
-  - Yield tokens as they arrive from API
-  - Main loop prints: print(token, end="", flush=True)
-  - After chunk done: print newline + char count
-
-Terminal output per chunk:
-  ──────────────────────────────────────────────
-  [2/8] Translating • 1340 chars • openrouter
-  ──────────────────────────────────────────────
-  ရှေးခေတ် လမ်းကြောင်းပေါ်တွင် လော့ချင်းသည်...
-  ကောင်းကင်ဘုံမှ နတ်ဘုရားများ ချင်ပြိုင်နေကြ...
-  ✓ Done — 892 Myanmar chars written
-
-════════════════════════════════════════════════════════
- 6. CHECKPOINT SYSTEM
-════════════════════════════════════════════════════════
-
-Implement CheckpointManager class:
-  checkpoint_dir = working_data/checkpoints/{chapter_name}/
-
-  save(chunk_index, translated_text):
-    → write chunk_{index:03d}.txt (UTF-8)
-
-  load_all() → dict[int, str]:
-    → read all existing checkpoint files
-
-  is_done(chunk_index) → bool
-
-  clear_all():
-    → delete checkpoint folder after final assembly
-
-Before each chunk:
-  - If checkpoint exists → skip, reuse, print:
-    [3/8] ✓ Checkpoint found — skipping
-
-On resume (re-run same file):
-  ┌─────────────────────────────────────────┐
-  │ Resume detected!                        │
-  │ Chunks already done : 3 / 8            │
-  │ Continuing from     : chunk 4           │
-  └─────────────────────────────────────────┘
-
-════════════════════════════════════════════════════════
- 7. POSTPROCESSOR  (postprocessor.py)
-════════════════════════════════════════════════════════
-
-Implement postprocess(text, names_json_path) → str:
-
-  A) Punctuation fixes:
-     "。" → "။"       "，" → "၊"
-     "！" → "!"       "？" → "?"
-     Collapse 3+ blank lines → 2
-     Strip trailing whitespace per line
-
-  B) Character name consistency:
-     Load names.json:
-       {"罗青": "လော့ချင်း", "小六子": "ရှောက်လျောက်"}
-     Replace all variant spellings → canonical name
-     Print fix report:
-       ✓ 罗青 → လော့ချင်း  (12 occurrences fixed)
-       ✓ 小六子 → ရှောက်လျောက် (4 occurrences fixed)
-
-  C) Cleanup:
-     Warn if any Chinese characters remain in output:
-       ⚠ WARNING: 3 Chinese chars still found (line 14, 28, 55)
-     Normalize Myanmar zero-width spaces
-
-════════════════════════════════════════════════════════
- 8. READABILITY CHECK
-════════════════════════════════════════════════════════
-
-Only if READABILITY_CHECK=true in .env.
-Run ONCE after full assembly — NOT per chunk.
-
-Call LLM with:
-  System: "You are a Myanmar language editor."
-  User:
-    "Review this Myanmar translation excerpt and list:
-     1. Unnatural sentence flow
-     2. Missing Myanmar particles (တဲ့၊ပဲ၊တော့)
-     3. Repeated awkward phrasing
-     Return max 10 bullet points only. Be concise."
-
-Print to terminal (do NOT auto-fix — human review only):
-  ⚠ Readability Report:
-    • Line 23: Particle missing after verb
-    • Line 67: Repetitive sentence start pattern
-
-Save report to: working_data/logs/{chapter}_readability.txt
-
-════════════════════════════════════════════════════════
- 9. ASSEMBLER  (assembler.py)
-════════════════════════════════════════════════════════
-
-Load templates/chapter_template.md and fill:
-
-  # {original_title} — မြန်မာဘာသာပြန်
-  **အခန်း**  : {chapter_number}
-  **မော်ဒယ်** : {model_name}
-  **ရက်စွဲ**  : {date}
-
-  ---
-
-  {translated_content}
-
-  ---
-  *ဤဘာသာပြန်ချက်ကို AI ဖြင့် ဘာသာပြန်ထားပါသည်။*
-
-Save to: translated_novels/{chapter_name}_myanmar.md
-After save: clear working_data/checkpoints/{chapter_name}/
-
-════════════════════════════════════════════════════════
- 10. ORCHESTRATOR  (main.py)
-════════════════════════════════════════════════════════
-
-Auto-scan input_novels/ for .txt files and process each:
-
-  For each .txt file found:
-    1. preprocess()         → clean text
-    2. auto_chunk()         → smart paragraph chunks
-    3. translate_stream()   → live preview per chunk
-    4. checkpoint.save()    → after each chunk
-    5. postprocess()        → punctuation + names
-    6. readability_check()  → once, if enabled
-    7. assemble()           → final .md
-
-  Progress bar per chapter:
-    Translating: chapter_001 [████████░░] 6/8 chunks
-
-  Per-run log saved to:
-    working_data/logs/{chapter}_{timestamp}.log
-
-  Completion summary:
-    ╔═════════════════════════════════════════╗
-    ║         Translation Complete!           ║
-    ║ Chapter   : 古道仙鸿_chapter_001        ║
-    ║ Model     : openrouter (gemini-flash)   ║
-    ║ Chunks    : 8 / 8                       ║
-    ║ Time      : 2m 34s                      ║
-    ║ Output    : translated_novels/          ║
-    ║             chapter_001_myanmar.md      ║
-    ╚═════════════════════════════════════════╝
-
-════════════════════════════════════════════════════════
- 11. CLI INTERFACE
-════════════════════════════════════════════════════════
-
-# Auto-scan and translate all files in input_novels/
-python main.py
-
-# Single file
-python main.py input_novels/chapter_001.txt
-
-# Switch model
-python main.py --model openrouter
-python main.py --model gemini
-python main.py --model deepseek
-python main.py --model ollama
-
-# Chunking
-python main.py --max-chars 1500
-
-# Resume from checkpoint
-python main.py --resume
-
-# Skip readability check
-python main.py --no-readability
-
-# Custom names map
-python main.py --names names.json
-
-════════════════════════════════════════════════════════
- 12. REQUIREMENTS.TXT
-════════════════════════════════════════════════════════
-
-requests>=2.31.0
-python-dotenv>=1.0.0
-tqdm>=4.66.0
-flake8>=7.0.0
-pylint>=3.0.0
-pytest>=8.0.0
-
-════════════════════════════════════════════════════════
- 13. QUALITY TOOLS
-════════════════════════════════════════════════════════
-
-Add Makefile shortcuts:
-  make lint     → runs flake8 + pylint on all .py files
-  make test     → runs pytest tests/
-  make run      → python main.py
-  make resume   → python main.py --resume
-```
+Defining the Task
+
+I've precisely defined the translation task, focusing on accurate Burmese output without extra content.
+
+Refining the Instructions
+
+I have formalized the System Instructions to emphasize concise Burmese translations without additional content and LaTeX or widget triggering.
+
+Translating Texts
+
+I have translated three distinct paragraphs into Burmese, capturing their essence accurately and concisely.
+
+Expanding the Dataset
+
+I have successfully translated three more Chinese paragraphs to Burmese, increasing my translation data.
+
+Generating Burmese Translations
+
+I've translated three more Chinese paragraphs to Burmese, achieving accurate and concise renditions.
+
+Translating Further Content
+
+I've translated three more Chinese paragraphs, creating accurate and contextually appropriate Burmese versions.
+
+Expanding the Translation Base
+
+I've translated a Chinese paragraph to Burmese, building on my dataset with a poetic description and dialogue.
+
+Analyzing Translation Context
+
+I've translated two more Chinese paragraphs into Burmese, focusing on capturing narrative nuance and complex sentence structures.
+
+Expanding Translation Range
+
+I have translated three additional Chinese paragraphs into Burmese, including descriptions and dialogue.
+
+Expanding Translation Set
+
+I've translated three more paragraphs, including descriptive, dialogue, and reflective content.
+
+Observing New Context
+
+I've translated two more Chinese paragraphs into Burmese, including a description of strange lights, expanding context.
+
+Translating Another Scene
+
+I've translated a Chinese scene involving lights and excitement, rendering dialogue into Burmese.
+
+Translating A Scene
+
+I've translated a Chinese scene involving lights, joy, greed and fear, including more detailed descriptions.
+
+Translating The Scene
+
+I've translated a Chinese scene involving an anxious journey, and a sudden disappearance of light.
+
+Expanding Scene Translation
+
+I have translated a Chinese scene with dialogue, fear, and a journey toward treasure into Burmese.
+
+Translating An Ascent
+
+I've translated two more Chinese paragraphs describing an ascent and a near fall into accurate Burmese, expanding context.
+
+Translating a Near-Fall
+
+I've successfully translated two more Chinese paragraphs into Burmese, capturing their detailed descriptions.
+
+Translating Excitement
+
+I have translated a Chinese scene involving a treasure and awe, rendering exciting descriptions in Burmese.
+
+Translating Divinity
+
+I've translated a Chinese paragraph describing the awe of seeing a divine descent, and another, the curious observation of those beings.
+
+Observing Details
+
+I've translated two more paragraphs with detailed observation and dialogue, enriching my dataset.
+
+Translating Conflict
+
+I've translated a conversation with accusations, denial, and a sarcastic offer into Burmese.
+
+I've translated a conversation with accusations, denial, and a sarcastic offer into Burmese.
+
+Translating Aggression
+
+I've translated two more Chinese paragraphs including aggressive dialogue, showing a new layer.
+
+I have translated two more Chinese paragraphs including aggressive dialogue, showing a new layer.
+
+Expanding Understanding
+
+I've translated two more Chinese paragraphs, now capturing nuanced context and defensive actions in Burmese.
+
+Translating Combat Scene
+
+I've translated a Chinese combat scene involving attacks and a rescue into concise Burmese, extending the dataset.
+
+Translating Further Details
+
+I translated three more paragraphs, including details like a floating pearl, and anxious dialogue to Burmese.
+
+Translating Further Data
+
+I have translated three more paragraphs into Burmese with descriptive, nuanced context, and defensive actions.
+
+Translating Action and Dialogue
+
+I translated four more paragraphs capturing swift actions, and dialogue into Burmese accurately, further expanding context.
+
+Translating The Response
+
+I have translated four more paragraphs of dialogue into Burmese, capturing their conversational nuances and context.
+
+Translating Conversations
+
+I have translated four more Chinese paragraphs into Burmese, continuing to capture dialogue and character interactions.
+
+Translating More Insights
+
+I have translated a new conversation and a descriptive paragraph expanding context, and adding another layer.
+
+Translating the Encounter
+
+I've translated a Chinese paragraph describing an encounter with a cult leader into Burmese.
+
+Capturing Divine Presence
+
+I've translated four more Chinese paragraphs that convey distant conversations and divine interactions into Burmese.
+
+Translating More Action
+
+I've translated two paragraphs of Chinese into Burmese, capturing a character's awareness, and a near fall.
+
+Translating Descent
+
+I've translated a Chinese paragraph describing a character's descent into Burmese with a chilling cry.
+
+Translating Comfort
+
+I've translated two more paragraphs depicting comfort, awe, and descriptive elements into Burmese, extending the data.
+
+Translating Description
+
+I translated four more Chinese paragraphs detailing a beautiful woman, and a surprise encounter into Burmese.
+
+Translating Aggression
+
+I've translated two more Chinese paragraphs into Burmese, including a surprised reaction, and a sudden slap.
+
+Translating Interruption
+
+I've translated a blocking action, a scared reaction, and an interruption into precise Burmese, broadening the context.
+
+Analyzing Dialogue
+
+I have translated four more Chinese paragraphs into Burmese, focusing on capturing the nuances of a charged conversation.
+
+Translating New Dialogue
+
+I translated four more Chinese paragraphs into Burmese, capturing new dialogue nuances and descriptive elements.
+
+Translating Reactions
+
+I've translated three more paragraphs into Burmese, capturing a beautiful woman's laughter and a man's reaction.
+
+Translating The Dialogue
+
+I translated three more paragraphs, including a cult leader's enigmatic response and a child's curious query.
+
+Translating Discussion
+
+I have translated those six more paragraphs with discussion, curiosity, and descriptive elements into Burmese.
+
+Translating a Request
+
+I've translated a Chinese paragraph describing a middle-aged man's request, and the reaction to it in Burmese.
+
+Translating An Order
+
+I have translated a new scene, capturing an order, an acceptance, a smile, and a sudden blackout into Burmese.
+
+Translating Further Details
+
+I translated three more paragraphs, including a vanishing woman, shooting stars, and a character's thoughts into Burmese.
+Translating Chapter 002 Opening
+
+I've translated the opening paragraphs of Chapter 002, capturing Luo Qing's disorientation in darkness and his humorous speculation about being taken to heaven, continuing the narrative flow from Chapter 001.
+
+Translating Internal Monologue
+
+I've rendered Luo Qing's internal questioning about whether his captors are truly immortals, referencing the "Records of Heavenly Gods and Demons" text he read earlier, showing his curious yet fearful nature.
+
+Translating Flight Scene
+
+I've translated the scene where the three figures fly through the night sky on wind, depicting their calm demeanor and Luo Qing's hidden observation, building atmosphere and tension.
+
+Translating Location Discussion
+
+I've rendered the conversation about Panlong Mountain versus Moon Wave Lake, capturing the strategic discussion between father and son about sect headquarters locations and defensive advantages.
+
+Translating Sect History
+
+I've translated Aunt Gu's explanation of the 300-year-old battle against the Pustule Old Daoist that established their sect's foundation, revealing important backstory about the North and South sects.
+
+Translating Mountain Approach
+
+I've rendered the approach to Panlong Mountain, describing the desolate path, towering ancient trees, and mysterious atmosphere as they near their destination.
+
+Translating Discovery Scene
+
+I've translated the ominous discovery of a dead sect member, capturing the sudden shift in mood from casual conversation to dark foreboding, ending the chapter on a cliffhanger.
