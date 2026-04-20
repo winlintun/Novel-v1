@@ -21,7 +21,6 @@ T = TypeVar('T')
 from scripts.preprocessor import preprocess
 from scripts.chunker import auto_chunk, split_into_paragraphs, print_chunk_analysis
 from scripts.translator import get_translator, get_system_prompt, BaseTranslator
-from scripts.checkpoint import CheckpointManager
 from scripts.postprocessor import postprocess
 from scripts.assembler import assemble
 
@@ -143,7 +142,7 @@ def retry_translate_chunk(
     system_prompt: str,
     max_retries: int = MAX_RETRIES
 ) -> str:
-    """Translate a chunk with exponential backoff retry.
+    """Translate a chunk with exponential backoff retry (batch mode).
     
     Args:
         translator: Translator instance
@@ -162,10 +161,8 @@ def retry_translate_chunk(
     
     for attempt in range(max_retries + 1):
         try:
-            translated = []
-            for token in translator.translate_stream(chunk, system_prompt):
-                translated.append(token)
-            return "".join(translated)
+            # Use batch translate instead of streaming
+            return translator.translate(chunk, system_prompt)
         except Exception as e:
             last_error = e
             if attempt == max_retries:
@@ -263,10 +260,9 @@ def _translate_single_chunk(
     total_chunks: int,
     translator: BaseTranslator,
     system_prompt: str,
-    checkpoint: CheckpointManager,
     previous_translation: Optional[str] = None
 ) -> Optional[str]:
-    """Translate a single chunk with checkpoint handling and context retention.
+    """Translate a single chunk with context retention.
     
     Args:
         chunk: Text chunk to translate
@@ -274,17 +270,11 @@ def _translate_single_chunk(
         total_chunks: Total number of chunks
         translator: Translator instance
         system_prompt: System prompt for translation
-        checkpoint: Checkpoint manager instance
         previous_translation: Previous chunk's translation for context (sliding window)
         
     Returns:
         Translated text or None if translation failed
     """
-    # Check if already done
-    if checkpoint.is_done(chunk_index):
-        logger.info(f"Chunk {chunk_index}/{total_chunks}: Already translated (checkpoint found)")
-        return None  # Signal to skip
-    
     logger.info(
         f"Translating chunk {chunk_index}/{total_chunks}: "
         f"{len(chunk)} chars using {translator.name}"
@@ -307,13 +297,6 @@ CURRENT TEXT TO TRANSLATE:
     try:
         translated_text = retry_translate_chunk(translator, user_content, system_prompt)
         logger.info(f"Chunk {chunk_index} translated: {len(translated_text)} characters")
-        
-        # Save checkpoint
-        if checkpoint.save(chunk_index, translated_text):
-            logger.debug(f"Checkpoint saved for chunk {chunk_index}")
-        else:
-            logger.warning(f"Failed to save checkpoint for chunk {chunk_index}")
-        
         return translated_text
     except RetryExhaustedError as e:
         logger.error(f"Chunk {chunk_index} translation failed after all retries: {e}")
@@ -357,7 +340,7 @@ def translate_single_file(
     print("=" * 60)
     
     # 1. Preprocess
-    print("\n[1/7] Preprocessing...")
+    print("\n[1/6] Preprocessing...")
     try:
         clean_text = _preprocess_file(filepath)
         print(f"✓ Preprocessed: {len(clean_text)} characters")
@@ -367,7 +350,7 @@ def translate_single_file(
         return False
     
     # 2. Chunk
-    print("\n[2/7] Chunking...")
+    print("\n[2/6] Chunking...")
     try:
         paragraphs, chunks = _chunk_text(clean_text, max_chars, overlap_chars)
         print_chunk_analysis(chunks, paragraphs)
@@ -376,12 +359,8 @@ def translate_single_file(
         print(f"✗ Chunking failed: {e}")
         return False
     
-    # 3. Setup checkpoint manager
-    checkpoint = CheckpointManager(chapter_name)
-    completed = checkpoint.print_resume_info(len(chunks))
-    
-    # 4. Load translator with retry
-    print(f"\n[3/7] Loading translator: {model_name}")
+    # 3. Load translator with retry
+    print(f"\n[3/6] Loading translator: {model_name}")
     try:
         translator = _load_translator_with_retry(model_name)
         print(f"✓ Loaded: {translator.name}")
@@ -400,11 +379,12 @@ def translate_single_file(
     system_prompt = get_system_prompt()
     
     # 5. Translate chunks
-    print(f"\n[4/7] Translating {len(chunks)} chunks...")
+    print(f"\n[4/6] Translating {len(chunks)} chunks...")
     print("-" * 60)
     
     start_time = time.time()
     previous_translation = None
+    translated_chunks = {}  # Store translated chunks in memory
     
     for i, chunk in enumerate(chunks, 1):
         result = _translate_single_chunk(
@@ -413,22 +393,16 @@ def translate_single_file(
             total_chunks=len(chunks),
             translator=translator,
             system_prompt=system_prompt,
-            checkpoint=checkpoint,
             previous_translation=previous_translation
         )
         
         # Update previous translation for context retention (sliding window)
         if result is not None:
             previous_translation = result
-        
-        if result is None:
-            # Already done or failed
-            if checkpoint.is_done(i):
-                print(f"\n[{i}/{len(chunks)}] ✓ Checkpoint found — skipping")
-            else:
-                print(f"\n[{i}/{len(chunks)}] ✗ Translation failed — continuing to next chunk")
+            translated_chunks[i] = result
+            print(f"\n[{i}/{len(chunks)}] ✓ Done — {len(result)} Myanmar chars")
         else:
-            print(f"\n[{i}/{len(chunks)}] ✓ Done — {len(result)} Myanmar chars written")
+            print(f"\n[{i}/{len(chunks)}] ✗ Translation failed — continuing to next chunk")
         
         # Apply delay between chunks
         _apply_delay_between_chunks(i, len(chunks))
@@ -436,29 +410,22 @@ def translate_single_file(
     translate_time = time.time() - start_time
     
     # 6. Postprocess
-    print(f"\n[5/7] Postprocessing...")
+    print(f"\n[5/6] Postprocessing...")
     
-    # Load all checkpoints first
-    all_chunks = checkpoint.load_all()
-    full_text = '\n\n'.join(all_chunks[i] for i in sorted(all_chunks.keys()))
+    # Combine all translated chunks
+    full_text = '\n\n'.join(translated_chunks[i] for i in sorted(translated_chunks.keys()))
     processed_text = full_text  # Default to unprocessed if postprocess fails
     
     try:
         # Postprocess
         processed_text = postprocess(full_text, names_path)
-        
-        # Save postprocessed version back to checkpoints
-        for i, text in enumerate(processed_text.split('\n\n'), 1):
-            if i in all_chunks:
-                checkpoint.save(i, text)
-        
     except Exception as e:
         logger.error(f"Postprocessing failed: {e}")
         print(f"✗ Postprocessing failed: {e}")
         print(f"  Using unprocessed text for assembly.")
     
     # 7. Assemble
-    print(f"\n[6/7] Assembling...")
+    print(f"\n[6/6] Assembling...")
     try:
         output_dir = Path(TRANSLATED_DIR)
         output_dir.mkdir(exist_ok=True)
@@ -472,17 +439,14 @@ def translate_single_file(
             output_path=str(output_file)
         )
         
-        # Clear checkpoints after successful assembly
-        checkpoint.clear_all()
-        
     except Exception as e:
         logger.error(f"Assembly failed: {e}")
         print(f"✗ Assembly failed: {e}")
         return False
     
-    # 8. Readability check (optional)
+    # 8. Readability check (optional) - shown as step 7 in output
     if do_readability:
-        print(f"\n[7/7] Readability check...")
+        print(f"\n[7] Readability check...")
         try:
             run_readability_check(processed_text, chapter_name)
         except Exception as e:
