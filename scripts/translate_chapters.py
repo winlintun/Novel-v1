@@ -149,23 +149,41 @@ def translate_chapter(novel_name, chapter_num, input_file, output_dir, config):
         translator = get_translator(model_name)
         system_prompt = get_system_prompt(glossary_manager=glossary)
         
-        # 3. Translate with chunking
-        chunks = auto_chunk(chapter_content, max_chars=1200)
+        # 3. Translate with chunking and rolling context
+        chunks = auto_chunk(chapter_content, max_chars=1200, overlap_chars=0)
         
         translated_chunks = []
+        previous_translation = None
+        is_nllb = "nllb" in translator.name.lower()
+        
         for i, chunk in enumerate(chunks, 1):
             if shutdown_requested:
                 logger.info("Shutdown requested mid-chapter...")
                 return False
                 
             logger.info(f"Translating chunk {i}/{len(chunks)}")
-            result = translator.translate(chunk, system_prompt)
-            translated_chunks.append(result)
             
-            # Use REQUEST_DELAY from environment
-            delay = float(os.getenv("REQUEST_DELAY", "0.5"))
-            if delay > 0 and i < len(chunks):
-                time.sleep(delay)
+            # Build contextualized prompt for LLM-based models
+            user_content = f"CHAPTER {chapter_num}\n\n"
+            if previous_translation and i > 1 and not is_nllb:
+                # Rolling Context: provide previous translation snippet for consistency
+                context_snippet = previous_translation[-1200:] if len(previous_translation) > 1200 else previous_translation
+                user_content += f"PREVIOUS CONTEXT (for consistency):\n{context_snippet}\n\n---\n\n"
+            
+            user_content += f"CURRENT TEXT TO TRANSLATE:\n{chunk}"
+            
+            # Translate this chunk
+            result = translator.translate(user_content, system_prompt)
+            
+            # Save for final assembly and for next chunk context
+            translated_chunks.append(result)
+            previous_translation = result
+            
+            # Apply delay between chunks (Skip for local Ollama)
+            if "ollama" not in translator.name.lower() and i < len(chunks):
+                delay = float(os.getenv("REQUEST_DELAY", "0.5"))
+                if delay > 0:
+                    time.sleep(delay)
             
         translated = '\n\n'.join(translated_chunks)
         

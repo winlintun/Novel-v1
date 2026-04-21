@@ -112,27 +112,32 @@ def get_system_prompt(target_lang: str = "Myanmar (Burmese)", source_lang: str =
 
     # Load glossary - priority: glossary_manager > novel_name > names.json
     glossary_text = ""
+    glossary_loaded = False
     
     # 1. Try provided glossary manager first
     if glossary_manager is not None:
         try:
             glossary_text = glossary_manager.get_glossary_text()
+            if glossary_text:
+                glossary_loaded = True
+                logger.info(f"Using provided glossary manager: {len(glossary_manager.names)} names")
         except Exception as e:
             logger.warning(f"Failed to load glossary from manager: {e}")
     
-    # 2. Try novel-specific glossary file
-    elif novel_name:
+    # 2. Try novel-specific glossary file (if no glossary manager or it was empty)
+    if not glossary_loaded and novel_name:
         try:
             from scripts.glossary_manager import GlossaryManager
             glossary = GlossaryManager(novel_name, auto_create=False)
             if glossary.names:  # Only use if glossary has entries
                 glossary_text = glossary.get_glossary_text()
+                glossary_loaded = True
                 logger.info(f"Loaded glossary for novel '{novel_name}': {len(glossary.names)} names")
         except Exception as e:
             logger.warning(f"Failed to load novel glossary for '{novel_name}': {e}")
     
-    # 3. Fallback to global names.json
-    if not glossary_text:
+    # 3. Fallback to global names.json (always try this if nothing else worked)
+    if not glossary_loaded:
         try:
             import os
             if os.path.exists("names.json"):
@@ -142,8 +147,13 @@ def get_system_prompt(target_lang: str = "Myanmar (Burmese)", source_lang: str =
                         glossary_text = "\n\nTERMINOLOGY MAPPING (Use these exact Burmese translations):\n"
                         for src, my in names.items():
                             glossary_text += f"- {src} -> {my}\n"
+                        glossary_loaded = True
+                        logger.info(f"Loaded global names.json: {len(names)} names")
         except Exception as e:
             logger.warning(f"Failed to load names.json: {e}")
+    
+    if not glossary_loaded:
+        logger.warning("No glossary loaded - translations may have inconsistent names")
 
     prompt = f"""You are a skilled Burmese literary writer who is also fluent in {source_display}. Your goal is to translate the provided {source_display} novel text into natural, conversational, and emotionally resonant Burmese.
 

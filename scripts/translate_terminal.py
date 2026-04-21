@@ -74,11 +74,19 @@ def load_translator_module():
 
 
 def load_chunk_module():
-    """Dynamically load the chunk_paragraph module."""
-    spec = importlib.util.spec_from_file_location("chunk_paragraph", Path(__file__).parent / "chunk_paragraph.py")
+    """Dynamically load the chunker module."""
+    spec = importlib.util.spec_from_file_location("chunker", Path(__file__).parent / "chunker.py")
     chunk_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(chunk_module)
     return chunk_module
+
+
+def load_postprocess_module():
+    """Dynamically load the postprocessor module."""
+    spec = importlib.util.spec_from_file_location("postprocessor", Path(__file__).parent / "postprocessor.py")
+    postprocess_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(postprocess_module)
+    return postprocess_module
 
 
 def scan_novels() -> List[Dict]:
@@ -630,10 +638,8 @@ def postprocess_novel(novel_name: str) -> bool:
     """
     info(f"Postprocessing: {novel_name}")
     
-    # Load postprocess_translation module
-    spec = importlib.util.spec_from_file_location("postprocess_translation", Path(__file__).parent / "postprocess_translation.py")
-    postprocess_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(postprocess_module)
+    # Load postprocessor module
+    postprocess_module = load_postprocess_module()
     
     try:
         result = postprocess_module.postprocess_novel(novel_name)

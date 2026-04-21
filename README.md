@@ -1,30 +1,34 @@
-# Chinese-to-Burmese Novel Translation System
+# Chinese/English-to-Burmese Novel Translation System
 
-An AI-powered novel translation pipeline that automatically translates Chinese novels into Burmese (Myanmar language). Optimized for web novels, wuxia/xianxia stories, and other Chinese literary works while preserving the original tone, style, and emotional depth.
+An AI-powered novel translation pipeline that automatically translates **Chinese OR English** novels into **natural, conversational Burmese (Myanmar language)**. Optimized for web novels, wuxia/xianxia stories, and other literary works while preserving the original tone, style, and emotional depth.
 
-## Key Features
+## 🌟 Key Features
 
-- **Multi-Model Support**: Works with Ollama (local), OpenRouter, Gemini, DeepSeek, and Qwen
-- **Streaming Translation**: Real-time token streaming with live progress display
-- **Checkpoint Resume**: Never lose progress - resume interrupted translations anytime
-- **WebSocket Progress**: Browser-based real-time translation monitoring
-- **Myanmar Readability Checks**: Automated quality validation for Burmese output
-- **Name Consistency**: Maintains consistent character/place names across all chapters via `names.json`
-- **Batch Processing**: Queue and translate multiple novels in sequence
-- **Error Recovery**: Automatic retry with exponential backoff
+- **🌐 Multi-Language Source**: Supports both **Chinese** and **English** source novels
+- **🔄 Two-Stage Translation**: Raw translation + Literary rewrite for natural Burmese
+- **📚 Per-Novel Glossaries**: Each novel gets its own character name glossary (`glossaries/novel_name.json`)
+- **🤖 Multi-Model Support**: Ollama (local), OpenRouter, Gemini, NLLB-200, and more
+- **📖 Natural Burmese**: Optimized prompts for conversational, emotionally resonant translations
+- **💾 Checkpoint Resume**: Never lose progress - resume interrupted translations anytime
+- **🔍 Quality Checks**: Automated Myanmar readability validation
+- **⚡ Streaming Output**: Real-time token streaming with live progress
+- **🌐 Web Reader**: Built-in web reader to read translated novels
 
-## Project Structure
+## 📁 Project Structure
 
 ```
 novel_translation_project/
 │
 ├── main.py                     # Main orchestrator (entry point)
-├── AGENTS.md                   # AI agent guidance and context
+├── reader_app.py               # Web reader for translated novels
+├── translate_novel.py          # Full novel pipeline (extract + translate)
+├── translate_manual.py         # Manual chapter-by-chapter translation
+├── AGENTS.md                   # AI agent guidance and prompts
+├── need_to_fix.md              # Translation quality guide
 ├── README.md                   # This file
+├── SETUP.md                    # Detailed setup guide
 ├── requirements.txt            # Python dependencies
-├── Makefile                    # Build automation
 ├── .env.example                # Environment template
-├── .gitignore                  # Git ignore rules
 │
 ├── config/
 │   ├── settings.py             # Pydantic configuration validation
@@ -32,53 +36,51 @@ novel_translation_project/
 │
 ├── scripts/                    # Translation pipeline modules
 │   ├── __init__.py
-│   ├── preprocessor.py         # Step 1: Clean & normalize text
-│   ├── chunker.py              # Step 2: Split into chunks
-│   ├── translator.py           # Step 3: AI translation engine
-│   ├── checkpoint.py           # Step 4: Save/resume progress
-│   ├── postprocessor.py        # Step 5: Fix names & punctuation
-│   ├── assembler.py            # Step 6: Assemble final document
-│   └── myanmar_checker.py      # Quality control checker
+│   ├── preprocessor.py         # Clean & normalize text
+│   ├── chunker.py              # Smart text chunking
+│   ├── translator.py           # AI translation engine
+│   ├── rewriter.py             # Two-stage rewrite for quality
+│   ├── glossary_manager.py     # Per-novel glossary management
+│   ├── checkpoint.py           # Save/resume progress
+│   ├── postprocessor.py        # Fix punctuation & names
+│   ├── assembler.py            # Assemble final document
+│   ├── myanmar_checker.py      # Quality control
+│   └── fix_translation.py      # Fix poor translations
 │
-├── templates/
-│   ├── chapter_template.md     # Chapter formatting template
-│   └── novel_template.md       # Full novel structure template
-│
-├── input_novels/               # Drop Chinese novels here (.md/.txt)
-├── translated_novels/          # Final Burmese translations (.md)
-├── chinese_chapters/             # Extracted chapter storage
-├── data_file/                    # Data storage
+├── templates/                  # HTML templates for web reader
+├── input_novels/               # Drop novels here (.txt/.md)
+├── books/                      # Final translations (organized by book)
+├── glossaries/                 # Per-novel glossaries (*.json)
+├── chinese_chapters/           # Extracted Chinese chapters
+├── english_chapters/           # Extracted English chapters
 │
 └── working_data/               # Temporary files (gitignored)
-    ├── checkpoints/            # Resume state files
-    ├── chunks/                 # Pre-translation text chunks
-    ├── translated_chunks/      # Post-translation chunks
-    ├── preview/                # Live preview files
-    ├── readability_reports/    # Quality check reports
+    ├── checkpoints/            # Resume state
     ├── logs/                   # Translation logs
-    └── clean/                  # Cleaned text files
+    └── readability_reports/    # Quality reports
 ```
 
-## Quick Start
+## 🚀 Quick Start
 
 ### Prerequisites
 
 - Python 3.8+
 - Git
-- Ollama (for local LLM) or API keys for cloud models
-- 16GB+ RAM (32GB recommended)
+- Ollama (for local LLM) OR API keys for cloud models
+- 16GB+ RAM (32GB recommended for large models)
 
 ### Installation
 
-1. **Clone or navigate to the project:**
+1. **Clone the repository:**
    ```bash
+   git clone <repository-url>
    cd novel_translation_project
    ```
 
 2. **Create virtual environment:**
    ```bash
    python3 -m venv venv
-   source venv/bin/activate  # On Windows: .\venv\Scripts\activate
+   source venv/bin/activate  # Windows: .\venv\Scripts\activate
    ```
 
 3. **Install dependencies:**
@@ -95,11 +97,11 @@ novel_translation_project/
 5. **Pull Ollama model (if using local):**
    ```bash
    ollama pull qwen2.5:14b
+   # OR for better quality
+   ollama pull gemma:12b
    ```
 
-### Usage
-
-#### Basic Translation
+### Basic Usage
 
 ```bash
 # Translate all files in input_novels/
@@ -114,177 +116,207 @@ python main.py --model gemini
 python main.py --model ollama
 
 # Adjust chunk size
-python main.py --max-chars 2000
+python main.py --max-chars 1200
 
 # Skip readability check
 python main.py --no-readability
 ```
 
-#### Manual Chapter Translation
+### Two-Stage Translation (Higher Quality)
+
+Enable in `config/config.json`:
+```json
+{
+  "translation_pipeline": {
+    "mode": "two_stage"
+  }
+}
+```
+
+This runs:
+1. **Stage 1**: Raw literal translation
+2. **Stage 2**: Literary rewrite into natural Burmese
+
+## 📖 Translation Workflow
+
+```
+1. PREPROCESS   → Clean text, detect encoding, remove noise
+2. CHUNK        → Split into paragraph-safe chunks
+3. GLOSSARY     → Load per-novel character name glossary
+4. TRANSLATE    → AI translation with context awareness
+5. REWRITE      → (Two-stage) Polish into natural Burmese
+6. POSTPROCESS  → Fix punctuation and enforce glossary
+7. ASSEMBLE     → Merge into final Markdown file
+8. SAVE         → Update glossary with new names
+```
+
+## 📚 Glossary System (Character Name Consistency)
+
+Each novel gets its own glossary file: `glossaries/<novel_name>.json`
+
+### Managing Glossaries
 
 ```bash
-# Check status
-python translate_manual.py novel_name --status
+# List glossary for a novel
+python scripts/glossary_manager.py novel_name list
 
-# Translate specific chapter
-python translate_manual.py novel_name --chapter 1
+# Add a name manually
+python scripts/glossary_manager.py novel_name add "Gu Wen" "ဂူဝမ်"
 
-# Translate next pending chapter
-python translate_manual.py novel_name --next
+# View statistics
+python scripts/glossary_manager.py novel_name stats
 
-# List all chapters
-python translate_manual.py novel_name --list
+# List all available glossaries
+python scripts/glossary_manager.py
 ```
 
-#### Novel Translation (Extract + Translate)
+### Example Glossary (`glossaries/my_novel.json`)
+
+```json
+{
+  "names": {
+    "Gu Wen": "ဂူဝမ်",
+    "Marquis Wen": "ဝမ်တိုင်",
+    "Bianjing": "ဘိန်းကျိင်",
+    "Dragon Bridge": "လွန်ချျန်းတံတား"
+  },
+  "metadata": {
+    "novel_name": "my_novel",
+    "created_at": "2026-04-22T10:00:00",
+    "updated_at": "2026-04-22T12:00:00",
+    "total_names": 4,
+    "chapter_count": 10
+  }
+}
+```
+
+## ⚙️ Configuration
+
+### Environment Variables (`.env`)
 
 ```bash
-# Process single novel
-python translate_novel.py novel_name
-
-# Process all novels
-python translate_novel.py --all
-```
-
-#### Using Make Commands
-
-```bash
-make install    # Install dependencies
-make run        # Run main.py
-make clean      # Clean checkpoints and logs
-make lint       # Run linters
-make test       # Run tests
-```
-
-## Translation Workflow
-
-When you run `main.py`, the following 7-step pipeline executes automatically:
-
-```
-1. SCAN       → Check input_novels/ for Chinese text files
-2. PREPROCESS → Clean text, enforce UTF-8, remove noise
-3. CHUNK      → Split into 1500-2000 character chunks with overlap
-4. TRANSLATE  → Use AI to translate each chunk (streaming)
-5. CHECKPOINT → Save progress after each chunk (resume anytime)
-6. POSTPROCESS→ Fix character names using names.json
-7. ASSEMBLE   → Merge all chunks into final Markdown file
-```
-
-## Configuration
-
-### Environment Variables (.env)
-
-```bash
-# Model Selection: openrouter | gemini | deepseek | qwen | ollama
+# Model Selection: openrouter | gemini | ollama | nllb
 AI_MODEL=ollama
 
 # API Keys (for cloud models)
 OPENROUTER_API_KEY=your_key_here
 GEMINI_API_KEY=your_key_here
-DEEPSEEK_API_KEY=your_key_here
-QWEN_API_KEY=your_key_here
 
 # Ollama (Local)
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=qwen2.5:14b
 
 # Translation Settings
-MAX_CHUNK_CHARS=1800
-REQUEST_DELAY=1.0
-READABILITY_CHECK=true
+MAX_CHUNK_CHARS=1200
+REQUEST_DELAY=0.5
+SOURCE_LANGUAGE=Chinese  # or English
 ```
 
-### Runtime Configuration (config/config.json)
+### Runtime Configuration (`config/config.json`)
 
 ```json
 {
   "model": "qwen2.5:14b",
   "provider": "ollama",
-  "ollama_endpoint": "http://localhost:11434/api/generate",
   "source_language": "Chinese",
-  "target_language": "Burmese",
-  "chunk_size": 1500,
+  "chunk_size": 1200,
   "chunk_overlap": 100,
   "stream": true,
-  "preview_update_every_n_tokens": 10,
-  "request_timeout": 900,
+  "translation_pipeline": {
+    "mode": "single_stage"
+  },
   "myanmar_readability": {
     "enabled": true,
-    "min_myanmar_ratio": 0.7,
-    "flag_on_fail": true,
-    "block_on_fail": false
+    "min_myanmar_ratio": 0.7
   }
 }
 ```
 
-### Character Names (names.json)
+## 🌐 Web Reader
 
-Maintain consistent translations for characters, places, and terms:
+Read translated novels in your browser:
 
-```json
-{
-  "罗青": "လော်ချင်",
-  "蟠龙山": "ပန်လုံတောင်",
-  "魔教": "မိစ္ဆာဂိုဏ်း"
-}
+```bash
+python reader_app.py
+# Open http://localhost:5000
 ```
 
-## Quality Assurance
+Features:
+- Library view of all translated books
+- Chapter list with progress tracking
+- Clean reading interface
+- Saves reading position
 
-The system performs automated checks on each translated chunk:
+## 🔍 Quality Assurance
+
+Automated checks on each translation:
 
 | Check | Pass Condition |
 |-------|----------------|
-| Myanmar script ratio | ≥ 70% Myanmar Unicode (U+1000–U+109F) |
-| No Chinese leakage | Zero Chinese characters (U+4E00–U+9FFF) |
-| Sentence boundary | At least one `။` marker present |
-| Minimum length | Output ≥ 30% of input length |
-| Encoding integrity | No replacement characters (U+FFFD) |
+| Myanmar script ratio | ≥ 70% Myanmar Unicode |
+| No source leakage | Zero Chinese/English characters |
+| Sentence boundaries | At least one `။` marker |
+| Minimum length | Output ≥ 30% of input |
+| Encoding integrity | No replacement characters |
 
-## Models
+## 🛠️ Fixing Poor Translations
 
-### Recommended Models
+If a translation has issues (English mixed in, weird repetitions, etc.):
 
-| Model | RAM Usage | Quality | Best For |
-|-------|-----------|---------|----------|
-| `qwen2.5:14b` | ~10 GB | Excellent | Local, high quality |
-| `qwen2.5:7b` | ~6 GB | Good | Local, lower RAM |
-| `gemini-2.0-flash` | Cloud | Excellent | API, fast |
-| `deepseek-chat` | Cloud | Excellent | API, reasoning |
+```bash
+# Auto-fix common issues
+python scripts/fix_translation.py books/novel/chapters/file.md
 
-## Troubleshooting
+# Creates: books/novel/chapters/file_fixed.md
+```
+
+This fixes:
+- Metadata text in output
+- English phrases not translated
+- Weird character repetitions
+- Inconsistent character names
+- Dialogue format issues
+
+## 🧠 Recommended Models
+
+| Model | RAM | Quality | Speed | Best For |
+|-------|-----|---------|-------|----------|
+| `qwen2.5:14b` | ~10GB | ⭐⭐⭐⭐⭐ | Medium | Local, best quality |
+| `gemma:12b` | ~8GB | ⭐⭐⭐⭐ | Medium | Local, good balance |
+| `gemini-2.0-flash` | Cloud | ⭐⭐⭐⭐⭐ | Fast | API, fast & quality |
+| `nllb-200` | ~2GB | ⭐⭐⭐ | Fast | Two-stage pipeline |
+
+## 🐛 Troubleshooting
 
 | Problem | Solution |
 |---------|----------|
 | Out of memory | Use 7B model or reduce chunk_size |
 | Model not found | Run `ollama pull <model>` |
 | API errors | Check API keys in .env |
-| Chinese in output | Set `block_on_fail: true` in config |
-| Resume failed | Delete checkpoint file in `working_data/checkpoints/` |
+| Names inconsistent | Update glossary: `python scripts/glossary_manager.py novel_name add "Name" "မြန်မာနာမည်"` |
+| Translation has English | Run `python scripts/fix_translation.py <file.md>` |
+| Resume failed | Delete checkpoint in `working_data/checkpoints/` |
 
-## Technologies Used
+## 📄 Documentation
 
-- **Python 3.8+** - Core language
-- **Flask/Socket.IO** - Web UI and real-time progress
-- **Ollama** - Local LLM runner
-- **Requests** - API clients
-- **Pydantic** - Configuration validation
-- **python-dotenv** - Environment management
+- **[SETUP.md](SETUP.md)** - Detailed installation and setup guide
+- **[AGENTS.md](AGENTS.md)** - AI agent guidance and prompt engineering
+- **[need_to_fix.md](need_to_fix.md)** - Translation quality improvement guide
 
-## License
+## 📜 License
 
 This project is for personal/educational use.
 
-## Contributing
+## 🤝 Contributing
 
 When contributing:
 1. Follow the existing code style
 2. Update documentation as needed
 3. Test your changes thoroughly
-4. Update names.json for new novel-specific terms
+4. Update glossaries for new novel-specific terms
 
 ---
 
-**Last Updated**: April 21, 2026  
-**Project**: Novel Translation System  
-**Language Pair**: Chinese (Simplified) → Burmese (Myanmar)
+**Last Updated**: April 22, 2026  
+**Version**: 2.0  
+**Language Pairs**: Chinese → Burmese, English → Burmese

@@ -28,10 +28,10 @@ class MyanmarReadabilityConfig(BaseModel):
 
 class TranslationConfig(BaseModel):
     """Main translation configuration with validation."""
-    
+
     # Model settings
     model: str = Field(default="qwen:7b", description="Model name/identifier")
-    provider: Literal["ollama", "openrouter", "gemini"] = Field(
+    provider: Literal["ollama", "openrouter", "gemini", "nllb"] = Field(
         default="ollama",
         description="Model provider"
     )
