@@ -2,7 +2,7 @@
 
 Complete setup instructions for the Novel Translation Project.
 
-> **Date:** April 21, 2026  
+> **Date:** April 22, 2026  
 > **Target:** Python developers and AI translation users  
 > **Build:** Fully custom — no external translation framework required
 
@@ -10,215 +10,193 @@ Complete setup instructions for the Novel Translation Project.
 
 ## Table of Contents
 
-1. [Prerequisites](#1-prerequisites)
-2. [Hardware Requirements](#2-hardware-requirements)
-3. [Software Requirements](#3-software-requirements)
-4. [Step-by-Step Installation](#4-step-by-step-installation)
+1. [What This Project Does](#1-what-this-project-does)
+2. [Project Structure](#2-project-structure)
+3. [Prerequisites](#3-prerequisites)
+4. [Installation](#4-installation)
 5. [Configuration](#5-configuration)
 6. [Running the Application](#6-running-the-application)
 7. [Troubleshooting](#7-troubleshooting)
 
 ---
 
-## 1. Prerequisites
+## 1. What This Project Does
 
-### What This System Does
+This is an **AI-powered Chinese-to-Burmese novel translation pipeline**. 
 
-When you run `main.py`, it handles the entire workflow:
+### Simple Flow
 
 ```
-1. Scan input_novels/ for all *.txt and *.md files
-2. For each novel — check if already translated (skip if done)
-3. Preprocess the novel (clean text, enforce UTF-8)
-4. Split into chunks (1500-2000 chars with overlap)
-5. Translate each chunk via AI with live streaming
-6. Save checkpoint after every chunk (safe to cancel anytime)
-7. Run Myanmar readability check on each chunk
-8. Postprocess (fix punctuation, character name consistency)
-9. Assemble all chunks into final .md file
-10. Write output to translated_novels/
+[Chinese .md] → [AI Translation] → [Myanmar .md] → [Reader App]
+```
+
+### Detailed Pipeline
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  INPUT → PREPROCESS → CHUNK → TRANSLATE → POSTPROCESS → OUTPUT  │
+└─────────────────────────────────────────────────────────────────┘
+
+1. INPUT      → Read Chinese .md files from input_novels/
+2. CHUNK      → Split into ≤1000 char segments (NOT whole novel at once)
+3. TRANSLATE  → AI translates each chunk with context retention
+4. OUTPUT     → Save Myanmar .md to books/{book_id}/chapters/
+5. READER     → Browse and read via Web UI
+```
+
+### Key Features
+
+- **Simple Pipeline**: `.md → AI translate → new .md → reader app`
+- **Segmented Translation**: Never throw the whole novel at AI at once
+- **Multi-Model Support**: 
+  - Local: Qwen 3.5 (7B/14B), TranslateGemma, Kimi-K2.6
+  - Online: Gemini, DeepSeek, Qwen, OpenRouter, NLLB-200
+- **Context Retention**: Sliding window maintains narrative consistency
+- **Name Consistency**: Maintains character/place names via `names.json`
+- **Web Reader**: Built-in Flask app for reading translations
+
+---
+
+## 2. Project Structure
+
+```
+novel_translation_project/
+│
+├── main.py                     # Main entry point - translates .md files
+├── reader_app.py               # Flask web UI for reading
+├── input_novels/               # Drop Chinese .md files here
+├── books/                      # Translated output (structured for Reader)
+│   ├── book1/
+│   │   ├── metadata.json       # Book info & chapter list
+│   │   └── chapters/
+│   │       ├── chapter1.md     # Translated chapter
+│   │       └── chapter2.md
+│   └── book2/
+│       └── ...
+│
+├── config/
+│   ├── config.json             # Model & translation settings
+│   └── settings.py             # Configuration validation
+│
+├── scripts/                    # Translation modules
+│   ├── translator.py           # AI model adapters
+│   ├── chunker.py              # Text segmentation
+│   ├── assembler.py            # Output assembly
+│   └── ...
+│
+├── templates/                  # HTML templates for Reader
+├── names.json                  # Character name mappings
+└── .env                        # API keys & settings
 ```
 
 ---
 
-## 2. Hardware Requirements
+## 3. Prerequisites
+
+### Hardware
 
 | Component | Minimum | Recommended |
 |-----------|---------|-------------|
 | RAM | 16 GB | 32 GB |
 | Storage | 30 GB free | 60 GB free |
 | CPU | 4-core modern | 8-core or better |
-| GPU (optional) | — | 4 GB+ VRAM speeds up inference |
 
-> **16 GB RAM tip:** Use quantized models (q4_K_M). Close other heavy apps while translating. Stick to chunk_size: 1500 or lower.
+> **16 GB RAM tip**: Use smaller models (7B) and reduce chunk size to 1000.
 
----
+### Software
 
-## 3. Software Requirements
-
-### 3.1 Core Software
-
-| Software | Version | Install |
-|----------|---------|---------|
-| Python | 3.8+ | [python.org](https://www.python.org/downloads/) |
-| Git | Latest | [git-scm.com](https://git-scm.com/) |
-| Ollama (optional) | Latest | [ollama.com](https://ollama.com/) |
-
-### 3.2 Python Dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-| Package | Purpose |
-|---------|---------|
-| `requests` | HTTP client for API calls |
-| `python-dotenv` | Environment variable management |
-| `pydantic` | Configuration validation |
-| `ollama` | Ollama Python client |
-| `flask` | Web UI framework |
-| `flask-socketio` | Real-time WebSocket communication |
-| `eventlet` | Async server for WebSocket |
-| `gevent` | Alternative async server |
-| `tqdm` | Progress bars |
+- **Python** 3.8+
+- **Git**
+- **Ollama** (optional, for local models)
 
 ---
 
-## 4. Step-by-Step Installation
+## 4. Installation
 
-### Step 1: Create Project Directory
+### Step 1: Setup Environment
 
 ```bash
-mkdir novel_translation_project
 cd novel_translation_project
-```
-
-### Step 2: Create Virtual Environment
-
-```bash
 python3 -m venv venv
-
-# macOS / Linux
-source venv/bin/activate
-
-# Windows
-.\venv\Scripts\activate
-```
-
-### Step 3: Install Python Dependencies
-
-```bash
+source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### Step 4: Install Ollama (Optional - for local models)
+### Step 2: Configure
 
 ```bash
-# Verify Ollama is installed
-ollama --version
-
-# Pull your translation model
-ollama pull qwen2.5:14b
-
-# Ollama runs automatically after install
-# If not running, start manually:
-ollama serve
-```
-
-### Step 5: Configure Environment
-
-```bash
-# Copy environment template
 cp .env.example .env
-
 # Edit .env with your settings
-nano .env  # or use your preferred editor
+nano .env
 ```
 
-### Step 6: Verify Configuration
+### Step 3: (Optional) Setup Ollama for Local Models
 
 ```bash
-# Validate config.json
-python config/settings.py validate
+# Install Ollama from https://ollama.com
+
+# Pull a translation model
+ollama pull qwen2.5:14b
+# or
+ollama pull translategemma:12b
+# or
+ollama run kimi-k2.6:cloud
+
+# Start Ollama
+ollama serve
 ```
 
 ---
 
 ## 5. Configuration
 
-### Environment Variables (.env)
+### 5.1 Environment (.env)
 
 ```bash
-# ── Model Selection ──────────────────────────────────
-# Options: openrouter | gemini | deepseek | qwen | ollama
-AI_MODEL=ollama
+# Choose AI backend
+AI_MODEL=ollama  # Options: ollama | openrouter | gemini | deepseek | qwen
 
-# ── SSL Verification ─────────────────────────────────
-VERIFY_SSL=true
-
-# ── OpenRouter (one key = many free models) ───────────
-OPENROUTER_API_KEY=your_key_here
-OPENROUTER_MODEL=google/gemini-2.0-flash-exp:free
-
-# ── Google Gemini (AI Studio) ────────────────────────
-GEMINI_API_KEY=your_key_here
-GEMINI_MODEL=gemini-2.0-flash
-
-# ── DeepSeek ─────────────────────────────────────────
-DEEPSEEK_API_KEY=your_key_here
-DEEPSEEK_MODEL=deepseek-chat
-
-# ── Qwen (Alibaba DashScope) ─────────────────────────
-QWEN_API_KEY=your_key_here
-QWEN_MODEL=qwen-max
-
-# ── Ollama (Local) ───────────────────────────────────
+# Ollama (Local)
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=qwen2.5:14b
+# Other options: translategemma, translategemma:12b, kimi-k2.6:cloud
 
-# ── Translation Settings ──────────────────────────────
-MAX_CHUNK_CHARS=1800
+# API Keys (for cloud models)
+OPENROUTER_API_KEY=your_key
+GEMINI_API_KEY=your_key
+DEEPSEEK_API_KEY=your_key
+QWEN_API_KEY=your_key
+
+# Translation Settings
+MAX_CHUNK_CHARS=1000    # IMPORTANT: Segmented translation!
 REQUEST_DELAY=1.0
 READABILITY_CHECK=true
 ```
 
-### Runtime Configuration (config/config.json)
+### 5.2 Models Reference
 
-```json
-{
-  "model": "qwen2.5:14b",
-  "provider": "ollama",
-  "ollama_endpoint": "http://localhost:11434/api/generate",
-  "source_language": "Chinese",
-  "target_language": "Burmese",
-  "chunk_size": 1500,
-  "chunk_overlap": 100,
-  "stream": true,
-  "preview_update_every_n_tokens": 10,
-  "request_timeout": 900,
-  "auto_open_browser": true,
-  "myanmar_readability": {
-    "enabled": true,
-    "min_myanmar_ratio": 0.7,
-    "flag_on_fail": true,
-    "block_on_fail": false
-  }
-}
-```
+#### Local (Ollama)
 
-**Key settings explained:**
+| Model | Size | Quality | Command |
+|-------|------|---------|---------|
+| Qwen 3.5 | 7B | Good | `ollama pull qwen2.5:7b` |
+| Qwen 3.5 | 14B | Excellent | `ollama pull qwen2.5:14b` |
+| TranslateGemma | 12B | Good | `ollama pull translategemma:12b` |
+| Kimi K2.6 | Cloud | Excellent | `ollama run kimi-k2.6:cloud` |
 
-| Setting | Description |
-|---------|-------------|
-| `chunk_size` | Characters per chunk. Keep 1500-2000 for 16 GB RAM |
-| `chunk_overlap` | Chars shared between chunks for narrative flow |
-| `min_myanmar_ratio` | Minimum Myanmar script ratio (0.0-1.0) |
-| `flag_on_fail` | Mark failing chunks in report |
-| `block_on_fail` | Retranslate failing chunks before continuing |
+#### Online (API)
 
-### Character Names (names.json)
+| Service | Model | Free Tier |
+|---------|-------|-----------|
+| OpenRouter | Various | Yes |
+| Gemini | gemini-2.0-flash | Yes |
+| DeepSeek | deepseek-chat | Limited |
+| Qwen | qwen-max | Limited |
+| NLLB-200 | facebook/nllb-200 | Yes (via HuggingFace) |
 
-Add your novel's character names for consistent translation:
+### 5.3 Character Names (names.json)
+
+Add name mappings for consistent translation:
 
 ```json
 {
@@ -232,67 +210,82 @@ Add your novel's character names for consistent translation:
 
 ## 6. Running the Application
 
-### Start Translation
+### 6.1 Translate Novels
 
 ```bash
-# Translate all files in input_novels/
+# 1. Place Chinese .md files in input_novels/
+cp my_novel.md input_novels/
+
+# 2. Run translation
 python main.py
 
+# Output goes to: books/{book_name}/chapters/
+```
+
+**Options:**
+
+```bash
 # Translate specific file
-python main.py input_novels/novel.txt
+python main.py input_novels/novel.md
 
 # Use different model
 python main.py --model openrouter
-python main.py --model gemini
 
-# Adjust settings
-python main.py --max-chars 2000 --no-readability
+# Adjust chunk size (lower = less memory)
+python main.py --max-chars 1000
 ```
 
-### Using Make Commands
+### 6.2 Segmented Translation (Important!)
+
+**Never throw the whole novel at AI at once!**
+
+The system automatically splits text into chunks:
+
+```python
+# From scripts/chunker.py
+def split_text(text, max_len=1000):
+    return [text[i:i+max_len] for i in range(0, len(text), max_len)]
+```
+
+Default: `MAX_CHUNK_CHARS=1000` (adjust in .env)
+
+### 6.3 Read Translations
 
 ```bash
-make install    # Install dependencies
-make run        # Run main.py
-make resume     # Resume from checkpoint
-make clean      # Clean checkpoints and logs
-make lint       # Run linters
-make test       # Run tests
+# Start web reader
+python reader_app.py
+
+# Open browser
+http://localhost:5000
 ```
 
-### Drop New Novels While Running
-
-Place a new `.txt` or `.md` file in `input_novels/` at any time. The system detects it on the next scan cycle.
-
-### Resume Translation
-
-If translation is interrupted, run `python main.py` again. It automatically resumes from the last checkpoint.
+**Reader Features:**
+- Book library view
+- Chapter navigation (Next/Prev)
+- Font size control
+- Dark mode
+- Reading progress save/resume
 
 ---
 
 ## 7. Troubleshooting
 
-| Problem | Cause | Solution |
-|---------|-------|----------|
-| `ollama: command not found` | Ollama not in PATH | Reinstall from ollama.com, restart terminal |
-| Model not found | Model not pulled | `ollama pull qwen2.5:14b` |
-| Out of memory | Model too large | Use 7B model, reduce chunk_size |
-| Burmese shows as boxes | Font missing | Install Padauk or Noto Sans Myanmar |
-| API errors | Invalid key | Check API keys in .env |
-| Resume failed | Corrupt checkpoint | Delete checkpoint JSON and restart |
-| SSL errors | Certificate issues | Set `VERIFY_SSL=false` in .env (insecure) |
+| Problem | Solution |
+|---------|----------|
+| Out of memory | Reduce `MAX_CHUNK_CHARS` to 800-1000 |
+| Translation too slow | Use smaller model or cloud API |
+| Model not found | Run `ollama pull <model>` |
+| API errors | Check API keys in .env |
+| Burmese shows boxes | Install Padauk font |
+| Resume failed | Delete checkpoint files in `working_data/checkpoints/` |
 
-### Quick Diagnostics
+### Quick Checks
 
 ```bash
-# Test Ollama connection
+# Test Ollama
 curl http://localhost:11434/api/tags
 
-# Check Python environment
-python --version
-pip list | grep -E "(requests|flask|ollama)"
-
-# Validate configuration
+# Validate config
 python config/settings.py validate
 
 # Check available models
@@ -301,15 +294,22 @@ ollama list
 
 ---
 
-## References
+## Flow Summary
 
-1. Ollama — https://ollama.com/
-2. Qwen models — https://ollama.com/library/qwen
-3. Myanmar Unicode — https://www.unicode.org/charts/PDF/U1000.pdf
-4. Padauk Font — https://software.sil.org/padauk/
+```
+┌─────────────────────────────────────────────┐
+│  1. Add Chinese .md to input_novels/        │
+│  2. Run: python main.py                     │
+│  3. Check: books/{book}/chapters/           │
+│  4. Read: python reader_app.py              │
+└─────────────────────────────────────────────┘
+```
+
+**Remember:** 
+- Use segmented translation (chunks ≤1000 chars)
+- Edit names.json before translating
+- The pipeline: `.md → AI → .md → Reader`
 
 ---
 
-*Place this file in the root of your project alongside AGENTS.md and README.md.*
-
-**Last Updated**: April 21, 2026
+*Last Updated: April 22, 2026*

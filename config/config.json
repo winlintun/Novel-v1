@@ -1,6 +1,7 @@
 {
-  "model": "translategemma:12b",
+  "model": "qwen2.5:14b",
   "provider": "ollama",
+  "ai_backend": "ollama",
   "ollama_endpoint": "http://localhost:11434/api/generate",
   "source_language": "Chinese",
   "target_language": "Burmese",
@@ -11,6 +12,32 @@
   "request_timeout": 900,
   "web_ui_port": 5000,
   "auto_open_browser": true,
+  "supported_models": {
+    "ollama": [
+      "qwen2.5:7b",
+      "qwen2.5:14b",
+      "translategemma",
+      "translategemma:12b",
+      "kimi-k2.6:cloud"
+    ],
+    "openrouter": [
+      "google/gemini-2.0-flash-exp:free",
+      "deepseek/deepseek-chat-v3-0324:free",
+      "meta-llama/llama-3.3-70b-instruct:free",
+      "qwen/qwen2.5-72b-instruct:free"
+    ],
+    "gemini": [
+      "gemini-2.0-flash",
+      "gemini-1.5-flash"
+    ],
+    "deepseek": [
+      "deepseek-chat"
+    ],
+    "qwen": [
+      "qwen-max",
+      "qwen-turbo"
+    ]
+  },
   "myanmar_readability": {
     "enabled": true,
     "min_myanmar_ratio": 0.7,
