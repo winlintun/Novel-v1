@@ -5,6 +5,7 @@
 # ── Environment & Secrets ────────────────────────────────────────────────────
 # Note: .env is NOT ignored - we want to keep it in the repository
 # .env.local and variants are still ignored for local overrides
+.env
 .env.local
 .env.*.local
 *.key
