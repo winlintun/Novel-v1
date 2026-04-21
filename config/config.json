@@ -1,5 +1,5 @@
 {
-  "model": "qwen2.5:14b",
+  "model": "qwen2.5:7b",
   "provider": "ollama",
   "ai_backend": "ollama",
   "ollama_endpoint": "http://localhost:11434/api/generate",
@@ -47,7 +47,8 @@
     "block_on_fail": false
   },
   "translation_pipeline": {
-    "mode": "single_stage",
-    "description": "single_stage or two_stage. Two-stage uses raw translation + rewrite for better quality."
+    "mode": "two_stage",
+    "description": "single_stage or two_stage. Two-stage uses raw translation + rewrite for better quality.",
+    "rewriter_model": "qwen2.5:7b"
   }
 }
