@@ -11,12 +11,22 @@ import requests
 import urllib3
 import warnings
 from abc import ABC, abstractmethod
-from typing import Iterator, Optional, Dict, Any
+from typing import Iterator, Optional, Dict, Any, List
 from contextlib import contextmanager
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
+
+# NLLB200 language codes mapping
+NLLB_LANG_CODES = {
+    "chinese": "zho_Hans",      # Simplified Chinese
+    "chinese_simplified": "zho_Hans",
+    "chinese_traditional": "zho_Hant",
+    "english": "eng_Latn",
+    "myanmar": "mya_Mymr",
+    "burmese": "mya_Mymr",
+}
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -76,6 +86,21 @@ def managed_request(method: str, url: str, **kwargs):
 
 def get_system_prompt(target_lang: str = "Myanmar (Burmese)", source_lang: str = "Chinese") -> str:
     """Get the optimized system prompt from AGENTS.md."""
+    # Normalize language names
+    source_lang_lower = source_lang.lower()
+    target_lang_lower = target_lang.lower()
+
+    # Determine source language display name
+    if "chinese" in source_lang_lower:
+        source_display = "Chinese"
+        style_note = "Maintain the literary style and tone appropriate for the source text."
+    elif "english" in source_lang_lower:
+        source_display = "English"
+        style_note = "Maintain the literary style and tone of the original novel."
+    else:
+        source_display = source_lang
+        style_note = "Maintain the literary style and tone of the source text."
+
     # Load glossary
     glossary_text = ""
     try:
@@ -86,16 +111,16 @@ def get_system_prompt(target_lang: str = "Myanmar (Burmese)", source_lang: str =
                 names = json.load(f)
                 if names:
                     glossary_text = "\n\nTERMINOLOGY MAPPING (Use these exact Burmese translations):\n"
-                    for zh, my in names.items():
-                        glossary_text += f"- {zh} -> {my}\n"
+                    for src, my in names.items():
+                        glossary_text += f"- {src} -> {my}\n"
     except Exception as e:
         logger.warning(f"Failed to load names.json: {e}")
 
-    prompt = f"""You are an expert literary translator specializing in Chinese to Myanmar (Burmese) translation.
+    prompt = f"""You are an expert literary translator specializing in {source_display} to Myanmar (Burmese) translation.
 CRITICAL INSTRUCTIONS:
-1. Translate the provided Chinese text into MYANMAR LANGUAGE using Myanmar Unicode script.
-2. Output ONLY the raw Burmese translation. NO filler. NO English. NO Chinese.
-3. Maintain the literary style and tone of a xianxia/wuxia novel.
+1. Translate the provided {source_display} text into MYANMAR LANGUAGE using Myanmar Unicode script.
+2. Output ONLY the raw Burmese translation. NO filler. NO English. NO {source_display}.
+3. {style_note}
 4. Do not summarize; translate everything contextually.
 5. Keep all Markdown formatting (headings, line breaks) intact.{glossary_text}"""
     return prompt
@@ -103,25 +128,38 @@ CRITICAL INSTRUCTIONS:
 
 class BaseTranslator(ABC):
     """Base class for all translators."""
-    
+
     @abstractmethod
     def translate_stream(self, text: str, system_prompt: str) -> Iterator[str]:
         """Yield tokens as they arrive from API."""
         pass
-    
+
     def translate(self, text: str, system_prompt: str) -> str:
         """Translate text and return the full result.
-        
-        This is a non-streaming wrapper around translate_stream.
-        Collects all tokens and returns the complete translated text.
-        
+
         Args:
             text: Text to translate
             system_prompt: System prompt for translation
-            
+
         Returns:
             Complete translated text as a string
+
+        Raises:
+            ValueError: If text is empty or None
         """
+        # Edge case: Handle empty or None text input
+        if text is None:
+            raise ValueError("Cannot translate None text")
+
+        text = text.strip()
+        if not text:
+            logger.warning("Empty text provided for translation, returning empty string")
+            return ""
+
+        # Edge case: Handle very long text (warn but don't block)
+        if len(text) > 50000:
+            logger.warning(f"Very long text provided ({len(text)} chars), translation may take a while")
+
         return ''.join(self.translate_stream(text, system_prompt))
     
     @property
@@ -298,30 +336,53 @@ class OllamaTranslator(BaseTranslator):
     def __init__(self):
         self.base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
         self.model = os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
+        # Check if this is a cloud model that needs special handling
+        self.is_cloud_model = ":cloud" in self.model or "kimi" in self.model.lower()
+        # Get cloud API key if available
+        self.cloud_api_key = os.getenv("OLLAMA_CLOUD_API_KEY", "")
     
     def translate_stream(self, text: str, system_prompt: str) -> Iterator[str]:
-        url = f"{self.base_url}/api/chat"
-        
-        payload = {
-            "model": self.model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": text}
-            ],
-            "stream": True,
-            "options": {
-                "temperature": 0.15,
-                "num_predict": -1,
-                "num_ctx": 8192,
-                "top_p": 0.9,
-                "top_k": 40
+        # Cloud models like kimi-k2.6:cloud work better with /api/generate endpoint
+        if self.is_cloud_model:
+            url = f"{self.base_url}/api/generate"
+            payload = {
+                "model": self.model,
+                "prompt": f"{system_prompt}\n\n{text}",
+                "stream": True,
+                "options": {
+                    "temperature": 0.15,
+                    "num_predict": -1,
+                    "top_p": 0.9,
+                    "top_k": 40
+                }
             }
-        }
+        else:
+            url = f"{self.base_url}/api/chat"
+            payload = {
+                "model": self.model,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": text}
+                ],
+                "stream": True,
+                "options": {
+                    "temperature": 0.15,
+                    "num_predict": -1,
+                    "num_ctx": 8192,
+                    "top_p": 0.9,
+                    "top_k": 40
+                }
+            }
+        
+        # Prepare headers - cloud models may need authentication
+        headers = {}
+        if self.is_cloud_model and self.cloud_api_key:
+            headers["Authorization"] = f"Bearer {self.cloud_api_key}"
         
         try:
             # Ollama is local, so we use verify=False and a shorter timeout
             with managed_request('POST', url, json=payload, stream=True, 
-                               timeout=300, verify=False) as response:
+                               timeout=300, verify=False, headers=headers) as response:
                 response.raise_for_status()
                 
                 for line in response.iter_lines():
@@ -333,8 +394,17 @@ class OllamaTranslator(BaseTranslator):
                                 error_msg = data['error']
                                 logger.error(f"Ollama error: {error_msg}")
                                 raise ValueError(f"Ollama error: {error_msg}")
-                            if 'message' in data and 'content' in data['message']:
-                                yield data['message']['content']
+                            
+                            # Handle different response formats (chat vs generate)
+                            if self.is_cloud_model:
+                                # /api/generate format
+                                if 'response' in data:
+                                    yield data['response']
+                            else:
+                                # /api/chat format
+                                if 'message' in data and 'content' in data['message']:
+                                    yield data['message']['content']
+                            
                             # Check for done signal
                             if data.get('done', False):
                                 break
@@ -349,6 +419,15 @@ class OllamaTranslator(BaseTranslator):
                             continue
         except requests.exceptions.HTTPError as e:
             logger.error(f"HTTP error in Ollama: {e}")
+            # Special handling for cloud model 403 errors
+            if e.response is not None and e.response.status_code == 403 and self.is_cloud_model:
+                raise ValueError(
+                    f"Cloud model '{self.model}' requires authentication.\n"
+                    f"Please either:\n"
+                    f"1. Set OLLAMA_CLOUD_API_KEY in your .env file\n"
+                    f"2. Switch to a local model like 'qwen2.5:14b' or 'translategemma:12b'\n"
+                    f"3. Use OpenRouter or Gemini API instead"
+                )
             if e.response is not None:
                 try:
                     error_data = e.response.json()
@@ -374,18 +453,262 @@ class OllamaTranslator(BaseTranslator):
         return f"ollama ({self.model})"
 
 
+class NLLBTranslator(BaseTranslator):
+    """Facebook NLLB200 - No Language Left Behind (Local HuggingFace).
+    
+    Supports 200 languages including Chinese (Simplified/Traditional), English, and Myanmar.
+    Uses facebook/nllb-200-distilled-600M or facebook/nllb-200-3.3B model.
+    
+    Requirements:
+        pip install transformers torch sentencepiece sacremoses
+    
+    Environment Variables:
+        NLLB_MODEL_SIZE: Model size (distilled-600M, 1.3B, 3.3B, or distilled-1.3B)
+        NLLB_DEVICE: Device to use (cpu, cuda, auto)
+        NLLB_MAX_LENGTH: Maximum tokens per translation (default: 512)
+    """
+    
+    def __init__(self):
+        self.model_size = os.getenv("NLLB_MODEL_SIZE", "distilled-600M")
+        self.device = os.getenv("NLLB_DEVICE", "auto")
+        self.max_length = int(os.getenv("NLLB_MAX_LENGTH", "512"))
+        self.source_lang = os.getenv("SOURCE_LANGUAGE", "Chinese").lower()
+        self.target_lang = os.getenv("TARGET_LANGUAGE", "Myanmar (Burmese)").lower()
+        
+        # Model name mapping
+        model_names = {
+            "distilled-600M": "facebook/nllb-200-distilled-600M",
+            "1.3B": "facebook/nllb-200-1.3B",
+            "3.3B": "facebook/nllb-200-3.3B",
+            "distilled-1.3B": "facebook/nllb-200-distilled-1.3B",
+        }
+        self.model_name = model_names.get(self.model_size, "facebook/nllb-200-distilled-600M")
+        
+        # Determine device
+        if self.device == "auto":
+            import torch
+            self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        
+        self._tokenizer = None
+        self._model = None
+        self._load_model()
+    
+    def _load_model(self):
+        """Lazy load the NLLB model and tokenizer with timeout protection."""
+        if self._model is not None:
+            return
+
+        import signal
+
+        def timeout_handler(signum, frame):
+            raise TimeoutError(f"NLLB model loading timed out after 300 seconds (5 minutes)")
+
+        # Set timeout for model loading (5 minutes)
+        # Note: This only works on Unix systems; Windows will ignore signal-based timeouts
+        has_timeout = hasattr(signal, 'SIGALRM')
+        if has_timeout:
+            old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(300)  # 5 minutes
+
+        try:
+            from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+            import torch
+
+            logger.info(f"Loading NLLB200 model: {self.model_name}")
+            logger.info(f"Device: {self.device}")
+            logger.info(f"This may take a few minutes on first run...")
+
+            self._tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+            self._model = AutoModelForSeq2SeqLM.from_pretrained(self.model_name)
+            self._model.to(self.device)
+            self._model.eval()
+
+            logger.info(f"NLLB200 model loaded successfully")
+
+        except ImportError as e:
+            raise ValueError(
+                f"Missing dependencies for NLLB. Install with:\n"
+                f"pip install transformers torch sentencepiece sacremoses\n"
+                f"Error: {e}"
+            )
+        except TimeoutError:
+            logger.error("NLLB model loading timed out")
+            raise ValueError(
+                f"NLLB model loading timed out after 5 minutes.\n"
+                f"This usually happens when downloading the model for the first time.\n"
+                f"Please check your internet connection and try again."
+            )
+        except Exception as e:
+            raise ValueError(f"Failed to load NLLB model: {e}")
+        finally:
+            # Cancel timeout
+            if has_timeout:
+                signal.alarm(0)
+                signal.signal(signal.SIGALRM, old_handler)
+    
+    def _get_lang_code(self, lang: str) -> str:
+        """Get NLLB language code from language name."""
+        lang_lower = lang.lower()
+        
+        # Direct mapping
+        if lang_lower in NLLB_LANG_CODES:
+            return NLLB_LANG_CODES[lang_lower]
+        
+        # Partial matches
+        if "chinese" in lang_lower or "中文" in lang:
+            return "zho_Hans"  # Default to simplified
+        if "english" in lang_lower or "英文" in lang:
+            return "eng_Latn"
+        if "myanmar" in lang_lower or "burmese" in lang_lower or "မြန်မာ" in lang:
+            return "mya_Mymr"
+        
+        # Default fallback
+        logger.warning(f"Unknown language '{lang}', defaulting to Chinese")
+        return "zho_Hans"
+    
+    def _split_into_sentences(self, text: str) -> List[str]:
+        """Split text into sentences for better translation quality."""
+        import re
+        
+        # Split on sentence boundaries
+        sentences = re.split(r'([。！？.!?\n]+)', text)
+        
+        # Rejoin punctuation with sentences
+        result = []
+        for i in range(0, len(sentences) - 1, 2):
+            if i + 1 < len(sentences):
+                result.append(sentences[i] + sentences[i + 1])
+            else:
+                result.append(sentences[i])
+        
+        if len(sentences) % 2 == 1:
+            result.append(sentences[-1])
+        
+        # Filter empty strings
+        return [s.strip() for s in result if s.strip()]
+    
+    def _translate_batch(self, texts: List[str], src_lang: str, tgt_lang: str) -> List[str]:
+        """Translate a batch of texts."""
+        if not texts:
+            return []
+
+        try:
+            import torch
+
+            # NLLB requires source language token prepended to input text
+            # Format: "<src_lang_code> <text>"
+            prefixed_texts = [f"{src_lang} {text}" for text in texts]
+
+            # Tokenize
+            inputs = self._tokenizer(
+                prefixed_texts,
+                return_tensors="pt",
+                padding=True,
+                truncation=True,
+                max_length=self.max_length
+            ).to(self.device)
+
+            # Set target language token - NLLB uses convert_tokens_to_ids for language codes
+            forced_bos_token = self._tokenizer.convert_tokens_to_ids(tgt_lang)
+            if forced_bos_token == self._tokenizer.unk_token_id:
+                logger.warning(f"Unknown language code: {tgt_lang}, using Myanmar as fallback")
+                forced_bos_token = self._tokenizer.convert_tokens_to_ids("mya_Mymr")
+
+            logger.debug(f"Translating batch of {len(texts)} texts from {src_lang} to {tgt_lang}")
+
+            # Generate translation
+            with torch.no_grad():
+                translated = self._model.generate(
+                    **inputs,
+                    forced_bos_token_id=forced_bos_token,
+                    max_length=self.max_length,
+                    num_beams=4,
+                    early_stopping=True
+                )
+
+            # Decode
+            results = self._tokenizer.batch_decode(translated, skip_special_tokens=True)
+
+            # Log sample result for debugging
+            if results and len(results) > 0:
+                logger.debug(f"Sample translation result: {results[0][:100]}...")
+
+            return results
+
+        except Exception as e:
+            logger.error(f"Batch translation error: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            # Return empty strings on error (don't return original texts)
+            return [""] * len(texts)
+    
+    def translate_stream(self, text: str, system_prompt: str) -> Iterator[str]:
+        """Translate text using NLLB200 with sentence-level streaming.
+        
+        NLLB doesn't use system prompts, so we ignore it.
+        """
+        src_lang = self._get_lang_code(self.source_lang)
+        tgt_lang = self._get_lang_code(self.target_lang)
+        
+        # Split into sentences for better translation
+        sentences = self._split_into_sentences(text)
+        
+        if not sentences:
+            yield ""
+            return
+        
+        logger.info(f"Translating {len(sentences)} sentences from {src_lang} to {tgt_lang}")
+        
+        # Translate in batches for efficiency
+        batch_size = 4
+        for i in range(0, len(sentences), batch_size):
+            batch = sentences[i:i + batch_size]
+            translated_batch = self._translate_batch(batch, src_lang, tgt_lang)
+            
+            for translated in translated_batch:
+                yield translated + " "
+    
+    def translate(self, text: str, system_prompt: str = "") -> str:
+        """Translate text and return the full result (non-streaming)."""
+        src_lang = self._get_lang_code(self.source_lang)
+        tgt_lang = self._get_lang_code(self.target_lang)
+        
+        # For longer texts, split into chunks
+        if len(text) > self.max_length * 3:
+            sentences = self._split_into_sentences(text)
+            translated_sentences = []
+            
+            batch_size = 4
+            for i in range(0, len(sentences), batch_size):
+                batch = sentences[i:i + batch_size]
+                translated_batch = self._translate_batch(batch, src_lang, tgt_lang)
+                translated_sentences.extend(translated_batch)
+            
+            return " ".join(translated_sentences)
+        else:
+            # Single batch for short texts
+            results = self._translate_batch([text], src_lang, tgt_lang)
+            return results[0] if results else ""
+    
+    @property
+    def name(self) -> str:
+        return f"nllb200 ({self.model_size})"
+
+
 def get_translator(model_name: str) -> BaseTranslator:
     """Factory function to get translator by name."""
     translators = {
         'openrouter': OpenRouterTranslator,
         'gemini': GeminiTranslator,
         'ollama': OllamaTranslator,
+        'nllb': NLLBTranslator,
+        'nllb200': NLLBTranslator,
     }
-    
+
     model_name = model_name.lower().strip()
     if model_name not in translators:
         raise ValueError(f"Unknown model: {model_name}. Choose from: {', '.join(translators.keys())}")
-    
+
     return translators[model_name]()
 
 

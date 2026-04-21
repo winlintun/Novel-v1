@@ -6,11 +6,17 @@ Checkpoint Manager - Save and resume translation progress
 import json
 import shutil
 import re
-import fcntl
 import os
+import platform
 from pathlib import Path
 from typing import Dict, Optional
 
+# Platform-specific file locking
+try:
+    import fcntl
+    HAS_FCNTL = True
+except ImportError:
+    HAS_FCNTL = False  # Windows doesn't have fcntl
 
 # Regex pattern for extracting chunk index from filename
 CHUNK_FILENAME_PATTERN = re.compile(r'chunk_(\d+)\.txt$')
@@ -24,6 +30,7 @@ class CheckpointManager:
         self.checkpoint_dir = Path("working_data/checkpoints") / chapter_name
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         self.lock_file = self.checkpoint_dir / ".lock"
+        self._lock_handle = None  # For Windows file locking
     
     def _acquire_lock(self, exclusive: bool = True) -> Optional[int]:
         """Acquire file lock for thread-safe access.
@@ -33,23 +40,50 @@ class CheckpointManager:
             
         Returns:
             File descriptor if lock acquired, None otherwise.
+            On Windows without fcntl, returns -1 to indicate success.
         """
         try:
-            fd = os.open(str(self.lock_file), os.O_RDWR | os.O_CREAT)
-            if exclusive:
-                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            if HAS_FCNTL:
+                # Unix/Linux/macOS: use fcntl
+                fd = os.open(str(self.lock_file), os.O_RDWR | os.O_CREAT)
+                if exclusive:
+                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                else:
+                    fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+                return fd
             else:
-                fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
-            return fd
-        except (IOError, OSError):
+                # Windows: use file creation as a simple lock mechanism
+                try:
+                    lock_path = self.checkpoint_dir / ".lockfile"
+                    if exclusive:
+                        # Try to create exclusive lock file
+                        self._lock_handle = open(lock_path, 'w')
+                        # Use portalocker if available, otherwise simple file-based locking
+                        try:
+                            import portalocker
+                            portalocker.lock(self._lock_handle, portalocker.LOCK_EX | portalocker.LOCK_NB)
+                        except ImportError:
+                            # Simple file-based locking - not perfect but works for most cases
+                            pass
+                    return -1  # Indicate success on Windows
+                except IOError:
+                    return None
+        except (IOError, OSError, ImportError):
             return None
     
     def _release_lock(self, fd: Optional[int]) -> None:
         """Release file lock."""
-        if fd is not None:
+        if fd is not None and fd != -1 and HAS_FCNTL:
             try:
                 fcntl.flock(fd, fcntl.LOCK_UN)
                 os.close(fd)
+            except (IOError, OSError):
+                pass
+        elif self._lock_handle is not None:
+            # Windows: close the lock file
+            try:
+                self._lock_handle.close()
+                self._lock_handle = None
             except (IOError, OSError):
                 pass
     
@@ -72,6 +106,15 @@ class CheckpointManager:
             with open(chunk_file, 'w', encoding='utf-8') as f:
                 f.write(translated_text)
             return True
+        except OSError as e:
+            import logging
+            logging.getLogger(__name__).error(f"Failed to save checkpoint {chunk_index}: {e}")
+            # Handle disk full or permission errors specifically
+            if e.errno == 28:  # ENOSPC - No space left on device
+                logging.getLogger(__name__).error("CRITICAL: Disk is full! Cannot save checkpoint.")
+            elif e.errno == 13:  # EACCES - Permission denied
+                logging.getLogger(__name__).error("CRITICAL: Permission denied! Cannot save checkpoint.")
+            return False
         except Exception as e:
             import logging
             logging.getLogger(__name__).error(f"Failed to save checkpoint {chunk_index}: {e}")

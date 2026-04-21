@@ -413,18 +413,31 @@ def translate_single_file(
         _apply_delay_between_chunks(i, len(chunks), model_name=translator.name)
     
     translate_time = time.time() - start_time
+
+    # 6. Postprocess
+    print(f"\n[5/6] Postprocessing...")
     
-    # Check if any chunks were successfully translated
-    if not translated_chunks:
+    # Combine all translated chunks, handling potential gaps from failed translations
+    # Sort by chunk index and filter out any None values
+    sorted_indices = sorted(translated_chunks.keys())
+    available_chunks = [translated_chunks[i] for i in sorted_indices if translated_chunks[i] is not None]
+    
+    # Warn if there are gaps in the translation
+    expected_indices = set(range(1, len(chunks) + 1))
+    actual_indices = set(translated_chunks.keys())
+    missing_indices = expected_indices - actual_indices
+    
+    if missing_indices:
+        missing_list = sorted(missing_indices)
+        logger.warning(f"Missing translations for chunk(s): {missing_list}")
+        print(f"⚠ Warning: {len(missing_list)} chunk(s) failed to translate and will be skipped")
+    
+    if not available_chunks:
         logger.error(f"All translation chunks failed for {chapter_name}")
         print(f"\n✗ Translation failed: No chunks were successfully translated")
         return False
     
-    # 6. Postprocess
-    print(f"\n[5/6] Postprocessing...")
-    
-    # Combine all translated chunks
-    full_text = '\n\n'.join(translated_chunks[i] for i in sorted(translated_chunks.keys()))
+    full_text = '\n\n'.join(available_chunks)
     processed_text = full_text  # Default to unprocessed if postprocess fails
     
     try:

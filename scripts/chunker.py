@@ -62,7 +62,7 @@ def split_large_paragraph(paragraph: str, max_chars: int) -> List[str]:
     return chunks
 
 
-def auto_chunk(text: str, max_chars: int = 1800, overlap_chars: int = 200) -> List[str]:
+def auto_chunk(text: str, max_chars: int = 1000, overlap_chars: int = 100) -> List[str]:
     """
     Smart paragraph-boundary chunking with no overlap.
     
@@ -77,6 +77,7 @@ def auto_chunk(text: str, max_chars: int = 1800, overlap_chars: int = 200) -> Li
     chunks = []
     current_chunk = []
     current_size = 0
+    overlap_text = ""  # Initialize overlap_text to fix reference before assignment bug
     
     for paragraph in paragraphs:
         para_size = len(paragraph)
@@ -88,6 +89,7 @@ def auto_chunk(text: str, max_chars: int = 1800, overlap_chars: int = 200) -> Li
                 chunks.append('\n\n'.join(current_chunk))
                 current_chunk = []
                 current_size = 0
+                overlap_text = ""  # Reset overlap text
             
             # Split large paragraph
             para_chunks = split_large_paragraph(paragraph, max_chars - overlap_chars)
@@ -141,8 +143,8 @@ if __name__ == "__main__":
         print("Usage: python chunker.py <input_file> [max_chars]")
         sys.exit(1)
     
-    max_chars = int(sys.argv[2]) if len(sys.argv) >= 3 else 1800
-    overlap_chars = int(sys.argv[3]) if len(sys.argv) >= 4 else 200
+    max_chars = int(sys.argv[2]) if len(sys.argv) >= 3 else 1000
+    overlap_chars = int(sys.argv[3]) if len(sys.argv) >= 4 else 100
     
     with open(sys.argv[1], 'r', encoding='utf-8') as f:
         text = f.read()
