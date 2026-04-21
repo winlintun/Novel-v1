@@ -90,19 +90,21 @@ def check_remaining_chinese(text: str) -> list:
 def remove_non_myanmar_characters(text: str) -> str:
     """Remove any characters that are not Myanmar script or common punctuation/numbers."""
     # Myanmar Unicode range: U+1000 to U+109F
-    # Common punctuation, spaces, and numbers
-    # This regex allows Myanmar characters, basic Latin punctuation, spaces, and digits.
-    # It explicitly excludes Chinese and other non-Myanmar/non-Latin-basic characters.
-    # More comprehensive list of allowed punctuation might be needed based on actual output.
-    # Myanmar Unicode range: U+1000 to U+109F
-    # Basic Latin punctuation (often used with Burmese) and digits
-    # This regex keeps Myanmar characters, common punctuation, spaces, and digits.
-    # It removes any character that is NOT in these categories.
-    # The goal is to aggressively remove Chinese, English, and other foreign scripts.
-    pattern = re.compile(r'[^\u1000-\u109F\u0020-\u007E]+') # Allow Myanmar script and basic ASCII (punctuation, numbers, space)
+    # Basic ASCII: U+0020 to U+007E
+    # Plus common control characters like \n, \r, \t
+    # We want to keep:
+    # 1. Myanmar script (\u1000-\u109F)
+    # 2. Basic printable ASCII (\u0020-\u007E)
+    # 3. Newlines, returns, tabs (\n, \r, \t)
+    
+    # This regex matches anything that is NOT in the allowed ranges
+    pattern = re.compile(r'[^\u1000-\u109F\u0020-\u007E\n\r\t]+')
     cleaned_text = pattern.sub('', text)
-    # Further clean up any multiple spaces that might result from removal
-    cleaned_text = re.sub(r'\s+', ' ', cleaned_text).strip()
+    
+    # We should NOT use re.sub(r'\s+', ' ', cleaned_text) here as it collapses newlines
+    # Instead, we just strip trailing whitespace from each line if needed, 
+    # but that's already handled in strip_trailing_whitespace
+    
     return cleaned_text
 
 def normalize_myanmar_whitespace(text: str) -> str:

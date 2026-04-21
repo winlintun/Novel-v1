@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """
-Phase 1: Split input novels into chapters and save as separate Chinese .md files
+Phase 1: Split input novels into chapters and save as separate English .md files
 
 This script:
 1. Reads input_novels/*.txt files
-2. Detects chapters using pattern 第XXX章
-3. Saves each chapter as a separate .md file in chinese_chapters/ directory
+2. Detects chapters using pattern:
+   ============================================================
+   Chapter X: [title]
+   ============================================================
+3. Saves each chapter as a separate .md file in english_chapters/ directory
 
 Usage:
     python scripts/extract_chapters.py
@@ -39,32 +42,52 @@ if not logger.handlers:
 
 def detect_chapters(text):
     """
-    Detect chapter boundaries using pattern: 第XXX章 [title]
+    Detect chapter boundaries using pattern:
+    ============================================================
+    Chapter X: [title]
+    ============================================================
+    
     Returns list of dicts with chapter info
     """
     chapters = []
     lines = text.split('\n')
     
-    chapter_pattern = r'^第(\d+)章\s*(.*?)$'
+    # Pattern to match chapter headers with === delimiters
+    # Matches lines like "Chapter 1: Chapter 1 Gu Wen" or "Chapter 1 - Title" or "Chapter 1"
+    chapter_title_pattern = r'^Chapter\s+(\d+)[:\s\-]+(.+)$'
+    delimiter_pattern = r'^[=_\-]{20,}$'  # 20+ characters of =, _, or -
     
-    for i, line in enumerate(lines):
-        line = line.strip()
-        match = re.match(chapter_pattern, line)
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
         
-        if match:
-            chapter_num = int(match.group(1))
-            chapter_title = match.group(2).strip()
-            
-            # Calculate position in text
-            pos = sum(len(lines[j]) + 1 for j in range(i))
-            
-            chapters.append({
-                'number': chapter_num,
-                'title': chapter_title,
-                'line_number': i + 1,
-                'position': pos
-            })
-            logger.info(f"Detected Chapter {chapter_num}: {chapter_title}")
+        # Look for delimiter line
+        if re.match(delimiter_pattern, line):
+            # Check if next line is a chapter title
+            if i + 1 < len(lines):
+                next_line = lines[i + 1].strip()
+                match = re.match(chapter_title_pattern, next_line, re.IGNORECASE)
+                
+                if match:
+                    chapter_num = int(match.group(1))
+                    chapter_title = match.group(2).strip()
+                    
+                    # Verify there's another delimiter after the title
+                    if i + 2 < len(lines) and re.match(delimiter_pattern, lines[i + 2].strip()):
+                        # Calculate position (start of the delimiter)
+                        pos = sum(len(lines[j]) + 1 for j in range(i))
+                        
+                        chapters.append({
+                            'number': chapter_num,
+                            'title': chapter_title,
+                            'line_number': i + 1,
+                            'position': pos
+                        })
+                        logger.info(f"Detected Chapter {chapter_num}: {chapter_title}")
+                        i += 3  # Skip the delimiter, title, and next delimiter
+                        continue
+        
+        i += 1
     
     return chapters
 
@@ -78,7 +101,24 @@ def extract_chapter_content(text, chapter, next_chapter=None):
     else:
         end_pos = len(text)
     
-    return text[start_pos:end_pos].strip()
+    content = text[start_pos:end_pos].strip()
+    
+    # Remove the chapter header (delimiter + title + delimiter) from content
+    lines = content.split('\n')
+    # Find where the actual content starts (after the second delimiter)
+    delimiter_count = 0
+    content_start = 0
+    for j, line in enumerate(lines):
+        if re.match(r'^[=_\-]{20,}$', line.strip()):
+            delimiter_count += 1
+            if delimiter_count == 2:
+                content_start = j + 1
+                break
+    
+    if content_start > 0:
+        content = '\n'.join(lines[content_start:]).strip()
+    
+    return content
 
 
 def save_chapter_as_markdown(novel_name, chapter, content, output_dir):
@@ -100,7 +140,7 @@ def save_chapter_as_markdown(novel_name, chapter, content, output_dir):
         md_file = novel_dir / f"{novel_name}_chapter_{chapter_num:03d}.md"
         
         # Create markdown content
-        md_content = f"""# {novel_name} - 第{chapter_num:03d}章 {chapter_title}
+        md_content = f"""# {novel_name} - Chapter {chapter_num:03d}: {chapter_title}
 
 ---
 
@@ -108,7 +148,7 @@ def save_chapter_as_markdown(novel_name, chapter, content, output_dir):
 
 ---
 *Source: {novel_name}*
-*Chapter: 第{chapter_num:03d}章 {chapter_title}*
+*Chapter: Chapter {chapter_num:03d} - {chapter_title}*
 *Extracted: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*
 """
         
@@ -123,6 +163,11 @@ def save_chapter_as_markdown(novel_name, chapter, content, output_dir):
         logger.error(f"Error saving chapter {chapter['number']}: {e}")
         raise
 
+
+# Add project root to path
+project_root = Path(__file__).resolve().parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
 def extract_novel_chapters(novel_file, output_dir="chinese_chapters"):
     """
@@ -157,7 +202,7 @@ def extract_novel_chapters(novel_file, output_dir="chinese_chapters"):
             logger.warning("No chapters detected! Treating entire file as one chapter.")
             chapters = [{
                 'number': 1,
-                'title': 'Chapter 1',
+                'title': 'Full Text',
                 'line_number': 1,
                 'position': 0
             }]
@@ -213,7 +258,7 @@ def extract_novel_chapters(novel_file, output_dir="chinese_chapters"):
         }
 
 
-def extract_all_novels(input_dir="input_novels", output_dir="chinese_chapters"):
+def extract_all_novels(input_dir="input_novels", output_dir="english_chapters"):
     """
     Extract chapters from all .txt files in input_novels/
     

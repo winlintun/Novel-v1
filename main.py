@@ -263,7 +263,7 @@ def _translate_single_chunk(
     previous_translation: Optional[str] = None
 ) -> Optional[str]:
     """Translate a single chunk with context retention.
-    
+
     Args:
         chunk: Text chunk to translate
         chunk_index: Index of the current chunk (1-based)
@@ -271,7 +271,7 @@ def _translate_single_chunk(
         translator: Translator instance
         system_prompt: System prompt for translation
         previous_translation: Previous chunk's translation for context (sliding window)
-        
+
     Returns:
         Translated text or None if translation failed
     """
@@ -279,13 +279,17 @@ def _translate_single_chunk(
         f"Translating chunk {chunk_index}/{total_chunks}: "
         f"{len(chunk)} chars using {translator.name}"
     )
-    
+
+    # Check if this is NLLB translator (doesn't need context prompts)
+    is_nllb = "nllb" in translator.name.lower()
+
     # Build contextualized prompt with previous translation for consistency
     user_content = chunk
-    if previous_translation and chunk_index > 1:
+    if previous_translation and chunk_index > 1 and not is_nllb:
         # Context retention: Provide previous translation as context
         # This maintains consistency in dialogue, character names, and plot flow
-        context_preview = previous_translation[-500:] if len(previous_translation) > 500 else previous_translation
+        # Only for LLM-based translators (not NLLB)
+        context_preview = previous_translation[-1200:] if len(previous_translation) > 1200 else previous_translation
         user_content = f"""PREVIOUS CONTEXT (for consistency):
 {context_preview}
 
@@ -293,7 +297,7 @@ def _translate_single_chunk(
 
 CURRENT TEXT TO TRANSLATE:
 {chunk}"""
-    
+
     try:
         translated_text = retry_translate_chunk(translator, user_content, system_prompt)
         logger.info(f"Chunk {chunk_index} translated: {len(translated_text)} characters")
@@ -306,17 +310,17 @@ CURRENT TEXT TO TRANSLATE:
         return None
 
 
-def _apply_delay_between_chunks(current_index: int, total_chunks: int) -> None:
-    """Apply delay between chunks based on environment settings.
-    
-    Args:
-        current_index: Current chunk index (1-based)
-        total_chunks: Total number of chunks
-    """
+def _apply_delay_between_chunks(current_index: int, total_chunks: int, model_name: str = "") -> None:
+    """Apply delay between chunks based on environment settings and model type."""
     if current_index < total_chunks:
+        # No delay needed for local Ollama models
+        if "ollama" in model_name.lower():
+            return
+            
         delay = float(os.getenv("REQUEST_DELAY", str(DEFAULT_REQUEST_DELAY)))
-        logger.debug(f"Waiting {delay}s before next chunk...")
-        time.sleep(delay)
+        if delay > 0:
+            logger.debug(f"Waiting {delay}s before next chunk...")
+            time.sleep(delay)
 
 
 def translate_single_file(
@@ -325,7 +329,8 @@ def translate_single_file(
     max_chars: int,
     overlap_chars: int,
     do_readability: bool,
-    names_path: str
+    names_path: str,
+    source_lang: str = "Chinese"
 ) -> bool:
     """
     Translate a single file through the complete pipeline.
@@ -376,8 +381,8 @@ def translate_single_file(
         print(f"✗ Failed to load translator after retries: {e}")
         return False
     
-    system_prompt = get_system_prompt()
-    
+    system_prompt = get_system_prompt(source_lang=source_lang)
+
     # 5. Translate chunks
     print(f"\n[4/6] Translating {len(chunks)} chunks...")
     print("-" * 60)
@@ -405,7 +410,7 @@ def translate_single_file(
             print(f"\n[{i}/{len(chunks)}] ✗ Translation failed — continuing to next chunk")
         
         # Apply delay between chunks
-        _apply_delay_between_chunks(i, len(chunks))
+        _apply_delay_between_chunks(i, len(chunks), model_name=translator.name)
     
     translate_time = time.time() - start_time
     
@@ -566,33 +571,41 @@ def scan_input_novels() -> list:
 def main() -> None:
     """Main entry point for the translator CLI."""
     parser = argparse.ArgumentParser(
-        description="Chinese → Myanmar Novel Translator",
+        description="Chinese/English → Myanmar Novel Translator",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=f"""
 Examples:
   # Auto-scan and translate all files
   python main.py
-  
+
   # Single file
   python main.py {INPUT_DIR}/chapter_001.txt
-  
+
   # Switch model
   python main.py --model openrouter
   python main.py --model gemini
   python main.py --model ollama
-  
+  python main.py --model nllb
+
+  # Source language options
+  python main.py --source-lang Chinese
+  python main.py --source-lang English
+
   # Chunking options
   python main.py --max-chars {DEFAULT_CHUNK_SIZE}
-  
+
   # Skip readability check
   python main.py --no-readability
         """
     )
-    
+
     parser.add_argument("file", nargs="?", help="Single file to translate")
     parser.add_argument("--model", default=None,
-                        choices=["openrouter", "gemini", "ollama"],
+                        choices=["openrouter", "gemini", "ollama", "nllb", "nllb200"],
                         help="Translation model to use (overrides .env AI_MODEL)")
+    parser.add_argument("--source-lang", default=None,
+                        choices=["Chinese", "Chinese_Simplified", "Chinese_Traditional", "English"],
+                        help="Source language (overrides .env SOURCE_LANGUAGE)")
     parser.add_argument("--max-chars", type=int, default=DEFAULT_CHUNK_SIZE,
                         help=f"Maximum characters per chunk (default: {DEFAULT_CHUNK_SIZE})")
     parser.add_argument("--overlap-chars", type=int, default=DEFAULT_OVERLAP_SIZE,
@@ -601,7 +614,7 @@ Examples:
                         help="Skip readability check")
     parser.add_argument("--names", default="names.json",
                         help="Character names mapping file")
-    
+
     args = parser.parse_args()
     
     # Load environment
@@ -615,13 +628,19 @@ Examples:
     if config_path.exists():
         with open(config_path, 'r', encoding='utf-8') as f:
             config = json.load(f)
-            
+
     # Priority: --model CLI arg > AI_MODEL env var > config.ai_backend > default (openrouter)
     if args.model is not None:
         model = args.model
     else:
         model = os.getenv("AI_MODEL", config.get("ai_backend", "openrouter"))
-    
+
+    # Source language: CLI arg > env var > config > default (Chinese)
+    if args.source_lang is not None:
+        source_lang = args.source_lang.replace("_", " ")
+    else:
+        source_lang = os.getenv("SOURCE_LANGUAGE", config.get("source_language", "Chinese"))
+
     # Validate chunk size
     if not MIN_CHUNK_SIZE <= args.max_chars <= MAX_CHUNK_SIZE:
         logger.warning(
@@ -629,16 +648,17 @@ Examples:
             f"[{MIN_CHUNK_SIZE}, {MAX_CHUNK_SIZE}]. Using closest valid value."
         )
         args.max_chars = max(MIN_CHUNK_SIZE, min(args.max_chars, MAX_CHUNK_SIZE))
-    
+
     logger.info("=" * 60)
-    logger.info("Chinese → Myanmar Novel Translator Started")
+    logger.info(f"{source_lang} → Myanmar Novel Translator Started")
     logger.info(f"Model: {model}, Chunk size: {args.max_chars}, Overlap size: {args.overlap_chars}")
     logger.info("=" * 60)
-    
+
     print("=" * 60)
-    print("Chinese → Myanmar Novel Translator")
+    print(f"{source_lang} → Myanmar Novel Translator")
     print("=" * 60)
     print(f"Model: {model}")
+    print(f"Source: {source_lang}")
     print(f"Max chars per chunk: {args.max_chars}")
     print(f"Overlap chars: {args.overlap_chars}")
     print("=" * 60)
@@ -673,7 +693,8 @@ Examples:
             max_chars=args.max_chars,
             overlap_chars=args.overlap_chars,
             do_readability=not args.no_readability,
-            names_path=args.names
+            names_path=args.names,
+            source_lang=source_lang
         )
         
         if success:

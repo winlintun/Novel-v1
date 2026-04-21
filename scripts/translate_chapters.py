@@ -20,7 +20,18 @@ import time
 import logging
 import signal
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime
+
+# Add project root to path so we can import modules
+# This allows 'from scripts.translator import ...' to work when run from root
+project_root = Path(__file__).resolve().parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
+# Import our modules
+from scripts.translator import get_translator, get_system_prompt
+from scripts.assembler import assemble
+from scripts.chunker import auto_chunk
 
 # Setup logging
 LOG_DIR = Path("working_data/logs")
@@ -41,7 +52,6 @@ if not logger.handlers:
 # Global flag for graceful shutdown
 shutdown_requested = False
 
-
 def signal_handler(signum, frame):
     """Handle Ctrl+C for graceful shutdown."""
     global shutdown_requested
@@ -53,27 +63,28 @@ def signal_handler(signum, frame):
     else:
         sys.exit(1)
 
-
 signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
-
 
 def load_config():
     """Load configuration from config.json."""
     try:
         config_path = Path("config/config.json")
-        with open(config_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
+        if config_path.exists():
+            with open(config_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
     except Exception as e:
         logger.error(f"Error loading config: {e}")
-        return {
-            'model': 'qwen2.5:7b',
-            'request_timeout': 900,
-            'myanmar_readability': {
-                'min_myanmar_ratio': 0.7
-            }
+    
+    return {
+        'model': 'qwen2.5:7b',
+        'provider': 'ollama',
+        'ai_backend': 'ollama',
+        'request_timeout': 900,
+        'myanmar_readability': {
+            'min_myanmar_ratio': 0.7
         }
-
+    }
 
 def save_checkpoint(novel_name, chapter_num, status):
     """Save progress checkpoint."""
@@ -94,7 +105,6 @@ def save_checkpoint(novel_name, chapter_num, status):
     
     logger.info(f"Checkpoint saved: Chapter {chapter_num} - {status}")
 
-
 def load_checkpoint(novel_name):
     """Load progress checkpoint."""
     checkpoint_file = Path("working_data/checkpoints") / f"{novel_name}_translation.json"
@@ -104,12 +114,6 @@ def load_checkpoint(novel_name):
             return json.load(f)
     
     return None
-
-
-from scripts.translator import get_translator, get_system_prompt
-from scripts.assembler import assemble
-
-# ... (signal handler and load_config are fine)
 
 def translate_chapter(novel_name, chapter_num, input_file, output_dir, config):
     """
@@ -131,32 +135,35 @@ def translate_chapter(novel_name, chapter_num, input_file, output_dir, config):
         
         # Extract content between --- if present
         parts = content.split('---')
+        # If it has front matter, actual content is after the second ---
         chapter_content = parts[2].strip() if len(parts) >= 3 else content
         
         # 2. Get translator
-        model_name = config.get('ai_backend', 'ollama')
+        model_name = config.get('ai_backend', os.getenv('AI_MODEL', 'ollama'))
         translator = get_translator(model_name)
         system_prompt = get_system_prompt()
         
-        # 3. Translate (Simple version for now, not chunking here as this script seems to assume full chapter)
-        # Actually, AGENTS.md says "Always receive pre-split chunks (≤1000 chars)"
-        # But for the sake of following the existing script's flow while updating it:
-        from scripts.chunker import auto_chunk
-        chunks = auto_chunk(chapter_content, max_chars=1000)
+        # 3. Translate with chunking
+        chunks = auto_chunk(chapter_content, max_chars=1200)
         
         translated_chunks = []
         for i, chunk in enumerate(chunks, 1):
+            if shutdown_requested:
+                logger.info("Shutdown requested mid-chapter...")
+                return False
+                
             logger.info(f"Translating chunk {i}/{len(chunks)}")
             result = translator.translate(chunk, system_prompt)
             translated_chunks.append(result)
-            time.sleep(0.5) # small delay
+            
+            # Use REQUEST_DELAY from environment
+            delay = float(os.getenv("REQUEST_DELAY", "0.5"))
+            if delay > 0 and i < len(chunks):
+                time.sleep(delay)
             
         translated = '\n\n'.join(translated_chunks)
         
-        # 4. Quality check (optional)
-        # ... (could use check_myanmar_quality if needed)
-        
-        # 5. Assemble to books/ structure
+        # 4. Assemble to books/ structure
         book_id = novel_name
         output_book_dir = Path("books") / book_id
         chapters_dir = output_book_dir / "chapters"
@@ -166,7 +173,7 @@ def translate_chapter(novel_name, chapter_num, input_file, output_dir, config):
         
         assemble(
             original_title=f"Chapter {chapter_num}",
-            chapter_number=chapter_number,
+            chapter_number=chapter_num, # Fixed: was chapter_number
             model_name=translator.name,
             translated_content=translated,
             output_path=str(output_file),
@@ -180,39 +187,56 @@ def translate_chapter(novel_name, chapter_num, input_file, output_dir, config):
         
     except Exception as e:
         logger.error(f"Error translating chapter {chapter_num}: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         return False
-
 
 def translate_novel_chapters(novel_name, chinese_dir="chinese_chapters", output_dir="burmese_chapters"):
     """
     Translate all chapters of a novel one by one.
-    
-    Args:
-        novel_name: Name of the novel
-        chinese_dir: Directory containing Chinese chapter .md files
-        output_dir: Directory to save translated chapters
-    
-    Returns:
-        Dictionary with translation results
     """
     try:
         config = load_config()
         
+        # Determine source directory (some scripts use english_chapters, some chinese_chapters)
+        src_dir = Path(chinese_dir) / novel_name
+        if not src_dir.exists():
+            # Fallback to english_chapters
+            src_dir = Path("english_chapters") / novel_name
+            
+        if not src_dir.exists():
+            logger.error(f"Source directory not found: {src_dir}")
+            return {'success': False, 'error': f'Source directory for {novel_name} not found'}
+        
         # Load metadata
-        metadata_file = Path(chinese_dir) / novel_name / f"{novel_name}_metadata.json"
+        metadata_file = src_dir / f"{novel_name}_metadata.json"
         
         if not metadata_file.exists():
             logger.error(f"Metadata file not found: {metadata_file}")
-            return {'success': False, 'error': 'Metadata not found'}
-        
-        with open(metadata_file, 'r', encoding='utf-8') as f:
-            metadata = json.load(f)
-        
-        total_chapters = metadata['total_chapters']
-        chapters = metadata['chapters']
+            # Try to find all .md files if metadata is missing
+            md_files = sorted(src_dir.glob("*_chapter_*.md"))
+            if not md_files:
+                return {'success': False, 'error': 'Metadata and chapter files not found'}
+            
+            chapters = []
+            for f in md_files:
+                # Extract chapter number from filename
+                match = re.search(r'chapter_(\d+)', f.name)
+                num = int(match.group(1)) if match else 1
+                chapters.append({
+                    'chapter_number': num,
+                    'file': str(f)
+                })
+            total_chapters = len(chapters)
+        else:
+            with open(metadata_file, 'r', encoding='utf-8') as f:
+                metadata = json.load(f)
+            total_chapters = metadata.get('total_chapters', len(metadata.get('chapters', [])))
+            chapters = metadata['chapters']
         
         logger.info(f"=" * 60)
         logger.info(f"Starting translation: {novel_name}")
+        logger.info(f"Source: {src_dir}")
         logger.info(f"Total chapters: {total_chapters}")
         logger.info(f"=" * 60)
         
@@ -237,7 +261,6 @@ def translate_novel_chapters(novel_name, chinese_dir="chinese_chapters", output_
             
             # Skip already completed chapters
             if chapter_num < start_chapter:
-                logger.info(f"Chapter {chapter_num} already done, skipping")
                 completed += 1
                 continue
             
@@ -254,18 +277,9 @@ def translate_novel_chapters(novel_name, chinese_dir="chinese_chapters", output_
             else:
                 failed += 1
                 logger.error(f"✗ Chapter {chapter_num}/{total_chapters} failed")
-                # Continue with next chapter
             
             # Progress summary
             logger.info(f"Progress: {completed}/{total_chapters} chapters done")
-        
-        # Final summary
-        logger.info(f"=" * 60)
-        logger.info(f"Translation complete: {novel_name}")
-        logger.info(f"  - Completed: {completed}")
-        logger.info(f"  - Failed: {failed}")
-        logger.info(f"  - Total: {total_chapters}")
-        logger.info(f"=" * 60)
         
         return {
             'success': True,
@@ -273,19 +287,21 @@ def translate_novel_chapters(novel_name, chinese_dir="chinese_chapters", output_
             'total_chapters': total_chapters,
             'completed': completed,
             'failed': failed,
-            'output_dir': str(Path(output_dir) / novel_name)
+            'output_dir': "books/" + novel_name
         }
         
     except Exception as e:
         logger.error(f"Error in translate_novel_chapters: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         return {'success': False, 'error': str(e)}
 
+import re
 
 def main():
     """Command line entry point."""
     if len(sys.argv) < 2:
-        print("Usage: python translate_chapters.py <novel_name>")
-        print("Example: python translate_chapters.py simple_data")
+        print("Usage: python scripts/translate_chapters.py <novel_name>")
         sys.exit(1)
     
     novel_name = sys.argv[1]
@@ -299,7 +315,6 @@ def main():
     else:
         print(f"\n✗ Translation failed: {result.get('error', 'Unknown error')}")
         sys.exit(1)
-
 
 if __name__ == "__main__":
     main()

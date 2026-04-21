@@ -31,6 +31,8 @@ flake8>=7.0.0                 # Linting
 pylint>=3.0.0                 # Static analysis
 black>=24.0.0                 # Code formatting (optional)
 
-# ── Type Checking (optional) ───────────────────────────
-# mypy>=1.8.0                 # Type checking
-# types-requests>=2.31.0      # Type stubs for requests
+# ── NLP & Machine Learning (Optional, for NLLB) ──────────
+transformers>=4.38.0
+torch>=2.2.0
+sentencepiece>=0.2.0
+sacremoses>=0.1.1
