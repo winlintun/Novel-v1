@@ -29,8 +29,8 @@ from scripts.assembler import assemble
 # =============================================================================
 
 # Chunking constants
-DEFAULT_CHUNK_SIZE = 1800
-DEFAULT_OVERLAP_SIZE = 200
+DEFAULT_CHUNK_SIZE = 1000
+DEFAULT_OVERLAP_SIZE = 100
 MAX_CHUNK_SIZE = 5000
 MIN_CHUNK_SIZE = 100
 
@@ -48,7 +48,7 @@ MAX_READABILITY_REPORT_ITEMS = 10
 
 # Logging constants
 LOG_DIR = "working_data/logs"
-TRANSLATED_DIR = "translated_novels"
+BOOKS_DIR = "books"
 INPUT_DIR = "input_novels"
 
 # =============================================================================
@@ -433,16 +433,22 @@ def translate_single_file(
     # 7. Assemble
     print(f"\n[6/6] Assembling...")
     try:
-        output_dir = Path(TRANSLATED_DIR)
-        output_dir.mkdir(exist_ok=True)
-        output_file = output_dir / f"{chapter_name}_myanmar.md"
+        # Determine book ID (use input file's parent dir name or "default")
+        book_id = filepath.parent.name if filepath.parent.name != INPUT_DIR else chapter_name
+        book_dir = Path(BOOKS_DIR) / book_id
+        book_dir.mkdir(parents=True, exist_ok=True)
+        chapters_dir = book_dir / "chapters"
+        chapters_dir.mkdir(parents=True, exist_ok=True)
+        
+        output_file = chapters_dir / f"{chapter_name}_myanmar.md"
         
         assemble(
             original_title=chapter_name,
-            chapter_number=1,
+            chapter_number=1, # Default to 1 for single file mode
             model_name=translator.name,
             translated_content=processed_text,
-            output_path=str(output_file)
+            output_path=str(output_file),
+            book_id=book_id
         )
         
     except Exception as e:
@@ -467,7 +473,7 @@ def translate_single_file(
     print(f"║ Model     : {translator.name[:35]:<35} ║")
     print(f"║ Chunks    : {len(chunks)} / {len(chunks):<25} ║")
     print(f"║ Time      : {translate_time/60:.1f}m{' ' * 30}║")
-    print(f"║ Output    : {TRANSLATED_DIR}/          ║")
+    print(f"║ Output    : {BOOKS_DIR}/{book_id}/chapters/ ║")
     print(f"║             {chapter_name[:30]}_myanmar.md ║")
     print("╚═════════════════════════════════════════╝")
     print("=" * 60)
@@ -585,7 +591,7 @@ Examples:
     
     parser.add_argument("file", nargs="?", help="Single file to translate")
     parser.add_argument("--model", default=None,
-                        choices=["openrouter", "gemini", "deepseek", "qwen", "ollama"],
+                        choices=["openrouter", "gemini", "ollama"],
                         help="Translation model to use (overrides .env AI_MODEL)")
     parser.add_argument("--max-chars", type=int, default=DEFAULT_CHUNK_SIZE,
                         help=f"Maximum characters per chunk (default: {DEFAULT_CHUNK_SIZE})")
@@ -602,14 +608,19 @@ Examples:
     from dotenv import load_dotenv
     load_dotenv()
     
-    # Use CLI model argument first, fallback to .env AI_MODEL, then default
-    # Priority: --model CLI arg > AI_MODEL env var > default (openrouter)
+    # Load config
+    import json
+    config = {}
+    config_path = Path("config/config.json")
+    if config_path.exists():
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = json.load(f)
+            
+    # Priority: --model CLI arg > AI_MODEL env var > config.ai_backend > default (openrouter)
     if args.model is not None:
-        # User explicitly provided --model, use it
         model = args.model
     else:
-        # Check if AI_MODEL is set in .env, otherwise use default
-        model = os.getenv("AI_MODEL", "openrouter")
+        model = os.getenv("AI_MODEL", config.get("ai_backend", "openrouter"))
     
     # Validate chunk size
     if not MIN_CHUNK_SIZE <= args.max_chars <= MAX_CHUNK_SIZE:

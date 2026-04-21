@@ -48,9 +48,9 @@ This is an **AI-powered Chinese-to-Burmese novel translation pipeline**.
 
 - **Simple Pipeline**: `.md → AI translate → new .md → reader app`
 - **Segmented Translation**: Never throw the whole novel at AI at once
-- **Multi-Model Support**: 
-  - Local: Qwen 3.5 (7B/14B), TranslateGemma, Kimi-K2.6
-  - Online: Gemini, DeepSeek, Qwen, OpenRouter, NLLB-200
+- **Supported Models**:
+  - **Ollama (Local)**: Qwen 3.5 (7B/14B), TranslateGemma, Kimi-K2.6
+  - **Online**: Gemini, OpenRouter
 - **Context Retention**: Sliding window maintains narrative consistency
 - **Name Consistency**: Maintains character/place names via `names.json`
 - **Web Reader**: Built-in Flask app for reading translations
@@ -154,7 +154,7 @@ ollama serve
 
 ```bash
 # Choose AI backend
-AI_MODEL=ollama  # Options: ollama | openrouter | gemini | deepseek | qwen
+AI_MODEL=ollama  # Options: ollama | openrouter | gemini
 
 # Ollama (Local)
 OLLAMA_BASE_URL=http://localhost:11434
@@ -164,8 +164,6 @@ OLLAMA_MODEL=qwen2.5:14b
 # API Keys (for cloud models)
 OPENROUTER_API_KEY=your_key
 GEMINI_API_KEY=your_key
-DEEPSEEK_API_KEY=your_key
-QWEN_API_KEY=your_key
 
 # Translation Settings
 MAX_CHUNK_CHARS=1000    # IMPORTANT: Segmented translation!
@@ -190,9 +188,6 @@ READABILITY_CHECK=true
 |---------|-------|-----------|
 | OpenRouter | Various | Yes |
 | Gemini | gemini-2.0-flash | Yes |
-| DeepSeek | deepseek-chat | Limited |
-| Qwen | qwen-max | Limited |
-| NLLB-200 | facebook/nllb-200 | Yes (via HuggingFace) |
 
 ### 5.3 Character Names (names.json)
 

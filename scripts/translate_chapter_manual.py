@@ -94,7 +94,7 @@ def main():
     )
     parser.add_argument("chapter", type=int, help="Chapter number (e.g., 1, 2, 3)")
     parser.add_argument("--model", default="gemini", 
-                        choices=["gemini", "deepseek", "qwen", "opencode", "openrouter", "ollama"],
+                        choices=["gemini", "openrouter", "ollama"],
                         help="AI model to use")
     parser.add_argument("--novel", default="古道仙鸿",
                         help="Novel name (default: 古道仙鸿)")
@@ -198,7 +198,7 @@ def main():
         print("Suggestions:")
         print("1. Wait a few minutes and try again (rate limit may reset)")
         print("2. Try a different model:")
-        print("   python translate_chapter_manual.py 1 --model qwen")
+        print("   python translate_chapter_manual.py 1 --model ollama")
         print("3. Use Ollama locally (no rate limits):")
         print("   python translate_chapter_manual.py 1 --model ollama")
         print("4. Add a delay before starting:")

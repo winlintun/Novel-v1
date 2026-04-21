@@ -54,7 +54,7 @@ def load_config():
             return json.load(f)
     except Exception as e:
         logger.error(f"Error loading config: {e}")
-        return {'model': 'qwen:7b'}
+        return {'model': 'qwen2.5:7b'}
 
 
 def get_chapter_status(novel_name, chinese_dir="chinese_chapters", output_dir="burmese_chapters"):

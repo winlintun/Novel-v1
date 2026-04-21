@@ -31,7 +31,7 @@ class TranslationConfig(BaseModel):
     
     # Model settings
     model: str = Field(default="qwen:7b", description="Model name/identifier")
-    provider: Literal["ollama", "openrouter", "gemini", "deepseek", "qwen"] = Field(
+    provider: Literal["ollama", "openrouter", "gemini"] = Field(
         default="ollama",
         description="Model provider"
     )

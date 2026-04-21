@@ -661,7 +661,7 @@ Examples:
         """
     )
     parser.add_argument("--novel", help="Translate specific novel only")
-    parser.add_argument("--model", choices=["gemini", "deepseek", "qwen", "opencode", "openrouter", "ollama"],
+    parser.add_argument("--model", choices=["gemini", "openrouter", "ollama"],
                         help="AI model to use (overrides .env)")
     parser.add_argument("--stream", action="store_true", default=True,
                         help="Enable streaming output (default: True)")

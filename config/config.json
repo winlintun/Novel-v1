@@ -5,7 +5,7 @@
   "ollama_endpoint": "http://localhost:11434/api/generate",
   "source_language": "Chinese",
   "target_language": "Burmese",
-  "chunk_size": 1500,
+  "chunk_size": 1000,
   "chunk_overlap": 100,
   "stream": true,
   "preview_update_every_n_tokens": 10,
@@ -22,20 +22,11 @@
     ],
     "openrouter": [
       "google/gemini-2.0-flash-exp:free",
-      "deepseek/deepseek-chat-v3-0324:free",
-      "meta-llama/llama-3.3-70b-instruct:free",
-      "qwen/qwen2.5-72b-instruct:free"
+      "meta-llama/llama-3.3-70b-instruct:free"
     ],
     "gemini": [
       "gemini-2.0-flash",
       "gemini-1.5-flash"
-    ],
-    "deepseek": [
-      "deepseek-chat"
-    ],
-    "qwen": [
-      "qwen-max",
-      "qwen-turbo"
     ]
   },
   "myanmar_readability": {
