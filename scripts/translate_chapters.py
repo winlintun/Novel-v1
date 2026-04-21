@@ -78,7 +78,7 @@ def load_config():
         logger.error(f"Error loading config: {e}")
     
     return {
-        'model': 'qwen2.5:7b',
+        'model': 'qwen:7b',
         'provider': 'ollama',
         'ai_backend': 'ollama',
         'request_timeout': 900,

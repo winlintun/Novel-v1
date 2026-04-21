@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ chapter.title }} - {{ book_title }}</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #fdf6e3;
+            --text-color: #073642;
+            --font-size: 18px;
+            --content-width: 800px;
+        }
+        [data-theme="dark"] {
+            --bg-color: #002b36;
+            --text-color: #93a1a1;
+        }
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-size: var(--font-size);
+            line-height: 1.6;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .reader-container {
+            max-width: var(--content-width);
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        #content {
+            font-family: 'Pyidaungsu', 'Myanmar3', 'Unicode', serif;
+        }
+        .controls {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 1000;
+        }
+        .nav-buttons {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(0,0,0,0.1);
+        }
+        [data-theme="dark"] .nav-buttons {
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+        .loading {
+            text-align: center;
+            padding: 50px;
+        }
+    </style>
+</head>
+<body>
+    <div class="reader-container">
+        <nav aria-label="breadcrumb" class="mb-4">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="/">Library</a></li>
+                <li class="breadcrumb-item"><a href="/book/{{ book_id }}">{{ book_title }}</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Chapter {{ chapter.number }}</li>
+            </ol>
+        </nav>
+
+        <h1 id="chapter-title">{{ chapter.title }}</h1>
+        <hr>
+        
+        <div id="content" class="loading">
+            စာသားများကို ရယူနေသည်... (Loading content...)
+        </div>
+
+        <div class="nav-buttons">
+            {% if prev_chapter %}
+            <a href="/book/{{ book_id }}/chapter/{{ prev_chapter.number }}" class="btn btn-outline-primary">Previous Chapter</a>
+            {% else %}
+            <button class="btn btn-outline-secondary" disabled>Previous Chapter</button>
+            {% endif %}
+            
+            <a href="/book/{{ book_id }}" class="btn btn-outline-secondary">Chapters</a>
+
+            {% if next_chapter %}
+            <a href="/book/{{ book_id }}/chapter/{{ next_chapter.number }}" class="btn btn-primary">Next Chapter</a>
+            {% else %}
+            <button class="btn btn-outline-secondary" disabled>Next Chapter</button>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="controls">
+        <button class="btn btn-secondary btn-sm" id="theme-toggle">Theme</button>
+        <button class="btn btn-secondary btn-sm" id="font-plus">A+</button>
+        <button class="btn btn-secondary btn-sm" id="font-minus">A-</button>
+    </div>
+
+    <script>
+        const bookId = "{{ book_id }}";
+        const chapterNum = {{ chapter.number }};
+        const chapterTitle = "{{ chapter.title }}";
+        const filename = "{{ chapter.file }}";
+        const contentDiv = document.getElementById('content');
+        
+        // Load content
+        fetch(`/api/chapter_content/${bookId}/${filename}`)
+            .then(response => response.text())
+            .then(text => {
+                contentDiv.innerHTML = marked.parse(text);
+                contentDiv.classList.remove('loading');
+                
+                // Save progress
+                saveProgress();
+            })
+            .catch(err => {
+                contentDiv.innerHTML = "Error loading content: " + err;
+            });
+
+        function saveProgress() {
+            fetch('/api/save_progress', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    book_id: bookId,
+                    chapter_number: chapterNum,
+                    chapter_title: chapterTitle,
+                    scroll_position: window.scrollY,
+                    last_read: new Date().toISOString()
+                })
+            });
+        }
+
+        // Theme Toggle
+        const themeToggle = document.getElementById('theme-toggle');
+        const body = document.body;
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        body.setAttribute('data-theme', savedTheme);
+        
+        themeToggle.addEventListener('click', () => {
+            const currentTheme = body.getAttribute('data-theme');
+            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+            body.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+        });
+
+        // Font Size
+        let fontSize = parseInt(localStorage.getItem('fontSize')) || 18;
+        document.body.style.setProperty('--font-size', fontSize + 'px');
+
+        document.getElementById('font-plus').addEventListener('click', () => {
+            fontSize += 2;
+            document.body.style.setProperty('--font-size', fontSize + 'px');
+            localStorage.setItem('fontSize', fontSize);
+        });
+
+        document.getElementById('font-minus').addEventListener('click', () => {
+            fontSize = Math.max(12, fontSize - 2);
+            document.body.style.setProperty('--font-size', fontSize + 'px');
+            localStorage.setItem('fontSize', fontSize);
+        });
+
+        // Save progress on scroll (debounced)
+        let scrollTimeout;
+        window.addEventListener('scroll', () => {
+            clearTimeout(scrollTimeout);
+            scrollTimeout = setTimeout(saveProgress, 2000);
+        });
+    </script>
+</body>
+</html>

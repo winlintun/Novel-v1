@@ -72,6 +72,9 @@ working_data/logs/*
 !working_data/logs/.gitkeep
 working_data/clean/*
 !working_data/clean/.gitkeep
+english_chapters/dao-equaling-the-heavens/*.md
+english_chapters/
+
 
 # ── Project Specific: Input/Output ────────────────────────────────────────────
 # Input novels (user files - don't commit)
@@ -133,3 +136,6 @@ dmypy.json
 
 # ── Opencode ─────────────────────────────────────────────────────────────────
 .opencode/
+
+
+need_to_fix.md

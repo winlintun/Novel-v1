@@ -305,7 +305,7 @@ def main():
             books_idx = input_file.parts.index('books')
             if len(input_file.parts) > books_idx + 1:
                 novel_name = input_file.parts[books_idx + 1]
-    except:
+    except (ValueError, IndexError):
         pass
     
     print(f"Processing: {input_file}")

@@ -416,7 +416,7 @@ class GeminiTranslator(BaseTranslator):
 class OllamaTranslator(BaseTranslator):
     def __init__(self):
         self.base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-        self.model = os.getenv("OLLAMA_MODEL", "qwen2.5:7b")
+        self.model = os.getenv("OLLAMA_MODEL", "qwen:7b")
         # Check if this is a cloud model that needs special handling
         self.is_cloud_model = ":cloud" in self.model or "kimi" in self.model.lower()
         # Get cloud API key if available
