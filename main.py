@@ -24,6 +24,7 @@ from scripts.translator import get_translator, get_system_prompt, BaseTranslator
 from scripts.postprocessor import postprocess
 from scripts.assembler import assemble
 from scripts.glossary_manager import GlossaryManager
+from scripts.rewriter import BurmeseRewriter, get_raw_translation_prompt
 
 # =============================================================================
 # CONSTANTS
@@ -31,7 +32,7 @@ from scripts.glossary_manager import GlossaryManager
 
 # Chunking constants
 DEFAULT_CHUNK_SIZE = 1000
-DEFAULT_OVERLAP_SIZE = 100
+DEFAULT_OVERLAP_SIZE = 0
 MAX_CHUNK_SIZE = 5000
 MIN_CHUNK_SIZE = 100
 
@@ -261,7 +262,10 @@ def _translate_single_chunk(
     total_chunks: int,
     translator: BaseTranslator,
     system_prompt: str,
-    previous_translation: Optional[str] = None
+    chapter_name: str = "",
+    previous_translation: Optional[str] = None,
+    use_two_stage: bool = False,
+    rewriter: Optional[BurmeseRewriter] = None
 ) -> Optional[str]:
     """Translate a single chunk with context retention.
 
@@ -271,7 +275,10 @@ def _translate_single_chunk(
         total_chunks: Total number of chunks
         translator: Translator instance
         system_prompt: System prompt for translation
+        chapter_name: Name of the current chapter
         previous_translation: Previous chunk's translation for context (sliding window)
+        use_two_stage: Whether to use two-stage translation (raw + rewrite)
+        rewriter: BurmeseRewriter instance for stage 2 (required if use_two_stage=True)
 
     Returns:
         Translated text or None if translation failed
@@ -296,11 +303,33 @@ def _translate_single_chunk(
 
 ---
 
-CURRENT TEXT TO TRANSLATE:
+CURRENT TEXT TO TRANSLATE (from {chapter_name}):
 {chunk}"""
+    else:
+        # First chunk - still tell it what chapter we are in
+        user_content = f"CHAPTER: {chapter_name}\n\nTEXT TO TRANSLATE:\n{chunk}"
 
     try:
-        translated_text = retry_translate_chunk(translator, user_content, system_prompt)
+        # STAGE 1: Raw Translation
+        if use_two_stage:
+            logger.info(f"Chunk {chunk_index}: Stage 1 - Raw translation")
+            raw_prompt = get_raw_translation_prompt()
+            rough_translation = retry_translate_chunk(translator, user_content, raw_prompt)
+            logger.info(f"Chunk {chunk_index}: Raw translation complete: {len(rough_translation)} chars")
+            
+            # STAGE 2: Rewrite
+            if rewriter is not None:
+                logger.info(f"Chunk {chunk_index}: Stage 2 - Rewriting")
+                context_for_rewrite = previous_translation[-500:] if previous_translation else ""
+                translated_text = rewriter.rewrite(rough_translation, context=context_for_rewrite)
+                logger.info(f"Chunk {chunk_index}: Rewrite complete: {len(translated_text)} chars")
+            else:
+                logger.warning(f"Chunk {chunk_index}: No rewriter available, using raw translation")
+                translated_text = rough_translation
+        else:
+            # Single-stage translation
+            translated_text = retry_translate_chunk(translator, user_content, system_prompt)
+        
         logger.info(f"Chunk {chunk_index} translated: {len(translated_text)} characters")
         return translated_text
     except RetryExhaustedError as e:
@@ -332,10 +361,22 @@ def translate_single_file(
     do_readability: bool,
     names_path: str,
     source_lang: str = "Chinese",
-    book_id: str = None
+    book_id: str = None,
+    use_two_stage: bool = None
 ) -> bool:
     """
     Translate a single file through the complete pipeline.
+    
+    Args:
+        filepath: Path to file to translate
+        model_name: Translation model to use
+        max_chars: Maximum characters per chunk
+        overlap_chars: Overlap between chunks
+        do_readability: Whether to run readability check
+        names_path: Path to names JSON file
+        source_lang: Source language
+        book_id: Book ID for glossary (auto-detected if None)
+        use_two_stage: Force two-stage mode (None = auto from config)
     
     Returns True on success, False on failure.
     """
@@ -346,9 +387,28 @@ def translate_single_file(
     if book_id is None:
         book_id = filepath.parent.name if filepath.parent.name != INPUT_DIR else chapter_name
     
+    # Load config to check for two-stage mode
+    config = {}
+    try:
+        config_path = Path("config/config.json")
+        if config_path.exists():
+            with open(config_path, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+    except Exception as e:
+        logger.warning(f"Could not load config: {e}")
+    
+    # Determine two-stage mode
+    if use_two_stage is None:
+        pipeline_config = config.get("translation_pipeline", {})
+        use_two_stage = pipeline_config.get("mode", "single_stage") == "two_stage"
+    
     print("=" * 60)
     print(f"Translating: {chapter_name}")
     print(f"Book ID: {book_id}")
+    if use_two_stage:
+        print("Mode: Two-Stage Translation (Raw + Rewrite)")
+    else:
+        print("Mode: Single-Stage Translation")
     print("=" * 60)
     
     # 1. Preprocess
@@ -402,10 +462,27 @@ def translate_single_file(
     
     # Get system prompt with glossary
     system_prompt = get_system_prompt(source_lang=source_lang, glossary_manager=glossary)
+    
+    # Initialize rewriter if using two-stage mode
+    rewriter = None
+    if use_two_stage:
+        print(f"\n[4.5/7] Initializing rewriter for two-stage translation...")
+        try:
+            # Use same model for rewriting, or could use different model
+            rewriter_model = config.get("rewriter_model", model_name)
+            rewriter = BurmeseRewriter(rewriter_model, glossary_manager=glossary)
+            print(f"✓ Rewriter ready: {rewriter_model}")
+        except Exception as e:
+            logger.warning(f"Failed to initialize rewriter: {e}")
+            print(f"⚠ Failed to initialize rewriter, falling back to single-stage")
+            use_two_stage = False
 
     # 5. Translate chunks
     print(f"\n[5/7] Translating {len(chunks)} chunks...")
+    if use_two_stage:
+        print("(Two-stage: Raw translation + Rewrite for each chunk)")
     print("-" * 60)
+
 
     start_time = time.time()
     previous_translation = None
@@ -418,7 +495,10 @@ def translate_single_file(
             total_chunks=len(chunks),
             translator=translator,
             system_prompt=system_prompt,
-            previous_translation=previous_translation
+            chapter_name=chapter_name,
+            previous_translation=previous_translation,
+            use_two_stage=use_two_stage,
+            rewriter=rewriter
         )
 
         # Update previous translation for context retention (sliding window)
@@ -659,8 +739,8 @@ Examples:
                         help=f"Maximum characters per chunk (default: {DEFAULT_CHUNK_SIZE})")
     parser.add_argument("--overlap-chars", type=int, default=DEFAULT_OVERLAP_SIZE,
                         help=f"Overlap characters between chunks (default: {DEFAULT_OVERLAP_SIZE})")
-    parser.add_argument("--no-readability", action="store_true",
-                        help="Skip readability check")
+    parser.add_argument("--readability", action="store_true",
+                        help="Enable readability check")
     parser.add_argument("--names", default="names.json",
                         help="Character names mapping file")
 
@@ -741,7 +821,7 @@ Examples:
             model_name=model,
             max_chars=args.max_chars,
             overlap_chars=args.overlap_chars,
-            do_readability=not args.no_readability,
+            do_readability=args.readability,
             names_path=args.names,
             source_lang=source_lang
         )

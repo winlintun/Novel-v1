@@ -5,6 +5,12 @@
   "ollama_endpoint": "http://localhost:11434/api/generate",
   "source_language": "Chinese",
   "target_language": "Burmese",
+  "supported_source_languages": [
+    "Chinese",
+    "Chinese (Simplified)",
+    "Chinese (Traditional)",
+    "English"
+  ],
   "chunk_size": 1000,
   "chunk_overlap": 100,
   "stream": true,
@@ -15,7 +21,6 @@
   "supported_models": {
     "ollama": [
       "qwen2.5:7b",
-      "qwen2.5:14b",
       "translategemma",
       "translategemma:12b",
       "kimi-k2.6:cloud"
@@ -27,6 +32,12 @@
     "gemini": [
       "gemini-2.0-flash",
       "gemini-1.5-flash"
+    ],
+    "nllb": [
+      "nllb-200-distilled-600M",
+      "nllb-200-1.3B",
+      "nllb-200-3.3B",
+      "nllb-200-distilled-1.3B"
     ]
   },
   "myanmar_readability": {
@@ -34,5 +45,9 @@
     "min_myanmar_ratio": 0.7,
     "flag_on_fail": true,
     "block_on_fail": false
+  },
+  "translation_pipeline": {
+    "mode": "single_stage",
+    "description": "single_stage or two_stage. Two-stage uses raw translation + rewrite for better quality."
   }
 }
