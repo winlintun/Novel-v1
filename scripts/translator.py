@@ -84,8 +84,16 @@ def managed_request(method: str, url: str, **kwargs):
             response.close()
 
 
-def get_system_prompt(target_lang: str = "Myanmar (Burmese)", source_lang: str = "Chinese") -> str:
-    """Get the optimized system prompt from AGENTS.md."""
+def get_system_prompt(target_lang: str = "Myanmar (Burmese)", source_lang: str = "Chinese", 
+                      novel_name: str = None, glossary_manager=None) -> str:
+    """Get the optimized system prompt from AGENTS.md.
+    
+    Args:
+        target_lang: Target language for translation
+        source_lang: Source language of text
+        novel_name: Name of novel (for loading per-novel glossary)
+        glossary_manager: Pre-loaded GlossaryManager instance (optional)
+    """
     # Normalize language names
     source_lang_lower = source_lang.lower()
     target_lang_lower = target_lang.lower()
@@ -101,20 +109,40 @@ def get_system_prompt(target_lang: str = "Myanmar (Burmese)", source_lang: str =
         source_display = source_lang
         style_note = "Maintain the literary style and tone of the source text."
 
-    # Load glossary
+    # Load glossary - priority: glossary_manager > novel_name > names.json
     glossary_text = ""
-    try:
-        import json
-        import os
-        if os.path.exists("names.json"):
-            with open("names.json", "r", encoding="utf-8") as f:
-                names = json.load(f)
-                if names:
-                    glossary_text = "\n\nTERMINOLOGY MAPPING (Use these exact Burmese translations):\n"
-                    for src, my in names.items():
-                        glossary_text += f"- {src} -> {my}\n"
-    except Exception as e:
-        logger.warning(f"Failed to load names.json: {e}")
+    
+    # 1. Try provided glossary manager first
+    if glossary_manager is not None:
+        try:
+            glossary_text = glossary_manager.get_glossary_text()
+        except Exception as e:
+            logger.warning(f"Failed to load glossary from manager: {e}")
+    
+    # 2. Try novel-specific glossary file
+    elif novel_name:
+        try:
+            from scripts.glossary_manager import GlossaryManager
+            glossary = GlossaryManager(novel_name, auto_create=False)
+            if glossary.names:  # Only use if glossary has entries
+                glossary_text = glossary.get_glossary_text()
+                logger.info(f"Loaded glossary for novel '{novel_name}': {len(glossary.names)} names")
+        except Exception as e:
+            logger.warning(f"Failed to load novel glossary for '{novel_name}': {e}")
+    
+    # 3. Fallback to global names.json
+    if not glossary_text:
+        try:
+            import os
+            if os.path.exists("names.json"):
+                with open("names.json", "r", encoding="utf-8") as f:
+                    names = json.load(f)
+                    if names:
+                        glossary_text = "\n\nTERMINOLOGY MAPPING (Use these exact Burmese translations):\n"
+                        for src, my in names.items():
+                            glossary_text += f"- {src} -> {my}\n"
+        except Exception as e:
+            logger.warning(f"Failed to load names.json: {e}")
 
     prompt = f"""You are an expert literary translator specializing in {source_display} to Myanmar (Burmese) translation.
 CRITICAL INSTRUCTIONS:

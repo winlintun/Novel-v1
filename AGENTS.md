@@ -36,7 +36,38 @@ This is a **Chinese-to-Burmese novel translation system** built in Python. The s
 - **NO Mixed Language**: Never output Chinese characters.
 - **Literary Quality**: Avoid literal word-for-word translations, but do not hallucinate new events.
 - **Myanmar Script**: Use only Myanmar Unicode (U+1000–U+109F).
-- **Strict Glossary**: Always enforce the mappings from `names.json`.
+- **Strict Glossary**: Always enforce the mappings from the novel's glossary file (`glossaries/<novel_name>.json`).
+
+### Glossary / Character Name Consistency System
+
+The project uses a **per-novel glossary system** to ensure character names and terminology remain consistent throughout translation:
+
+**Storage Location**: `glossaries/<novel_name>.json`
+- Each novel gets its own glossary file (e.g., `glossaries/novel_one.json`)
+- Format: `{"names": {"Chinese Name": "Burmese Name"}, "metadata": {...}}`
+
+**Automatic Features**:
+1. **Load**: Glossary is automatically loaded at start of each chapter translation
+2. **Inject**: All name mappings are injected into the system prompt
+3. **Update**: After each chapter, new potential names are extracted and glossary is saved
+4. **Persistence**: Glossary accumulates across chapters for the same novel
+
+**Manual Management**:
+```bash
+# View glossary for a novel
+python scripts/glossary_manager.py novel_name list
+
+# Add a name manually
+python scripts/glossary_manager.py novel_name add "魏无羡" "ဝေ့ဝူရှျန်"
+
+# View statistics
+python scripts/glossary_manager.py novel_name stats
+
+# Extract potential names from a file
+python scripts/glossary_manager.py novel_name extract input_novels/chapter.txt
+```
+
+**Fallback**: If no novel-specific glossary exists, system falls back to global `names.json`
 
 **Prompt Template**:
 ```text

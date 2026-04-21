@@ -23,6 +23,7 @@ from scripts.chunker import auto_chunk, split_into_paragraphs, print_chunk_analy
 from scripts.translator import get_translator, get_system_prompt, BaseTranslator
 from scripts.postprocessor import postprocess
 from scripts.assembler import assemble
+from scripts.glossary_manager import GlossaryManager
 
 # =============================================================================
 # CONSTANTS
@@ -330,7 +331,8 @@ def translate_single_file(
     overlap_chars: int,
     do_readability: bool,
     names_path: str,
-    source_lang: str = "Chinese"
+    source_lang: str = "Chinese",
+    book_id: str = None
 ) -> bool:
     """
     Translate a single file through the complete pipeline.
@@ -340,12 +342,17 @@ def translate_single_file(
     filepath = Path(filepath)
     chapter_name = filepath.stem
     
+    # Determine book ID for glossary management
+    if book_id is None:
+        book_id = filepath.parent.name if filepath.parent.name != INPUT_DIR else chapter_name
+    
     print("=" * 60)
     print(f"Translating: {chapter_name}")
+    print(f"Book ID: {book_id}")
     print("=" * 60)
     
     # 1. Preprocess
-    print("\n[1/6] Preprocessing...")
+    print("\n[1/7] Preprocessing...")
     try:
         clean_text = _preprocess_file(filepath)
         print(f"✓ Preprocessed: {len(clean_text)} characters")
@@ -355,7 +362,7 @@ def translate_single_file(
         return False
     
     # 2. Chunk
-    print("\n[2/6] Chunking...")
+    print("\n[2/7] Chunking...")
     try:
         paragraphs, chunks = _chunk_text(clean_text, max_chars, overlap_chars)
         print_chunk_analysis(chunks, paragraphs)
@@ -364,8 +371,20 @@ def translate_single_file(
         print(f"✗ Chunking failed: {e}")
         return False
     
-    # 3. Load translator with retry
-    print(f"\n[3/6] Loading translator: {model_name}")
+    # 3. Initialize glossary manager for this book
+    print(f"\n[3/7] Loading glossary for: {book_id}")
+    try:
+        glossary = GlossaryManager(book_id)
+        print(f"✓ Glossary loaded: {len(glossary.names)} names")
+        if glossary.names:
+            glossary.print_summary()
+    except Exception as e:
+        logger.warning(f"Failed to load glossary: {e}")
+        glossary = None
+        print(f"⚠ Continuing without glossary")
+    
+    # 4. Load translator with retry
+    print(f"\n[4/7] Loading translator: {model_name}")
     try:
         translator = _load_translator_with_retry(model_name)
         print(f"✓ Loaded: {translator.name}")
@@ -381,16 +400,17 @@ def translate_single_file(
         print(f"✗ Failed to load translator after retries: {e}")
         return False
     
-    system_prompt = get_system_prompt(source_lang=source_lang)
+    # Get system prompt with glossary
+    system_prompt = get_system_prompt(source_lang=source_lang, glossary_manager=glossary)
 
     # 5. Translate chunks
-    print(f"\n[4/6] Translating {len(chunks)} chunks...")
+    print(f"\n[5/7] Translating {len(chunks)} chunks...")
     print("-" * 60)
-    
+
     start_time = time.time()
     previous_translation = None
     translated_chunks = {}  # Store translated chunks in memory
-    
+
     for i, chunk in enumerate(chunks, 1):
         result = _translate_single_chunk(
             chunk=chunk,
@@ -400,7 +420,7 @@ def translate_single_file(
             system_prompt=system_prompt,
             previous_translation=previous_translation
         )
-        
+
         # Update previous translation for context retention (sliding window)
         if result is not None:
             previous_translation = result
@@ -408,38 +428,38 @@ def translate_single_file(
             print(f"\n[{i}/{len(chunks)}] ✓ Done — {len(result)} Myanmar chars")
         else:
             print(f"\n[{i}/{len(chunks)}] ✗ Translation failed — continuing to next chunk")
-        
+
         # Apply delay between chunks
         _apply_delay_between_chunks(i, len(chunks), model_name=translator.name)
-    
+
     translate_time = time.time() - start_time
 
     # 6. Postprocess
-    print(f"\n[5/6] Postprocessing...")
-    
+    print(f"\n[6/7] Postprocessing...")
+
     # Combine all translated chunks, handling potential gaps from failed translations
     # Sort by chunk index and filter out any None values
     sorted_indices = sorted(translated_chunks.keys())
     available_chunks = [translated_chunks[i] for i in sorted_indices if translated_chunks[i] is not None]
-    
+
     # Warn if there are gaps in the translation
     expected_indices = set(range(1, len(chunks) + 1))
     actual_indices = set(translated_chunks.keys())
     missing_indices = expected_indices - actual_indices
-    
+
     if missing_indices:
         missing_list = sorted(missing_indices)
         logger.warning(f"Missing translations for chunk(s): {missing_list}")
         print(f"⚠ Warning: {len(missing_list)} chunk(s) failed to translate and will be skipped")
-    
+
     if not available_chunks:
         logger.error(f"All translation chunks failed for {chapter_name}")
         print(f"\n✗ Translation failed: No chunks were successfully translated")
         return False
-    
+
     full_text = '\n\n'.join(available_chunks)
     processed_text = full_text  # Default to unprocessed if postprocess fails
-    
+
     try:
         # Postprocess
         processed_text = postprocess(full_text, names_path)
@@ -447,19 +467,17 @@ def translate_single_file(
         logger.error(f"Postprocessing failed: {e}")
         print(f"✗ Postprocessing failed: {e}")
         print(f"  Using unprocessed text for assembly.")
-    
+
     # 7. Assemble
-    print(f"\n[6/6] Assembling...")
+    print(f"\n[7/7] Assembling and saving...")
     try:
-        # Determine book ID (use input file's parent dir name or "default")
-        book_id = filepath.parent.name if filepath.parent.name != INPUT_DIR else chapter_name
         book_dir = Path(BOOKS_DIR) / book_id
         book_dir.mkdir(parents=True, exist_ok=True)
         chapters_dir = book_dir / "chapters"
         chapters_dir.mkdir(parents=True, exist_ok=True)
-        
+
         output_file = chapters_dir / f"{chapter_name}_myanmar.md"
-        
+
         assemble(
             original_title=chapter_name,
             chapter_number=1, # Default to 1 for single file mode
@@ -468,15 +486,30 @@ def translate_single_file(
             output_path=str(output_file),
             book_id=book_id
         )
-        
+
     except Exception as e:
         logger.error(f"Assembly failed: {e}")
         print(f"✗ Assembly failed: {e}")
         return False
-    
-    # 8. Readability check (optional) - shown as step 7 in output
+
+    # 8. Save glossary updates (if glossary manager was initialized)
+    if glossary is not None:
+        print(f"\n[8] Updating glossary...")
+        try:
+            # Try to extract new names from this chapter
+            new_mappings = glossary.update_from_translation(clean_text, processed_text, chapter_num=1)
+            if new_mappings:
+                logger.info(f"Found {len(new_mappings)} potential new names to review")
+            glossary.metadata["chapter_count"] = glossary.metadata.get("chapter_count", 0) + 1
+            glossary.save()
+            print(f"✓ Glossary updated: {len(glossary.names)} total names")
+        except Exception as e:
+            logger.warning(f"Failed to update glossary: {e}")
+            print(f"⚠ Failed to update glossary: {e}")
+
+    # 9. Readability check (optional)
     if do_readability:
-        print(f"\n[7] Readability check...")
+        print(f"\n[9] Readability check...")
         try:
             run_readability_check(processed_text, chapter_name, model_name)
         except Exception as e:
@@ -488,14 +521,17 @@ def translate_single_file(
     print("╔═════════════════════════════════════════╗")
     print("║         Translation Complete!           ║")
     print(f"║ Chapter   : {chapter_name[:35]:<35} ║")
+    print(f"║ Book ID   : {book_id[:35]:<35} ║")
     print(f"║ Model     : {translator.name[:35]:<35} ║")
-    print(f"║ Chunks    : {len(chunks)} / {len(chunks):<25} ║")
+    print(f"║ Chunks    : {len(available_chunks)}/{len(chunks):<25} ║")
+    if glossary:
+        print(f"║ Glossary  : {len(glossary.names)} names{' ' * 22} ║")
     print(f"║ Time      : {translate_time/60:.1f}m{' ' * 30}║")
     print(f"║ Output    : {BOOKS_DIR}/{book_id}/chapters/ ║")
     print(f"║             {chapter_name[:30]}_myanmar.md ║")
     print("╚═════════════════════════════════════════╝")
     print("=" * 60)
-    
+
     return True
 
 

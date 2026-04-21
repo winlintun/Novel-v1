@@ -32,6 +32,7 @@ if str(project_root) not in sys.path:
 from scripts.translator import get_translator, get_system_prompt
 from scripts.assembler import assemble
 from scripts.chunker import auto_chunk
+from scripts.glossary_manager import GlossaryManager
 
 # Setup logging
 LOG_DIR = Path("working_data/logs")
@@ -118,6 +119,7 @@ def load_checkpoint(novel_name):
 def translate_chapter(novel_name, chapter_num, input_file, output_dir, config):
     """
     Translate a single chapter using the shared translator and assembler.
+    Uses per-novel glossary for character name consistency.
     """
     try:
         input_path = Path(input_file)
@@ -138,10 +140,14 @@ def translate_chapter(novel_name, chapter_num, input_file, output_dir, config):
         # If it has front matter, actual content is after the second ---
         chapter_content = parts[2].strip() if len(parts) >= 3 else content
         
-        # 2. Get translator
+        # 2. Initialize glossary manager for this novel
+        glossary = GlossaryManager(novel_name)
+        logger.info(f"Glossary loaded: {len(glossary.names)} names")
+        
+        # 3. Get translator with novel-specific glossary
         model_name = config.get('ai_backend', os.getenv('AI_MODEL', 'ollama'))
         translator = get_translator(model_name)
-        system_prompt = get_system_prompt()
+        system_prompt = get_system_prompt(glossary_manager=glossary)
         
         # 3. Translate with chunking
         chunks = auto_chunk(chapter_content, max_chars=1200)
@@ -179,6 +185,15 @@ def translate_chapter(novel_name, chapter_num, input_file, output_dir, config):
             output_path=str(output_file),
             book_id=book_id
         )
+        
+        # 5. Update glossary with potential new names from this chapter
+        logger.info("Updating glossary with new names from this chapter...")
+        new_mappings = glossary.update_from_translation(chapter_content, translated, chapter_num)
+        if new_mappings:
+            logger.info(f"Found {len(new_mappings)} potential new names to review")
+        glossary.metadata["chapter_count"] = max(glossary.metadata.get("chapter_count", 0), chapter_num)
+        glossary.save()
+        logger.info(f"Glossary saved: {len(glossary.names)} total names")
         
         # Save checkpoint
         save_checkpoint(novel_name, chapter_num, 'completed')
