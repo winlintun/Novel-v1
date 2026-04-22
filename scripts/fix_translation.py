@@ -107,9 +107,9 @@ def fix_weird_repetitions(text: str) -> str:
     # Fix repeated (၁) pattern
     text = re.sub(r'(?:\(၁\)\s*){3,}', '', text)
     
-    # Fix repeated "ချို" or similar patterns (5+ repetitions)
-    # This catches patterns like ချိုချိုချိုချို...
-    text = re.sub(r'(\w{1,4})\1{5,}', r'\1', text)
+    # Fix repeated Myanmar syllables or words (4+ repetitions)
+    # Catches patterns like ချိုချိုချိုချို...
+    text = re.sub(r'([\u1000-\u109F]{1,8})\1{4,}', r'\1', text)
     
     # Fix long sequences of the same Myanmar character repeated
     text = re.sub(r'([\u1000-\u109F])\1{4,}', r'\1', text)

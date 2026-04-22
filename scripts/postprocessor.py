@@ -12,6 +12,12 @@ from typing import Dict, Tuple
 def fix_punctuation(text: str) -> str:
     """Fix Chinese punctuation to Myanmar equivalents."""
     replacements = {
+        # Punctuation
+        (r'。', '။ '),
+        (r'，', '၊ '),
+        (r'？', '? '),
+        (r'！', '! '),
+        
         # Sentence endings - formal → natural
         (r'လေသည်။', 'တယ်။'),
         (r'လေသည်\b', 'တယ်'),
@@ -48,7 +54,7 @@ def fix_punctuation(text: str) -> str:
         (r'တည်းဟူသော', ''),  # Remove archaic connectors
     }
     
-    for chinese, myanmar in replacements.items():
+    for chinese, myanmar in replacements:
         text = text.replace(chinese, myanmar)
     
     return text
@@ -57,6 +63,29 @@ def fix_punctuation(text: str) -> str:
 def collapse_blank_lines(text: str) -> str:
     """Collapse 3+ blank lines to 2."""
     return re.sub(r'\n{3,}', '\n\n', text)
+
+def naturalize_verb_endings(text: str) -> str:
+    """Convert formal Myanmar verb endings to conversational ones."""
+    replacements = {
+        r'လေသည်။': 'တယ်။',
+        r'လေသည်\b': 'တယ်',
+        r'ပါသည်\b': 'ပါတယ်',
+        r'ခဲ့သည်\b': 'ခဲ့တယ်',
+        r'ရှိသည်\b': 'ရှိတယ်',
+        r'မည်\b': 'မယ်',
+        r'အံ့\b': 'မယ်',
+        r'၏\b': 'ရဲ့',
+        r'၌\b': 'မှာ',
+        r'အား\b': 'ကို',
+        r'သည်\b': 'တယ်',
+        r'ဟုဆိုသည်\b': 'လို့ပြောတယ်',
+        r'ဟုမေးလေသည်\b': 'လို့မေးလိုက်တယ်',
+    }
+    
+    for formal, conversational in replacements.items():
+        text = re.sub(formal, conversational, text)
+    
+    return text
 
 
 def strip_trailing_whitespace(text: str) -> str:
