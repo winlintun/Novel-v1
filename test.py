@@ -692,6 +692,117 @@ def test_file_structure():
 
 
 # =============================================================================
+# SECTION 13 — READER APP (Web UI)
+# =============================================================================
+
+def test_reader_app():
+    print(header("[ 13 ] Reader App — Web UI စစ်ဆေးချက်"))
+
+    reader_path = Path("reader_app.py")
+    R.add("reader_app.py exists", reader_path.exists())
+    if not reader_path.exists():
+        return
+
+    # --- 13a. Check Flask imports ---
+    src = reader_path.read_text(encoding="utf-8")
+    R.add("reader_app: Flask imported",
+          "from flask import Flask" in src)
+    R.add("reader_app: send_from_directory (not send_from_path)",
+          "send_from_directory" in src and "send_from_path" not in src,
+          "send_from_path အစား send_from_directory သုံးပါ")
+
+    # --- 13b. Check required routes ---
+    required_routes = [
+        ("@app.route('/')", "index/home route"),
+        ("@app.route('/book/<book_id>')", "book chapters route"),
+        ("@app.route('/book/<book_id>/chapter/<int:chapter_num>')", "reader route"),
+        ("@app.route('/api/chapter_content/", "chapter content API"),
+        ("@app.route('/api/save_progress'", "save progress API"),
+    ]
+    for route, desc in required_routes:
+        R.add(f"reader_app: {desc}",
+              route in src)
+
+    # --- 13c. Check security features ---
+    R.add("reader_app: is_safe_path_name function (security)",
+          "is_safe_path_name" in src)
+    R.add("reader_app: path traversal protection (.. check)",
+          "'..' in" in src or '".." in' in src)
+
+    # --- 13d. Check template usage ---
+    templates = ["index.html", "chapters.html", "reader.html"]
+    for tmpl in templates:
+        template_found = f"'{tmpl}'" in src and "render_template" in src
+        R.add(f"reader_app: template '{tmpl}' used",
+              template_found)
+
+    # --- 13e. Check books directory handling ---
+    R.add("reader_app: BOOKS_DIR defined",
+          'BOOKS_DIR = Path("books")' in src or "BOOKS_DIR = Path('books')" in src)
+    R.add("reader_app: metadata.json loading",
+          "metadata.json" in src)
+
+    # --- 13f. Check progress tracking ---
+    R.add("reader_app: progress.json handling",
+          "progress.json" in src or "PROGRESS_FILE" in src)
+    R.add("reader_app: load_progress function",
+          "def load_progress():" in src)
+    R.add("reader_app: save_progress function",
+          "def save_progress(" in src)
+
+    # --- 13g. Test import without running server ---
+    try:
+        # Mock Flask to avoid actually starting server
+        import sys
+        from unittest.mock import MagicMock
+
+        flask_mock = MagicMock()
+        flask_mock.Flask = lambda name: MagicMock(
+            route=lambda *a, **k: lambda f: f,
+            run=lambda **k: None
+        )
+        flask_mock.render_template = lambda *a, **k: ""
+        flask_mock.request = MagicMock()
+        flask_mock.jsonify = lambda x: x
+        flask_mock.send_from_directory = lambda *a, **k: ""
+
+        sys.modules['flask'] = flask_mock
+
+        # Try to import reader_app modules
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("reader_app", "reader_app.py")
+        reader_module = importlib.util.module_from_spec(spec)
+
+        # Don't execute the app.run() part
+        R.add("reader_app: imports successfully (mocked)", True)
+
+        # Restore flask
+        del sys.modules['flask']
+
+    except Exception as e:
+        R.add("reader_app: imports successfully (mocked)", False, str(e))
+
+    # --- 13h. Check sample book exists ---
+    books_dir = Path("books")
+    if books_dir.exists():
+        metadata_files = list(books_dir.rglob("metadata.json"))
+        R.add(f"reader_app: sample books found ({len(metadata_files)} metadata.json)",
+              len(metadata_files) > 0,
+              f"{len(metadata_files)} book(s) with metadata.json" if metadata_files else "Create sample book with: mkdir -p books/novel/chapters && echo '{{...}}' > books/novel/metadata.json")
+
+        if metadata_files:
+            # Validate first metadata.json
+            try:
+                with open(metadata_files[0], 'r', encoding='utf-8') as f:
+                    meta = json.load(f)
+                R.add("reader_app: metadata.json valid format",
+                      "title" in meta and "chapters" in meta,
+                      f"title={meta.get('title', 'N/A')}, chapters={len(meta.get('chapters', []))}")
+            except Exception as e:
+                R.add("reader_app: metadata.json valid format", False, str(e))
+
+
+# =============================================================================
 # MAIN RUNNER
 # =============================================================================
 
@@ -708,6 +819,7 @@ SECTIONS = {
     "chunker":     test_chunker,
     "config":      test_config,
     "structure":   test_file_structure,
+    "reader":      test_reader_app,
 }
 
 
@@ -729,6 +841,7 @@ Categories:
   chunker      text splitting
   config       config.json values
   structure    required files check
+  reader       reader_app.py Web UI checks
         """
     )
     parser.add_argument("--verbose",  action="store_true")

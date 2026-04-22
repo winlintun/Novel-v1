@@ -1,7 +1,7 @@
 import os
 import json
 import re
-from flask import Flask, render_template, request, jsonify, send_from_path
+from flask import Flask, render_template, request, jsonify, send_from_directory
 from pathlib import Path
 
 app = Flask(__name__)
