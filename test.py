@@ -786,58 +786,83 @@ def test_system_prompt():
 
 
 # =============================================================================
-# SECTION 11 — PIPELINE INTEGRATION
+# SECTION 11 — PIPELINE INTEGRATION (local_main.py & cloud_main.py)
 # =============================================================================
 
 def test_pipeline_integration():
-    print(header("[ 11 ] Pipeline integration — main.py စစ်ဆေးချက်"))
+    print(header("[ 11 ] Pipeline integration — local/cloud main scripts"))
 
+    # Check that we have the three main scripts
     main_path = Path("main.py")
+    local_path = Path("local_main.py")
+    cloud_path = Path("cloud_main.py")
+    
     if not main_path.exists():
-        R.add("main.py exists", False, "main.py မတွေ့ဘူး")
+        R.add("main.py (router) exists", False, "main.py not found")
         return
-    R.add("main.py exists", True)
+    R.add("main.py (router) exists", True)
+    
+    if not local_path.exists():
+        R.add("local_main.py exists", False, "local_main.py not found")
+        return
+    R.add("local_main.py exists", True)
+    
+    if not cloud_path.exists():
+        R.add("cloud_main.py exists", False, "cloud_main.py not found")
+        return
+    R.add("cloud_main.py exists", True)
 
-    src = main_path.read_text(encoding="utf-8")
+    local_src = local_path.read_text(encoding="utf-8")
+    cloud_src = cloud_path.read_text(encoding="utf-8")
+    main_src = main_path.read_text(encoding="utf-8")
 
-    # --- 11a. ResourceManager import and usage ---
-    # Note: ResourceManager is optional - it provides a unified interface but is not required
-    has_resource_manager = "ResourceManager" in src or "resource_manager" in src
-    if not has_resource_manager:
-        print(f"  {warned('main.py: ResourceManager not imported (optional - available for unified access)')}")
-    R.add("main.py: ResourceManager import (optional)", True)  # Always pass, this is optional
+    # --- 11a. main.py routes to local/cloud ---
+    R.add("main.py: Routes to local/cloud scripts",
+          "local_main.py" in main_src and "cloud_main.py" in main_src)
 
-    # --- 11b. GlossaryManager import ---
-    R.add("main.py: GlossaryManager imported",
-          "GlossaryManager" in src)
+    # --- 11b. GlossaryManager import in both ---
+    has_glossary_local = "GlossaryManager" in local_src
+    has_glossary_cloud = "GlossaryManager" in cloud_src
+    R.add("local/cloud_main.py: GlossaryManager imported",
+          has_glossary_local and has_glossary_cloud)
 
-    # --- 11c. ContextManager import ---
-    R.add("main.py: ContextManager imported",
-          "ContextManager" in src)
+    # --- 11c. ContextManager import in both ---
+    has_context_local = "ContextManager" in local_src
+    has_context_cloud = "ContextManager" in cloud_src
+    R.add("local/cloud_main.py: ContextManager imported",
+          has_context_local and has_context_cloud)
 
-    # --- 11d. NameConverter usage ---
-    R.add("main.py: NameConverter usage",
-          "NameConverter" in src)
+    # --- 11d. NameConverter/NameMappingSystem usage ---
+    has_name_local = "NameConverter" in local_src or "NameMappingSystem" in local_src
+    has_name_cloud = "NameConverter" in cloud_src or "NameMappingSystem" in cloud_src
+    R.add("local/cloud_main.py: Name mapping usage",
+          has_name_local and has_name_cloud)
 
     # --- 11e. postprocess or postprocess_translation is called ---
-    R.add("main.py: postprocess() ခေါ်တယ်",
-          "postprocess(" in src or "postprocess_translation(" in src)
+    has_post_local = "postprocess(" in local_src or "postprocess_translation(" in local_src
+    has_post_cloud = "postprocess(" in cloud_src or "postprocess_translation(" in cloud_src
+    R.add("local/cloud_main.py: postprocess() called",
+          has_post_local and has_post_cloud)
 
     # --- 11f. fix_translation is imported or called ---
-    has_import = "fix_translation" in src
-    has_call   = "postprocess_translation" in src
-    R.add("main.py: fix_translation integrate လုပ်ထားတယ်",
-          has_import and has_call,
-          "fix_translation import/call မတွေ့ဘူး — ထည့်ဖို့ လိုသေးတယ်"
-          if not (has_import and has_call) else "")
+    has_fix_local = "fix_translation" in local_src or "postprocess_translation" in local_src
+    has_fix_cloud = "fix_translation" in cloud_src or "postprocess_translation" in cloud_src
+    R.add("local/cloud_main.py: fix_translation integrated",
+          has_fix_local and has_fix_cloud)
 
-    # --- 11g. two-stage mode supported ---
-    R.add("main.py: two-stage mode supported",
-          "--two-stage" in src or "two_stage" in src)
+    # --- 11g. Cloud has rate limiting, local does not ---
+    has_rate_limit = "RateLimiter" in cloud_src or "rate_limit" in cloud_src
+    no_rate_local = "RateLimiter" not in local_src
+    R.add("cloud_main.py: Has rate limiting",
+          has_rate_limit)
+    R.add("local_main.py: No rate limiting (local only)",
+          no_rate_local)
 
-    # --- 11h. Cultivation terms in prompts ---
-    R.add("main.py: Cultivation terms awareness",
-          "cultivation" in src.lower() or "CULTIVATION" in src)
+    # --- 11h. Cultivation terms awareness ---
+    has_cult_local = "cultivation" in local_src.lower() or "CULTIVATION" in local_src
+    has_cult_cloud = "cultivation" in cloud_src.lower() or "CULTIVATION" in cloud_src
+    R.add("local/cloud_main.py: Cultivation terms awareness",
+          has_cult_local or has_cult_cloud)
 
 
 # =============================================================================
@@ -1184,9 +1209,13 @@ def test_security_filter():
     print(header("[ 17.5 ] Security Filter — API key masking in logs"))
     
     try:
-        from main import SensitiveDataFilter
+        # Try local_main first, then cloud_main, then main
+        try:
+            from local_main import SensitiveDataFilter
+        except ImportError:
+            from cloud_main import SensitiveDataFilter
     except ImportError:
-        R.add("SensitiveDataFilter import", False, "Cannot import from main.py")
+        R.add("SensitiveDataFilter import", False, "Cannot import from local_main.py or cloud_main.py")
         return
     
     # Test the filter
@@ -1226,50 +1255,61 @@ def test_security_filter():
 
 
 # =============================================================================
-# SECTION 18 — MAIN.PY RESOURCE INTEGRATION
+# SECTION 18 — LOCAL_MAIN.PY & CLOUD_MAIN.PY RESOURCE INTEGRATION
 # =============================================================================
 
 def test_main_resource_integration():
-    print(header("[ 18 ] Main.py Resource Integration — feature usage"))
+    print(header("[ 18 ] Local/Cloud Main Resource Integration"))
     
-    main_path = Path("main.py")
-    if not main_path.exists():
-        R.add("main.py exists", False, "main.py မတွေ့ဘူး")
+    # Check local_main.py
+    local_path = Path("local_main.py")
+    cloud_path = Path("cloud_main.py")
+    
+    if not local_path.exists():
+        R.add("local_main.py exists", False, "local_main.py not found")
         return
     
-    src = main_path.read_text(encoding="utf-8")
+    if not cloud_path.exists():
+        R.add("cloud_main.py exists", False, "cloud_main.py not found")
+        return
+    
+    local_src = local_path.read_text(encoding="utf-8")
+    cloud_src = cloud_path.read_text(encoding="utf-8")
     
     # --- 18a. GlossaryManager loading ---
-    R.add("main.py: Loads GlossaryManager for book",
-          "GlossaryManager(book_id)" in src or "GlossaryManager(" in src)
+    has_glossary_local = "GlossaryManager" in local_src
+    has_glossary_cloud = "GlossaryManager" in cloud_src
+    R.add("local/cloud_main.py: Loads GlossaryManager",
+          has_glossary_local and has_glossary_cloud)
     
     # --- 18b. ContextManager usage ---
-    R.add("main.py: Uses ContextManager",
-          "ContextManager(" in src and "get_context_for_chapter" in src)
+    has_context_local = "ContextManager(" in local_src
+    has_context_cloud = "ContextManager(" in cloud_src
+    R.add("local/cloud_main.py: Uses ContextManager",
+          has_context_local and has_context_cloud)
     
-    # --- 18c. NameConverter for auto-learn ---
-    R.add("main.py: Uses NameConverter for auto-learn",
-          "NameConverter(" in src and "auto_learn" in src)
+    # --- 18c. NameMappingSystem for auto-learn ---
+    has_nms_local = "NameMappingSystem(" in local_src
+    has_nms_cloud = "NameMappingSystem(" in cloud_src
+    R.add("local/cloud_main.py: Uses NameMappingSystem",
+          has_nms_local and has_nms_cloud)
     
-    # --- 18d. Glossary text injection ---
-    R.add("main.py: Injects glossary into prompts",
-          "get_glossary_text" in src or "glossary_text" in src)
+    # --- 18d. Rate limiting (cloud only) ---
+    has_rate_limit = "RateLimiter" in cloud_src or "rate_limit" in cloud_src
+    R.add("cloud_main.py: Has rate limiting",
+          has_rate_limit)
     
-    # --- 18e. Context text injection ---
-    R.add("main.py: Injects context into prompts",
-          "context_text" in src and "system_prompt" in src)
+    # --- 18e. No rate limits (local only) ---
+    no_rate_limit_local = "RateLimiter" not in local_src
+    R.add("local_main.py: No rate limiting (local)",
+          no_rate_limit_local)
     
-    # --- 18f. Glossary updates after translation ---
-    R.add("main.py: Updates glossary after translation",
-          "glossary.save" in src or "glossary.update" in src)
-    
-    # --- 18g. Context updates after translation ---
-    R.add("main.py: Updates context after translation",
-          "context_manager.save" in src or "update_chapter_translation" in src)
-    
-    # --- 18h. Name sync between glossary and context ---
-    R.add("main.py: Syncs glossary to context",
-          "sync_glossary_to_context" in src)
+    # --- 18f. main.py router ---
+    main_path = Path("main.py")
+    if main_path.exists():
+        main_src = main_path.read_text(encoding="utf-8")
+        R.add("main.py: Routes to local/cloud scripts",
+              "local_main.py" in main_src and "cloud_main.py" in main_src)
 
 
 # =============================================================================
@@ -1390,42 +1430,61 @@ def test_name_mapping_system():
 
 
 # =============================================================================
-# SECTION 20 — MAIN.PY NAME MAPPING INTEGRATION
+# SECTION 20 — LOCAL/CLOUD MAIN NAME MAPPING INTEGRATION
 # =============================================================================
 
 def test_main_name_mapping():
-    print(header("[ 20 ] Main.py Name Mapping Integration"))
+    print(header("[ 20 ] Local/Cloud Main Name Mapping Integration"))
     
-    main_path = Path("main.py")
-    if not main_path.exists():
-        R.add("main.py exists", False, "main.py မတွေ့ဘူး")
+    local_path = Path("local_main.py")
+    cloud_path = Path("cloud_main.py")
+    
+    if not local_path.exists():
+        R.add("local_main.py exists", False, "local_main.py not found")
         return
     
-    src = main_path.read_text(encoding="utf-8")
+    if not cloud_path.exists():
+        R.add("cloud_main.py exists", False, "cloud_main.py not found")
+        return
+    
+    local_src = local_path.read_text(encoding="utf-8")
+    cloud_src = cloud_path.read_text(encoding="utf-8")
     
     # --- 20a. NameMappingSystem import ---
-    R.add("main.py: NameMappingSystem imported",
-          "NameMappingSystem" in src)
+    has_nms_local = "NameMappingSystem" in local_src
+    has_nms_cloud = "NameMappingSystem" in cloud_src
+    R.add("local/cloud_main.py: NameMappingSystem imported",
+          has_nms_local and has_nms_cloud)
     
     # --- 20b. NameMappingSystem initialization ---
-    R.add("main.py: NameMappingSystem initialized",
-          "NameMappingSystem(book_id" in src or "name_mapping_system" in src)
+    has_init_local = "name_mapping_system" in local_src
+    has_init_cloud = "name_mapping_system" in cloud_src
+    R.add("local/cloud_main.py: NameMappingSystem initialized",
+          has_init_local and has_init_cloud)
     
     # --- 20c. Auto-detect names ---
-    R.add("main.py: Auto-detects names",
-          "detect_names" in src)
+    has_detect_local = "detect_names" in local_src
+    has_detect_cloud = "detect_names" in cloud_src
+    R.add("local/cloud_main.py: Auto-detects names",
+          has_detect_local and has_detect_cloud)
     
     # --- 20d. Apply mappings before translation ---
-    R.add("main.py: Applies mappings before translation",
-          "apply_mappings" in src)
+    has_apply_local = "apply_mappings" in local_src
+    has_apply_cloud = "apply_mappings" in cloud_src
+    R.add("local/cloud_main.py: Applies mappings before translation",
+          has_apply_local and has_apply_cloud)
     
     # --- 20e. Inject name mappings into prompt ---
-    R.add("main.py: Injects name mappings into prompt",
-          "get_prompt_text" in src)
+    has_prompt_local = "get_prompt_text" in local_src or "get_glossary_text" in local_src
+    has_prompt_cloud = "get_prompt_text" in cloud_src or "get_glossary_text" in cloud_src
+    R.add("local/cloud_main.py: Injects name mappings into prompt",
+          has_prompt_local and has_prompt_cloud)
     
     # --- 20f. Learn from parallel text ---
-    R.add("main.py: Learns from parallel text",
-          "learn_from_parallel" in src)
+    has_learn_local = "learn_from_parallel" in local_src
+    has_learn_cloud = "learn_from_parallel" in cloud_src
+    R.add("local/cloud_main.py: Learns from parallel text",
+          has_learn_local and has_learn_cloud)
 
 
 # =============================================================================

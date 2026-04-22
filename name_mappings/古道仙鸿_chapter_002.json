@@ -1,0 +1,173 @@
+{
+  "novel_name": "古道仙鸿_chapter_002",
+  "source_language": "Chinese",
+  "updated_at": "2026-04-22T19:09:58.801475",
+  "mappings": {
+    "古道仙鸿": {
+      "source_name": "古道仙鸿",
+      "myanmar_name": "古道仙鸿",
+      "name_type": "person",
+      "confidence": 0.5,
+      "auto_detected": true,
+      "first_seen_chapter": 2,
+      "last_seen_chapter": 2,
+      "occurrence_count": 9,
+      "aliases": [],
+      "created_at": "2026-04-22T18:39:21.538675",
+      "updated_at": "2026-04-22T18:39:21.538678"
+    },
+    "蟠龙山": {
+      "source_name": "蟠龙山",
+      "myanmar_name": "蟠龙山မြို့",
+      "name_type": "place",
+      "confidence": 0.6,
+      "auto_detected": true,
+      "first_seen_chapter": 2,
+      "last_seen_chapter": 2,
+      "occurrence_count": 9,
+      "aliases": [],
+      "created_at": "2026-04-22T18:39:21.538702",
+      "updated_at": "2026-04-22T18:39:21.538705"
+    },
+    "什么也没": {
+      "source_name": "什么也没",
+      "myanmar_name": "什么也没",
+      "name_type": "person",
+      "confidence": 0.5,
+      "auto_detected": true,
+      "first_seen_chapter": 2,
+      "last_seen_chapter": 2,
+      "occurrence_count": 9,
+      "aliases": [],
+      "created_at": "2026-04-22T18:39:21.538719",
+      "updated_at": "2026-04-22T18:39:21.538721"
+    },
+    "中年汉子": {
+      "source_name": "中年汉子",
+      "myanmar_name": "中年汉子",
+      "name_type": "person",
+      "confidence": 0.5,
+      "auto_detected": true,
+      "first_seen_chapter": 2,
+      "last_seen_chapter": 2,
+      "occurrence_count": 9,
+      "aliases": [],
+      "created_at": "2026-04-22T18:39:21.538734",
+      "updated_at": "2026-04-22T18:39:21.538736"
+    },
+    "孩童": {
+      "source_name": "孩童",
+      "myanmar_name": "孩童",
+      "name_type": "person",
+      "confidence": 0.6,
+      "auto_detected": true,
+      "first_seen_chapter": 2,
+      "last_seen_chapter": 2,
+      "occurrence_count": 9,
+      "aliases": [],
+      "created_at": "2026-04-22T18:39:21.538746",
+      "updated_at": "2026-04-22T18:39:21.538748"
+    },
+    "中年女子": {
+      "source_name": "中年女子",
+      "myanmar_name": "中年女子",
+      "name_type": "person",
+      "confidence": 0.5,
+      "auto_detected": true,
+      "first_seen_chapter": 2,
+      "last_seen_chapter": 2,
+      "occurrence_count": 9,
+      "aliases": [],
+      "created_at": "2026-04-22T18:39:21.538759",
+      "updated_at": "2026-04-22T18:39:21.538762"
+    },
+    "圣教": {
+      "source_name": "圣教",
+      "myanmar_name": "圣教ဇုံ",
+      "name_type": "sect",
+      "confidence": 0.6,
+      "auto_detected": true,
+      "first_seen_chapter": 2,
+      "last_seen_chapter": 2,
+      "occurrence_count": 9,
+      "aliases": [],
+      "created_at": "2026-04-22T18:39:21.538775",
+      "updated_at": "2026-04-22T18:39:21.538777"
+    },
+    "尊儿": {
+      "source_name": "尊儿",
+      "myanmar_name": "尊儿",
+      "name_type": "person",
+      "confidence": 0.6,
+      "auto_detected": true,
+      "first_seen_chapter": 2,
+      "last_seen_chapter": 2,
+      "occurrence_count": 9,
+      "aliases": [],
+      "created_at": "2026-04-22T18:39:21.538786",
+      "updated_at": "2026-04-22T18:39:21.538788"
+    },
+    "问道": {
+      "source_name": "问道",
+      "myanmar_name": "问道",
+      "name_type": "person",
+      "confidence": 0.6,
+      "auto_detected": true,
+      "first_seen_chapter": 2,
+      "last_seen_chapter": 2,
+      "occurrence_count": 9,
+      "aliases": [],
+      "created_at": "2026-04-22T18:39:21.538798",
+      "updated_at": "2026-04-22T18:39:21.538800"
+    },
+    "你苏伯伯": {
+      "source_name": "你苏伯伯",
+      "myanmar_name": "你苏伯伯",
+      "name_type": "person",
+      "confidence": 0.5,
+      "auto_detected": true,
+      "first_seen_chapter": 2,
+      "last_seen_chapter": 2,
+      "occurrence_count": 9,
+      "aliases": [],
+      "created_at": "2026-04-22T18:39:21.538811",
+      "updated_at": "2026-04-22T18:39:21.538813"
+    },
+    "差矣": {
+      "source_name": "差矣",
+      "myanmar_name": "差矣",
+      "name_type": "person",
+      "confidence": 0.6,
+      "auto_detected": true,
+      "first_seen_chapter": 2,
+      "last_seen_chapter": 2,
+      "occurrence_count": 9,
+      "aliases": [],
+      "created_at": "2026-04-22T18:39:21.538822",
+      "updated_at": "2026-04-22T18:39:21.538824"
+    },
+    "古姨": {
+      "source_name": "古姨",
+      "myanmar_name": "古姨",
+      "name_type": "person",
+      "confidence": 0.6,
+      "auto_detected": true,
+      "first_seen_chapter": 2,
+      "last_seen_chapter": 2,
+      "occurrence_count": 9,
+      "aliases": [],
+      "created_at": "2026-04-22T18:39:21.538834",
+      "updated_at": "2026-04-22T18:39:21.538836"
+    }
+  },
+  "stats": {
+    "total_mappings": 12,
+    "auto_detected": 12,
+    "manual_mappings": 0,
+    "by_type": {
+      "person": 10,
+      "place": 1,
+      "sect": 1
+    }
+  }
+}

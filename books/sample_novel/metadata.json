@@ -1,0 +1,15 @@
+{
+  "title": "Sample Novel",
+  "author": "Sample Author",
+  "source_language": "English",
+  "target_language": "Burmese",
+  "chapters": [
+    {
+      "chapter_num": 1,
+      "title": "Chapter 1",
+      "source_file": "chapter_001.md",
+      "translated_file": "chapter_001_myanmar.md",
+      "status": "translated"
+    }
+  ]
+}
