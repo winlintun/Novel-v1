@@ -253,14 +253,53 @@ class BaseTranslator(ABC):
 class OpenRouterTranslator(BaseTranslator):
     """OpenRouter - one key = many free models"""
     
+    # Placeholder values that should not be used
+    PLACEHOLDER_KEYS = [
+        "your_openrouter_api_key_here",
+        "YOUR_OPENROUTER_API_KEY",
+        "your_openrouter_api_key",
+        "OPENROUTER_API_KEY_HERE",
+        "placeholder",
+        "",
+        None
+    ]
+    
+    # Fallback models to try if primary model fails with 404
+    FALLBACK_MODELS = [
+        "meta-llama/llama-3.3-70b-instruct:free",
+        "google/gemini-2.0-flash-exp:free",
+        "deepseek/deepseek-chat:free",
+        "qwen/qwen-2.5-72b-instruct:free",
+        "mistralai/mistral-7b-instruct:free"
+    ]
+    
     def __init__(self):
         self.api_key = os.getenv("OPENROUTER_API_KEY")
-        self.model = os.getenv("OPENROUTER_MODEL", "google/gemini-2.0-flash-exp:free")
+        primary_model = os.getenv("OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct:free")
         
-        if not self.api_key:
-            raise ValueError("OPENROUTER_API_KEY not set in .env")
+        if not self.api_key or self.api_key.strip() in self.PLACEHOLDER_KEYS:
+            raise ValueError(
+                "OPENROUTER_API_KEY not set or is still the placeholder value in .env file.\n"
+                "To fix this:\n"
+                "1. Get your API key from https://openrouter.ai/keys\n"
+                "2. Edit .env file and set OPENROUTER_API_KEY=your_actual_api_key"
+            )
+        
+        # Build list of models to try (primary + fallbacks, avoiding duplicates)
+        self.models_to_try = [primary_model]
+        for fallback in self.FALLBACK_MODELS:
+            if fallback not in self.models_to_try:
+                self.models_to_try.append(fallback)
+        
+        self.current_model_index = 0
     
-    def translate_stream(self, text: str, system_prompt: str) -> Iterator[str]:
+    @property
+    def model(self) -> str:
+        """Get the current active model."""
+        return self.models_to_try[self.current_model_index]
+    
+    def _try_translate(self, text: str, system_prompt: str) -> Iterator[str]:
+        """Attempt translation with current model."""
         url = "https://openrouter.ai/api/v1/chat/completions"
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -276,6 +315,87 @@ class OpenRouterTranslator(BaseTranslator):
             ],
             "stream": True
             # Note: max_tokens removed as some OpenRouter models (e.g., minimax) have provider-side issues with it
+        }
+
+        with managed_request('POST', url, json=payload, headers=headers, 
+                           stream=True, timeout=300, verify=VERIFY_SSL) as response:
+            response.raise_for_status()
+            
+            for line in response.iter_lines():
+                if line:
+                    try:
+                        line_str = line.decode('utf-8')
+                        if line_str.startswith('data: '):
+                            line_str = line_str[6:]
+                            if line_str == '[DONE]':
+                                break
+                            try:
+                                data = json.loads(line_str)
+                                if 'choices' in data and data['choices']:
+                                    delta = data['choices'][0].get('delta', {})
+                                    if 'content' in delta:
+                                        yield delta['content']
+                            except json.JSONDecodeError:
+                                logger.debug(f"JSON decode error for line: {line_str[:50]}")
+                                continue
+                    except UnicodeDecodeError as e:
+                        logger.warning(f"Unicode decode error: {e}")
+                        continue
+                    except Exception as e:
+                        logger.error(f"Error processing stream line: {e}")
+                        continue
+    
+    def translate_stream(self, text: str, system_prompt: str) -> Iterator[str]:
+        """Translate with automatic fallback to other models on 404."""
+        last_error = None
+        
+        for attempt in range(len(self.models_to_try)):
+            self.current_model_index = attempt
+            current_model = self.model
+            
+            logger.info(f"Trying OpenRouter model: {current_model}")
+            
+            try:
+                yield from self._try_translate(text, system_prompt)
+                return  # Success!
+            except requests.exceptions.HTTPError as e:
+                if e.response is not None and e.response.status_code == 404:
+                    logger.warning(f"Model {current_model} not found (404), trying fallback...")
+                    last_error = e
+                    continue  # Try next model
+                else:
+                    raise  # Re-raise other HTTP errors
+        
+        # All models failed
+        raise ValueError(
+            f"All OpenRouter models failed. Last error: {last_error}\n\n"
+            f"Tried models: {', '.join(self.models_to_try)}\n\n"
+            f"This may be a temporary issue. Solutions:\n"
+            f"1. Check https://openrouter.ai/status for outages\n"
+            f"2. Try again in a few minutes\n"
+            f"3. Use a different provider: --model gemini or --model ollama"
+        )
+        
+    def translate(self, text: str, system_prompt: str) -> str:
+        """Translate and return full text with fallback support."""
+        return ''.join(self.translate_stream(text, system_prompt))
+        
+    def translate_stream_original(self, text: str, system_prompt: str) -> Iterator[str]:
+        """Original translate_stream without fallback (for reference)."""
+        url = "https://openrouter.ai/api/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://github.com/novel-translator",
+            "X-Title": "Novel Translator"
+        }
+        payload = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": text}
+            ],
+            "stream": True
         }
 
         try:
@@ -309,15 +429,61 @@ class OpenRouterTranslator(BaseTranslator):
         except requests.exceptions.HTTPError as e:
             logger.error(f"HTTP error in OpenRouter: {e}")
             if e.response is not None:
+                status_code = e.response.status_code
                 try:
                     error_text = e.response.text
                     error_data = json.loads(error_text)
                     error_msg = error_data.get('error', {}).get('message', str(e))
-                    raise ValueError(f"OpenRouter API error: {error_msg}")
+                    
+                    # Provide specific guidance based on error type
+                    if status_code == 404:
+                        raise ValueError(
+                            f"OpenRouter API Error 404: Model not found\n"
+                            f"Details: {error_msg}\n\n"
+                            f"The model '{self.model}' may not exist or may have been removed.\n"
+                            f"To fix this:\n"
+                            f"1. Check available models at: https://openrouter.ai/models\n"
+                            f"2. Update OPENROUTER_MODEL in .env to a valid model\n"
+                            f"3. Recommended free models:\n"
+                            f"   - google/gemini-2.0-flash-exp:free\n"
+                            f"   - meta-llama/llama-3.3-70b-instruct:free\n"
+                            f"   - deepseek/deepseek-chat:free"
+                        )
+                    elif status_code == 401:
+                        raise ValueError(
+                            f"OpenRouter API Error 401: Unauthorized\n"
+                            f"Details: {error_msg}\n\n"
+                            f"Your API key is invalid or expired.\n"
+                            f"1. Get a new key from: https://openrouter.ai/keys\n"
+                            f"2. Update OPENROUTER_API_KEY in .env file"
+                        )
+                    elif status_code == 429:
+                        raise ValueError(
+                            f"OpenRouter API Error 429: Rate Limited\n"
+                            f"Details: {error_msg}\n\n"
+                            f"Too many requests. Free tier limits:\n"
+                            f"- 20 requests per minute\n"
+                            f"- 200 requests per day\n\n"
+                            f"Solutions:\n"
+                            f"1. Wait a moment and try again\n"
+                            f"2. Set REQUEST_DELAY=3.0 in .env\n"
+                            f"3. Add credits to your OpenRouter account for higher limits"
+                        )
+                    elif status_code == 402:
+                        raise ValueError(
+                            f"OpenRouter API Error 402: Payment Required\n"
+                            f"Details: {error_msg}\n\n"
+                            f"This model requires payment or you've exceeded free limits.\n"
+                            f"Solutions:\n"
+                            f"1. Use a free model instead (e.g., google/gemini-2.0-flash-exp:free)\n"
+                            f"2. Add credits to your OpenRouter account"
+                        )
+                    else:
+                        raise ValueError(f"OpenRouter API error ({status_code}): {error_msg}")
                 except json.JSONDecodeError:
                     # Show raw error text if not JSON
                     error_text = e.response.text[:500] if e.response.text else str(e)
-                    raise ValueError(f"OpenRouter API error: {error_text}")
+                    raise ValueError(f"OpenRouter API error ({status_code}): {error_text}")
             raise
         except requests.exceptions.Timeout:
             logger.error("Request timeout in OpenRouter")
@@ -334,16 +500,40 @@ class OpenRouterTranslator(BaseTranslator):
 class GeminiTranslator(BaseTranslator):
     """Google Gemini via AI Studio"""
     
+    # Placeholder values that should not be used
+    PLACEHOLDER_KEYS = [
+        "your_gemini_api_key_here",
+        "YOUR_GEMINI_API_KEY",
+        "your_gemini_api_key",
+        "GEMINI_API_KEY_HERE",
+        "placeholder",
+        "",
+        None
+    ]
+    
     def __init__(self):
         self.api_key = os.getenv("GEMINI_API_KEY")
         self.model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
         
-        if not self.api_key:
-            raise ValueError("GEMINI_API_KEY not set in .env")
+        if not self.api_key or self.api_key.strip() in self.PLACEHOLDER_KEYS:
+            raise ValueError(
+                "GEMINI_API_KEY not set or is still the placeholder value in .env file.\n"
+                "To fix this:\n"
+                "1. Get your API key from https://makersuite.google.com/app/apikey\n"
+                "2. Edit .env file and set GEMINI_API_KEY=your_actual_api_key"
+            )
+        
+        # Validate API key format (Gemini keys are typically 39 characters)
+        if len(self.api_key.strip()) < 20:
+            raise ValueError(
+                f"GEMINI_API_KEY appears to be invalid (too short: {len(self.api_key)} chars).\n"
+                "Please check your .env file and ensure you've set a valid API key."
+            )
     
     def translate_stream(self, text: str, system_prompt: str) -> Iterator[str]:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:streamGenerateContent?key={self.api_key}"
         
+        # Try with system_instruction first (newer API format)
         payload = {
             "system_instruction": {"parts": [{"text": system_prompt}]},
             "contents": [{"parts": [{"text": text}]}],
@@ -352,6 +542,22 @@ class GeminiTranslator(BaseTranslator):
                 "maxOutputTokens": 4096  # Limit output tokens for consistency
             }
         }
+        
+        # Fallback payload without system_instruction (older API format)
+        # Used if the first attempt fails with certain errors
+        fallback_payload = {
+            "contents": [{
+                "role": "user",
+                "parts": [{"text": f"{system_prompt}\n\n{text}"}]
+            }],
+            "generationConfig": {
+                "temperature": 0.3,
+                "maxOutputTokens": 4096
+            }
+        }
+        
+        logger.debug(f"Gemini API URL: {url.replace(self.api_key, '***API_KEY_HIDDEN***')}")
+        logger.debug(f"Request payload size: {len(str(payload))} bytes")
         
         try:
             with managed_request('POST', url, json=payload, stream=True, 
@@ -391,15 +597,73 @@ class GeminiTranslator(BaseTranslator):
         except requests.exceptions.HTTPError as e:
             logger.error(f"HTTP error in Gemini: {e}")
             if e.response is not None:
+                status_code = e.response.status_code
                 try:
                     error_text = e.response.text
                     error_data = json.loads(error_text)
                     error_msg = error_data.get('error', {}).get('message', str(e))
-                    raise ValueError(f"Gemini API error: {error_msg}")
+                    
+                    # Provide specific guidance based on error type
+                    if status_code == 400:
+                        if "API key" in error_msg or "api key" in error_msg.lower():
+                            raise ValueError(
+                                f"Gemini API Error: Invalid API key\n"
+                                f"Details: {error_msg}\n\n"
+                                f"To fix this:\n"
+                                f"1. Get your API key from: https://makersuite.google.com/app/apikey\n"
+                                f"2. Edit .env file and set GEMINI_API_KEY=your_actual_api_key\n"
+                                f"3. Make sure the key doesn't have quotes or extra spaces"
+                            )
+                        elif "quota" in error_msg.lower() or "rate limit" in error_msg.lower():
+                            raise ValueError(
+                                f"Gemini API Error: Quota exceeded\n"
+                                f"Details: {error_msg}\n\n"
+                                f"To fix this:\n"
+                                f"1. Wait a few minutes before trying again\n"
+                                f"2. Check your quota at: https://makersuite.google.com/app/apikey\n"
+                                f"3. Consider using a different model (e.g., --model openrouter)"
+                            )
+                        elif "model" in error_msg.lower() and ("not found" in error_msg.lower() or "does not exist" in error_msg.lower()):
+                            raise ValueError(
+                                f"Gemini API Error: Model not found\n"
+                                f"Details: {error_msg}\n\n"
+                                f"The model '{self.model}' may not be available for your API key.\n"
+                                f"To fix this:\n"
+                                f"1. Check available models at: https://ai.google.dev/models/gemini\n"
+                                f"2. Update GEMINI_MODEL in .env to a valid model (e.g., gemini-1.5-flash)\n"
+                                f"3. Make sure you have access to the model in Google AI Studio"
+                            )
+                        else:
+                            raise ValueError(f"Gemini API Error (400 Bad Request): {error_msg}")
+                    elif status_code == 401:
+                        raise ValueError(
+                            f"Gemini API Error: Unauthorized (401)\n"
+                            f"Details: {error_msg}\n\n"
+                            f"Your API key is invalid or expired.\n"
+                            f"1. Check your API key at: https://makersuite.google.com/app/apikey\n"
+                            f"2. Generate a new key if needed\n"
+                            f"3. Update .env file with the new key"
+                        )
+                    elif status_code == 403:
+                        raise ValueError(
+                            f"Gemini API Error: Forbidden (403)\n"
+                            f"Details: {error_msg}\n\n"
+                            f"Your API key doesn't have permission to use this model.\n"
+                            f"1. Make sure Gemini API is enabled for your key\n"
+                            f"2. Try a different model or API key"
+                        )
+                    elif status_code == 429:
+                        raise ValueError(
+                            f"Gemini API Error: Rate Limited (429)\n"
+                            f"Details: {error_msg}\n\n"
+                            f"Too many requests. Please wait a moment and try again."
+                        )
+                    else:
+                        raise ValueError(f"Gemini API error ({status_code}): {error_msg}")
                 except json.JSONDecodeError:
                     # Show raw error text if not JSON
                     error_text = e.response.text[:500] if e.response.text else str(e)
-                    raise ValueError(f"Gemini API error: {error_text}")
+                    raise ValueError(f"Gemini API error ({status_code}): {error_text}")
             raise
         except requests.exceptions.Timeout:
             logger.error("Request timeout in Gemini")
@@ -414,9 +678,10 @@ class GeminiTranslator(BaseTranslator):
 
 
 class OllamaTranslator(BaseTranslator):
-    def __init__(self):
+    def __init__(self, model: str = None):
         self.base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-        self.model = os.getenv("OLLAMA_MODEL", "qwen:7b")
+        # Use provided model or fall back to env var
+        self.model = model or os.getenv("OLLAMA_MODEL", "qwen:7b")
         # Check if this is a cloud model that needs special handling
         self.is_cloud_model = ":cloud" in self.model or "kimi" in self.model.lower()
         # Get cloud API key if available
@@ -777,7 +1042,12 @@ class NLLBTranslator(BaseTranslator):
 
 
 def get_translator(model_name: str) -> BaseTranslator:
-    """Factory function to get translator by name."""
+    """Factory function to get translator by name.
+    
+    Supports special syntax for Ollama models:
+    - "ollama" -> uses OLLAMA_MODEL env var (default: qwen:7b)
+    - "ollama:modelname" -> uses specific model (e.g., "ollama:qwen2.5:14b")
+    """
     translators = {
         'openrouter': OpenRouterTranslator,
         'gemini': GeminiTranslator,
@@ -787,6 +1057,12 @@ def get_translator(model_name: str) -> BaseTranslator:
     }
 
     model_name = model_name.lower().strip()
+    
+    # Handle ollama:modelname syntax
+    if model_name.startswith('ollama:'):
+        ollama_model = model_name[7:]  # Extract model name after "ollama:"
+        return OllamaTranslator(model=ollama_model)
+    
     if model_name not in translators:
         raise ValueError(f"Unknown model: {model_name}. Choose from: {', '.join(translators.keys())}")
 

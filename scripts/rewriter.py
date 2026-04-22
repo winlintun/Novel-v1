@@ -112,7 +112,7 @@ REMEMBER: You are not fixing grammar. You are making the reader FEEL the story.
 Write so naturally that the reader forgets they are reading a translation."""
 
 
-def get_raw_translation_prompt(source_lang: str = "Chinese") -> str:
+def get_raw_translation_prompt(source_lang: str = "Chinese", glossary_text: str = "") -> str:
     """
     Get a minimal prompt for raw translation (Stage 1).
     
@@ -121,10 +121,18 @@ def get_raw_translation_prompt(source_lang: str = "Chinese") -> str:
     
     Args:
         source_lang: Source language name
+        glossary_text: Character name glossary to inject (CRITICAL for consistency)
         
     Returns:
         System prompt for raw translation
     """
+    glossary_section = f"""
+
+STRICT NAME CONSISTENCY (CRITICAL - Use these exact translations):
+{glossary_text}
+⚠️ WARNING: Use the EXACT Burmese names above. Do not translate names differently.
+""" if glossary_text else ""
+
     return f"""You are a translator converting {source_lang} to Burmese.
 
 Your goal: Produce a COMPLETE, LITERAL translation of the input text into Burmese.
@@ -135,7 +143,7 @@ RULES:
 3. Keep all character names as close to original pronunciation as possible
 4. Keep all dialogue and descriptions
 5. Output ONLY the Burmese translation, nothing else
-
+{glossary_section}
 NOTE: This is a rough draft that will be polished later. Focus on accuracy and completeness, not style."""
 
 

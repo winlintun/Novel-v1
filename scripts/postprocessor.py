@@ -114,15 +114,21 @@ def normalize_myanmar_whitespace(text: str) -> str:
     return text
 
 
-def postprocess(text: str, names_json_path: str = "names.json") -> str:
+def postprocess(text: str, names_json_path: str = "names.json", glossary_manager=None) -> str:
     """
     Main postprocessing function.
     
     Steps:
     A) Punctuation fixes
-    B) Character name consistency    # C) Check for remaining Chinese chars (for warning, not removal here as it's handled by remove_non_myanmar_characters)
-    # D) Remove any remaining non-Myanmar characters
-    # E) Normalize whitespace
+    B) Character name consistency (from glossary_manager or names_json_path)
+    C) Check for remaining Chinese chars (for warning, not removal here as it's handled by remove_non_myanmar_characters)
+    D) Remove any remaining non-Myanmar characters
+    E) Normalize whitespace
+    
+    Args:
+        text: Text to postprocess
+        names_json_path: Path to names JSON file (fallback if glossary_manager not provided)
+        glossary_manager: Optional GlossaryManager instance for per-novel name consistency
     """
     print("Postprocessing...")
     
@@ -132,9 +138,23 @@ def postprocess(text: str, names_json_path: str = "names.json") -> str:
     text = strip_trailing_whitespace(text)
     
     # B) Character name consistency
-    names_map = load_names_map(names_json_path)
+    # Priority: glossary_manager > names_json_path
+    names_map = {}
+    if glossary_manager is not None:
+        try:
+            names_map = glossary_manager.names
+            if names_map:
+                print(f"Fixing character names (from glossary: {len(names_map)} names):")
+        except Exception as e:
+            print(f"  ⚠ Could not load from glossary manager: {e}")
+    
+    # Fallback to names.json if no glossary manager or it's empty
+    if not names_map:
+        names_map = load_names_map(names_json_path)
+        if names_map:
+            print("Fixing character names (from names.json):")
+    
     if names_map:
-        print("Fixing character names:")
         text, fix_counts = fix_character_names(text, names_map)
         if not fix_counts:
             print("  (no names to fix)")

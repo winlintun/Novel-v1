@@ -26,8 +26,10 @@
       "kimi-k2.6:cloud"
     ],
     "openrouter": [
+      "meta-llama/llama-3.3-70b-instruct:free",
       "google/gemini-2.0-flash-exp:free",
-      "meta-llama/llama-3.3-70b-instruct:free"
+      "deepseek/deepseek-chat:free",
+      "qwen/qwen-2.5-72b-instruct:free"
     ],
     "gemini": [
       "gemini-2.0-flash",
@@ -49,6 +51,9 @@
   "translation_pipeline": {
     "mode": "two_stage",
     "description": "single_stage or two_stage. Two-stage uses raw translation + rewrite for better quality.",
-    "rewriter_model": "qwen:7b"
+    "stage1_model": "ollama:qwen2.5:14b",
+    "stage1_description": "Model for Stage 1 (raw translation). Options: gemini, openrouter, ollama, or ollama:modelname (e.g., ollama:qwen2.5:14b)",
+    "stage2_model": "ollama:qwen:7b",
+    "stage2_description": "Model for Stage 2 (rewrite). Options: ollama (qwen), openrouter, gemini, or ollama:modelname (e.g., ollama:qwen:7b)"
   }
 }

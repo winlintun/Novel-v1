@@ -115,6 +115,10 @@ python main.py --model openrouter
 python main.py --model gemini
 python main.py --model ollama
 
+# Use specific Ollama model
+python main.py --model ollama:qwen2.5:14b
+python main.py --model ollama:gemma:12b
+
 # Adjust chunk size
 python main.py --max-chars 1200
 
@@ -128,14 +132,24 @@ Enable in `config/config.json`:
 ```json
 {
   "translation_pipeline": {
-    "mode": "two_stage"
+    "mode": "two_stage",
+    "stage1_model": "ollama:qwen2.5:14b",
+    "stage2_model": "ollama:qwen:7b"
   }
 }
 ```
 
 This runs:
-1. **Stage 1**: Raw literal translation
-2. **Stage 2**: Literary rewrite into natural Burmese
+1. **Stage 1**: Raw literal translation (e.g., qwen2.5:14b)
+2. **Stage 2**: Literary rewrite into natural Burmese (e.g., qwen:7b)
+
+**Using Different Ollama Models for Each Stage:**
+```bash
+# Use specific models via CLI
+python main.py --two-stage --stage1-model ollama:qwen2.5:14b --stage2-model ollama:qwen:7b
+
+# Or configure in config.json (recommended)
+```
 
 ## 📖 Translation Workflow
 
@@ -153,6 +167,14 @@ This runs:
 ## 📚 Glossary System (Character Name Consistency)
 
 Each novel gets its own glossary file: `glossaries/<novel_name>.json`
+
+### Automatic Glossary Detection
+
+The system automatically extracts the novel name from chapter filenames:
+- `古道仙鸿_chapter_001.md` → loads `glossaries/古道仙鸿.json`
+- `novel_one_chapter_001.txt` → loads `glossaries/novel_one.json`
+
+No manual configuration needed - just place your glossary file in the `glossaries/` folder with the novel name.
 
 ### Managing Glossaries
 
@@ -205,6 +227,10 @@ GEMINI_API_KEY=your_key_here
 # Ollama (Local)
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=qwen2.5:14b
+
+# For two-stage with different models, use:
+# Stage 1: ollama:qwen2.5:14b (or ollama:gemma:12b)
+# Stage 2: ollama:qwen:7b
 
 # Translation Settings
 MAX_CHUNK_CHARS=1200
@@ -294,8 +320,10 @@ This fixes:
 | Model not found | Run `ollama pull <model>` |
 | API errors | Check API keys in .env |
 | Names inconsistent | Update glossary: `python scripts/glossary_manager.py novel_name add "Name" "မြန်မာနာမည်"` |
+| Glossary not loading | Ensure filename matches: `glossaries/<novel_name>.json` |
 | Translation has English | Run `python scripts/fix_translation.py <file.md>` |
 | Resume failed | Delete checkpoint in `working_data/checkpoints/` |
+| Two-stage using same model | Check config.json has different models for stage1/stage2 |
 
 ## 📄 Documentation
 
@@ -318,5 +346,10 @@ When contributing:
 ---
 
 **Last Updated**: April 22, 2026  
-**Version**: 2.0  
+**Version**: 2.1  
 **Language Pairs**: Chinese → Burmese, English → Burmese
+
+### Recent Updates (v2.1)
+- ✅ Fixed glossary loading to extract novel name from chapter filenames (`古道仙鸿_chapter_001.md` → `古道仙鸿.json`)
+- ✅ Added support for `ollama:modelname` syntax in two-stage translation (e.g., `ollama:qwen2.5:14b`)
+- ✅ Stage 1 and Stage 2 can now use different Ollama models for better quality control

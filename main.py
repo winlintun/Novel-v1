@@ -4,6 +4,7 @@ Main Orchestrator - Chinese → Myanmar Novel Translator
 """
 
 import os
+import re
 import sys
 import time
 import random
@@ -167,24 +168,87 @@ def retry_translate_chunk(
             return translator.translate(chunk, system_prompt)
         except Exception as e:
             last_error = e
+            error_str = str(e).lower()
+            
+            # Check if it's a rate limit error (429)
+            is_rate_limit = "429" in error_str or "rate limit" in error_str or "too many requests" in error_str
+            
             if attempt == max_retries:
                 logger.error(
                     f"Translation failed after {max_retries + 1} attempts for chunk. "
                     f"Last error: {e}"
                 )
+                
+                # Provide specific message for rate limiting
+                if is_rate_limit:
+                    # Check if it's OpenRouter
+                    is_openrouter = "openrouter" in str(translator).lower() or "openrouter" in str(last_error).lower()
+                    
+                    if is_openrouter:
+                        raise RetryExhaustedError(
+                            f"❌ OpenRouter Rate Limit Exceeded (429)\n\n"
+                            f"You've hit the free tier limits:\n"
+                            f"- 20 requests per minute (RPM)\n"
+                            f"- 200 requests per DAY (daily limit)\n\n"
+                            f"💡 SOLUTIONS (pick one):\n\n"
+                            f"1. ✅ RECOMMENDED: Use local Ollama (no limits):\n"
+                            f"   python main.py input_novels/chapter_001.md --model ollama\n\n"
+                            f"2. Wait until tomorrow (daily quota resets)\n\n"
+                            f"3. Add credits to OpenRouter for paid tier\n\n"
+                            f"4. Try Gemini instead (different limits):\n"
+                            f"   python main.py input_novels/chapter_001.md --model gemini"
+                        ) from e
+                    else:
+                        raise RetryExhaustedError(
+                            f"❌ Gemini Rate Limit Exceeded (429)\n\n"
+                            f"Google Gemini free tier has strict limits:\n"
+                            f"- 15 requests per minute (RPM)\n"
+                            f"- 1 million tokens per minute (TPM)\n\n"
+                            f"💡 SOLUTIONS (pick one):\n\n"
+                            f"1. ✅ RECOMMENDED: Use local Ollama (no limits):\n"
+                            f"   python main.py input_novels/chapter_001.md --model ollama\n\n"
+                            f"2. Wait 1-2 minutes and try again\n\n"
+                            f"3. Use OpenRouter instead: --model openrouter\n\n"
+                            f"4. Upgrade to Gemini paid tier"
+                        ) from e
+                
                 raise RetryExhaustedError(
                     f"Failed to translate chunk after {max_retries + 1} attempts: {e}"
                 ) from e
             
-            # Calculate delay with jitter
-            jitter_amount = delay * JITTER_FACTOR * (2 * random.random() - 1)
-            actual_delay = min(delay + jitter_amount, MAX_RETRY_DELAY)
+            # For rate limit errors, use longer delays
+            if is_rate_limit:
+                # Check if it's OpenRouter
+                is_openrouter = "openrouter" in str(translator).lower() or "openrouter" in str(last_error).lower()
+                
+                if is_openrouter:
+                    # OpenRouter free tier: 20 RPM = 1 per 3 seconds, 200/day total
+                    delay = max(delay, 5.0)  # 5 seconds for OpenRouter
+                    logger.warning(
+                        f"⚠️  OpenRouter rate limit (429) on attempt {attempt + 1}/{max_retries + 1}.\n"
+                        f"   Free tier limits: 20 requests/minute, 200 requests/day\n"
+                        f"   Waiting {delay:.1f}s before retry...\n"
+                        f"   💡 Tip: Use local Ollama model to avoid API limits entirely:\n"
+                        f"      python main.py input_novels/chapter_001.md --model ollama"
+                    )
+                else:
+                    # Gemini free tier: 15 RPM = 1 per 4 seconds
+                    delay = max(delay, 4.0)
+                    logger.warning(
+                        f"Rate limit hit (429) on attempt {attempt + 1}/{max_retries + 1}. "
+                        f"Waiting {delay:.1f}s before retry...\n"
+                        f"Tip: Set REQUEST_DELAY=4.0 in .env to avoid rate limits"
+                    )
+            else:
+                # Calculate delay with jitter for other errors
+                jitter_amount = delay * JITTER_FACTOR * (2 * random.random() - 1)
+                delay = min(delay + jitter_amount, MAX_RETRY_DELAY)
+                logger.warning(
+                    f"Translation attempt {attempt + 1}/{max_retries + 1} failed: {e}. "
+                    f"Retrying in {delay:.1f}s..."
+                )
             
-            logger.warning(
-                f"Translation attempt {attempt + 1}/{max_retries + 1} failed: {e}. "
-                f"Retrying in {actual_delay:.1f}s..."
-            )
-            time.sleep(actual_delay)
+            time.sleep(delay)
             delay = min(delay * BACKOFF_FACTOR, MAX_RETRY_DELAY)
     
     raise RetryExhaustedError("Unexpected exit from retry loop")
@@ -265,7 +329,9 @@ def _translate_single_chunk(
     chapter_name: str = "",
     previous_translation: Optional[str] = None,
     use_two_stage: bool = False,
-    rewriter: Optional[BurmeseRewriter] = None
+    rewriter: Optional[BurmeseRewriter] = None,
+    glossary_manager = None,
+    stage1_translator: Optional[BaseTranslator] = None
 ) -> Optional[str]:
     """Translate a single chunk with context retention.
 
@@ -273,12 +339,14 @@ def _translate_single_chunk(
         chunk: Text chunk to translate
         chunk_index: Index of the current chunk (1-based)
         total_chunks: Total number of chunks
-        translator: Translator instance
+        translator: Translator instance (for single-stage or stage 2)
         system_prompt: System prompt for translation
         chapter_name: Name of the current chapter
         previous_translation: Previous chunk's translation for context (sliding window)
         use_two_stage: Whether to use two-stage translation (raw + rewrite)
         rewriter: BurmeseRewriter instance for stage 2 (required if use_two_stage=True)
+        glossary_manager: GlossaryManager for name consistency in stage 1
+        stage1_translator: Optional separate translator for stage 1 (e.g., Gemini)
 
     Returns:
         Translated text or None if translation failed
@@ -313,8 +381,21 @@ CURRENT TEXT TO TRANSLATE (from {chapter_name}):
         # STAGE 1: Raw Translation
         if use_two_stage:
             logger.info(f"Chunk {chunk_index}: Stage 1 - Raw translation")
-            raw_prompt = get_raw_translation_prompt()
-            rough_translation = retry_translate_chunk(translator, user_content, raw_prompt)
+            # Get glossary text for name consistency in stage 1
+            glossary_text = ""
+            if glossary_manager is not None:
+                try:
+                    glossary_text = glossary_manager.get_glossary_text()
+                except Exception as e:
+                    logger.warning(f"Could not get glossary text for stage 1: {e}")
+            
+            raw_prompt = get_raw_translation_prompt(glossary_text=glossary_text)
+            
+            # Use stage1_translator if provided, otherwise fall back to translator
+            raw_translator = stage1_translator if stage1_translator is not None else translator
+            logger.info(f"  Using {raw_translator.name} for Stage 1")
+            
+            rough_translation = retry_translate_chunk(raw_translator, user_content, raw_prompt)
             logger.info(f"Chunk {chunk_index}: Raw translation complete: {len(rough_translation)} chars")
             
             # STAGE 2: Rewrite
@@ -342,15 +423,36 @@ CURRENT TEXT TO TRANSLATE (from {chapter_name}):
 
 def _apply_delay_between_chunks(current_index: int, total_chunks: int, model_name: str = "") -> None:
     """Apply delay between chunks based on environment settings and model type."""
-    if current_index < total_chunks:
-        # No delay needed for local Ollama models
-        if "ollama" in model_name.lower():
-            return
+    if current_index >= total_chunks:
+        return
+        
+    # No delay needed for local Ollama models
+    if "ollama" in model_name.lower():
+        return
+    
+    # For cloud APIs, use appropriate delays to avoid rate limits
+    if "openrouter" in model_name.lower():
+        # OpenRouter free tier: 20 RPM = 1 request per 3 seconds minimum
+        default_delay = 3.5  # 3.5 seconds to stay safely under 20 RPM
+    elif "gemini" in model_name.lower():
+        # Gemini free tier: 15 RPM = 1 request per 4 seconds minimum
+        default_delay = 4.0  # 4 seconds for Gemini to stay under 15 RPM
+    else:
+        default_delay = DEFAULT_REQUEST_DELAY
             
-        delay = float(os.getenv("REQUEST_DELAY", str(DEFAULT_REQUEST_DELAY)))
-        if delay > 0:
-            logger.debug(f"Waiting {delay}s before next chunk...")
-            time.sleep(delay)
+    delay = float(os.getenv("REQUEST_DELAY", str(default_delay)))
+    
+    # Ensure minimum delays to avoid rate limits
+    if "openrouter" in model_name.lower() and delay < 3.0:
+        delay = 3.5
+        logger.debug(f"Enforcing minimum 3.5s delay for OpenRouter to avoid rate limits")
+    elif "gemini" in model_name.lower() and delay < 4.0:
+        delay = 4.0
+        logger.debug(f"Enforcing minimum 4s delay for Gemini to avoid rate limits")
+    
+    if delay > 0:
+        logger.info(f"Waiting {delay:.1f}s before next chunk...")
+        time.sleep(delay)
 
 
 def translate_single_file(
@@ -362,14 +464,16 @@ def translate_single_file(
     names_path: str,
     source_lang: str = "Chinese",
     book_id: str = None,
-    use_two_stage: bool = None
+    use_two_stage: bool = None,
+    stage1_model: str = None,
+    stage2_model: str = None
 ) -> bool:
     """
     Translate a single file through the complete pipeline.
     
     Args:
         filepath: Path to file to translate
-        model_name: Translation model to use
+        model_name: Translation model to use (for single-stage or fallback)
         max_chars: Maximum characters per chunk
         overlap_chars: Overlap between chunks
         do_readability: Whether to run readability check
@@ -377,6 +481,8 @@ def translate_single_file(
         source_lang: Source language
         book_id: Book ID for glossary (auto-detected if None)
         use_two_stage: Force two-stage mode (None = auto from config)
+        stage1_model: Model for Stage 1 (raw translation) - e.g., "gemini"
+        stage2_model: Model for Stage 2 (rewrite) - e.g., "ollama"
     
     Returns True on success, False on failure.
     """
@@ -385,7 +491,18 @@ def translate_single_file(
     
     # Determine book ID for glossary management
     if book_id is None:
-        book_id = filepath.parent.name if filepath.parent.name != INPUT_DIR else chapter_name
+        if filepath.parent.name != INPUT_DIR:
+            # Use parent folder name as book_id if not in input_novels
+            book_id = filepath.parent.name
+        else:
+            # In input_novels folder - extract novel name from chapter filename
+            # Pattern: <novel_name>_chapter_<number>.md or <novel_name>_chapter_<number>.txt
+            match = re.match(r'^(.+?)_chapter_\d+', chapter_name, re.IGNORECASE)
+            if match:
+                book_id = match.group(1)
+            else:
+                # Fallback: use full chapter name if pattern doesn't match
+                book_id = chapter_name
     
     # Load config to check for two-stage mode
     config = {}
@@ -407,6 +524,10 @@ def translate_single_file(
     print(f"Book ID: {book_id}")
     if use_two_stage:
         print("Mode: Two-Stage Translation (Raw + Rewrite)")
+        if stage1_model:
+            print(f"  Stage 1 (Raw): {stage1_model}")
+        if stage2_model:
+            print(f"  Stage 2 (Rewrite): {stage2_model}")
     else:
         print("Mode: Single-Stage Translation")
     print("=" * 60)
@@ -443,10 +564,30 @@ def translate_single_file(
         glossary = None
         print(f"⚠ Continuing without glossary")
     
-    # 4. Load translator with retry
-    print(f"\n[4/7] Loading translator: {model_name}")
+    # 4. Load translators
+    # Stage 1 translator (for raw translation in two-stage mode)
+    stage1_translator = None
+    # Stage 2 / Single-stage translator
+    translator = None
+    
+    # Load stage 1 translator if in two-stage mode and stage1_model specified
+    if use_two_stage and stage1_model:
+        print(f"\n[4/7] Loading Stage 1 translator: {stage1_model}")
+        try:
+            stage1_translator = _load_translator_with_retry(stage1_model)
+            print(f"✓ Stage 1 loaded: {stage1_translator.name}")
+        except Exception as e:
+            logger.error(f"Failed to load Stage 1 translator: {e}")
+            print(f"✗ Failed to load Stage 1 translator: {e}")
+            print("Falling back to single-stage mode...")
+            use_two_stage = False
+    
+    # Load main translator (for stage 2 in two-stage, or single-stage)
+    # In two-stage mode, this is the stage 2 (rewrite) translator
+    main_model = stage2_model if (use_two_stage and stage2_model) else model_name
+    print(f"\n[4.5/7] Loading {'Stage 2' if use_two_stage else 'Main'} translator: {main_model}")
     try:
-        translator = _load_translator_with_retry(model_name)
+        translator = _load_translator_with_retry(main_model)
         print(f"✓ Loaded: {translator.name}")
     except ValueError as e:
         logger.error(f"Failed to load translator: {e}")
@@ -464,14 +605,14 @@ def translate_single_file(
     system_prompt = get_system_prompt(source_lang=source_lang, glossary_manager=glossary)
     
     # Initialize rewriter if using two-stage mode
+    # Stage 2 translator (qwen:7b via Ollama) is used for rewriting
     rewriter = None
     if use_two_stage:
-        print(f"\n[4.5/7] Initializing rewriter for two-stage translation...")
+        print(f"\n[4.6/7] Initializing rewriter (Stage 2)...")
         try:
-            # Use same model for rewriting, or could use different model
-            rewriter_model = config.get("rewriter_model", model_name)
-            rewriter = BurmeseRewriter(rewriter_model, glossary_manager=glossary)
-            print(f"✓ Rewriter ready: {rewriter_model}")
+            # Use the loaded translator (qwen:7b) for rewriting
+            rewriter = BurmeseRewriter(main_model, glossary_manager=glossary)
+            print(f"✓ Rewriter ready: {main_model}")
         except Exception as e:
             logger.warning(f"Failed to initialize rewriter: {e}")
             print(f"⚠ Failed to initialize rewriter, falling back to single-stage")
@@ -498,7 +639,9 @@ def translate_single_file(
             chapter_name=chapter_name,
             previous_translation=previous_translation,
             use_two_stage=use_two_stage,
-            rewriter=rewriter
+            rewriter=rewriter,
+            glossary_manager=glossary,
+            stage1_translator=stage1_translator
         )
 
         # Update previous translation for context retention (sliding window)
@@ -541,8 +684,8 @@ def translate_single_file(
     processed_text = full_text  # Default to unprocessed if postprocess fails
 
     try:
-        # Postprocess
-        processed_text = postprocess(full_text, names_path)
+        # Postprocess with glossary manager for per-novel name consistency
+        processed_text = postprocess(full_text, names_path, glossary_manager=glossary)
     except Exception as e:
         logger.error(f"Postprocessing failed: {e}")
         print(f"✗ Postprocessing failed: {e}")
@@ -707,14 +850,18 @@ Examples:
   # Auto-scan and translate all files
   python main.py
 
-  # Single file
+  # Single file (one chapter)
   python main.py {INPUT_DIR}/chapter_001.txt
 
-  # Switch model
+  # Single model translation
   python main.py --model openrouter
   python main.py --model gemini
   python main.py --model ollama
   python main.py --model nllb
+
+  # Two-stage translation: Use different models for raw translation and rewrite
+  python main.py --two-stage --stage1-model gemini --stage2-model ollama
+  python main.py --two-stage --stage1-model ollama:qwen2.5:14b --stage2-model ollama:qwen:7b
 
   # Source language options
   python main.py --source-lang Chinese
@@ -728,7 +875,7 @@ Examples:
         """
     )
 
-    parser.add_argument("file", nargs="?", help="Single file to translate")
+    parser.add_argument("file", nargs="?", help="Single file to translate (e.g., input_novels/chapter_001.txt)")
     parser.add_argument("--model", default=None,
                         choices=["openrouter", "gemini", "ollama", "nllb", "nllb200"],
                         help="Translation model to use (overrides .env AI_MODEL)")
@@ -743,6 +890,14 @@ Examples:
                         help="Enable readability check")
     parser.add_argument("--names", default="names.json",
                         help="Character names mapping file")
+    
+    # Two-stage translation options
+    parser.add_argument("--two-stage", action="store_true",
+                        help="Enable two-stage translation mode (raw + rewrite)")
+    parser.add_argument("--stage1-model", default=None,
+                        help="Model for Stage 1 (raw translation). Options: gemini, openrouter, ollama, or ollama:modelname (e.g., ollama:qwen2.5:14b). Default from config.")
+    parser.add_argument("--stage2-model", default=None,
+                        help="Model for Stage 2 (rewrite). Options: gemini, openrouter, ollama, or ollama:modelname (e.g., ollama:qwen:7b). Default from config")
 
     args = parser.parse_args()
     
@@ -770,6 +925,26 @@ Examples:
     else:
         source_lang = os.getenv("SOURCE_LANGUAGE", config.get("source_language", "Chinese"))
 
+    # Two-stage mode: CLI arg > config > default (False)
+    use_two_stage = args.two_stage
+    if not use_two_stage:
+        pipeline_config = config.get("translation_pipeline", {})
+        use_two_stage = pipeline_config.get("mode", "single_stage") == "two_stage"
+    
+    # Stage 1 and Stage 2 models
+    stage1_model = args.stage1_model
+    stage2_model = args.stage2_model
+    
+    # Load pipeline config for defaults
+    pipeline_config = config.get("translation_pipeline", {})
+    
+    # Default two-stage models from config, then fallback to gemini/ollama
+    if use_two_stage:
+        if stage1_model is None:
+            stage1_model = pipeline_config.get("stage1_model", "gemini")
+        if stage2_model is None:
+            stage2_model = pipeline_config.get("stage2_model", "ollama")
+
     # Validate chunk size
     if not MIN_CHUNK_SIZE <= args.max_chars <= MAX_CHUNK_SIZE:
         logger.warning(
@@ -778,18 +953,50 @@ Examples:
         )
         args.max_chars = max(MIN_CHUNK_SIZE, min(args.max_chars, MAX_CHUNK_SIZE))
 
+    # Check if using Gemini and warn about rate limits
+    using_gemini = (not use_two_stage and "gemini" in model.lower()) or \
+                   (use_two_stage and "gemini" in (stage1_model or "").lower())
+    
+    if using_gemini:
+        request_delay = float(os.getenv("REQUEST_DELAY", "4.0"))
+        if request_delay < 4.0:
+            print("\n⚠️  WARNING: Gemini free tier has strict rate limits (15 requests per minute)")
+            print("    Consider setting REQUEST_DELAY=4.0 in .env to avoid 429 errors")
+            print()
+    
     logger.info("=" * 60)
     logger.info(f"{source_lang} → Myanmar Novel Translator Started")
-    logger.info(f"Model: {model}, Chunk size: {args.max_chars}, Overlap size: {args.overlap_chars}")
+    if use_two_stage:
+        logger.info(f"Mode: Two-Stage | Stage 1: {stage1_model} | Stage 2: {stage2_model}")
+    else:
+        logger.info(f"Model: {model}")
+    logger.info(f"Chunk size: {args.max_chars}, Overlap size: {args.overlap_chars}")
     logger.info("=" * 60)
 
     print("=" * 60)
     print(f"{source_lang} → Myanmar Novel Translator")
     print("=" * 60)
-    print(f"Model: {model}")
+    if use_two_stage:
+        print("Mode: Two-Stage Translation")
+        print(f"  Stage 1 (Raw): {stage1_model}")
+        print(f"  Stage 2 (Rewrite): {stage2_model}")
+    else:
+        print(f"Model: {model}")
     print(f"Source: {source_lang}")
     print(f"Max chars per chunk: {args.max_chars}")
     print(f"Overlap chars: {args.overlap_chars}")
+    
+    # Check if using OpenRouter and show free tier info
+    current_model = stage1_model if (use_two_stage and stage1_model) else model
+    if "openrouter" in current_model.lower():
+        print("\n⚠️  WARNING: OpenRouter Free Tier Limits:")
+        print("   - 20 requests per minute")
+        print("   - 200 requests per day")
+        print("   - With 4s delay: ~28 chapters max per day")
+        print("\n   💡 RECOMMENDATION: Use local Ollama to avoid limits:")
+        print("      python main.py input_novels/chapter_001.md --model ollama")
+        print("   Fallback models enabled for reliability")
+    
     print("=" * 60)
     print()
     
@@ -797,6 +1004,8 @@ Examples:
     if args.file:
         files = [Path(args.file)]
         logger.info(f"Processing single file: {args.file}")
+        print(f"Translating single chapter: {Path(args.file).name}")
+        print()
     else:
         files = scan_input_novels()
         if not files:
@@ -823,7 +1032,10 @@ Examples:
             overlap_chars=args.overlap_chars,
             do_readability=args.readability,
             names_path=args.names,
-            source_lang=source_lang
+            source_lang=source_lang,
+            use_two_stage=use_two_stage,
+            stage1_model=stage1_model,
+            stage2_model=stage2_model
         )
         
         if success:
