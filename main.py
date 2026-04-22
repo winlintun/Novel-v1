@@ -26,6 +26,7 @@ from scripts.postprocessor import postprocess
 from scripts.assembler import assemble
 from scripts.glossary_manager import GlossaryManager
 from scripts.rewriter import BurmeseRewriter, get_raw_translation_prompt
+from scripts.context_manager import ContextManager
 
 # =============================================================================
 # CONSTANTS
@@ -53,6 +54,10 @@ MAX_READABILITY_REPORT_ITEMS = 10
 LOG_DIR = "working_data/logs"
 BOOKS_DIR = "books"
 INPUT_DIR = "input_novels"
+
+# Source directories for novel chapters
+ENGLISH_CHAPTERS_DIR = "english_chapters"
+CHINESE_CHAPTERS_DIR = "chinese_chapters"
 
 # =============================================================================
 # SETUP LOGGING
@@ -466,7 +471,9 @@ def translate_single_file(
     book_id: str = None,
     use_two_stage: bool = None,
     stage1_model: str = None,
-    stage2_model: str = None
+    stage2_model: str = None,
+    chapter_num: int = 1,
+    context_manager: ContextManager = None
 ) -> bool:
     """
     Translate a single file through the complete pipeline.
@@ -483,6 +490,8 @@ def translate_single_file(
         use_two_stage: Force two-stage mode (None = auto from config)
         stage1_model: Model for Stage 1 (raw translation) - e.g., "gemini"
         stage2_model: Model for Stage 2 (rewrite) - e.g., "ollama"
+        chapter_num: Chapter number (for context tracking)
+        context_manager: ContextManager instance for context injection
     
     Returns True on success, False on failure.
     """
@@ -503,6 +512,10 @@ def translate_single_file(
             else:
                 # Fallback: use full chapter name if pattern doesn't match
                 book_id = chapter_name
+    
+    # Initialize context manager if not provided
+    if context_manager is None:
+        context_manager = ContextManager(book_id, source_lang=source_lang)
     
     # Load config to check for two-stage mode
     config = {}
@@ -552,8 +565,8 @@ def translate_single_file(
         print(f"✗ Chunking failed: {e}")
         return False
     
-    # 3. Initialize glossary manager for this book
-    print(f"\n[3/7] Loading glossary for: {book_id}")
+    # 3. Initialize glossary and context manager for this book
+    print(f"\n[3/7] Loading glossary and context for: {book_id}")
     try:
         glossary = GlossaryManager(book_id)
         print(f"✓ Glossary loaded: {len(glossary.names)} names")
@@ -563,6 +576,17 @@ def translate_single_file(
         logger.warning(f"Failed to load glossary: {e}")
         glossary = None
         print(f"⚠ Continuing without glossary")
+    
+    # Register chapter with context manager
+    context_manager.register_chapter(chapter_num, title=chapter_name, word_count=len(clean_text))
+    
+    # Get context for this chapter (Characters + Story + Previous Chapters)
+    context_text = context_manager.get_context_for_chapter(chapter_num)
+    if context_text:
+        print(f"✓ Context loaded for Chapter {chapter_num}")
+        context_manager.print_summary()
+    else:
+        print(f"ℹ No previous context (Chapter {chapter_num})")
     
     # 4. Load translators
     # Stage 1 translator (for raw translation in two-stage mode)
@@ -601,8 +625,25 @@ def translate_single_file(
         print(f"✗ Failed to load translator after retries: {e}")
         return False
     
-    # Get system prompt with glossary
+    # Get system prompt with glossary and context
     system_prompt = get_system_prompt(source_lang=source_lang, glossary_manager=glossary)
+    
+    # Inject context into system prompt if available
+    if context_text:
+        context_section = f"""
+
+================================================================================
+NOVEL CONTEXT - READ THIS CAREFULLY BEFORE TRANSLATING:
+================================================================================
+
+{context_text}
+
+================================================================================
+END OF CONTEXT
+================================================================================
+"""
+        system_prompt = system_prompt + context_section
+        logger.info(f"Injected context ({len(context_text)} chars) into system prompt")
     
     # Initialize rewriter if using two-stage mode
     # Stage 2 translator (qwen:7b via Ollama) is used for rewriting
@@ -683,12 +724,15 @@ def translate_single_file(
     full_text = '\n\n'.join(available_chunks)
     processed_text = full_text  # Default to unprocessed if postprocess fails
 
+    print(f"\n[6.5/7] Applying translation fixes (Dialogue, Emotion, Sentence Structure)...")
     try:
         # Postprocess with glossary manager for per-novel name consistency
-        processed_text = postprocess(full_text, names_path, glossary_manager=glossary)
+        from scripts.fix_translation import postprocess_translation
+        processed_text = postprocess_translation(processed_text, novel_name=book_id)
+        print(f"✓ Translation fixes applied successfully")
     except Exception as e:
-        logger.error(f"Postprocessing failed: {e}")
-        print(f"✗ Postprocessing failed: {e}")
+        logger.error(f"Translation fixes failed: {e}")
+        print(f"✗ Translation fixes failed: {e}")
         print(f"  Using unprocessed text for assembly.")
 
     # 7. Assemble
@@ -720,7 +764,7 @@ def translate_single_file(
         print(f"\n[8] Updating glossary...")
         try:
             # Try to extract new names from this chapter
-            new_mappings = glossary.update_from_translation(clean_text, processed_text, chapter_num=1)
+            new_mappings = glossary.update_from_translation(clean_text, processed_text, chapter_num=chapter_num)
             if new_mappings:
                 logger.info(f"Found {len(new_mappings)} potential new names to review")
             glossary.metadata["chapter_count"] = glossary.metadata.get("chapter_count", 0) + 1
@@ -729,6 +773,40 @@ def translate_single_file(
         except Exception as e:
             logger.warning(f"Failed to update glossary: {e}")
             print(f"⚠ Failed to update glossary: {e}")
+
+    # 8.5. Update context with translation information
+    print(f"\n[8.5] Updating context...")
+    try:
+        # Analyze and update context
+        analysis = context_manager.analyze_chapter_content(chapter_num, clean_text, processed_text)
+
+        # Update chapter info with basic info
+        context_manager.update_chapter_translation(
+            chapter_num=chapter_num,
+            summary=f"Translated {len(processed_text)} characters",  # Simple summary
+            characters_appearing=[],  # Would need AI extraction for full list
+            new_characters=analysis.get("new_characters", [])
+        )
+
+        # Sync characters from glossary to context
+        if glossary:
+            for chinese_name, burmese_name in glossary.names.items():
+                char = context_manager.get_character(chinese_name)
+                if char:
+                    char.burmese_name = burmese_name
+                else:
+                    context_manager.add_character(
+                        name=chinese_name,
+                        burmese_name=burmese_name,
+                        first_appearance=chapter_num,
+                        importance="minor"
+                    )
+
+        context_manager.save()
+        print(f"✓ Context updated and saved")
+    except Exception as e:
+        logger.warning(f"Failed to update context: {e}")
+        print(f"⚠ Failed to update context: {e}")
 
     # 9. Readability check (optional)
     if do_readability:
@@ -840,6 +918,115 @@ def scan_input_novels() -> list:
     return sorted(all_files)
 
 
+def scan_chapter_directories(novel_name: str = None, source_lang: str = None) -> list:
+    """
+    Scan english_chapters/ and chinese_chapters/ directories for novel chapters.
+    
+    Directory structures supported:
+        - english_chapters/novel_name/novel_name_chapter_001.md
+        - chinese_chapters/novel_name/novel_name_chapter_001.md
+    
+    Args:
+        novel_name: Specific novel to scan (optional)
+        source_lang: Source language filter ('English' or 'Chinese')
+    
+    Returns:
+        List of tuples: (filepath, novel_name, chapter_num, source_lang)
+    """
+    files_found = []
+    
+    # Define directories to scan based on source language
+    dirs_to_scan = []
+    if source_lang is None or source_lang.lower() == "english":
+        dirs_to_scan.append((Path(ENGLISH_CHAPTERS_DIR), "English"))
+    if source_lang is None or source_lang.lower() in ["chinese", "chinese_simplified", "chinese_traditional"]:
+        dirs_to_scan.append((Path(CHINESE_CHAPTERS_DIR), "Chinese"))
+    
+    for base_dir, lang in dirs_to_scan:
+        if not base_dir.exists():
+            continue
+        
+        if novel_name:
+            # Scan specific novel directory
+            novel_dir = base_dir / novel_name
+            if novel_dir.exists():
+                # Pattern: novel_name_chapter_*.md
+                pattern = f"{novel_name}_chapter_*.md"
+                chapter_files = list(novel_dir.glob(pattern))
+                
+                for f in chapter_files:
+                    # Extract chapter number from filename
+                    match = re.search(r'chapter_(\d+)', f.name)
+                    chapter_num = int(match.group(1)) if match else 0
+                    files_found.append((f, novel_name, chapter_num, lang))
+        else:
+            # Scan all novels in directory
+            for novel_dir in base_dir.iterdir():
+                if novel_dir.is_dir():
+                    novel_id = novel_dir.name
+                    # Pattern: *_chapter_*.md
+                    chapter_files = list(novel_dir.glob("*_chapter_*.md"))
+                    
+                    for f in chapter_files:
+                        match = re.search(r'chapter_(\d+)', f.name)
+                        chapter_num = int(match.group(1)) if match else 0
+                        files_found.append((f, novel_id, chapter_num, lang))
+    
+    # Sort by novel name, then chapter number
+    files_found.sort(key=lambda x: (x[1], x[2]))
+    
+    logger.info(f"Found {len(files_found)} chapter file(s) in chapter directories")
+    return files_found
+
+
+def discover_novel_files(source_path: str = None, novel_name: str = None, 
+                         source_lang: str = None) -> list:
+    """
+    Discover novel files from various sources.
+    
+    Priority:
+    1. Specific file path (source_path)
+    2. Specific novel in chapter directories
+    3. input_novels/ directory
+    4. All novels in chapter directories
+    
+    Returns:
+        List of tuples: (filepath, novel_name, chapter_num, source_lang)
+    """
+    files = []
+    
+    if source_path:
+        # Single file mode
+        path = Path(source_path)
+        if path.exists():
+            # Try to extract novel name and chapter from path
+            novel_id = path.parent.name if path.parent.name not in [INPUT_DIR, "."] else path.stem
+            match = re.search(r'chapter_(\d+)', path.name)
+            chapter_num = int(match.group(1)) if match else 1
+            lang = source_lang or "English"
+            files.append((path, novel_id, chapter_num, lang))
+    
+    elif novel_name:
+        # Specific novel mode - scan chapter directories
+        files = scan_chapter_directories(novel_name, source_lang)
+    
+    else:
+        # Auto-discover mode
+        # First check input_novels/
+        input_files = scan_input_novels()
+        for f in input_files:
+            novel_id = f.stem
+            chapter_num = 1
+            lang = source_lang or "English"
+            files.append((f, novel_id, chapter_num, lang))
+        
+        # Then scan chapter directories
+        chapter_files = scan_chapter_directories(None, source_lang)
+        files.extend(chapter_files)
+    
+    return files
+
+
 def main() -> None:
     """Main entry point for the translator CLI."""
     parser = argparse.ArgumentParser(
@@ -847,8 +1034,12 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=f"""
 Examples:
-  # Auto-scan and translate all files
+  # Auto-scan and translate all files from chapter directories
   python main.py
+
+  # Translate a specific novel from chapter directories
+  python main.py --novel dao-equaling-the-heavens
+  python main.py --novel dao-equaling-the-heavens --source-lang English
 
   # Single file (one chapter)
   python main.py {INPUT_DIR}/chapter_001.txt
@@ -860,8 +1051,7 @@ Examples:
   python main.py --model nllb
 
   # Two-stage translation: Use different models for raw translation and rewrite
-  python main.py --two-stage --stage1-model gemini --stage2-model ollama
-  python main.py --two-stage --stage1-model ollama:qwen2.5:14b --stage2-model ollama:qwen:7b
+  python main.py --two-stage --stage1-model ollama:gemma:7b --stage2-model ollama:qwen:7b
 
   # Source language options
   python main.py --source-lang Chinese
@@ -876,6 +1066,8 @@ Examples:
     )
 
     parser.add_argument("file", nargs="?", help="Single file to translate (e.g., input_novels/chapter_001.txt)")
+    parser.add_argument("--novel", default=None,
+                        help="Translate a specific novel from english_chapters/ or chinese_chapters/ directories")
     parser.add_argument("--model", default=None,
                         choices=["openrouter", "gemini", "ollama", "nllb", "nllb200"],
                         help="Translation model to use (overrides .env AI_MODEL)")
@@ -890,12 +1082,12 @@ Examples:
                         help="Enable readability check")
     parser.add_argument("--names", default="names.json",
                         help="Character names mapping file")
-    
+
     # Two-stage translation options
     parser.add_argument("--two-stage", action="store_true",
                         help="Enable two-stage translation mode (raw + rewrite)")
     parser.add_argument("--stage1-model", default=None,
-                        help="Model for Stage 1 (raw translation). Options: gemini, openrouter, ollama, or ollama:modelname (e.g., ollama:qwen2.5:14b). Default from config.")
+                        help="Model for Stage 1 (raw translation). Options: gemini, openrouter, ollama, or ollama:modelname (e.g., ollama:gemma:7b). Default from config.")
     parser.add_argument("--stage2-model", default=None,
                         help="Model for Stage 2 (rewrite). Options: gemini, openrouter, ollama, or ollama:modelname (e.g., ollama:qwen:7b). Default from config")
 
@@ -999,66 +1191,96 @@ Examples:
     
     print("=" * 60)
     print()
-    
-    # Determine files to process
-    if args.file:
-        files = [Path(args.file)]
-        logger.info(f"Processing single file: {args.file}")
-        print(f"Translating single chapter: {Path(args.file).name}")
-        print()
-    else:
-        files = scan_input_novels()
-        if not files:
-            logger.warning(f"No files found in {INPUT_DIR}/")
-            print(f"No .txt or .md files found in {INPUT_DIR}/")
-            print("Add files and run again.")
-            return
-        logger.info(f"Found {len(files)} file(s) to process")
-        print(f"Found {len(files)} file(s) to translate:\n")
-        for f in files:
-            print(f"  - {f.name}")
-        print()
-    
-    # Process each file
-    success_count = 0
-    fail_count = 0
-    
-    for filepath in files:
-        logger.info(f"Processing file: {filepath}")
-        success = translate_single_file(
-            filepath=str(filepath),
-            model_name=model,
-            max_chars=args.max_chars,
-            overlap_chars=args.overlap_chars,
-            do_readability=args.readability,
-            names_path=args.names,
-            source_lang=source_lang,
-            use_two_stage=use_two_stage,
-            stage1_model=stage1_model,
-            stage2_model=stage2_model
-        )
-        
-        if success:
-            success_count += 1
-            logger.info(f"Successfully translated: {filepath}")
-        else:
-            fail_count += 1
-            logger.error(f"Failed to translate: {filepath}")
-        
-        print()
-    
+
+    # Determine files to process using new discovery system
+    files = discover_novel_files(
+        source_path=args.file,
+        novel_name=args.novel,
+        source_lang=source_lang
+    )
+
+    if not files:
+        logger.warning("No files found to translate")
+        print("No files found to translate.")
+        print(f"Add files to {INPUT_DIR}/, {ENGLISH_CHAPTERS_DIR}/, or {CHINESE_CHAPTERS_DIR}/")
+        return
+
+    logger.info(f"Found {len(files)} file(s) to process")
+    print(f"Found {len(files)} chapter(s) to translate:\n")
+    for filepath, novel_id, chapter_num, lang in files[:10]:  # Show first 10
+        print(f"  - {novel_id} Ch {chapter_num}: {filepath.name}")
+    if len(files) > 10:
+        print(f"  ... and {len(files) - 10} more")
+    print()
+
+    # Group files by novel for context management
+    novels = {}
+    for filepath, novel_id, chapter_num, lang in files:
+        if novel_id not in novels:
+            novels[novel_id] = {"files": [], "lang": lang}
+        novels[novel_id]["files"].append((filepath, chapter_num))
+
+    # Process each novel
+    total_success = 0
+    total_fail = 0
+
+    for novel_id, novel_data in novels.items():
+        print(f"\n{'='*60}")
+        print(f"Processing Novel: {novel_id}")
+        print(f"Source Language: {novel_data['lang']}")
+        print(f"Chapters: {len(novel_data['files'])}")
+        print(f"{'='*60}\n")
+
+        # Initialize context manager for this novel
+        context_manager = ContextManager(novel_id, source_lang=novel_data['lang'])
+
+        # Sort chapters by number
+        novel_data["files"].sort(key=lambda x: x[1])
+
+        # Process each chapter
+        for filepath, chapter_num in novel_data["files"]:
+            logger.info(f"Processing: {novel_id} Chapter {chapter_num}")
+            print(f"\n>>> Translating Chapter {chapter_num}...")
+
+            success = translate_single_file(
+                filepath=str(filepath),
+                model_name=model,
+                max_chars=args.max_chars,
+                overlap_chars=args.overlap_chars,
+                do_readability=args.readability,
+                names_path=args.names,
+                source_lang=novel_data['lang'],
+                book_id=novel_id,
+                use_two_stage=use_two_stage,
+                stage1_model=stage1_model,
+                stage2_model=stage2_model,
+                chapter_num=chapter_num,
+                context_manager=context_manager
+            )
+
+            if success:
+                total_success += 1
+                logger.info(f"Successfully translated: {novel_id} Chapter {chapter_num}")
+            else:
+                total_fail += 1
+                logger.error(f"Failed to translate: {novel_id} Chapter {chapter_num}")
+
+        # Save context for this novel
+        context_manager.save()
+        print(f"\n✓ Context saved for {novel_id}")
+
     # Summary
     logger.info("=" * 60)
     logger.info("Translation Summary")
-    logger.info(f"Total: {len(files)}, Success: {success_count}, Failed: {fail_count}")
+    logger.info(f"Total: {len(files)}, Success: {total_success}, Failed: {total_fail}")
     logger.info("=" * 60)
-    
-    print("=" * 60)
+
+    print("\n" + "=" * 60)
     print("Translation Summary")
     print("=" * 60)
-    print(f"Total files: {len(files)}")
-    print(f"Successful:  {success_count}")
-    print(f"Failed:      {fail_count}")
+    print(f"Total chapters: {len(files)}")
+    print(f"Successful:     {total_success}")
+    print(f"Failed:         {total_fail}")
     print("=" * 60)
 
 

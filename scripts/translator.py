@@ -110,7 +110,7 @@ def get_system_prompt(target_lang: str = "Myanmar (Burmese)", source_lang: str =
         source_display = source_lang
         style_note = "Maintain the literary style and tone of the source text."
 
-    # Load glossary - priority: glossary_manager > novel_name > names.json
+    # Load glossary - priority: glossary_manager > novel_name
     glossary_text = ""
     glossary_loaded = False
     
@@ -136,24 +136,8 @@ def get_system_prompt(target_lang: str = "Myanmar (Burmese)", source_lang: str =
         except Exception as e:
             logger.warning(f"Failed to load novel glossary for '{novel_name}': {e}")
     
-    # 3. Fallback to global names.json (always try this if nothing else worked)
     if not glossary_loaded:
-        try:
-            import os
-            if os.path.exists("names.json"):
-                with open("names.json", "r", encoding="utf-8") as f:
-                    names = json.load(f)
-                    if names:
-                        glossary_text = "\n\nTERMINOLOGY MAPPING (Use these exact Burmese translations):\n"
-                        for src, my in names.items():
-                            glossary_text += f"- {src} -> {my}\n"
-                        glossary_loaded = True
-                        logger.info(f"Loaded global names.json: {len(names)} names")
-        except Exception as e:
-            logger.warning(f"Failed to load names.json: {e}")
-    
-    if not glossary_loaded:
-        logger.warning("No glossary loaded - translations may have inconsistent names")
+        logger.info("No glossary loaded - translations may have inconsistent names")
 
     prompt = f"""You are a skilled Burmese literary writer who is also fluent in {source_display}. Your goal is to translate the provided {source_display} novel text into natural, conversational, and emotionally resonant Burmese.
 
@@ -696,10 +680,11 @@ class OllamaTranslator(BaseTranslator):
                 "prompt": f"{system_prompt}\n\n{text}",
                 "stream": True,
                 "options": {
-                    "temperature": 0.15,
+                    "temperature": 0.45,
                     "num_predict": -1,
-                    "top_p": 0.9,
-                    "top_k": 40
+                    "top_p": 0.92,
+                    "top_k": 50,
+                    "repeat_penalty": 1.1
                 }
             }
         else:
@@ -712,11 +697,12 @@ class OllamaTranslator(BaseTranslator):
                 ],
                 "stream": True,
                 "options": {
-                    "temperature": 0.15,
+                    "temperature": 0.45,
                     "num_predict": -1,
                     "num_ctx": 8192,
-                    "top_p": 0.9,
-                    "top_k": 40
+                    "top_p": 0.92,
+                    "top_k": 50,
+                    "repeat_penalty": 1.1
                 }
             }
         

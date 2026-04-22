@@ -12,20 +12,40 @@ from typing import Dict, Tuple
 def fix_punctuation(text: str) -> str:
     """Fix Chinese punctuation to Myanmar equivalents."""
     replacements = {
-        '。': '။',
-        '，': '၊',
-        '！': '!',
-        '？': '?',
-        '：': ':',
-        '；': ';',
-        '"': '"',
-        '"': '"',
-        ''': "'",
-        ''': "'",
-        '（': '(',
-        '）': ')',
-        '【': '[',
-        '】': ']',
+        # Sentence endings - formal → natural
+        (r'လေသည်။', 'တယ်။'),
+        (r'လေသည်\b', 'တယ်'),
+        (r'ဆိုသည်။', 'တယ်။'),
+        (r'ဆိုသည်\b', 'တယ်'),
+        (r'ပါသည်\b', 'ပါတယ်'),
+        (r'ခဲ့သည်\b', 'ခဲ့တယ်'),
+        (r'ရှိသည်\b', 'ရှိတယ်'),
+        (r'မြင်သည်\b', 'မြင်တယ်'),
+        (r'ပြောသည်\b', 'ပြောတယ်'),
+        (r'မေးသည်\b', 'မေးတယ်'),
+        
+        # Dialogue endings
+        (r'ဟု ဆိုလေသည်\b', 'လို့ ပြောတယ်'),
+        (r'ဟုဆိုသည်\b', 'လို့ ပြောတယ်'),
+        (r'ဟု မေးမြန်းလေသည်\b', 'လို့ မေးလိုက်တယ်'),
+        (r'ဟု မေးသည်\b', 'လို့ မေးတယ်'),
+        (r'ဟု တိုးတိုး ပြောသည်\b', 'လို့ တိုးတိုး ပြောတယ်'),
+        
+        # Pronouns - formal → colloquial
+        (r'\bသင်သည်\b', 'မင်း'),
+        (r'\bသင်\b', 'မင်း'),
+        (r'\bသူသည်\b', 'သူ'),
+        (r'\bသူမသည်\b', 'သူမ'),
+        (r'\bထိုသူသည်\b', 'အဲ့ဒိုသူ'),
+        
+        # Common stiff phrases
+        (r'ဤ\b', 'ဒီ'),
+        (r'ထိုသို့\b', 'အဲ့လို'),
+        (r'မည်သို့\b', 'ဘယ်လို'),
+        (r'အဘယ်\b', 'ဘာ'),
+        (r'မည်မျှ\b', 'ဘယ်လောက်'),
+        (r'ချေ\b', ''),      # Archaic particle
+        (r'တည်းဟူသော', ''),  # Remove archaic connectors
     }
     
     for chinese, myanmar in replacements.items():
@@ -98,7 +118,13 @@ def remove_non_myanmar_characters(text: str) -> str:
     # 3. Newlines, returns, tabs (\n, \r, \t)
     
     # This regex matches anything that is NOT in the allowed ranges
-    pattern = re.compile(r'[^\u1000-\u109F\u0020-\u007E\n\r\t]+')
+    pattern = re.compile(
+        r'[^\u1000-\u109F'   # Myanmar script (core)
+        r'\u200B-\u200D'     # Zero-width chars (Burmese needs these)
+        r'\u2018-\u201F'     # Smart quotes
+        r'\u0020-\u007E'     # Basic ASCII
+        r'\n\r\t]+'
+        )
     cleaned_text = pattern.sub('', text)
     
     # We should NOT use re.sub(r'\s+', ' ', cleaned_text) here as it collapses newlines
@@ -134,11 +160,11 @@ def postprocess(text: str, names_json_path: str = "names.json", glossary_manager
     
     # A) Punctuation fixes
     text = fix_punctuation(text)
+    text = naturalize_verb_endings(text)
     text = collapse_blank_lines(text)
     text = strip_trailing_whitespace(text)
     
-    # B) Character name consistency
-    # Priority: glossary_manager > names_json_path
+    # B) Character name consistency - only use glossary_manager
     names_map = {}
     if glossary_manager is not None:
         try:
@@ -147,12 +173,6 @@ def postprocess(text: str, names_json_path: str = "names.json", glossary_manager
                 print(f"Fixing character names (from glossary: {len(names_map)} names):")
         except Exception as e:
             print(f"  ⚠ Could not load from glossary manager: {e}")
-    
-    # Fallback to names.json if no glossary manager or it's empty
-    if not names_map:
-        names_map = load_names_map(names_json_path)
-        if names_map:
-            print("Fixing character names (from names.json):")
     
     if names_map:
         text, fix_counts = fix_character_names(text, names_map)

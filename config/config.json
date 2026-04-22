@@ -51,8 +51,8 @@
   "translation_pipeline": {
     "mode": "two_stage",
     "description": "single_stage or two_stage. Two-stage uses raw translation + rewrite for better quality.",
-    "stage1_model": "ollama:qwen2.5:14b",
-    "stage1_description": "Model for Stage 1 (raw translation). Options: gemini, openrouter, ollama, or ollama:modelname (e.g., ollama:qwen2.5:14b)",
+    "stage1_model": "nllb",
+    "stage1_description": "Model for Stage 1 (raw translation). Options: nllb, gemini, openrouter, ollama, or ollama:modelname (e.g., ollama:gemma:7b)",
     "stage2_model": "ollama:qwen:7b",
     "stage2_description": "Model for Stage 2 (rewrite). Options: ollama (qwen), openrouter, gemini, or ollama:modelname (e.g., ollama:qwen:7b)"
   }

@@ -25,7 +25,7 @@ def load_glossary(novel_name: str) -> Dict[str, str]:
     """Load glossary for the novel."""
     glossary = {}
     
-    # Try novel-specific glossary first
+    # Try novel-specific glossary
     glossary_file = Path(f"glossaries/{novel_name}.json")
     if glossary_file.exists():
         try:
@@ -34,14 +34,6 @@ def load_glossary(novel_name: str) -> Dict[str, str]:
                 glossary = data.get("names", {})
         except Exception as e:
             print(f"Warning: Could not load glossary: {e}")
-    
-    # Fallback to names.json
-    if not glossary and Path("names.json").exists():
-        try:
-            with open("names.json", 'r', encoding='utf-8') as f:
-                glossary = json.load(f)
-        except Exception as e:
-            print(f"Warning: Could not load names.json: {e}")
     
     return glossary
 
