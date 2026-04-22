@@ -21,12 +21,13 @@ T = TypeVar('T')
 # Import our modules from scripts folder
 from scripts.preprocessor import preprocess
 from scripts.chunker import auto_chunk, split_into_paragraphs, print_chunk_analysis
-from scripts.translator import get_translator, get_system_prompt, BaseTranslator
+from scripts.translator import get_translator, get_system_prompt, BaseTranslator, apply_name_mapping
 from scripts.postprocessor import postprocess
 from scripts.assembler import assemble
 from scripts.glossary_manager import GlossaryManager
 from scripts.rewriter import BurmeseRewriter, get_raw_translation_prompt
 from scripts.context_manager import ContextManager
+from scripts.name_converter import NameConverter
 
 # =============================================================================
 # CONSTANTS
@@ -473,7 +474,8 @@ def translate_single_file(
     stage1_model: str = None,
     stage2_model: str = None,
     chapter_num: int = 1,
-    context_manager: ContextManager = None
+    context_manager: ContextManager = None,
+    auto_learn: bool = True
 ) -> bool:
     """
     Translate a single file through the complete pipeline.
@@ -490,6 +492,9 @@ def translate_single_file(
         use_two_stage: Force two-stage mode (None = auto from config)
         stage1_model: Model for Stage 1 (raw translation) - e.g., "gemini"
         stage2_model: Model for Stage 2 (rewrite) - e.g., "ollama"
+        chapter_num: Chapter number
+        context_manager: ContextManager instance
+        auto_learn: Whether to auto-learn names from chapter
         chapter_num: Chapter number (for context tracking)
         context_manager: ContextManager instance for context injection
     
@@ -759,6 +764,52 @@ END OF CONTEXT
         print(f"✗ Assembly failed: {e}")
         return False
 
+    # 7.5. Auto-learn names from chapter (Name Converter)
+    if auto_learn:
+        print(f"\n[7.5] Auto-learning names...")
+        try:
+            name_converter = NameConverter(book_id, source_lang=source_lang)
+            
+            # Extract potential names from source text
+            potential_names = name_converter.extract_potential_names(clean_text)
+            
+            if potential_names:
+                print(f"  Found {len(potential_names)} potential names")
+                
+                # Check which names are new (not in existing glossary)
+                new_names = [(name, ntype) for name, ntype in potential_names 
+                            if name not in name_converter.names]
+                
+                if new_names:
+                    print(f"  {len(new_names)} new names detected:")
+                    for name, ntype in new_names[:5]:  # Show first 5
+                        suggested = name_converter.suggest_myanmar_name(name, ntype)
+                        print(f"    - [{ntype}] {name} → suggested: {suggested}")
+                    if len(new_names) > 5:
+                        print(f"    ... and {len(new_names) - 5} more")
+                    
+                    # Auto-add names with high confidence suggestions
+                    added_count = 0
+                    for name, ntype in new_names:
+                        suggested = name_converter.suggest_myanmar_name(name, ntype)
+                        # Only auto-add if suggestion is different from original (meaning we have a mapping)
+                        if suggested != name and len(suggested) > 1:
+                            name_converter.add_name(name, suggested, ntype, confidence=0.7)
+                            added_count += 1
+                    
+                    if added_count > 0:
+                        print(f"  ✓ Auto-added {added_count} names to glossary")
+                        
+                    # Sync to context
+                    name_converter.sync_glossary_to_context()
+                else:
+                    print(f"  All names already in glossary")
+            else:
+                print(f"  No new names found")
+        except Exception as e:
+            logger.warning(f"Name learning failed: {e}")
+            print(f"  ⚠ Name learning skipped: {e}")
+
     # 8. Save glossary updates (if glossary manager was initialized)
     if glossary is not None:
         print(f"\n[8] Updating glossary...")
@@ -788,19 +839,12 @@ END OF CONTEXT
             new_characters=analysis.get("new_characters", [])
         )
 
-        # Sync characters from glossary to context
-        if glossary:
-            for chinese_name, burmese_name in glossary.names.items():
-                char = context_manager.get_character(chinese_name)
-                if char:
-                    char.burmese_name = burmese_name
-                else:
-                    context_manager.add_character(
-                        name=chinese_name,
-                        burmese_name=burmese_name,
-                        first_appearance=chapter_num,
-                        importance="minor"
-                    )
+        # Sync characters from glossary to context using name converter
+        try:
+            name_converter = NameConverter(book_id, source_lang=source_lang)
+            name_converter.sync_glossary_to_context()
+        except Exception as e:
+            logger.warning(f"Glossary-context sync failed: {e}")
 
         context_manager.save()
         print(f"✓ Context updated and saved")
@@ -1062,6 +1106,9 @@ Examples:
 
   # Skip readability check
   python main.py --no-readability
+
+  # Disable auto name learning
+  python main.py --no-auto-learn
         """
     )
 
@@ -1080,6 +1127,8 @@ Examples:
                         help=f"Overlap characters between chunks (default: {DEFAULT_OVERLAP_SIZE})")
     parser.add_argument("--readability", action="store_true",
                         help="Enable readability check")
+    parser.add_argument("--no-auto-learn", action="store_true",
+                        help="Disable automatic name learning from chapters")
     parser.add_argument("--names", default="names.json",
                         help="Character names mapping file")
 
@@ -1255,7 +1304,8 @@ Examples:
                 stage1_model=stage1_model,
                 stage2_model=stage2_model,
                 chapter_num=chapter_num,
-                context_manager=context_manager
+                context_manager=context_manager,
+                auto_learn=not args.no_auto_learn
             )
 
             if success:
