@@ -202,7 +202,7 @@ class GlossaryManager:
             burmese = self.names[chinese]
             glossary_text += f'- "{chinese}" → "{burmese}"\n'
         
-        glossary_text += "\n⚠️ WARNING: Use the EXACT Burmese names above. Do not translate names differently.\n"
+        glossary_text += "\n⚠️ WARNING: Do NOT translate these names. Use the EXACT provided name mappings. Keep all names consistent.\n"
         
         return glossary_text
     

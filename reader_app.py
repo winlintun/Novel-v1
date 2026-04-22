@@ -10,18 +10,36 @@ app = Flask(__name__)
 BOOKS_DIR = Path("books")
 PROGRESS_FILE = Path("working_data/progress.json")
 
-# Security: Valid filename/book_id pattern (alphanumeric, dash, underscore only)
-SAFE_NAME_PATTERN = re.compile(r'^[a-zA-Z0-9_-]+$')
+# Security: Valid filename/book_id pattern (Unicode word characters, dash, underscore, no spaces)
+# Allows: English letters, numbers, Chinese characters, Japanese, etc.
+# Blocks: Path separators, parent directory references, control characters
+SAFE_NAME_PATTERN = re.compile(r'^[\w\-_.]+$')
 
 def is_safe_path_name(name):
-    """Validate path name to prevent path traversal attacks."""
+    """Validate path name to prevent path traversal attacks.
+    
+    Allows Unicode word characters (including Chinese, Japanese, etc.)
+    while blocking path traversal attempts.
+    """
     if not name or not isinstance(name, str):
         return False
-    # Check pattern and no path separators or parent references
-    if not SAFE_NAME_PATTERN.match(name):
-        return False
+    
+    # Block path traversal attempts first
     if '..' in name or '/' in name or '\\' in name:
         return False
+    
+    # Block control characters and null bytes
+    if any(ord(c) < 32 for c in name) or '\x00' in name:
+        return False
+    
+    # Must match safe pattern (Unicode word chars, dash, underscore, dot)
+    if not SAFE_NAME_PATTERN.match(name):
+        return False
+    
+    # Must not start or end with spaces
+    if name != name.strip():
+        return False
+    
     return True
 
 def ensure_dirs():
@@ -85,6 +103,16 @@ def chapters(book_id):
         
     with open(metadata_path, 'r', encoding='utf-8') as f:
         metadata = json.load(f)
+    
+    # Add book_id to metadata for template use
+    metadata['id'] = book_id
+    
+    # Normalize chapter data - support both 'number' and 'chapter_num' keys
+    for chapter in metadata.get("chapters", []):
+        if "chapter_num" in chapter and "number" not in chapter:
+            chapter["number"] = chapter["chapter_num"]
+        elif "number" in chapter and "chapter_num" not in chapter:
+            chapter["chapter_num"] = chapter["number"]
         
     progress = load_progress().get(book_id, {})
     
@@ -103,15 +131,28 @@ def reader(book_id, chapter_num):
         
     with open(metadata_path, 'r', encoding='utf-8') as f:
         metadata = json.load(f)
+    
+    # Normalize chapter data - support both 'file' and 'filename' keys
+    for chapter in metadata.get("chapters", []):
+        if "file" in chapter and "filename" not in chapter:
+            chapter["filename"] = chapter["file"]
+        elif "filename" in chapter and "file" not in chapter:
+            chapter["file"] = chapter["filename"]
+        
+        # Also normalize number/chapter_num
+        if "chapter_num" in chapter and "number" not in chapter:
+            chapter["number"] = chapter["chapter_num"]
+        elif "number" in chapter and "chapter_num" not in chapter:
+            chapter["chapter_num"] = chapter["number"]
         
     # Find the chapter
-    chapter = next((c for c in metadata["chapters"] if c["number"] == chapter_num), None)
+    chapter = next((c for c in metadata["chapters"] if c.get("number") == chapter_num or c.get("chapter_num") == chapter_num), None)
     if not chapter:
         return "Chapter not found", 404
         
     # Find next and prev chapters
-    prev_chapter = next((c for c in metadata["chapters"] if c["number"] == chapter_num - 1), None)
-    next_chapter = next((c for c in metadata["chapters"] if c["number"] == chapter_num + 1), None)
+    prev_chapter = next((c for c in metadata["chapters"] if c.get("number") == chapter_num - 1 or c.get("chapter_num") == chapter_num - 1), None)
+    next_chapter = next((c for c in metadata["chapters"] if c.get("number") == chapter_num + 1 or c.get("chapter_num") == chapter_num + 1), None)
     
     return render_template('reader.html', 
                            book_id=book_id, 

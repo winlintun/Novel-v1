@@ -1,7 +1,7 @@
 {
   "model": "qwen:7b",
   "provider": "ollama",
-  "ai_backend": "ollama",
+  "ai_backend": "gemini",
   "ollama_endpoint": "http://localhost:11434/api/generate",
   "source_language": "Chinese",
   "target_language": "Burmese",
@@ -23,7 +23,9 @@
       "qwen:7b",
       "translategemma",
       "translategemma:12b",
-      "kimi-k2.6:cloud"
+      "kimi-k2.6:cloud",
+      "gemma:7b",
+      "qwen2.5:14b"
     ],
     "openrouter": [
       "meta-llama/llama-3.3-70b-instruct:free",
@@ -32,8 +34,7 @@
       "qwen/qwen-2.5-72b-instruct:free"
     ],
     "gemini": [
-      "gemini-2.0-flash",
-      "gemini-1.5-flash"
+      "gemini-2.0-flash"
     ],
     "nllb": [
       "nllb-200-distilled-600M",
@@ -49,11 +50,11 @@
     "block_on_fail": false
   },
   "translation_pipeline": {
-    "mode": "two_stage",
+    "mode": "single_stage",
     "description": "single_stage or two_stage. Two-stage uses raw translation + rewrite for better quality.",
-    "stage1_model": "nllb",
+    "stage1_model": "ollama:qwen:7b",
     "stage1_description": "Model for Stage 1 (raw translation). Options: nllb, gemini, openrouter, ollama, or ollama:modelname (e.g., ollama:gemma:7b)",
-    "stage2_model": "ollama:qwen:7b",
+    "stage2_model": "ollama:gemma:7b",
     "stage2_description": "Model for Stage 2 (rewrite). Options: ollama (qwen), openrouter, gemini, or ollama:modelname (e.g., ollama:qwen:7b)"
   }
 }

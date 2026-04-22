@@ -101,7 +101,7 @@
         const bookId = "{{ book_id }}";
         const chapterNum = {{ chapter.number }};
         const chapterTitle = "{{ chapter.title }}";
-        const filename = "{{ chapter.filename }}";
+        const filename = "{{ chapter.file or chapter.filename }}";
         const contentDiv = document.getElementById('content');
         
         // Load content

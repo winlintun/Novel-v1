@@ -28,6 +28,8 @@ from scripts.glossary_manager import GlossaryManager
 from scripts.rewriter import BurmeseRewriter, get_raw_translation_prompt
 from scripts.context_manager import ContextManager
 from scripts.name_converter import NameConverter
+from scripts.name_converter import CULTIVATION_TERMS
+from scripts.name_mapping_system import NameMappingSystem, NameType
 
 # =============================================================================
 # CONSTANTS
@@ -64,15 +66,57 @@ CHINESE_CHAPTERS_DIR = "chinese_chapters"
 # SETUP LOGGING
 # =============================================================================
 
+class SensitiveDataFilter(logging.Filter):
+    """Filter that masks sensitive data like API keys in log messages."""
+    
+    # Patterns to mask
+    SENSITIVE_PATTERNS = [
+        (r'key=[a-zA-Z0-9_-]{20,}', 'key=***API_KEY_HIDDEN***'),
+        (r'api[_-]?key[=:][\s]*[a-zA-Z0-9_-]{10,}', 'api_key=***API_KEY_HIDDEN***'),
+        (r'Authorization[=:][\s]*Bearer[\s]+[a-zA-Z0-9_-]+', 'Authorization=Bearer ***TOKEN_HIDDEN***'),
+        (r'key=[\s]*["\']?[a-zA-Z0-9_-]{20,}["\']?', 'key=***API_KEY_HIDDEN***'),
+    ]
+    
+    def filter(self, record):
+        """Mask sensitive data in the log message."""
+        if hasattr(record, 'msg') and isinstance(record.msg, str):
+            msg = record.msg
+            for pattern, replacement in self.SENSITIVE_PATTERNS:
+                msg = re.sub(pattern, replacement, msg, flags=re.IGNORECASE)
+            record.msg = msg
+            
+        # Also check args if it's a formatted message
+        if hasattr(record, 'args') and record.args:
+            args = record.args
+            if isinstance(args, tuple):
+                new_args = []
+                for arg in args:
+                    if isinstance(arg, str):
+                        for pattern, replacement in self.SENSITIVE_PATTERNS:
+                            arg = re.sub(pattern, replacement, arg, flags=re.IGNORECASE)
+                    new_args.append(arg)
+                record.args = tuple(new_args)
+            elif isinstance(args, str):
+                for pattern, replacement in self.SENSITIVE_PATTERNS:
+                    args = re.sub(pattern, replacement, args, flags=re.IGNORECASE)
+                record.args = args
+                
+        return True
+
 os.makedirs(LOG_DIR, exist_ok=True)
 log_file = f"{LOG_DIR}/translation_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+
+# Create handlers
+file_handler = logging.FileHandler(log_file, encoding='utf-8')
+file_handler.addFilter(SensitiveDataFilter())
+
+console_handler = logging.StreamHandler()
+console_handler.addFilter(SensitiveDataFilter())
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler(log_file, encoding='utf-8'),
-        logging.StreamHandler()
-    ]
+    handlers=[file_handler, console_handler]
 )
 logger = logging.getLogger(__name__)
 
@@ -229,7 +273,7 @@ def retry_translate_chunk(
                 
                 if is_openrouter:
                     # OpenRouter free tier: 20 RPM = 1 per 3 seconds, 200/day total
-                    delay = max(delay, 5.0)  # 5 seconds for OpenRouter
+                    delay = max(delay, 6.0)  # 6 seconds for OpenRouter (10 RPM)
                     logger.warning(
                         f"⚠️  OpenRouter rate limit (429) on attempt {attempt + 1}/{max_retries + 1}.\n"
                         f"   Free tier limits: 20 requests/minute, 200 requests/day\n"
@@ -239,11 +283,13 @@ def retry_translate_chunk(
                     )
                 else:
                     # Gemini free tier: 15 RPM = 1 per 4 seconds
-                    delay = max(delay, 4.0)
+                    # Use exponential backoff: 5s, 10s, 20s
+                    delay = max(delay * 2, 5.0)
                     logger.warning(
-                        f"Rate limit hit (429) on attempt {attempt + 1}/{max_retries + 1}. "
-                        f"Waiting {delay:.1f}s before retry...\n"
-                        f"Tip: Set REQUEST_DELAY=4.0 in .env to avoid rate limits"
+                        f"⚠️  Gemini rate limit (429) on attempt {attempt + 1}/{max_retries + 1}.\n"
+                        f"   Free tier limits: 15 requests/minute, 1 million tokens/minute\n"
+                        f"   Waiting {delay:.1f}s before retry...\n"
+                        f"   💡 Set REQUEST_DELAY=5.0 in .env or use Ollama: --model ollama"
                     )
             else:
                 # Calculate delay with jitter for other errors
@@ -384,6 +430,10 @@ CURRENT TEXT TO TRANSLATE (from {chapter_name}):
         user_content = f"CHAPTER: {chapter_name}\n\nTEXT TO TRANSLATE:\n{chunk}"
 
     try:
+        # Apply name mapping to text before translation
+        if glossary_manager is not None and hasattr(glossary_manager, 'names'):
+            user_content = apply_name_mapping(user_content, glossary_manager.names)
+            
         # STAGE 1: Raw Translation
         if use_two_stage:
             logger.info(f"Chunk {chunk_index}: Stage 1 - Raw translation")
@@ -439,22 +489,24 @@ def _apply_delay_between_chunks(current_index: int, total_chunks: int, model_nam
     # For cloud APIs, use appropriate delays to avoid rate limits
     if "openrouter" in model_name.lower():
         # OpenRouter free tier: 20 RPM = 1 request per 3 seconds minimum
-        default_delay = 3.5  # 3.5 seconds to stay safely under 20 RPM
+        # Use 4.5s to be safe (allows 13 RPM, under 20 RPM limit)
+        default_delay = 4.5
     elif "gemini" in model_name.lower():
         # Gemini free tier: 15 RPM = 1 request per 4 seconds minimum
-        default_delay = 4.0  # 4 seconds for Gemini to stay under 15 RPM
+        # Use 5.0s to be safe (allows 12 RPM, under 15 RPM limit)
+        default_delay = 5.0
     else:
         default_delay = DEFAULT_REQUEST_DELAY
             
     delay = float(os.getenv("REQUEST_DELAY", str(default_delay)))
     
     # Ensure minimum delays to avoid rate limits
-    if "openrouter" in model_name.lower() and delay < 3.0:
-        delay = 3.5
-        logger.debug(f"Enforcing minimum 3.5s delay for OpenRouter to avoid rate limits")
-    elif "gemini" in model_name.lower() and delay < 4.0:
-        delay = 4.0
-        logger.debug(f"Enforcing minimum 4s delay for Gemini to avoid rate limits")
+    if "openrouter" in model_name.lower() and delay < 4.0:
+        delay = 4.5
+        logger.debug(f"Enforcing minimum 4.5s delay for OpenRouter to avoid rate limits")
+    elif "gemini" in model_name.lower() and delay < 5.0:
+        delay = 5.0
+        logger.debug(f"Enforcing minimum 5s delay for Gemini to avoid rate limits")
     
     if delay > 0:
         logger.info(f"Waiting {delay:.1f}s before next chunk...")
@@ -570,8 +622,8 @@ def translate_single_file(
         print(f"✗ Chunking failed: {e}")
         return False
     
-    # 3. Initialize glossary and context manager for this book
-    print(f"\n[3/7] Loading glossary and context for: {book_id}")
+    # 3. Initialize glossary, context manager, and name mapping system for this book
+    print(f"\n[3/7] Loading glossary, context, and name mappings for: {book_id}")
     try:
         glossary = GlossaryManager(book_id)
         print(f"✓ Glossary loaded: {len(glossary.names)} names")
@@ -581,6 +633,35 @@ def translate_single_file(
         logger.warning(f"Failed to load glossary: {e}")
         glossary = None
         print(f"⚠ Continuing without glossary")
+    
+    # Initialize Name Mapping System
+    name_mapping_system = None
+    try:
+        name_mapping_system = NameMappingSystem(book_id, source_lang=source_lang)
+        print(f"✓ Name Mapping System loaded: {len(name_mapping_system.mappings)} mappings")
+        
+        # Auto-detect names from this chapter
+        detected = name_mapping_system.detect_names(clean_text, chapter_num=chapter_num)
+        if detected:
+            print(f"  → Auto-detected {len(detected)} new names:")
+            for name, ntype, conf in detected[:5]:
+                mapping = name_mapping_system.get_mapping(name)
+                if mapping:
+                    print(f"    [{ntype}] {name} → {mapping.myanmar_name} (conf: {conf:.2f})")
+            if len(detected) > 5:
+                print(f"    ... and {len(detected) - 5} more")
+        
+        # Apply name mappings to clean_text before translation
+        clean_text_with_mappings = name_mapping_system.apply_mappings(clean_text)
+        if clean_text_with_mappings != clean_text:
+            print(f"  → Applied {len(name_mapping_system.mappings)} name mappings to text")
+            clean_text = clean_text_with_mappings
+        
+        name_mapping_system.save()
+    except Exception as e:
+        logger.warning(f"Name Mapping System error: {e}")
+        name_mapping_system = None
+        print(f"⚠ Continuing without name mapping system")
     
     # Register chapter with context manager
     context_manager.register_chapter(chapter_num, title=chapter_name, word_count=len(clean_text))
@@ -632,6 +713,13 @@ def translate_single_file(
     
     # Get system prompt with glossary and context
     system_prompt = get_system_prompt(source_lang=source_lang, glossary_manager=glossary)
+    
+    # Inject name mappings into system prompt
+    if name_mapping_system:
+        name_mappings_text = name_mapping_system.get_prompt_text()
+        if name_mappings_text:
+            system_prompt = system_prompt + "\n" + name_mappings_text
+            logger.info(f"Injected name mappings ({len(name_mappings_text)} chars) into system prompt")
     
     # Inject context into system prompt if available
     if context_text:
@@ -809,6 +897,30 @@ END OF CONTEXT
         except Exception as e:
             logger.warning(f"Name learning failed: {e}")
             print(f"  ⚠ Name learning skipped: {e}")
+
+    # 7.8. Auto-learn name mappings from parallel text (Name Mapping System)
+    if name_mapping_system is not None and auto_learn:
+        print(f"\n[7.8] Learning name mappings from translation...")
+        try:
+            learned = name_mapping_system.learn_from_parallel(
+                clean_text, processed_text, chapter_num=chapter_num
+            )
+            
+            if learned["new_mappings"]:
+                print(f"  ✓ Learned {len(learned['new_mappings'])} new mappings:")
+                for m in learned["new_mappings"][:5]:
+                    print(f"    - {m['source']} → {m['myanmar']}")
+                if len(learned["new_mappings"]) > 5:
+                    print(f"    ... and {len(learned['new_mappings']) - 5} more")
+            
+            if learned["confirmed_mappings"]:
+                print(f"  ✓ Confirmed {len(learned['confirmed_mappings'])} existing mappings")
+            
+            name_mapping_system.save()
+            print(f"  ✓ Name mappings saved: {len(name_mapping_system.mappings)} total")
+        except Exception as e:
+            logger.warning(f"Name mapping learning failed: {e}")
+            print(f"  ⚠ Name mapping learning skipped: {e}")
 
     # 8. Save glossary updates (if glossary manager was initialized)
     if glossary is not None:
@@ -1199,10 +1311,11 @@ Examples:
                    (use_two_stage and "gemini" in (stage1_model or "").lower())
     
     if using_gemini:
-        request_delay = float(os.getenv("REQUEST_DELAY", "4.0"))
-        if request_delay < 4.0:
+        request_delay = float(os.getenv("REQUEST_DELAY", "5.0"))
+        if request_delay < 5.0:
             print("\n⚠️  WARNING: Gemini free tier has strict rate limits (15 requests per minute)")
-            print("    Consider setting REQUEST_DELAY=4.0 in .env to avoid 429 errors")
+            print("    The system will automatically use 5.0s delay to avoid rate limits.")
+            print("    For faster translation, use local Ollama: --model ollama")
             print()
     
     logger.info("=" * 60)

@@ -51,7 +51,7 @@ class NameEntry:
     """Represents a name mapping with metadata."""
     source_name: str  # Original Chinese/English name
     myanmar_name: str  # Burmese translation
-    source_type: str  # character, place, technique, item, etc.
+    source_type: str  # character, place, technique, item, title, cultivation, etc.
     first_seen: str  # Where first encountered
     confidence: float = 1.0  # Confidence score (0.0-1.0)
     usage_count: int = 0  # How many times seen
@@ -67,6 +67,168 @@ class NameEntry:
     @classmethod
     def from_dict(cls, data: Dict) -> 'NameEntry':
         return cls(**data)
+
+
+# Common Xianxia/Wuxia Cultivation Terms Dictionary
+CULTIVATION_TERMS = {
+    # Cultivation Realms / Stages
+    "Qi Refining": "ချိရွိင်ဖိန်း",
+    "Foundation Establishment": "အခြေခံခိုင်ခံ့ခြင်း",
+    "Core Formation": "အနှောင်းဖွဲ့စည်းခြင်း",
+    "Golden Core": "ရွှေအနှောင်း",
+    "Nascent Soul": "အသီးအရွက်ဝိညာဉ်",
+    "Soul Transformation": "ဝိညာဉ်ပြောင်းလဲခြင်း",
+    "Body Integration": "ကိုယ်ရည်ကိုယ်သွေးစုစည်းခြင်း",
+    "Tribulation": "ကံ့ကော်ဝင်ခြင်း",
+    "Mahayana": "မဟာယာန",
+    "True Immortal": "စစ်မှန်သောနတ်ရှင်",
+    "Heavenly Immortal": "ကောင်းကင်နတ်ရှင်",
+    "Golden Immortal": "ရွှေနတ်ရှင်",
+    
+    # Chinese Cultivation Realms
+    "炼气": "ချိရွိင်ဖိန်း",
+    "筑基": "အခြေခံခိုင်ခံ့ခြင်း",
+    "金丹": "ရွှေအနှောင်း",
+    "元婴": "အသီးအရွက်ဝိညာဉ်",
+    "化神": "ဘုရားပြောင်းလဲခြင်း",
+    "炼虚": "ချိရွိင်ရှု",
+    "合体": "ခMerged",
+    "大乘": "မဟာယာန",
+    "渡劫": "ကံ့ကော်ဝင်ခြင်း",
+    
+    # Titles
+    "Sect Leader": "ဂိုဏ်းခေါင်းဆောင်",
+    "Elder": "အကြီးအကဲ",
+    "Grand Elder": "အကြီးအကဲမြတ်",
+    "Patriarch": "ဘုရားဖခင်",
+    "Ancestor": "အဘိဘွား",
+    "Master": "အရှင်",
+    "Young Master": "ကျွန်ပေါင်း",
+    "Miss": "အလှမယ်",
+    "Princess": "မင်းသမီး",
+    "Prince": "မင်းသား",
+    "Emperor": "ဧကရာဇ်",
+    "Empress": "မရေးကတ်",
+    "King": "ဘုရင်",
+    "Queen": "ဘုရင်မ",
+    "Marquis": "တိုင်",
+    "Duke": "ဒSandbox",
+    "Lord": "သခင်",
+    "Saint": "ဆွတ်ဆွတ်",
+    "Saintess": "ဆွတ်ဆွတ်",
+    "Demon Lord": "မိစ္ဆာသခင်",
+    "Devil King": "ဆိုးသူဘုရင်",
+    "Immortal Master": "နတ်ရှင်အရှင်",
+    
+    # Chinese Titles
+    "掌门": "ဂိုဏ်းခေါင်းဆောင်",
+    "长老": "အကြီးအကဲ",
+    "太上长老": "အကြီးအကဲမြတ်",
+    "老祖": "ဘုရားဖခင်",
+    "公子": "ကျွန်ပေါင်း",
+    "小姐": "အလှမယ်",
+    "殿下": "ဧကရာဇ်",
+    "陛下": "မင်းမြတ်",
+    "王爷": "မင်းသား",
+    "公主": "မင်းသမီး",
+    "侯爷": "တိုင်",
+    "圣人": "ဆွတ်ဆွတ်",
+    "魔尊": "မိစ္ဆာသခင်",
+    "仙师": "နတ်ရှင်အရှင်",
+    
+    # Techniques/Skills
+    "Cultivation Method": "ပွားများနည်းလမ်း",
+    "Technique": "နည်းပညာ",
+    "Manual": "လက်စွဲ",
+    "Art": "အနုပညာ",
+    "Palm": "လက်ဝါး",
+    "Fist": "လက်သီး",
+    "Sword": "သန်း",
+    "Blade": "ဓား",
+    "Step": "ခြေလှမ်း",
+    "Movement": "လှုပ်ရှားမှု",
+    "Divine Sense": "နတ်သက်",
+    "Spiritual Power": "ဝိညာဉ်စွမ်းအား",
+    "True Qi": "စစ်မှန်သောချိ",
+    "Demonic Qi": "မိစ္ဆာချိ",
+    "Spiritual Qi": "ဝိညာဉ်ချိ",
+    
+    # Chinese Techniques
+    "功法": "ပွားများနည်းလမ်း",
+    "秘籍": "လက်စွဲ",
+    "掌法": "လက်ဝါးနည်း",
+    "拳法": "လက်သီးနည်း",
+    "剑法": "သန်းနည်း",
+    "刀法": "ဓားနည်း",
+    "身法": "ခြေလှမ်းနည်း",
+    "神识": "နတ်သက်",
+    "灵力": "ဝိညာဉ်စွမ်းအား",
+    "真气": "စစ်မှန်သောချိ",
+    "魔气": "မိစ္ဆာချိ",
+    "灵气": "ဝိညာဉ်ချိ",
+    
+    # Items/Objects
+    "Spirit Stone": "ဝိညာဉ်ကျောက်",
+    "Spiritual Stone": "ဝိညာဉ်ကျောက်",
+    "Immortal Stone": "နတ်ကျောက်",
+    "Magic Treasure": "မြanni လက်နက်",
+    "Spiritual Treasure": "ဝိညာဉ်လက်နက်",
+    "Flying Sword": "အောင်သန်းသန်း",
+    "Storage Ring": "သိုလှောင်လက်စွပ်",
+    "Qiankun Bag": "ကျမ်းခွန်းအိတ်",
+    "Jade Slip": "ကျောက်စရစ်",
+    "Pill": "ဆေးလုံး",
+    "Elixir": "အာနေသင်္ဂဇာဆေး",
+    "Spiritual Herb": "ဝိညာဉ်ဆေးပင်",
+    "Demon Core": "မိစ္ဆာအနှောင်း",
+    "Monster Core": "ဘီလူးအနှောင်း",
+    
+    # Chinese Items
+    "灵石": "ဝိညာဉ်ကျောက်",
+    "仙石": "နတ်ကျောက်",
+    "法宝": "မြanni လက်နက်",
+    "飞剑": "အောင်သန်းသန်း",
+    "储物戒": "သိုလှောင်လက်စွပ်",
+    "乾坤袋": "ကျမ်းခွန်းအိတ်",
+    "玉简": "ကျောက်စရစ်",
+    "丹药": "ဆေးလုံး",
+    "仙草": "ဝိညာဉ်ဆေးပင်",
+    "妖丹": "ဘီလူးအနှောင်း",
+    
+    # Organizations/Places
+    "Sect": "ဂိုဏ်း",
+    "School": "ကျောင်း",
+    "Palace": "နန်းတော်",
+    "Hall": "ခန်းမ",
+    "Pavilion": "အုတ်alous",
+    "Tower": "မျှောင့်",
+    "Valley": "ချိုင့်ဝှမ်း",
+    "Peak": "တောင်ထိပ်",
+    "Mountain": "တောင်",
+    "Cave": "လိုဏ်ဂူ",
+    "Dojo": "ကျောင်းတိုက်",
+    "Kingdom": "တိုင်းပြည်",
+    "Dynasty": "မင်းဆက်နွယ်စား",
+    "Empire": "အင်ပါယာ",
+    "Immortal Realm": "နတ်လောက",
+    "Mortal Realm": "လူလောက",
+    "Demon Realm": "မိစ္ဆာလောက",
+    
+    # Chinese Places
+    "宗门": "ဂိုဏ်း",
+    "学院": "ကျောင်း",
+    "宫": "နန်းတော်",
+    "殿": "ခန်းမ",
+    "阁": "အုတ်alous",
+    "楼": "မျှောင့်",
+    "谷": "ချိုင့်ဝှမ်း",
+    "峰": "တောင်ထိပ်",
+    "山": "တောင်",
+    "洞府": "လိုဏ်ဂူ",
+    "国": "တိုင်းပြည်",
+    "朝": "မင်းဆက်နွယ်စား",
+    "界": "လောက",
+}
 
 
 class NameConverter:

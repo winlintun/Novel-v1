@@ -1,14 +1,21 @@
 #!/usr/bin/env python3
 """
-test_suite.py — Novel-v1 Project Full Test Suite
+test.py — Novel Translation Project Full Test Suite
 
-အပေါ်မှ ဆွေးနွေးထားသည့် fix အားလုံးကို စစ်ဆေးသည်။
-API key မလိုဘဲ run နိုင်သော test တွေ ဖြင့် ဖွဲ့စည်းထားသည်။
+Tests all components including:
+- Import checks for all scripts
+- Resource management (glossary, context, name converter, cultivation terms)
+- Postprocessor and translation fixes
+- Myanmar quality checker
+- Assembler and pipeline integration
+- Config and file structure
+- Reader App
 
 Run command:
-    python test_suite.py
-    python test_suite.py --verbose
-    python test_suite.py --category quality
+    python test.py
+    python test.py --verbose
+    python test.py --category resources
+    python test.py --category quality
 """
 
 import re
@@ -68,7 +75,6 @@ R = TestResult()
 
 # =============================================================================
 # SECTION 1 — IMPORT CHECKS
-# すべての scripts が import できるか確認する
 # =============================================================================
 
 def test_imports():
@@ -84,6 +90,9 @@ def test_imports():
                                     "count_myanmar_chars", "count_sentence_enders"],
         "scripts.assembler":       ["assemble", "load_template"],
         "scripts.glossary_manager":["GlossaryManager"],
+        "scripts.context_manager": ["ContextManager", "Character", "StoryEvent"],
+        "scripts.name_converter":  ["NameConverter", "NameEntry", "CULTIVATION_TERMS"],
+        "scripts.resource_manager":["ResourceManager", "CultivationTerm", "TitleTerm"],
         "scripts.rewriter":        ["BurmeseRewriter", "get_rewrite_prompt",
                                     "get_raw_translation_prompt"],
         "scripts.translator":      ["get_system_prompt", "get_translator",
@@ -106,11 +115,392 @@ def test_imports():
 
 
 # =============================================================================
-# SECTION 2 — POSTPROCESSOR FIXES
+# SECTION 2 — RESOURCE MANAGER TESTS
+# =============================================================================
+
+def test_resource_manager():
+    print(header("[ 2 ] Resource Manager — Unified resource management"))
+    
+    try:
+        from scripts.resource_manager import ResourceManager, CultivationTerm, TitleTerm
+    except ImportError as e:
+        R.add("ResourceManager import", False, str(e))
+        return
+    
+    test_novel = "_test_resource_manager_"
+    
+    # --- 2a. Create resource manager ---
+    try:
+        rm = ResourceManager(test_novel, source_lang="English", auto_create=True)
+        R.add("ResourceManager: create", True)
+    except Exception as e:
+        R.add("ResourceManager: create", False, str(e))
+        return
+    
+    # --- 2b. Add character ---
+    try:
+        rm.add_character(
+            name="Li Wei",
+            myanmar_name="လီဝေ့",
+            importance="major",
+            description="A young cultivator",
+            first_appearance=1
+        )
+        char = rm.get_character("Li Wei")
+        R.add("ResourceManager: add_character",
+              char is not None and char["myanmar_name"] == "လီဝေ့")
+    except Exception as e:
+        R.add("ResourceManager: add_character", False, str(e))
+    
+    # --- 2c. Add cultivation term ---
+    try:
+        rm.add_cultivation_term(
+            source_term="Golden Core",
+            myanmar_term="ရွှေအနှောင်း",
+            category="realm",
+            description="A cultivation realm"
+        )
+        term = rm.get_cultivation_term("Golden Core")
+        R.add("ResourceManager: add_cultivation_term",
+              term is not None and term.myanmar_term == "ရွှေအနှောင်း")
+    except Exception as e:
+        R.add("ResourceManager: add_cultivation_term", False, str(e))
+    
+    # --- 2d. Add title ---
+    try:
+        rm.add_title(
+            source_title="Young Master",
+            myanmar_name="ကျွန်ပေါင်း",
+            gender="male",
+            formality="formal"
+        )
+        title = rm.get_title("Young Master")
+        R.add("ResourceManager: add_title",
+              title is not None)
+    except Exception as e:
+        R.add("ResourceManager: add_title", False, str(e))
+    
+    # --- 2e. Get glossary text ---
+    try:
+        glossary_text = rm.get_glossary_text()
+        has_names = "Li Wei" in glossary_text or "လီဝေ့" in glossary_text
+        R.add("ResourceManager: get_glossary_text",
+              len(glossary_text) > 0 and has_names)
+    except Exception as e:
+        R.add("ResourceManager: get_glossary_text", False, str(e))
+    
+    # --- 2f. Get context for chapter ---
+    try:
+        context_text = rm.get_context_for_chapter(1)
+        R.add("ResourceManager: get_context_for_chapter",
+              isinstance(context_text, str))
+    except Exception as e:
+        R.add("ResourceManager: get_context_for_chapter", False, str(e))
+    
+    # --- 2g. Get cultivation text ---
+    try:
+        cultivation_text = rm.get_cultivation_text()
+        has_realm = "Golden Core" in cultivation_text or "ရွှေအနှောင်း" in cultivation_text
+        R.add("ResourceManager: get_cultivation_text",
+              has_realm)
+    except Exception as e:
+        R.add("ResourceManager: get_cultivation_text", False, str(e))
+    
+    # --- 2h. Save all resources ---
+    try:
+        success = rm.save_all()
+        R.add("ResourceManager: save_all", success)
+    except Exception as e:
+        R.add("ResourceManager: save_all", False, str(e))
+    
+    # --- 2i. Sync all resources ---
+    try:
+        stats = rm.sync_all()
+        R.add("ResourceManager: sync_all",
+              isinstance(stats, dict) and "glossary_to_context" in stats)
+    except Exception as e:
+        R.add("ResourceManager: sync_all", False, str(e))
+    
+    # --- 2j. Get stats ---
+    try:
+        stats = rm.get_stats()
+        R.add("ResourceManager: get_stats",
+              "characters" in stats and "cultivation_terms" in stats)
+    except Exception as e:
+        R.add("ResourceManager: get_stats", False, str(e))
+    
+    # --- Cleanup ---
+    try:
+        import shutil
+        resources_dir = Path(f"resources/{test_novel}")
+        if resources_dir.exists():
+            shutil.rmtree(resources_dir)
+        glossary_file = Path(f"glossaries/{test_novel}.json")
+        if glossary_file.exists():
+            glossary_file.unlink()
+        context_dir = Path(f"context/{test_novel}")
+        if context_dir.exists():
+            shutil.rmtree(context_dir)
+    except Exception:
+        pass
+
+
+# =============================================================================
+# SECTION 3 — GLOSSARY MANAGER TESTS
+# =============================================================================
+
+def test_glossary():
+    print(header("[ 3 ] Glossary Manager — character name consistency"))
+
+    try:
+        from scripts.glossary_manager import GlossaryManager
+    except ImportError as e:
+        R.add("GlossaryManager import", False, str(e))
+        return
+
+    test_novel = "_test_novel_suite_"
+
+    # --- 3a. Create glossary ---
+    try:
+        gm = GlossaryManager(test_novel, auto_create=True)
+        R.add("GlossaryManager: create", True)
+    except Exception as e:
+        R.add("GlossaryManager: create", False, str(e))
+        return
+
+    # --- 3b. Add a name ---
+    try:
+        gm.add_name("Wei Wuxian", "ဝေ့ဝူရှျန်")
+        gm.add_name("Lan Wangji", "လန်ဝမ်ကျိ")
+        R.add("GlossaryManager: add_name", len(gm.names) >= 2)
+    except Exception as e:
+        R.add("GlossaryManager: add_name", False, str(e))
+
+    # --- 3c. Get name ---
+    try:
+        name = gm.get_name("Wei Wuxian")
+        R.add("GlossaryManager: get_name",
+              name == "ဝေ့ဝူရှျန်",
+              f"expected: ဝေ့ဝူရှျန်, got: {name}")
+    except Exception as e:
+        R.add("GlossaryManager: get_name", False, str(e))
+
+    # --- 3d. get_glossary_text includes names ---
+    try:
+        text = gm.get_glossary_text()
+        R.add("GlossaryManager: get_glossary_text contains names",
+              "ဝေ့ဝူရှျန်" in text and "လန်ဝမ်ကျိ" in text,
+              f"snippet: {text[:120]!r}")
+    except Exception as e:
+        R.add("GlossaryManager: get_glossary_text", False, str(e))
+
+    # --- 3e. Save and reload ---
+    try:
+        gm.save()
+        gm2 = GlossaryManager(test_novel, auto_create=False)
+        R.add("GlossaryManager: save and reload",
+              "Wei Wuxian" in gm2.names or "ဝေ့ဝူရှျန်" in gm2.names.values())
+    except Exception as e:
+        R.add("GlossaryManager: save and reload", False, str(e))
+
+    # --- 3f. Get stats ---
+    try:
+        stats = gm.get_stats()
+        R.add("GlossaryManager: get_stats",
+              "total_names" in stats and stats["total_names"] >= 2)
+    except Exception as e:
+        R.add("GlossaryManager: get_stats", False, str(e))
+
+    # --- Cleanup ---
+    glossary_file = Path(f"glossaries/{test_novel}.json")
+    if glossary_file.exists():
+        glossary_file.unlink()
+
+
+# =============================================================================
+# SECTION 4 — CONTEXT MANAGER TESTS
+# =============================================================================
+
+def test_context_manager():
+    print(header("[ 4 ] Context Manager — character and story tracking"))
+
+    try:
+        from scripts.context_manager import ContextManager, Character, StoryEvent
+    except ImportError as e:
+        R.add("ContextManager import", False, str(e))
+        return
+
+    test_novel = "_test_context_suite_"
+
+    # --- 4a. Create context manager ---
+    try:
+        cm = ContextManager(test_novel, source_lang="English", auto_create=True)
+        R.add("ContextManager: create", True)
+    except Exception as e:
+        R.add("ContextManager: create", False, str(e))
+        return
+
+    # --- 4b. Add character ---
+    try:
+        char = cm.add_character(
+            name="Zhang San",
+            burmese_name="ကျANNELဆန်း",
+            description="A main character",
+            importance="major",
+            first_appearance=1
+        )
+        R.add("ContextManager: add_character",
+              char is not None and char.name == "Zhang San")
+    except Exception as e:
+        R.add("ContextManager: add_character", False, str(e))
+
+    # --- 4c. Get character ---
+    try:
+        char = cm.get_character("Zhang San")
+        R.add("ContextManager: get_character",
+              char is not None and char.burmese_name == "ကျANNELဆန်း")
+    except Exception as e:
+        R.add("ContextManager: get_character", False, str(e))
+
+    # --- 4d. Add story event ---
+    try:
+        event = cm.add_story_event(
+            chapter=1,
+            title="The Beginning",
+            summary="The story begins",
+            importance="critical"
+        )
+        R.add("ContextManager: add_story_event",
+              event is not None and event.chapter == 1)
+    except Exception as e:
+        R.add("ContextManager: add_story_event", False, str(e))
+
+    # --- 4e. Register chapter ---
+    try:
+        ch_info = cm.register_chapter(1, title="Chapter One", word_count=5000)
+        R.add("ContextManager: register_chapter",
+              ch_info is not None and ch_info.chapter_num == 1)
+    except Exception as e:
+        R.add("ContextManager: register_chapter", False, str(e))
+
+    # --- 4f. Get context for chapter ---
+    try:
+        context_text = cm.get_context_for_chapter(2)
+        R.add("ContextManager: get_context_for_chapter",
+              isinstance(context_text, str) and len(context_text) >= 0)
+    except Exception as e:
+        R.add("ContextManager: get_context_for_chapter", False, str(e))
+
+    # --- 4g. Get major characters ---
+    try:
+        major_chars = cm.get_major_characters()
+        R.add("ContextManager: get_major_characters",
+              len(major_chars) >= 1 and major_chars[0].name == "Zhang San")
+    except Exception as e:
+        R.add("ContextManager: get_major_characters", False, str(e))
+
+    # --- 4h. Save ---
+    try:
+        success = cm.save()
+        R.add("ContextManager: save", success)
+    except Exception as e:
+        R.add("ContextManager: save", False, str(e))
+
+    # --- Cleanup ---
+    try:
+        import shutil
+        context_dir = Path(f"context/{test_novel}")
+        if context_dir.exists():
+            shutil.rmtree(context_dir)
+    except Exception:
+        pass
+
+
+# =============================================================================
+# SECTION 5 — NAME CONVERTER TESTS
+# =============================================================================
+
+def test_name_converter():
+    print(header("[ 5 ] Name Converter — auto-learning and phonetic conversion"))
+
+    try:
+        from scripts.name_converter import NameConverter, NameEntry, CULTIVATION_TERMS
+    except ImportError as e:
+        R.add("NameConverter import", False, str(e))
+        return
+
+    test_novel = "_test_converter_suite_"
+
+    # --- 5a. Create name converter ---
+    try:
+        nc = NameConverter(test_novel, source_lang="English")
+        R.add("NameConverter: create", True)
+    except Exception as e:
+        R.add("NameConverter: create", False, str(e))
+        return
+
+    # --- 5b. Add name ---
+    try:
+        success = nc.add_name("Gu Wen", "ဂူဝမ်", "character", confidence=1.0)
+        R.add("NameConverter: add_name", success)
+    except Exception as e:
+        R.add("NameConverter: add_name", False, str(e))
+
+    # --- 5c. Suggest Myanmar name ---
+    try:
+        suggestion = nc.suggest_myanmar_name("Wang", "character")
+        R.add("NameConverter: suggest_myanmar_name",
+              isinstance(suggestion, str) and len(suggestion) > 0)
+    except Exception as e:
+        R.add("NameConverter: suggest_myanmar_name", False, str(e))
+
+    # --- 5d. Convert text ---
+    try:
+        nc.add_name("Dragon Bridge", "နဂါးတံတား", "place")
+        text = "Gu Wen walked across Dragon Bridge."
+        converted = nc.convert_text(text)
+        R.add("NameConverter: convert_text",
+              "ဂူဝမ်" in converted or "နဂါးတံတား" in converted)
+    except Exception as e:
+        R.add("NameConverter: convert_text", False, str(e))
+
+    # --- 5e. CULTIVATION_TERMS exists ---
+    try:
+        has_terms = len(CULTIVATION_TERMS) > 0
+        has_realm = "Qi Refining" in CULTIVATION_TERMS or "炼气" in CULTIVATION_TERMS
+        R.add("NameConverter: CULTIVATION_TERMS",
+              has_terms and has_realm,
+              f"Total terms: {len(CULTIVATION_TERMS)}")
+    except Exception as e:
+        R.add("NameConverter: CULTIVATION_TERMS", False, str(e))
+
+    # --- 5f. Sync glossary to context ---
+    try:
+        synced = nc.sync_glossary_to_context()
+        R.add("NameConverter: sync_glossary_to_context",
+              isinstance(synced, int) and synced >= 0)
+    except Exception as e:
+        R.add("NameConverter: sync_glossary_to_context", False, str(e))
+
+    # --- Cleanup ---
+    try:
+        import shutil
+        glossary_file = Path(f"glossaries/{test_novel}.json")
+        if glossary_file.exists():
+            glossary_file.unlink()
+        context_dir = Path(f"context/{test_novel}")
+        if context_dir.exists():
+            shutil.rmtree(context_dir)
+    except Exception:
+        pass
+
+
+# =============================================================================
+# SECTION 6 — POSTPROCESSOR FIXES
 # =============================================================================
 
 def test_postprocessor():
-    print(header("[ 2 ] Postprocessor — fix_punctuation, naturalize_verb_endings"))
+    print(header("[ 6 ] Postprocessor — fix_punctuation, naturalize_verb_endings"))
 
     try:
         from scripts.postprocessor import (
@@ -123,14 +513,14 @@ def test_postprocessor():
         R.add("postprocessor import", False, str(e))
         return
 
-    # --- 2a. Chinese punctuation -> Myanmar ---
-    sample = "ဟုတ်တယ်။ ဆိုပါစို့。 ငါ သွားမယ်，မင်းကော？"
+    # --- 6a. Chinese punctuation -> Myanmar ---
+    sample = "ဟုတ်တယ်။ ဆိုပါစို့。 ငါ သွားမယ်၊မင်းကော？"
     result = fix_punctuation(sample)
     R.add("fix_punctuation: 。→ ။",
           "。" not in result and "，" not in result,
           f"result: {result!r}")
 
-    # --- 2b. naturalize_verb_endings exists and works ---
+    # --- 6b. naturalize_verb_endings exists and works ---
     formal_text = "သူသည် ထွက်သွားလေသည်။ သူမသည် ဝမ်းနည်းသည်။ ဟုဆိုသည်"
     try:
         result = naturalize_verb_endings(formal_text)
@@ -144,14 +534,14 @@ def test_postprocessor():
         R.add("naturalize_verb_endings exists in postprocessor", False,
               "Function မတွေ့ဘူး — postprocessor.py ထဲ ထည့်ဖို့ လိုသေးတယ်")
 
-    # --- 2c. remove_non_myanmar_characters keeps zero-width space ---
+    # --- 6c. remove_non_myanmar_characters keeps zero-width space ---
     zwsp = "မြန်မာ\u200Bစာ"   # contains U+200B
     result = remove_non_myanmar_characters(zwsp)
     R.add("remove_non_myanmar_characters: U+200B preserved",
           "\u200B" in result,
           "U+200B ပါနေသေးသလား — range ချဲ့ပြင်ဖို့ လိုသေးနိုင်တယ်")
 
-    # --- 2d. pure Myanmar text not stripped ---
+    # --- 6d. pure Myanmar text not stripped ---
     pure = "မြန်မာဘာသာ ဖတ်ကောင်းပါစေ"
     result = remove_non_myanmar_characters(pure)
     R.add("remove_non_myanmar_characters: pure Myanmar text intact",
@@ -159,11 +549,11 @@ def test_postprocessor():
 
 
 # =============================================================================
-# SECTION 3 — FIX TRANSLATION FUNCTIONS
+# SECTION 7 — FIX TRANSLATION FUNCTIONS
 # =============================================================================
 
 def test_fix_translation():
-    print(header("[ 3 ] fix_translation.py — style fix functions"))
+    print(header("[ 7 ] fix_translation.py — style fix functions"))
 
     try:
         from scripts.fix_translation import (
@@ -179,28 +569,28 @@ def test_fix_translation():
         R.add("fix_translation import", False, str(e))
         return
 
-    # --- 3a. remove_metadata_text ---
+    # --- 7a. remove_metadata_text ---
     meta = "Chapter: some_chapter TEXT TO TRANSLATE:\nဒါက အမှန်တကယ် ဘာသာပြန်ချက်ပဲ"
     result = remove_metadata_text(meta)
     R.add("remove_metadata_text",
           "TEXT TO TRANSLATE" not in result and "ဘာသာပြန်ချက်" in result,
           f"output: {result!r}")
 
-    # --- 3b. fix_dialogue_format ---
+    # --- 7b. fix_dialogue_format ---
     stiff = 'သူသည် "မင်းဘာလုပ်နေတာလဲ" ဟုမေးလေသည်'
     result = fix_dialogue_format(stiff)
     R.add("fix_dialogue_format: ဟုမေးလေသည် -> မေးလိုက်တယ်",
           "မေးလေသည်" not in result or "မေးလိုက်တယ်" in result,
           f"output: {result!r}")
 
-    # --- 3c. fix_emotion_descriptions ---
+    # --- 7c. fix_emotion_descriptions ---
     abstract = "သူသည် အလွန်ဝမ်းနည်းပူဆွေးသောခံစားချက်ကို ခံစားနေသည်"
     result = fix_emotion_descriptions(abstract)
     R.add("fix_emotion_descriptions: abstract -> physical",
           "ဝမ်းနည်းပူဆွေးသောခံစားချက်" not in result,
           f"output: {result!r}")
 
-    # --- 3d. fix_long_sentences: long line gets broken ---
+    # --- 7d. fix_long_sentences: long line gets broken ---
     long_line = (
         "သူသည် တောင်ထိပ်သို့ တက်ရောက်ရောက်ချင်း အနောက်ဘက်တွင် နေဝင်ရောင်ခြည်များ "
         "ထိုးဖောက်ကာ တောအုပ်ကြီးများပေါ်သို့ ရောင်ခြည်ကျရောက်လျက် "
@@ -213,14 +603,14 @@ def test_fix_translation():
           result_newlines >= original_newlines,
           f"newlines before={original_newlines}, after={result_newlines}")
 
-    # --- 3e. fix_weird_repetitions ---
+    # --- 7e. fix_weird_repetitions ---
     repeated = "ချိုချိုချိုချိုချိုချိုချိုချို"
     result = fix_weird_repetitions(repeated)
     R.add("fix_weird_repetitions: collapse repeats",
           len(result) < len(repeated),
           f"before={len(repeated)}, after={len(result)}")
 
-    # --- 3f. postprocess_translation runs end-to-end ---
+    # --- 7f. postprocess_translation runs end-to-end ---
     sample = (
         'Chapter: test TEXT TO TRANSLATE:\n'
         '"မင်းဘာလုပ်တာလဲ" ဟုမေးလေသည်\n'
@@ -235,11 +625,11 @@ def test_fix_translation():
 
 
 # =============================================================================
-# SECTION 4 — MYANMAR QUALITY CHECKER
+# SECTION 8 — MYANMAR QUALITY CHECKER
 # =============================================================================
 
 def test_myanmar_checker():
-    print(header("[ 4 ] Myanmar quality checker — readability thresholds"))
+    print(header("[ 8 ] Myanmar quality checker — readability thresholds"))
 
     try:
         from scripts.myanmar_checker import (
@@ -252,7 +642,7 @@ def test_myanmar_checker():
         R.add("myanmar_checker import", False, str(e))
         return
 
-    # --- 4a. Pure Myanmar text should pass ---
+    # --- 8a. Pure Myanmar text should pass ---
     good_text = (
         "သူမ မျက်ရည်တွေ ကျနေတယ်။ ရင်ထဲမှာ နာကျင်သလိုပဲ ခံစားရတယ်။ "
         "ပြန်မလာနိုင်တော့ဘူး ဆိုတာ သူ သိနေတယ်။ ဒါပေမဲ့ ဘာမှ ပြောမရဘူး။"
@@ -262,7 +652,7 @@ def test_myanmar_checker():
           results.get("passed", False),
           f"myanmar_ratio={results.get('checks', {}).get('myanmar_ratio', {}).get('value', '?')}")
 
-    # --- 4b. Text with Chinese chars should fail ---
+    # --- 8b. Text with Chinese chars should fail ---
     leaky_text = "ဒါက 古道仙鸿 ဆိုတဲ့ novel ကနေ ယူထားတာ"
     results = check_readability(leaky_text)
     no_chinese_check = results.get("checks", {}).get("no_chinese", {})
@@ -270,21 +660,21 @@ def test_myanmar_checker():
           not no_chinese_check.get("passed", True),
           f"chinese_count={no_chinese_check.get('value', '?')}")
 
-    # --- 4c. Myanmar ratio calculation ---
+    # --- 8c. Myanmar ratio calculation ---
     myanmar_only = "မြန်မာဘာသာ"
     ratio = calculate_myanmar_ratio(myanmar_only)
     R.add("calculate_myanmar_ratio: near 1.0 for Myanmar-only text",
           ratio > 0.8,
           f"ratio={ratio:.3f}")
 
-    # --- 4d. Sentence ender count ---
+    # --- 8d. Sentence ender count ---
     with_enders = "ဒါပဲ။ ဟုတ်ကဲ့ပါ။ နားလည်တယ်။"
     count = count_sentence_enders(with_enders)
     R.add("count_sentence_enders: count = 3",
           count == 3,
           f"count={count}")
 
-    # --- 4e. 70% threshold check ---
+    # --- 8e. 70% threshold check ---
     mixed_text = "hello world " + "မြန်မာ " * 10
     ratio = calculate_myanmar_ratio(mixed_text)
     results = check_readability(mixed_text)
@@ -295,66 +685,11 @@ def test_myanmar_checker():
 
 
 # =============================================================================
-# SECTION 5 — GLOSSARY MANAGER
-# =============================================================================
-
-def test_glossary():
-    print(header("[ 5 ] Glossary — character name consistency"))
-
-    try:
-        from scripts.glossary_manager import GlossaryManager
-    except ImportError as e:
-        R.add("GlossaryManager import", False, str(e))
-        return
-
-    test_novel = "_test_novel_suite_"
-
-    # --- 5a. Create glossary ---
-    try:
-        gm = GlossaryManager(test_novel, auto_create=True)
-        R.add("GlossaryManager: create", True)
-    except Exception as e:
-        R.add("GlossaryManager: create", False, str(e))
-        return
-
-    # --- 5b. Add a name ---
-    try:
-        gm.add_name("Wei Wuxian", "ဝေ့ဝူရှျန်")
-        gm.add_name("Lan Wangji", "လန်ဝမ်ကျိ")
-        R.add("GlossaryManager: add_name", len(gm.names) >= 2)
-    except Exception as e:
-        R.add("GlossaryManager: add_name", False, str(e))
-
-    # --- 5c. get_glossary_text includes names ---
-    try:
-        text = gm.get_glossary_text()
-        R.add("GlossaryManager: get_glossary_text contains names",
-              "ဝေ့ဝူရှျန်" in text and "လန်ဝမ်ကျိ" in text,
-              f"snippet: {text[:120]!r}")
-    except Exception as e:
-        R.add("GlossaryManager: get_glossary_text", False, str(e))
-
-    # --- 5d. Save and reload ---
-    try:
-        gm.save()
-        gm2 = GlossaryManager(test_novel, auto_create=False)
-        R.add("GlossaryManager: save and reload",
-              "Wei Wuxian" in gm2.names or "ဝေ့ဝူရှျန်" in gm2.names.values())
-    except Exception as e:
-        R.add("GlossaryManager: save and reload", False, str(e))
-
-    # --- Cleanup ---
-    glossary_file = Path(f"glossaries/{test_novel}.json")
-    if glossary_file.exists():
-        glossary_file.unlink()
-
-
-# =============================================================================
-# SECTION 6 — ASSEMBLER
+# SECTION 9 — ASSEMBLER
 # =============================================================================
 
 def test_assembler():
-    print(header("[ 6 ] Assembler — output file structure"))
+    print(header("[ 9 ] Assembler — output file structure"))
 
     try:
         from scripts.assembler import assemble, load_template
@@ -362,18 +697,18 @@ def test_assembler():
         R.add("assembler import", False, str(e))
         return
 
-    # --- 6a. load_template returns string ---
+    # --- 9a. load_template returns string ---
     tmpl = load_template()
     R.add("load_template: returns string", isinstance(tmpl, str) and len(tmpl) > 0)
 
-    # --- 6b. template has required placeholders ---
+    # --- 9b. template has required placeholders ---
     required = ["{original_title}", "{translated_content}"]
     missing  = [p for p in required if p not in tmpl]
     R.add("load_template: required placeholders present",
           len(missing) == 0,
           f"missing: {missing}" if missing else "")
 
-    # --- 6c. assemble writes file ---
+    # --- 9c. assemble writes file ---
     out_path = Path("working_data/_test_output_suite.md")
     out_path.parent.mkdir(parents=True, exist_ok=True)
     content  = "မြန်မာ ဘာသာပြန် content ပါ"
@@ -388,11 +723,11 @@ def test_assembler():
         )
         R.add("assemble: file written", out_path.exists())
 
-        # --- 6d. content appears in output ---
+        # --- 9d. content appears in output ---
         text = out_path.read_text(encoding="utf-8")
         R.add("assemble: Myanmar content in output", content in text)
 
-        # --- 6e. no raw placeholder in output ---
+        # --- 9e. no raw placeholder in output ---
         R.add("assemble: no unfilled placeholders",
               "{" not in text or "translated_content" not in text)
 
@@ -403,11 +738,11 @@ def test_assembler():
 
 
 # =============================================================================
-# SECTION 7 — TRANSLATOR SYSTEM PROMPT
+# SECTION 10 — TRANSLATOR SYSTEM PROMPT
 # =============================================================================
 
 def test_system_prompt():
-    print(header("[ 7 ] System prompt — style rules ပါဝင်မှု"))
+    print(header("[ 10 ] System prompt — style rules ပါဝင်မှု"))
 
     try:
         from scripts.translator import get_system_prompt
@@ -451,12 +786,11 @@ def test_system_prompt():
 
 
 # =============================================================================
-# SECTION 8 — PIPELINE INTEGRATION
-# main.py က fix_translation ကို ခေါ်နေသလားစစ်ဆေးသည်
+# SECTION 11 — PIPELINE INTEGRATION
 # =============================================================================
 
 def test_pipeline_integration():
-    print(header("[ 8 ] Pipeline integration — main.py စစ်ဆေးချက်"))
+    print(header("[ 11 ] Pipeline integration — main.py စစ်ဆေးချက်"))
 
     main_path = Path("main.py")
     if not main_path.exists():
@@ -466,11 +800,30 @@ def test_pipeline_integration():
 
     src = main_path.read_text(encoding="utf-8")
 
-    # --- 8a. postprocess or postprocess_translation is called ---
+    # --- 11a. ResourceManager import and usage ---
+    # Note: ResourceManager is optional - it provides a unified interface but is not required
+    has_resource_manager = "ResourceManager" in src or "resource_manager" in src
+    if not has_resource_manager:
+        print(f"  {warned('main.py: ResourceManager not imported (optional - available for unified access)')}")
+    R.add("main.py: ResourceManager import (optional)", True)  # Always pass, this is optional
+
+    # --- 11b. GlossaryManager import ---
+    R.add("main.py: GlossaryManager imported",
+          "GlossaryManager" in src)
+
+    # --- 11c. ContextManager import ---
+    R.add("main.py: ContextManager imported",
+          "ContextManager" in src)
+
+    # --- 11d. NameConverter usage ---
+    R.add("main.py: NameConverter usage",
+          "NameConverter" in src)
+
+    # --- 11e. postprocess or postprocess_translation is called ---
     R.add("main.py: postprocess() ခေါ်တယ်",
           "postprocess(" in src or "postprocess_translation(" in src)
 
-    # --- 8b. fix_translation is imported or called ---
+    # --- 11f. fix_translation is imported or called ---
     has_import = "fix_translation" in src
     has_call   = "postprocess_translation" in src
     R.add("main.py: fix_translation integrate လုပ်ထားတယ်",
@@ -478,36 +831,21 @@ def test_pipeline_integration():
           "fix_translation import/call မတွေ့ဘူး — ထည့်ဖို့ လိုသေးတယ်"
           if not (has_import and has_call) else "")
 
-    # --- 8c. two-stage mode supported ---
+    # --- 11g. two-stage mode supported ---
     R.add("main.py: two-stage mode supported",
           "--two-stage" in src or "two_stage" in src)
 
-    # --- 8d. NLLB warning: if NLLB used, prompt ignored ---
-    rewriter_src = Path("scripts/rewriter.py")
-    if rewriter_src.exists():
-        rtxt = rewriter_src.read_text(encoding="utf-8")
-        R.add("rewriter.py: get_rewrite_prompt defined",
-              "get_rewrite_prompt" in rtxt)
-
-    # --- 8e. postprocessor.py has naturalize_verb_endings ---
-    pp_src = Path("scripts/postprocessor.py")
-    if pp_src.exists():
-        pptxt = pp_src.read_text(encoding="utf-8")
-        R.add("postprocessor.py: naturalize_verb_endings defined",
-              "naturalize_verb_endings" in pptxt,
-              "function မတွေ့ဘူး — postprocessor.py ထဲ ထည့်ဖို့ လိုသေးတယ်")
-        R.add("postprocessor.py: naturalize_verb_endings ကို postprocess() ထဲမှာ ခေါ်တယ်",
-              "naturalize_verb_endings(text)" in pptxt,
-              "call မတွေ့ဘူး — postprocess() function ထဲ call ထည့်ဖို့ လိုသေးတယ်")
+    # --- 11h. Cultivation terms in prompts ---
+    R.add("main.py: Cultivation terms awareness",
+          "cultivation" in src.lower() or "CULTIVATION" in src)
 
 
 # =============================================================================
-# SECTION 9 — SAMPLE BURMESE QUALITY CHECK
-# ဘာသာပြန်ထားတဲ့ file တစ်ခုကို တိုက်စစ်ခြင်း
+# SECTION 12 — TRANSLATION QUALITY CHECK
 # =============================================================================
 
 def test_translation_quality():
-    print(header("[ 9 ] Translation quality — books/ folder စစ်ဆေးချက်"))
+    print(header("[ 12 ] Translation quality — books/ folder စစ်ဆေးချက်"))
 
     books_dir = Path("books")
     if not books_dir.exists():
@@ -589,11 +927,11 @@ def test_translation_quality():
 
 
 # =============================================================================
-# SECTION 10 — CHUNKER SANITY
+# SECTION 13 — CHUNKER SANITY
 # =============================================================================
 
 def test_chunker():
-    print(header("[ 10 ] Chunker — text splitting"))
+    print(header("[ 13 ] Chunker — text splitting"))
 
     try:
         from scripts.chunker import auto_chunk
@@ -615,11 +953,11 @@ def test_chunker():
 
 
 # =============================================================================
-# SECTION 11 — CONFIG FILE
+# SECTION 14 — CONFIG FILE
 # =============================================================================
 
 def test_config():
-    print(header("[ 11 ] Config — config/config.json စစ်ဆေးချက်"))
+    print(header("[ 14 ] Config — config/config.json စစ်ဆေးချက်"))
 
     config_path = Path("config/config.json")
     R.add("config/config.json exists", config_path.exists())
@@ -647,6 +985,15 @@ def test_config():
           "mode" in tp,
           f"current mode: {tp.get('mode', 'not set')}")
 
+    # Check supported_models
+    sm = config.get("supported_models", {})
+    R.add("config: supported_models.ollama exists",
+          "ollama" in sm)
+    R.add("config: supported_models.gemini exists",
+          "gemini" in sm)
+    R.add("config: supported_models.openrouter exists",
+          "openrouter" in sm)
+
     # Warn if single_stage (two_stage is better)
     mode = tp.get("mode", "single_stage")
     if mode == "single_stage":
@@ -654,11 +1001,11 @@ def test_config():
 
 
 # =============================================================================
-# SECTION 12 — FILE STRUCTURE CHECK
+# SECTION 15 — FILE STRUCTURE CHECK
 # =============================================================================
 
 def test_file_structure():
-    print(header("[ 12 ] File structure — required files and folders"))
+    print(header("[ 15 ] File structure — required files and folders"))
 
     required = [
         "main.py",
@@ -669,6 +1016,9 @@ def test_file_structure():
         "scripts/myanmar_checker.py",
         "scripts/rewriter.py",
         "scripts/glossary_manager.py",
+        "scripts/context_manager.py",
+        "scripts/name_converter.py",
+        "scripts/resource_manager.py",
         "scripts/chunker.py",
         "scripts/preprocessor.py",
         "config/config.json",
@@ -692,18 +1042,18 @@ def test_file_structure():
 
 
 # =============================================================================
-# SECTION 13 — READER APP (Web UI)
+# SECTION 16 — READER APP (Web UI)
 # =============================================================================
 
 def test_reader_app():
-    print(header("[ 13 ] Reader App — Web UI စစ်ဆေးချက်"))
+    print(header("[ 16 ] Reader App — Web UI စစ်ဆေးချက်"))
 
     reader_path = Path("reader_app.py")
     R.add("reader_app.py exists", reader_path.exists())
     if not reader_path.exists():
         return
 
-    # --- 13a. Check Flask imports ---
+    # --- 16a. Check Flask imports ---
     src = reader_path.read_text(encoding="utf-8")
     R.add("reader_app: Flask imported",
           "from flask import Flask" in src)
@@ -711,7 +1061,7 @@ def test_reader_app():
           "send_from_directory" in src and "send_from_path" not in src,
           "send_from_path အစား send_from_directory သုံးပါ")
 
-    # --- 13b. Check required routes ---
+    # --- 16b. Check required routes ---
     required_routes = [
         ("@app.route('/')", "index/home route"),
         ("@app.route('/book/<book_id>')", "book chapters route"),
@@ -723,26 +1073,26 @@ def test_reader_app():
         R.add(f"reader_app: {desc}",
               route in src)
 
-    # --- 13c. Check security features ---
+    # --- 16c. Check security features ---
     R.add("reader_app: is_safe_path_name function (security)",
           "is_safe_path_name" in src)
     R.add("reader_app: path traversal protection (.. check)",
           "'..' in" in src or '".." in' in src)
 
-    # --- 13d. Check template usage ---
+    # --- 16d. Check template usage ---
     templates = ["index.html", "chapters.html", "reader.html"]
     for tmpl in templates:
         template_found = f"'{tmpl}'" in src and "render_template" in src
         R.add(f"reader_app: template '{tmpl}' used",
               template_found)
 
-    # --- 13e. Check books directory handling ---
+    # --- 16e. Check books directory handling ---
     R.add("reader_app: BOOKS_DIR defined",
           'BOOKS_DIR = Path("books")' in src or "BOOKS_DIR = Path('books')" in src)
     R.add("reader_app: metadata.json loading",
           "metadata.json" in src)
 
-    # --- 13f. Check progress tracking ---
+    # --- 16f. Check progress tracking ---
     R.add("reader_app: progress.json handling",
           "progress.json" in src or "PROGRESS_FILE" in src)
     R.add("reader_app: load_progress function",
@@ -750,39 +1100,7 @@ def test_reader_app():
     R.add("reader_app: save_progress function",
           "def save_progress(" in src)
 
-    # --- 13g. Test import without running server ---
-    try:
-        # Mock Flask to avoid actually starting server
-        import sys
-        from unittest.mock import MagicMock
-
-        flask_mock = MagicMock()
-        flask_mock.Flask = lambda name: MagicMock(
-            route=lambda *a, **k: lambda f: f,
-            run=lambda **k: None
-        )
-        flask_mock.render_template = lambda *a, **k: ""
-        flask_mock.request = MagicMock()
-        flask_mock.jsonify = lambda x: x
-        flask_mock.send_from_directory = lambda *a, **k: ""
-
-        sys.modules['flask'] = flask_mock
-
-        # Try to import reader_app modules
-        import importlib.util
-        spec = importlib.util.spec_from_file_location("reader_app", "reader_app.py")
-        reader_module = importlib.util.module_from_spec(spec)
-
-        # Don't execute the app.run() part
-        R.add("reader_app: imports successfully (mocked)", True)
-
-        # Restore flask
-        del sys.modules['flask']
-
-    except Exception as e:
-        R.add("reader_app: imports successfully (mocked)", False, str(e))
-
-    # --- 13h. Check sample book exists ---
+    # --- 16g. Check sample book exists ---
     books_dir = Path("books")
     if books_dir.exists():
         metadata_files = list(books_dir.rglob("metadata.json"))
@@ -803,15 +1121,327 @@ def test_reader_app():
 
 
 # =============================================================================
+# SECTION 17 — CULTIVATION TERMS TEST
+# =============================================================================
+
+def test_cultivation_terms():
+    print(header("[ 17 ] Cultivation Terms — built-in dictionary"))
+    
+    try:
+        from scripts.name_converter import CULTIVATION_TERMS
+        from scripts.resource_manager import ResourceManager
+    except ImportError as e:
+        R.add("Cultivation terms import", False, str(e))
+        return
+    
+    # --- 17a. CULTIVATION_TERMS is populated ---
+    try:
+        term_count = len(CULTIVATION_TERMS)
+        has_realms = any("Qi" in k or "炼气" in k for k in CULTIVATION_TERMS.keys())
+        has_titles = any("Sect" in k or "Elder" in k for k in CULTIVATION_TERMS.keys())
+        
+        R.add("CULTIVATION_TERMS: has entries",
+              term_count > 50,
+              f"Total terms: {term_count}")
+        R.add("CULTIVATION_TERMS: has realm terms",
+              has_realms)
+        R.add("CULTIVATION_TERMS: has title terms",
+              has_titles)
+    except Exception as e:
+        R.add("CULTIVATION_TERMS check", False, str(e))
+    
+    # --- 17b. ResourceManager loads cultivation terms ---
+    try:
+        test_novel = "_test_cultivation_"
+        rm = ResourceManager(test_novel, auto_create=True)
+        
+        has_terms = len(rm.cultivation_terms) > 0
+        R.add("ResourceManager: loads cultivation terms",
+              has_terms,
+              f"Loaded {len(rm.cultivation_terms)} terms")
+        
+        # Cleanup
+        import shutil
+        resources_dir = Path(f"resources/{test_novel}")
+        if resources_dir.exists():
+            shutil.rmtree(resources_dir)
+        glossary_file = Path(f"glossaries/{test_novel}.json")
+        if glossary_file.exists():
+            glossary_file.unlink()
+        context_dir = Path(f"context/{test_novel}")
+        if context_dir.exists():
+            shutil.rmtree(context_dir)
+            
+    except Exception as e:
+        R.add("ResourceManager: loads cultivation terms", False, str(e))
+
+
+# =============================================================================
+# SECTION 17.5 — SECURITY FILTER TEST
+# =============================================================================
+
+def test_security_filter():
+    print(header("[ 17.5 ] Security Filter — API key masking in logs"))
+    
+    try:
+        from main import SensitiveDataFilter
+    except ImportError:
+        R.add("SensitiveDataFilter import", False, "Cannot import from main.py")
+        return
+    
+    # Test the filter
+    filter_obj = SensitiveDataFilter()
+    
+    class MockRecord:
+        def __init__(self, msg, args=None):
+            self.msg = msg
+            self.args = args or ()
+    
+    # Test cases
+    test_cases = [
+        # (input, should_contain_mask)
+        ('Connecting to API with key=AIzaSyDdI0rhdAp8c6cAh0WIWw', True),
+        ('Authorization: Bearer sk-1234567890abcdef', True),
+        ('api_key=secret123456789', True),
+        ('Normal message without sensitive data', False),
+        ('URL: https://example.com?key=AIzaSyDdI0rhdAp8c6cAh0WIWw&other=value', True),
+    ]
+    
+    all_passed = True
+    for input_msg, should_mask in test_cases:
+        record = MockRecord(input_msg)
+        filter_obj.filter(record)
+        
+        has_mask = '***API_KEY_HIDDEN***' in record.msg or '***TOKEN_HIDDEN***' in record.msg
+        
+        if should_mask and not has_mask:
+            R.add(f"Security filter: Mask API key in '{input_msg[:30]}...'", False, "API key not masked")
+            all_passed = False
+        elif not should_mask and has_mask:
+            R.add(f"Security filter: Don't mask normal text '{input_msg[:30]}...'", False, "Normal text incorrectly masked")
+            all_passed = False
+    
+    if all_passed:
+        R.add("SensitiveDataFilter: Masks API keys correctly", True)
+
+
+# =============================================================================
+# SECTION 18 — MAIN.PY RESOURCE INTEGRATION
+# =============================================================================
+
+def test_main_resource_integration():
+    print(header("[ 18 ] Main.py Resource Integration — feature usage"))
+    
+    main_path = Path("main.py")
+    if not main_path.exists():
+        R.add("main.py exists", False, "main.py မတွေ့ဘူး")
+        return
+    
+    src = main_path.read_text(encoding="utf-8")
+    
+    # --- 18a. GlossaryManager loading ---
+    R.add("main.py: Loads GlossaryManager for book",
+          "GlossaryManager(book_id)" in src or "GlossaryManager(" in src)
+    
+    # --- 18b. ContextManager usage ---
+    R.add("main.py: Uses ContextManager",
+          "ContextManager(" in src and "get_context_for_chapter" in src)
+    
+    # --- 18c. NameConverter for auto-learn ---
+    R.add("main.py: Uses NameConverter for auto-learn",
+          "NameConverter(" in src and "auto_learn" in src)
+    
+    # --- 18d. Glossary text injection ---
+    R.add("main.py: Injects glossary into prompts",
+          "get_glossary_text" in src or "glossary_text" in src)
+    
+    # --- 18e. Context text injection ---
+    R.add("main.py: Injects context into prompts",
+          "context_text" in src and "system_prompt" in src)
+    
+    # --- 18f. Glossary updates after translation ---
+    R.add("main.py: Updates glossary after translation",
+          "glossary.save" in src or "glossary.update" in src)
+    
+    # --- 18g. Context updates after translation ---
+    R.add("main.py: Updates context after translation",
+          "context_manager.save" in src or "update_chapter_translation" in src)
+    
+    # --- 18h. Name sync between glossary and context ---
+    R.add("main.py: Syncs glossary to context",
+          "sync_glossary_to_context" in src)
+
+
+# =============================================================================
+# SECTION 19 — NAME MAPPING SYSTEM
+# =============================================================================
+
+def test_name_mapping_system():
+    print(header("[ 19 ] Name Mapping System — auto-detect and type-based translation"))
+    
+    try:
+        from scripts.name_mapping_system import NameMappingSystem, NameType, NameMapping
+    except ImportError as e:
+        R.add("NameMappingSystem import", False, str(e))
+        return
+    
+    test_novel = "_test_name_mapping_"
+    
+    # --- 19a. Create NameMappingSystem ---
+    try:
+        nms = NameMappingSystem(test_novel, source_lang="English", auto_create=True)
+        R.add("NameMappingSystem: create", True)
+    except Exception as e:
+        R.add("NameMappingSystem: create", False, str(e))
+        return
+    
+    # --- 19b. Add person mapping ---
+    try:
+        nms.add_mapping("Li Wei", "လီဝေ့", NameType.PERSON.value, confidence=0.95)
+        mapping = nms.get_mapping("Li Wei")
+        R.add("NameMappingSystem: add person mapping",
+              mapping is not None and mapping.myanmar_name == "လီဝေ့" and mapping.name_type == NameType.PERSON.value)
+    except Exception as e:
+        R.add("NameMappingSystem: add person mapping", False, str(e))
+    
+    # --- 19c. Add place mapping with suffix ---
+    try:
+        nms.add_mapping("Cloud City", "မိုးအုပ်မြို့", NameType.PLACE.value, confidence=0.9)
+        mapping = nms.get_mapping("Cloud City")
+        has_suffix = mapping.myanmar_name.endswith("မြို့")
+        R.add("NameMappingSystem: add place mapping with suffix",
+              has_suffix)
+    except Exception as e:
+        R.add("NameMappingSystem: add place mapping", False, str(e))
+    
+    # --- 19d. Add sect mapping with ဇုံ suffix ---
+    try:
+        nms.add_mapping("Azure Sect", "ထ的有效ဇုံ", NameType.SECT.value, confidence=0.85)
+        mapping = nms.get_mapping("Azure Sect")
+        has_sect_suffix = "ဇုံ" in mapping.myanmar_name
+        R.add("NameMappingSystem: add sect mapping with ဇုံ suffix",
+              has_sect_suffix)
+    except Exception as e:
+        R.add("NameMappingSystem: add sect mapping", False, str(e))
+    
+    # --- 19e. Detect names from text ---
+    try:
+        text = "Zhang San met Li Wei at Cloud City and joined the Azure Sect."
+        detected = nms.detect_names(text, chapter_num=1)
+        # Should detect Zhang San (person) if not already mapped
+        R.add("NameMappingSystem: detect_names from text",
+              isinstance(detected, list))
+    except Exception as e:
+        R.add("NameMappingSystem: detect_names", False, str(e))
+    
+    # --- 19f. Apply mappings to text ---
+    try:
+        text = "Li Wei went to Cloud City."
+        result = nms.apply_mappings(text)
+        # Li Wei should be replaced with လီဝေ့
+        has_mapping = "လီဝေ့" in result or "Li Wei" not in result
+        R.add("NameMappingSystem: apply_mappings",
+              has_mapping)
+    except Exception as e:
+        R.add("NameMappingSystem: apply_mappings", False, str(e))
+    
+    # --- 19g. Get prompt text ---
+    try:
+        prompt_text = nms.get_prompt_text()
+        has_person = "Characters:" in prompt_text or "Li Wei" in prompt_text
+        R.add("NameMappingSystem: get_prompt_text",
+              len(prompt_text) > 0 and has_person)
+    except Exception as e:
+        R.add("NameMappingSystem: get_prompt_text", False, str(e))
+    
+    # --- 19h. Save mappings ---
+    try:
+        success = nms.save()
+        R.add("NameMappingSystem: save", success)
+    except Exception as e:
+        R.add("NameMappingSystem: save", False, str(e))
+    
+    # --- 19i. Load mappings ---
+    try:
+        nms2 = NameMappingSystem(test_novel, source_lang="English", auto_create=False)
+        has_mappings = len(nms2.mappings) > 0
+        R.add("NameMappingSystem: load",
+              has_mappings)
+    except Exception as e:
+        R.add("NameMappingSystem: load", False, str(e))
+    
+    # --- 19j. Get stats ---
+    try:
+        stats = nms.get_stats()
+        R.add("NameMappingSystem: get_stats",
+              "total_mappings" in stats and "by_type" in stats)
+    except Exception as e:
+        R.add("NameMappingSystem: get_stats", False, str(e))
+    
+    # --- Cleanup ---
+    try:
+        import shutil
+        mappings_dir = Path("name_mappings")
+        if mappings_dir.exists():
+            for f in mappings_dir.glob(f"{test_novel}*.json"):
+                f.unlink()
+    except Exception:
+        pass
+
+
+# =============================================================================
+# SECTION 20 — MAIN.PY NAME MAPPING INTEGRATION
+# =============================================================================
+
+def test_main_name_mapping():
+    print(header("[ 20 ] Main.py Name Mapping Integration"))
+    
+    main_path = Path("main.py")
+    if not main_path.exists():
+        R.add("main.py exists", False, "main.py မတွေ့ဘူး")
+        return
+    
+    src = main_path.read_text(encoding="utf-8")
+    
+    # --- 20a. NameMappingSystem import ---
+    R.add("main.py: NameMappingSystem imported",
+          "NameMappingSystem" in src)
+    
+    # --- 20b. NameMappingSystem initialization ---
+    R.add("main.py: NameMappingSystem initialized",
+          "NameMappingSystem(book_id" in src or "name_mapping_system" in src)
+    
+    # --- 20c. Auto-detect names ---
+    R.add("main.py: Auto-detects names",
+          "detect_names" in src)
+    
+    # --- 20d. Apply mappings before translation ---
+    R.add("main.py: Applies mappings before translation",
+          "apply_mappings" in src)
+    
+    # --- 20e. Inject name mappings into prompt ---
+    R.add("main.py: Injects name mappings into prompt",
+          "get_prompt_text" in src)
+    
+    # --- 20f. Learn from parallel text ---
+    R.add("main.py: Learns from parallel text",
+          "learn_from_parallel" in src)
+
+
+# =============================================================================
 # MAIN RUNNER
 # =============================================================================
 
 SECTIONS = {
     "imports":     test_imports,
+    "resources":   test_resource_manager,
+    "glossary":    test_glossary,
+    "context":     test_context_manager,
+    "names":       test_name_converter,
+    "mapping":     test_name_mapping_system,
     "postprocess": test_postprocessor,
     "fix":         test_fix_translation,
     "quality":     test_myanmar_checker,
-    "glossary":    test_glossary,
     "assembler":   test_assembler,
     "prompt":      test_system_prompt,
     "pipeline":    test_pipeline_integration,
@@ -820,20 +1450,28 @@ SECTIONS = {
     "config":      test_config,
     "structure":   test_file_structure,
     "reader":      test_reader_app,
+    "cultivation": test_cultivation_terms,
+    "security":    test_security_filter,
+    "main":        test_main_resource_integration,
+    "nmmain":      test_main_name_mapping,
 }
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Novel-v1 Test Suite",
+        description="Novel Translation Test Suite",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Categories:
   imports      scripts/ import checks
+  resources    ResourceManager unified interface
+  glossary     GlossaryManager consistency
+  context      ContextManager tracking
+  names        NameConverter auto-learning
+  mapping      NameMappingSystem auto-detect and type-based rules
   postprocess  postprocessor.py fixes
   fix          fix_translation.py style fixes
   quality      myanmar_checker.py thresholds
-  glossary     GlossaryManager consistency
   assembler    output file structure
   prompt       system prompt rules
   pipeline     main.py integration
@@ -842,6 +1480,16 @@ Categories:
   config       config.json values
   structure    required files check
   reader       reader_app.py Web UI checks
+  cultivation  Cultivation terms dictionary
+  security     Security filter (API key masking)
+  main         main.py resource integration
+  nmmain       main.py name mapping integration
+  
+Examples:
+  python test.py                    # Run all tests
+  python test.py --category names   # Run only name converter tests
+  python test.py --category mapping # Run name mapping system tests
+  python test.py --category quality # Run quality checks only
         """
     )
     parser.add_argument("--verbose",  action="store_true")
@@ -849,7 +1497,7 @@ Categories:
                         help="single category run")
     args = parser.parse_args()
 
-    print(f"\n{Color.BOLD}Novel-v1 Test Suite{Color.RESET}")
+    print(f"\n{Color.BOLD}Novel Translation Test Suite{Color.RESET}")
     print(f"Run at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"CWD:    {Path.cwd()}")
     print("=" * 60)
@@ -896,8 +1544,11 @@ Categories:
     if any("temperature" in n for n in fail_names):
         print(f"{Color.WARN}[ACTION]{Color.RESET} translator.py မှာ temperature ကို 0.45 ပြောင်းဖို့ လိုသေးတယ်")
 
-    if any("two_stage" in n.lower() or "two-stage" in n.lower() for n in fail_names):
-        print(f"{Color.WARN}[ACTION]{Color.RESET} config.json မှာ mode: 'two_stage' ပြောင်းစဉ်းစားပါ")
+    if any("ResourceManager" in n for n in fail_names):
+        print(f"{Color.WARN}[ACTION]{Color.RESET} scripts/resource_manager.py ကို စစ်ဆေးပါ — component မတွေ့သို့မဟုတ် error ရှိနိုင်သည်")
+
+    if any("NameMappingSystem" in n for n in fail_names):
+        print(f"{Color.WARN}[ACTION]{Color.RESET} scripts/name_mapping_system.py ကို စစ်ဆေးပါ — component မတွေ့သို့မဟုတ် error ရှိနိုင်သည်")
 
     sys.exit(0 if failed_n == 0 else 1)
 

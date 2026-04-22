@@ -32,6 +32,30 @@ NLLB_LANG_CODES = {
 # Configure logging
 logger = logging.getLogger(__name__)
 
+
+class SensitiveDataFilter(logging.Filter):
+    """Filter that masks sensitive data like API keys in log messages."""
+    
+    SENSITIVE_PATTERNS = [
+        (r'key=[a-zA-Z0-9_-]{20,}', 'key=***API_KEY_HIDDEN***'),
+        (r'api[_-]?key[=:][\s]*[a-zA-Z0-9_-]{10,}', 'api_key=***API_KEY_HIDDEN***'),
+        (r'Authorization[=:][\s]*Bearer[\s]+[a-zA-Z0-9_-]+', 'Authorization=Bearer ***TOKEN_HIDDEN***'),
+    ]
+    
+    def filter(self, record):
+        """Mask sensitive data in the log message."""
+        if hasattr(record, 'msg') and isinstance(record.msg, str):
+            import re
+            msg = record.msg
+            for pattern, replacement in self.SENSITIVE_PATTERNS:
+                msg = re.sub(pattern, replacement, msg, flags=re.IGNORECASE)
+            record.msg = msg
+        return True
+
+
+# Add sensitive data filter to logger
+logger.addFilter(SensitiveDataFilter())
+
 # SSL verification setting - only disable for local Ollama
 # Set VERIFY_SSL=false in .env only if you have certificate issues
 VERIFY_SSL = os.getenv("VERIFY_SSL", "true").lower() != "false"
@@ -58,6 +82,14 @@ def get_session() -> requests.Session:
         _session_pool.mount('https://', adapter)
         _session_pool.mount('http://', adapter)
     return _session_pool
+
+def apply_name_mapping(text: str, mapping: Dict[str, str]) -> str:
+    """Apply name mapping to text before translation."""
+    if not mapping:
+        return text
+    for k, v in mapping.items():
+        text = text.replace(k, v)
+    return text
 
 
 @contextmanager
