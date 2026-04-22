@@ -6,6 +6,7 @@ Main Orchestrator - Chinese → Myanmar Novel Translator
 import os
 import re
 import sys
+import json
 import time
 import random
 import argparse
@@ -273,7 +274,8 @@ def retry_translate_chunk(
                 
                 if is_openrouter:
                     # OpenRouter free tier: 20 RPM = 1 per 3 seconds, 200/day total
-                    delay = max(delay, 6.0)  # 6 seconds for OpenRouter (10 RPM)
+                    # Use aggressive backoff: 6s, 12s, 24s
+                    delay = max(delay * 1.5, 6.0)
                     logger.warning(
                         f"⚠️  OpenRouter rate limit (429) on attempt {attempt + 1}/{max_retries + 1}.\n"
                         f"   Free tier limits: 20 requests/minute, 200 requests/day\n"
@@ -283,13 +285,13 @@ def retry_translate_chunk(
                     )
                 else:
                     # Gemini free tier: 15 RPM = 1 per 4 seconds
-                    # Use exponential backoff: 5s, 10s, 20s
-                    delay = max(delay * 2, 5.0)
+                    # Use aggressive exponential backoff: 6s, 12s, 24s, 48s
+                    delay = max(delay * 1.5, 6.0)
                     logger.warning(
                         f"⚠️  Gemini rate limit (429) on attempt {attempt + 1}/{max_retries + 1}.\n"
                         f"   Free tier limits: 15 requests/minute, 1 million tokens/minute\n"
                         f"   Waiting {delay:.1f}s before retry...\n"
-                        f"   💡 Set REQUEST_DELAY=5.0 in .env or use Ollama: --model ollama"
+                        f"   💡 Set REQUEST_DELAY=6.0 in .env or use Ollama: --model ollama"
                     )
             else:
                 # Calculate delay with jitter for other errors
@@ -489,24 +491,24 @@ def _apply_delay_between_chunks(current_index: int, total_chunks: int, model_nam
     # For cloud APIs, use appropriate delays to avoid rate limits
     if "openrouter" in model_name.lower():
         # OpenRouter free tier: 20 RPM = 1 request per 3 seconds minimum
-        # Use 4.5s to be safe (allows 13 RPM, under 20 RPM limit)
-        default_delay = 4.5
+        # Use 5.0s to be safe (allows 12 RPM, under 20 RPM limit)
+        default_delay = 5.0
     elif "gemini" in model_name.lower():
         # Gemini free tier: 15 RPM = 1 request per 4 seconds minimum
-        # Use 5.0s to be safe (allows 12 RPM, under 15 RPM limit)
-        default_delay = 5.0
+        # Use 6.0s to be safe (allows 10 RPM, under 15 RPM limit with buffer)
+        default_delay = 6.0
     else:
         default_delay = DEFAULT_REQUEST_DELAY
             
     delay = float(os.getenv("REQUEST_DELAY", str(default_delay)))
     
-    # Ensure minimum delays to avoid rate limits
-    if "openrouter" in model_name.lower() and delay < 4.0:
-        delay = 4.5
-        logger.debug(f"Enforcing minimum 4.5s delay for OpenRouter to avoid rate limits")
-    elif "gemini" in model_name.lower() and delay < 5.0:
+    # Ensure minimum delays to avoid rate limits - these are ENFORCED minimums
+    if "openrouter" in model_name.lower() and delay < 5.0:
         delay = 5.0
-        logger.debug(f"Enforcing minimum 5s delay for Gemini to avoid rate limits")
+        logger.debug(f"Enforcing minimum 5.0s delay for OpenRouter to avoid rate limits")
+    elif "gemini" in model_name.lower() and delay < 6.0:
+        delay = 6.0
+        logger.debug(f"Enforcing minimum 6.0s delay for Gemini to avoid rate limits")
     
     if delay > 0:
         logger.info(f"Waiting {delay:.1f}s before next chunk...")
@@ -1311,10 +1313,10 @@ Examples:
                    (use_two_stage and "gemini" in (stage1_model or "").lower())
     
     if using_gemini:
-        request_delay = float(os.getenv("REQUEST_DELAY", "5.0"))
-        if request_delay < 5.0:
+        request_delay = float(os.getenv("REQUEST_DELAY", "6.0"))
+        if request_delay < 6.0:
             print("\n⚠️  WARNING: Gemini free tier has strict rate limits (15 requests per minute)")
-            print("    The system will automatically use 5.0s delay to avoid rate limits.")
+            print("    The system will automatically use 6.0s delay to avoid rate limits.")
             print("    For faster translation, use local Ollama: --model ollama")
             print()
     
