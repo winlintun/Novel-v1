@@ -1,41 +1,11 @@
-# Novel Translation System - Python Dependencies
-# Generated: April 21, 2026
+# Novel Translation Pipeline Dependencies
 
-# ── Core Dependencies ───────────────────────────────────
-requests>=2.31.0              # HTTP client for API calls
-python-dotenv>=1.0.0          # Environment variable management
-pydantic>=2.0.0               # Configuration validation
+# Core dependencies
+ollama>=0.1.0
+pyyaml>=6.0
 
-# ── Cloud AI APIs ────────────────────────────────────────
-google-generativeai>=0.7.0    # Google Gemini API Python SDK
+# Testing
+pytest>=7.0.0
 
-# ── Local LLM ────────────────────────────────────────────
-ollama>=0.1.0                 # Ollama Python client for local models
-
-# ── Web UI ───────────────────────────────────────────────
-flask>=3.0.0                  # Web framework
-flask-socketio>=5.3.0         # WebSocket for real-time progress
-python-socketio>=5.9.0        # Socket.IO server
-
-# ── Async Server (choose one) ────────────────────────────
-eventlet>=0.33.0              # Async server for WebSocket (default)
-# gevent>=23.9.0              # Alternative async server
-
-# ── Utility ──────────────────────────────────────────────
-tqdm>=4.66.0                  # Progress bars
-portalocker>=2.7.0            # File locking for checkpoints
-
-# ── Development & Testing ───────────────────────────────
-pytest>=8.0.0                 # Testing framework
-pytest-cov>=4.1.0             # Coverage reporting
-
-# ── Code Quality ────────────────────────────────────────
-flake8>=7.0.0                 # Linting
-pylint>=3.0.0                 # Static analysis
-black>=24.0.0                 # Code formatting (optional)
-
-# ── NLP & Machine Learning (Optional, for NLLB) ──────────
-transformers>=4.38.0
-torch>=2.2.0
-sentencepiece>=0.2.0
-sacremoses>=0.1.1
+# Optional but recommended
+chardet>=5.0.0

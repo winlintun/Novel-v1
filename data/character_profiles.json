@@ -1,0 +1,106 @@
+{
+  "characters": [
+    {
+      "id": "char_001",
+      "name_cn": "李小龙",
+      "name_mm": "လီရှောင်လုံ",
+      "role": "Protagonist",
+      "age": 18,
+      "gender": "male",
+      "personality": [
+        "Determined",
+        "Calm",
+        "Loyal",
+        "Slightly Arrogant to enemies"
+      ],
+      "speech_style": {
+        "formal": "Uses polite particles (ပါ/ခင်ဗျား)",
+        "casual": "Uses short sentences, direct tone",
+        "angry": "Cold, uses imperative verbs"
+      },
+      "background": "Heir to the Azure Dragon Sect. Orphaned at young age.",
+      "relationships": {
+        "master": "char_005",
+        "rival": "char_002",
+        "love_interest": "char_003"
+      }
+    },
+    {
+      "id": "char_002",
+      "name_cn": "张伟",
+      "name_mm": "ကျန်းဝေ့",
+      "role": "Antagonist/Rival",
+      "age": 19,
+      "gender": "male",
+      "personality": [
+        "Arrogant",
+        "Jealous",
+        "Cunning"
+      ],
+      "speech_style": {
+        "general": "Mocking tone, uses derogatory terms for protagonist",
+        "to_superiors": "Overly flattering"
+      }
+    },
+    {
+      "id": "char_003",
+      "name_cn": "罗青",
+      "name_mm": "[TODO: translate 罗青]",
+      "role": "Unknown",
+      "description": "十二岁的小戎镇罗家村村民，相貌平凡，家境贫寒。",
+      "first_seen_chapter": 1,
+      "speech_style": {
+        "formal": "polite",
+        "casual": "direct"
+      }
+    },
+    {
+      "id": "char_004",
+      "name_cn": "黄牛",
+      "name_mm": "[TODO: translate 黄牛]",
+      "role": "Unknown",
+      "description": "",
+      "first_seen_chapter": 1,
+      "speech_style": {
+        "formal": "polite",
+        "casual": "direct"
+      }
+    },
+    {
+      "id": "char_005",
+      "name_cn": "爹爹",
+      "name_mm": "[TODO: translate 爹爹]",
+      "role": "Unknown",
+      "description": "",
+      "first_seen_chapter": 1,
+      "speech_style": {
+        "formal": "polite",
+        "casual": "direct"
+      }
+    },
+    {
+      "id": "char_006",
+      "name_cn": "娘亲",
+      "name_mm": "[TODO: translate 娘亲]",
+      "role": "Unknown",
+      "description": "",
+      "first_seen_chapter": 1,
+      "speech_style": {
+        "formal": "polite",
+        "casual": "direct"
+      }
+    },
+    {
+      "id": "char_007",
+      "name_cn": "弟弟妹妹",
+      "name_mm": "[TODO: translate 弟弟妹妹]",
+      "role": "Unknown",
+      "description": "",
+      "first_seen_chapter": 1,
+      "speech_style": {
+        "formal": "polite",
+        "casual": "direct"
+      }
+    }
+  ]
+}

@@ -1,0 +1,133 @@
+# Novel Translation Pipeline Configuration
+# Merged from config.json and settings.yaml
+
+project:
+  name: "novel_translation"
+  source_language: "zh-CN"
+  target_language: "my-MM"
+  novel_genre: "Xianxia/Cultivation"
+
+models:
+  # Primary models
+  translator: "qwen2.5:14b"
+  editor: "qwen2.5:14b"
+  refiner: "qwen:7b"
+  checker: "qwen:7b"
+  
+  # Provider settings
+  provider: "ollama"  # ollama, gemini, openrouter
+  ai_backend: "gemini"
+  ollama_base_url: "http://localhost:11434"
+  timeout: 300
+  
+  # Alternative models by provider
+  supported_models:
+    ollama:
+      - "qwen:7b"
+      - "qwen2.5:7b"
+      - "qwen2.5:14b"
+      - "translategemma"
+      - "translategemma:12b"
+      - "gemma:7b"
+    gemini:
+      - "gemini-2.5-flash"
+      - "gemini-2.0-flash"
+      - "gemini-1.5-flash"
+      - "gemini-1.5-pro"
+    openrouter:
+      - "meta-llama/llama-3.3-70b-instruct:free"
+      - "google/gemini-2.0-flash-exp:free"
+      - "google/gemini-2.5-flash-exp:free"
+      - "deepseek/deepseek-chat:free"
+      - "qwen/qwen-2.5-72b-instruct:free"
+
+paths:
+  input_dir: "data/input"
+  output_dir: "data/output"
+  books_dir: "books"
+  glossary_file: "data/glossary.json"
+  context_memory_file: "data/context_memory.json"
+  log_file: "logs/translation.log"
+  progress_file: "working_data/progress.json"
+  templates_dir: "templates"
+
+processing:
+  chunk_size: 1500
+  chunk_overlap: 100
+  max_retries: 3
+  temperature: 0.3
+  top_p: 0.92
+  top_k: 50
+  repeat_penalty: 1.1
+  stream: true
+  request_timeout: 900
+  preview_update_every_n_tokens: 10
+
+# Translation pipeline modes
+translation_pipeline:
+  mode: "two_stage"  # single_stage or two_stage
+  stage1_model: "ollama:qwen2.5:14b"
+  stage2_model: "ollama:qwen2.5:14b"
+  description: "Two-stage uses raw translation + rewrite for better quality"
+
+# Translation modes (legacy support)
+translation_modes:
+  local:
+    script: "local_main.py"
+    description: "Use local Ollama - no rate limits, faster for bulk translation"
+    default_model: "ollama:qwen2.5:14b"
+    request_delay: 0.0
+  cloud:
+    script: "cloud_main.py"
+    description: "Use cloud APIs - rate limits apply"
+    providers:
+      gemini:
+        default_model: "gemini-2.5-flash"
+        rpm: 15
+        request_delay: 6.0
+        env_key: "GEMINI_API_KEY"
+      openrouter:
+        default_model: "google/gemini-2.0-flash-exp:free"
+        rpm: 20
+        request_delay: 5.0
+        env_key: "OPENROUTER_API_KEY"
+
+# Rate limits for cloud providers
+rate_limits:
+  gemini:
+    free_tier:
+      rpm: 15
+      tpm: 1000000
+      recommended_delay: 6.0
+  openrouter:
+    free_tier:
+      rpm: 20
+      rpd: 200
+      recommended_delay: 5.0
+
+# Quality settings
+myanmar_readability:
+  enabled: true
+  min_myanmar_ratio: 0.7
+  flag_on_fail: true
+  block_on_fail: false
+
+# Web UI settings
+web_ui:
+  port: 5000
+  auto_open_browser: true
+  host: "127.0.0.1"
+
+# Output settings
+output:
+  format: "markdown"
+  preserve_formatting: true
+  add_metadata: true
+  add_translator_notes: false
+
+# Legacy paths (for backward compatibility)
+legacy_paths:
+  input_novels: "input_novels"
+  english_chapters: "english_chapters"
+  chinese_chapters: "chinese_chapters"
+  working_data: "working_data"

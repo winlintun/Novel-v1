@@ -1,358 +1,138 @@
-# Chinese/English-to-Burmese Novel Translation System
+# Novel Translation Pipeline
 
-An AI-powered novel translation pipeline that translates **Chinese OR English** novels into **natural, conversational Burmese (Myanmar)**. Features a two-stage translation pipeline with context injection for consistent, high-quality output.
+Chinese Xianxia Novel to Myanmar Translation System
 
-## 🌟 Key Features
-
-- **🌐 Multi-Language Source**: Supports both **Chinese** and **English** source novels
-- **🔄 Two-Stage Translation**: NLLB-200 raw translation + qwen:7b literary rewrite
-- **💉 Context Injection**: Characters + Story + Previous chapters injected into prompts
-- **📚 Per-Novel Glossaries**: Automatic character name consistency
-- **🤖 Multi-Model Support**: Ollama (local), OpenRouter, Gemini, NLLB-200
-- **📖 Web Reader**: Built-in Flask web reader with progress tracking
-- **🔍 Quality Checks**: Automated Myanmar readability validation
-- **⚡ Streaming Output**: Real-time token streaming
-- **💾 Context Memory**: Tracks characters and story across chapters
-
-## 📁 Project Structure
+## Project Structure
 
 ```
 novel_translation_project/
-│
-├── main.py                     # Main orchestrator (entry point)
-├── reader_app.py               # Web reader for translated novels
-├── test.py                     # Comprehensive test suite (92 tests)
-├── AGENTS.md                   # AI agent guidance and prompts
-├── README.md                   # This file
-├── requirements.txt            # Python dependencies
-├── .env.example                # Environment template
-│
 ├── config/
-│   └── config.json             # Runtime configuration
-│
-├── scripts/                    # Translation pipeline modules
-│   ├── translator.py           # AI translation engine (NLLB, Ollama, Gemini)
-│   ├── rewriter.py             # Two-stage rewrite for quality
-│   ├── context_manager.py      # Characters + Story + Chapter tracking
-│   ├── glossary_manager.py     # Per-novel glossary management
-│   ├── preprocessor.py         # Clean & normalize text
-│   ├── chunker.py              # Smart text chunking
-│   ├── postprocessor.py        # Fix punctuation & names
-│   ├── fix_translation.py      # Auto-fix common translation issues
-│   ├── assembler.py            # Assemble final document
-│   └── myanmar_checker.py      # Quality control
-│
-├── templates/                  # HTML templates for web reader
-│   ├── index.html              # Library view
-│   ├── chapters.html           # Chapter list
-│   └── reader.html             # Reading interface
-│
-├── books/                      # Final translations (organized by book)
-│   └── {novel_name}/
-│       ├── metadata.json       # Book metadata
-│       └── chapters/
-│           └── *_myanmar.md    # Translated chapters
-│
-├── glossaries/                 # Per-novel glossaries (*.json)
-├── context/                    # Per-novel context (characters, story)
-├── english_chapters/           # Source: English novels
-│   └── {novel_name}/
-│       └── {novel}_chapter_*.md
-├── chinese_chapters/           # Source: Chinese novels
-│   └── {novel_name}/
-│       └── {novel}_chapter_*.md
-│
-└── working_data/               # Temporary files
-    ├── logs/                   # Translation logs
-    └── progress.json           # Reader progress
+│   └── settings.yaml          # Model, Path, API Settings
+├── data/
+│   ├── input/                 # Chinese chapter files (novel_name_XXX.md)
+│   ├── output/                # Myanmar translations
+│   ├── glossary.json          # Terminology Database
+│   └── context_memory.json    # Dynamic Chapter Context
+├── logs/
+│   └── translation.log        # Translation logs
+├── src/
+│   ├── agents/
+│   │   ├── preprocessor.py    # Splits text, cleans markdown
+│   │   ├── translator.py      # Core CN->MM Translation
+│   │   ├── refiner.py         # Polishes Myanmar flow/tone
+│   │   ├── checker.py         # Checks Glossary consistency
+│   │   └── context_updater.py # Updates memory after chapter
+│   ├── memory/
+│   │   └── memory_manager.py  # Handles Glossary & Context loading/saving
+│   ├── utils/
+│   │   ├── ollama_client.py   # Wrapper for Ollama API
+│   │   └── file_handler.py    # Read/Write files
+│   └── main.py                # Entry point
+├── tests/
+│   ├── test_translator.py
+│   └── test_integration.py
+├── requirements.txt
+└── README.md
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
-### Prerequisites
-
-- Python 3.8+
-- Git
-- 16GB+ RAM (32GB recommended)
-- Ollama (for local models) OR API keys for cloud models
-
-### Installation
+### 1. Install Dependencies
 
 ```bash
-# 1. Clone repository
-git clone <repository-url>
-cd novel_translation_project
-
-# 2. Create virtual environment
-python3 -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-
-# 3. Install dependencies
 pip install -r requirements.txt
-
-# 4. Configure environment
-cp .env.example .env
-# Edit .env with your API keys and settings
-
-# 5. Pull Ollama model (if using local)
-ollama pull qwen:7b
 ```
 
-### Configuration
+### 2. Prepare Input Files
 
-Edit `config/config.json`:
-
-```json
-{
-  "translation_pipeline": {
-    "mode": "two_stage",
-    "stage1_model": "nllb",
-    "stage2_model": "ollama:qwen:7b"
-  },
-  "source_language": "English"
-}
+Place Chinese chapter files in `data/input/`:
+```
+data/input/古道仙鸿_001.md
+data/input/古道仙鸿_002.md
+...
 ```
 
-### Usage
+### 3. Configure Settings
 
+Edit `config/settings.yaml`:
+```yaml
+models:
+  translator: "qwen2.5:14b"    # Your Ollama model
+  ollama_base_url: "http://localhost:11434"
+
+paths:
+  input_dir: "data/input"
+  output_dir: "data/output"
+```
+
+### 4. Run Translation
+
+Translate a single chapter:
 ```bash
-# Translate a specific novel
-python main.py --novel dao-equaling-the-heavens --source-lang English
-
-# Translate all novels in chapter directories
-python main.py --source-lang English
-
-# Run tests
-python test.py
-
-# Start web reader
-python reader_app.py
-# Open http://localhost:5000
+python -m src.main --novel 古道仙鸿 --chapter 1
 ```
 
-## 📖 Translation Workflow
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│  CONTEXT → TRANSLATE → REWRITE → POSTPROCESS → OUTPUT       │
-└─────────────────────────────────────────────────────────────┘
-
-1. LOAD CONTEXT     → Characters + Story + Previous chapters
-2. PREPROCESS       → Clean text, detect encoding
-3. CHUNK            → Split into paragraph-safe chunks
-4. STAGE 1 (NLLB)   → Raw literal translation
-5. STAGE 2 (qwen)   → Rewrite into natural, emotional Burmese
-6. POSTPROCESS      → Fix punctuation, enforce glossary
-7. UPDATE CONTEXT   → Save new characters and chapter summary
-8. ASSEMBLE         → Merge into final document
-```
-
-## 📚 Context Injection System
-
-The system maintains context across chapters for consistency:
-
-### Characters Tracking
-- Original names and Burmese translations
-- Physical descriptions and traits
-- First appearance chapter
-- Relationships between characters
-
-### Story Tracking
-- Major story events
-- Plot progression
-- Chapter summaries
-
-### Context Format
-```
-## CHARACTERS
-- Gu Wen (ဂူဝမ်): Main protagonist
-- Marquis Wen (ဝမ်တိုင်): Noble
-
-## STORY CONTEXT
-- Ch 1: Gu Wen summoned by employer
-
-## PREVIOUS CHAPTERS
-- Chapter 1: Summary of previous events
-```
-
-## 📚 Glossary System
-
-Each novel gets its own glossary: `glossaries/{novel_name}.json`
-
+Translate all chapters:
 ```bash
-# Add a character name
-python scripts/glossary_manager.py novel_name add "Gu Wen" "ဂူဝမ်"
-
-# View glossary
-python scripts/glossary_manager.py novel_name list
-
-# Show statistics
-python scripts/glossary_manager.py novel_name stats
+python -m src.main --novel 古道仙鸿 --all
 ```
 
-### Example Glossary
-```json
-{
-  "names": {
-    "Gu Wen": "ဂူဝမ်",
-    "Marquis Wen": "ဝမ်တိုင်",
-    "Bianjing": "ဘိန်းကျိင်"
-  },
-  "metadata": {
-    "novel_name": "dao-equaling-the-heavens",
-    "total_names": 3,
-    "chapter_count": 10
-  }
-}
-```
-
-## 🌐 Web Reader
-
-Read translated novels with a beautiful web interface:
-
+Start from specific chapter:
 ```bash
-python reader_app.py
-# Open http://localhost:5000
+python -m src.main --novel 古道仙鸿 --all --start 10
 ```
 
-Features:
-- 📚 Library view of all books
-- 📑 Chapter list with progress
-- 📖 Clean reading interface
-- 💾 Saves reading position
-- ⬅️➡️ Previous/Next navigation
-
-## ⚙️ Configuration
-
-### Environment Variables (`.env`)
-
+Skip refinement (faster):
 ```bash
-# Model Selection
-AI_MODEL=ollama
-
-# API Keys (for cloud models)
-OPENROUTER_API_KEY=your_key_here
-GEMINI_API_KEY=your_key_here
-
-# Ollama (Local)
-OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=qwen:7b
-
-# Translation Settings
-SOURCE_LANGUAGE=English
-MAX_CHUNK_CHARS=1000
-REQUEST_DELAY=0.5
+python -m src.main --novel 古道仙鸿 --chapter 1 --skip-refinement
 ```
 
-### Runtime Configuration (`config/config.json`)
+## Requirements
 
-```json
-{
-  "model": "qwen:7b",
-  "provider": "ollama",
-  "source_language": "English",
-  "chunk_size": 1000,
-  "chunk_overlap": 100,
-  "stream": true,
-  "translation_pipeline": {
-    "mode": "two_stage",
-    "stage1_model": "nllb",
-    "stage2_model": "ollama:qwen:7b"
-  },
-  "myanmar_readability": {
-    "enabled": true,
-    "min_myanmar_ratio": 0.7
-  }
-}
+- Python 3.10+
+- Ollama installed and running
+- Compatible models (qwen2.5:14b recommended)
+
+## Architecture
+
+### Agents Pipeline
+
+1. **Preprocessor**: Loads chapter, splits into chunks with overlap
+2. **Translator**: Core translation using Ollama with glossary/context injection
+3. **Refiner**: Optional polishing for better flow and literary quality
+4. **Checker**: Validates glossary consistency and quality metrics
+5. **Context Updater**: Extracts entities and updates memory
+
+### Memory System
+
+- **Tier 1 - Glossary**: Persistent term database
+- **Tier 2 - Context**: FIFO sliding window of recent translations
+- **Tier 3 - Session**: Temporary user corrections
+
+## Output
+
+Translated files saved to:
+```
+data/output/{novel_name}/{novel_name}_{chapter:03d}_mm.md
 ```
 
-## 🔍 Quality Assurance
+## Testing
 
-Automated checks ensure translation quality:
-
-| Check | Pass Condition |
-|-------|----------------|
-| Myanmar ratio | ≥ 70% Myanmar Unicode |
-| No source leakage | Zero Chinese/English characters |
-| Sentence boundaries | At least one `။` marker |
-| Encoding integrity | No replacement characters |
-
-## 🧪 Testing
-
-Run the comprehensive test suite:
-
+Run tests:
 ```bash
-# All tests (92 tests)
-python test.py
-
-# Specific category
-python test.py --category reader
-python test.py --category glossary
-python test.py --category quality
+python -m pytest tests/
 ```
 
-## 🛠️ Fixing Translation Issues
-
-Auto-fix common problems:
-
+Or individual test files:
 ```bash
-python scripts/fix_translation.py books/novel/chapters/file.md
-# Creates: books/novel/chapters/file_fixed.md
+python tests/test_translator.py
+python tests/test_integration.py
 ```
 
-Fixes:
-- Metadata text in output
-- English phrases not translated
-- Weird character repetitions
-- Dialogue format issues
+## Logs
 
-## 🧠 Model Configuration
+Translation logs are saved to `logs/translation.log`
 
-Current recommended pipeline:
+## License
 
-| Stage | Model | Purpose |
-|-------|-------|---------|
-| Stage 1 | NLLB-200 | Fast raw translation |
-| Stage 2 | qwen:7b | Natural, emotional rewrite |
-
-Alternative models:
-
-| Model | RAM | Best For |
-|-------|-----|----------|
-| `qwen:7b` | ~6GB | Stage 2 rewrite |
-| `qwen2.5:14b` | ~10GB | Single-stage translation |
-| `gemma:12b` | ~8GB | English source |
-| `nllb-200` | ~2GB | Stage 1 raw translation |
-
-## 🐛 Troubleshooting
-
-| Problem | Solution |
-|---------|----------|
-| Out of memory | Reduce chunk_size to 800 |
-| Model not found | Run `ollama pull qwen:7b` |
-| API errors | Check API keys in .env |
-| Names inconsistent | Update glossary |
-| Translation has English | Run `scripts/fix_translation.py` |
-| Reader not loading | Check books/{novel}/metadata.json exists |
-
-## 📄 Documentation
-
-- **[AGENTS.md](AGENTS.md)** - AI agent guidance and prompts
-- **[need_to_fix.md](need_to_fix.md)** - Translation quality guide
-
-## 📜 License
-
-This project is for personal/educational use.
-
----
-
-**Last Updated**: April 22, 2026  
-**Version**: 2.2  
-**Language Pairs**: Chinese → Burmese, English → Burmese
-
-### Recent Updates (v2.2)
-- ✅ Added context injection system (Characters + Story + Chapters)
-- ✅ Updated pipeline: Stage1=NLLB200, Stage2=qwen:7b
-- ✅ Added comprehensive test suite (92 tests)
-- ✅ Fixed reader_app.py Flask compatibility
-- ✅ Removed names.json fallback, using glossaries only
+MIT License

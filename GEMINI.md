@@ -323,8 +323,8 @@ After the main pipeline completes any implementation task, spawn **two sub-agent
  
 | Sub-agent | Command | Focus |
 |-----------|---------|-------|
-| A | `gemini run "Review for bugs and code quality. List issues or say READY_TO_COMMIT"` | Bugs, logic errors, code quality |
-| B | `gemini run "Review for security issues only. List issues or say READY_TO_COMMIT"` | Security vulnerabilities |
+| A | `opencode run "Review for bugs and code quality. List issues or say READY_TO_COMMIT"` | Bugs, logic errors, code quality |
+| B | `opencode run "Review for security issues only. List issues or say READY_TO_COMMIT"` | Security vulnerabilities |
  
 **Loop until done:**
 1. Run both sub-agents in parallel after every implementation.
