@@ -1,6 +1,8 @@
 # Novel Translation Pipeline
 
-Chinese Xianxia Novel to Myanmar Translation System
+Chinese Xianxia Novel to Myanmar Translation System.
+
+This project is an advanced, AI-powered **Chinese-to-Myanmar (Burmese) novel translation system** specializing in Wuxia/Xianxia novels. It uses a multi-stage agent pipeline to translate web novels while preserving tone, style, literary depth, and strict terminology consistency.
 
 ## Project Structure
 
@@ -13,24 +15,25 @@ novel_translation_project/
 │   ├── output/                # Myanmar translations
 │   ├── glossary.json          # Terminology Database
 │   └── context_memory.json    # Dynamic Chapter Context
-├── logs/
-│   └── translation.log        # Translation logs
+├── logs/                      # Translation logs
 ├── src/
 │   ├── agents/
 │   │   ├── preprocessor.py    # Splits text, cleans markdown
-│   │   ├── translator.py      # Core CN->MM Translation
-│   │   ├── refiner.py         # Polishes Myanmar flow/tone
-│   │   ├── checker.py         # Checks Glossary consistency
+│   │   ├── translator.py      # Stage 1: Core CN->MM Translation
+│   │   ├── refiner.py         # Stage 2: Polishes Myanmar flow/tone
+│   │   ├── checker.py         # Quality & Glossary validation
 │   │   └── context_updater.py # Updates memory after chapter
 │   ├── memory/
 │   │   └── memory_manager.py  # Handles Glossary & Context loading/saving
 │   ├── utils/
 │   │   ├── ollama_client.py   # Wrapper for Ollama API
-│   │   └── file_handler.py    # Read/Write files
-│   └── main.py                # Entry point
-├── tests/
-│   ├── test_translator.py
-│   └── test_integration.py
+│   │   ├── file_handler.py    # Read/Write files
+│   │   └── postprocessor.py   # Unicode and punctuation fixes
+│   └── main.py                # Pipeline entry point
+├── tests/                     # Unit and integration tests
+├── CURRENT_STATE.md           # Progress and Known Issues
+├── USER_GUIDE.md              # Detailed usage instructions
+├── AGENTS.md                  # Agent architecture and protocols
 ├── requirements.txt
 └── README.md
 ```
@@ -45,25 +48,16 @@ pip install -r requirements.txt
 
 ### 2. Prepare Input Files
 
-Place Chinese chapter files in `data/input/`:
+Place Chinese chapter files in `data/input/{novel_name}/`:
 ```
-data/input/古道仙鸿_001.md
-data/input/古道仙鸿_002.md
+data/input/古道仙鸿/古道仙鸿_chapter_001.md
+data/input/古道仙鸿/古道仙鸿_chapter_002.md
 ...
 ```
 
 ### 3. Configure Settings
 
-Edit `config/settings.yaml`:
-```yaml
-models:
-  translator: "qwen2.5:14b"    # Your Ollama model
-  ollama_base_url: "http://localhost:11434"
-
-paths:
-  input_dir: "data/input"
-  output_dir: "data/output"
-```
+Edit `config/settings.yaml` to specify your models and paths. Default is set to use local Ollama with `qwen2.5:14b`.
 
 ### 4. Run Translation
 
@@ -82,56 +76,43 @@ Start from specific chapter:
 python -m src.main --novel 古道仙鸿 --all --start 10
 ```
 
-Skip refinement (faster):
+Translate a specific file directly:
 ```bash
-python -m src.main --novel 古道仙鸿 --chapter 1 --skip-refinement
+python -m src.main --input data/input/古道仙鸿/古道仙鸿_chapter_001.md
 ```
 
-## Requirements
-
-- Python 3.10+
-- Ollama installed and running
-- Compatible models (qwen2.5:14b recommended)
-
-## Architecture
-
-### Agents Pipeline
-
-1. **Preprocessor**: Loads chapter, splits into chunks with overlap
-2. **Translator**: Core translation using Ollama with glossary/context injection
-3. **Refiner**: Optional polishing for better flow and literary quality
-4. **Checker**: Validates glossary consistency and quality metrics
-5. **Context Updater**: Extracts entities and updates memory
-
-### Memory System
-
-- **Tier 1 - Glossary**: Persistent term database
-- **Tier 2 - Context**: FIFO sliding window of recent translations
-- **Tier 3 - Session**: Temporary user corrections
-
-## Output
-
-Translated files saved to:
+Enable two-stage translation (literary refinement):
+```bash
+python -m src.main --novel 古道仙鸿 --chapter 1 --two-stage
 ```
-data/output/{novel_name}/{novel_name}_{chapter:03d}_mm.md
-```
+
+## Features
+
+- **Multi-Stage Pipeline**: Uses specialized agents for preprocessing, translation, refinement, and checking.
+- **Glossary Enforcement**: Ensures consistent translation of character names, cultivation levels, and items.
+- **Context Awareness**: Maintains a sliding window of recent chapter context to ensure continuity.
+- **Graceful Shutdown**: Handles `Ctrl+C` by saving partial progress, allowing you to resume later.
+- **Quality Assurance**: Automated checks for Myanmar Unicode validity and glossary consistency.
+- **Sensitive Data Masking**: Automatically masks API keys in log files.
+
+## Documentation
+
+- [USER_GUIDE.md](./USER_GUIDE.md): Detailed usage instructions and configuration options.
+- [AGENTS.md](./AGENTS.md): Technical details on the agent architecture and design patterns.
+- [CURRENT_STATE.md](./CURRENT_STATE.md): Current project status, completed tasks, and roadmap.
 
 ## Testing
 
-Run tests:
+Run the full test suite:
 ```bash
 python -m pytest tests/
 ```
 
-Or individual test files:
+Or run specific tests:
 ```bash
-python tests/test_translator.py
-python tests/test_integration.py
+python tests/test_agents.py
+python tests/test_memory.py
 ```
-
-## Logs
-
-Translation logs are saved to `logs/translation.log`
 
 ## License
 
