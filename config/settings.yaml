@@ -119,3 +119,25 @@ output:
 #   - meta-llama/llama-3.3-70b-instruct:free
 #   - deepseek/deepseek-chat:free
 # =====================================================
+# === ADD TO END OF FILE ===
+# Multi-Model Router Settings
+model_router:
+  enabled: true
+  vram_budget_gb: 16.0  # Adjust based on your GPU
+  retry_on_failure: true
+  max_fallback_depth: 2
+  
+# Model Role Mapping (override defaults)
+model_roles:
+  translator: ["hunyuan-mt:7b", "translategemma:latest", "qwen2.5:14b"]
+  refiner: ["qwen2.5:14b", "seallm3:7b"]
+  checker: ["qwen:7b", "gemma:2b"]
+  glossary_sync: ["aya-expanse:8b"]
+  qa_final: ["gemma:2b", "qwen:7b"]
+
+qa_testing:
+  enabled: true
+  auto_retry: false          # Auto-retry refinement if QA fails
+  min_myanmar_ratio: 0.70    # Minimum Myanmar character ratio
+  fail_on_placeholders: false # Allow 【?term?】 placeholders (for pending review)
+  markdown_strict: true      # Enforce single H1, balanced formatting

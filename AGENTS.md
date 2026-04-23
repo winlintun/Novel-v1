@@ -12,9 +12,10 @@
 ```
 STEP 1: Read AGENTS.md          ← you are here
 STEP 2: Read GEMINI.md          ← tool-specific rules
-STEP 3: Read CURRENT_STATE.md   ← what is done / not done / blocked
-STEP 4: Silently confirm the task against Architecture Decisions in CURRENT_STATE.md
-STEP 5: Proceed with the task
+STEP 3: Read QWEN.md            ← tool-specific rules
+STEP 4: Read CURRENT_STATE.md   ← what is done / not done / blocked
+STEP 5: Silently confirm the task against Architecture Decisions in CURRENT_STATE.md
+STEP 6: Proceed with the task
 ```
 
 **If any file is missing:** Create it using the schema defined in this document. Do not skip.

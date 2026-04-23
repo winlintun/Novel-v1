@@ -1,6 +1,6 @@
 """
 Ollama Client Module
-Wrapper for Ollama API with retry logic and error handling.
+Wrapper for Ollama API with retry logic, error handling, and proper resource cleanup.
 """
 
 import time
@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class OllamaClient:
-    """Client for Ollama LLM API with robust error handling."""
+    """Client for Ollama LLM API with robust error handling and resource cleanup."""
     
     def __init__(
         self,
@@ -20,16 +20,72 @@ class OllamaClient:
         base_url: str = "http://localhost:11434",
         temperature: float = 0.3,
         max_retries: int = 3,
-        timeout: int = 300
+        timeout: int = 300,
+        unload_on_cleanup: bool = False
     ):
+        """
+        Initialize Ollama client.
+        
+        Args:
+            model: Model name to use
+            base_url: Ollama server URL
+            temperature: Sampling temperature
+            max_retries: Max retry attempts on failure
+            timeout: Request timeout in seconds
+            unload_on_cleanup: Whether to unload model from GPU on cleanup (frees VRAM)
+        """
         self.model = model
         self.base_url = base_url
         self.temperature = temperature
         self.max_retries = max_retries
         self.timeout = timeout
+        self.unload_on_cleanup = unload_on_cleanup
+        self._is_connected = False
         
         # Configure ollama client
         self.client = ollama.Client(host=base_url)
+        self._is_connected = True
+        logger.debug(f"OllamaClient initialized for model: {model}")
+    
+    def __enter__(self):
+        """Context manager entry."""
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit with automatic cleanup."""
+        self.cleanup()
+        return False
+    
+    def cleanup(self) -> None:
+        """
+        Cleanup resources and optionally unload model from GPU.
+        
+        This method should be called when translation is complete or
+        when the client is no longer needed to free up memory.
+        """
+        if not self._is_connected:
+            return
+        
+        try:
+            if self.unload_on_cleanup:
+                # Unload model from GPU to free VRAM
+                logger.info(f"Unloading model {self.model} from GPU...")
+                try:
+                    # Generate with keep_alive=0 to unload immediately
+                    self.client.generate(
+                        model=self.model,
+                        prompt="",
+                        keep_alive=0
+                    )
+                    logger.info(f"Model {self.model} unloaded from GPU")
+                except Exception as e:
+                    logger.warning(f"Could not unload model: {e}")
+            
+            self._is_connected = False
+            logger.debug("OllamaClient cleanup complete")
+            
+        except Exception as e:
+            logger.error(f"Error during OllamaClient cleanup: {e}")
     
     def chat(
         self,
@@ -143,4 +199,24 @@ class OllamaClient:
                 
         except Exception as e:
             logger.error(f"Cannot connect to Ollama: {e}")
+            return False
+    
+    def unload_model(self) -> bool:
+        """
+        Explicitly unload model from GPU to free VRAM.
+        
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            logger.info(f"Unloading model {self.model} from GPU...")
+            self.client.generate(
+                model=self.model,
+                prompt="",
+                keep_alive=0
+            )
+            logger.info(f"Model {self.model} unloaded from GPU")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to unload model: {e}")
             return False

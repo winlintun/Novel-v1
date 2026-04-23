@@ -18,6 +18,7 @@ import time
 import signal
 import argparse
 import logging
+import atexit
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, Any, List
@@ -33,6 +34,7 @@ from src.agents.translator import Translator
 from src.agents.refiner import Refiner
 from src.agents.checker import Checker
 from src.agents.context_updater import ContextUpdater
+from src.agents.qa_tester import QATesterAgent
 
 
 # Constants
@@ -44,9 +46,11 @@ OUTPUT_DIR = "data/output"
 WORKING_DIR = "working_data"
 LOG_DIR = "logs"
 
-# Global state for signal handling
+# Global state for signal handling and resource management
 _current_translation_state = {}
 shutdown_requested = False
+_active_ollama_client: Optional[OllamaClient] = None
+_active_memory_manager: Optional[MemoryManager] = None
 
 
 class SensitiveDataFilter(logging.Filter):
@@ -92,13 +96,62 @@ def setup_logging(log_file: Optional[str] = None):
     return logging.getLogger(__name__)
 
 
+def register_active_resources(ollama_client: Optional[OllamaClient] = None, 
+                              memory_manager: Optional[MemoryManager] = None) -> None:
+    """
+    Register active resources for cleanup on shutdown.
+    
+    Args:
+        ollama_client: Active OllamaClient instance
+        memory_manager: Active MemoryManager instance
+    """
+    global _active_ollama_client, _active_memory_manager
+    if ollama_client:
+        _active_ollama_client = ollama_client
+    if memory_manager:
+        _active_memory_manager = memory_manager
+
+
+def cleanup_resources() -> None:
+    """
+    Cleanup all active resources.
+    Called on normal exit and via signal handlers.
+    """
+    global _active_ollama_client, _active_memory_manager
+    
+    logger = logging.getLogger(__name__)
+    logger.info("Cleaning up resources...")
+    
+    # Cleanup Ollama client
+    if _active_ollama_client:
+        try:
+            _active_ollama_client.cleanup()
+            logger.info("Ollama client cleaned up")
+        except Exception as e:
+            logger.error(f"Error cleaning up Ollama client: {e}")
+        finally:
+            _active_ollama_client = None
+    
+    # Save memory state
+    if _active_memory_manager:
+        try:
+            _active_memory_manager.save_memory()
+            logger.info("Memory state saved")
+        except Exception as e:
+            logger.error(f"Error saving memory: {e}")
+        finally:
+            _active_memory_manager = None
+    
+    logger.info("Resource cleanup complete")
+
+
 def signal_handler(signum, frame):
-    """Handle interrupt signals gracefully."""
+    """Handle interrupt signals gracefully with resource cleanup."""
     global shutdown_requested
     logger = logging.getLogger(__name__)
     
     print("\n\n" + "=" * 60)
-    print("⚠️  Shutdown requested. Saving progress...")
+    print("⚠️  Shutdown requested. Saving progress and cleaning up...")
     print("=" * 60)
     
     shutdown_requested = True
@@ -117,13 +170,22 @@ def signal_handler(signum, frame):
         except Exception as e:
             logger.error(f"Failed to save partial translation: {e}")
     
-    print("You can resume translation later by running the same command.")
+    # Cleanup resources
+    cleanup_resources()
+    
+    print("✓ Resources cleaned up")
+    print("\nYou can resume translation later by running the same command.")
+    print("To free system memory, you may want to stop Ollama server:")
+    print("  ollama stop <model_name>  or  sudo systemctl stop ollama")
     sys.exit(0)
 
 
 # Register signal handlers
 signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
+
+# Register cleanup function for normal exit
+atexit.register(cleanup_resources)
 
 
 def save_partial_translation(
@@ -222,16 +284,18 @@ def translate_single_file(
     filepath: str,
     config: dict,
     skip_refinement: bool = False,
-    two_stage: bool = None
+    two_stage: bool = None,
+    unload_on_exit: bool = False
 ) -> Optional[Path]:
     """
-    Translate a single chapter file.
+    Translate a single chapter file with proper resource management.
     
     Args:
         filepath: Path to chapter file
         config: Configuration dict
         skip_refinement: Whether to skip refinement
         two_stage: Override config for two-stage mode
+        unload_on_exit: Whether to unload model from GPU after translation
         
     Returns:
         Path to output file or None on failure
@@ -242,91 +306,107 @@ def translate_single_file(
     if two_stage is None:
         two_stage = is_two_stage_mode(config)
     
-    # Initialize components
+    # Initialize components with context manager for cleanup
     logger.info("Initializing translation pipeline...")
     
-    # Ollama client
+    # Ollama client with optional unload on exit
     ollama_client = OllamaClient(
         model=config['models']['translator'],
         base_url=config['models'].get('ollama_base_url', 'http://localhost:11434'),
         temperature=config['processing'].get('temperature', 0.3),
-        max_retries=config['processing'].get('max_retries', 3)
+        max_retries=config['processing'].get('max_retries', 3),
+        unload_on_cleanup=unload_on_exit
     )
     
-    # Check model availability
-    if not ollama_client.check_model_available():
-        logger.error(f"Model {config['models']['translator']} not available in Ollama")
-        logger.info("Run: ollama pull " + config['models']['translator'])
-        return None
+    # Register for cleanup
+    register_active_resources(ollama_client=ollama_client)
     
-    # Memory manager
-    memory = MemoryManager(
-        glossary_path=config['paths'].get('glossary_file', 'data/glossary.json'),
-        context_path=config['paths'].get('context_memory_file', 'data/context_memory.json')
-    )
-    
-    # Agents
-    preprocessor = Preprocessor(
-        chunk_size=config['processing'].get('chunk_size', DEFAULT_CHUNK_SIZE),
-        overlap_size=config['processing'].get('chunk_overlap', DEFAULT_OVERLAP_SIZE)
-    )
-    
-    translator = Translator(ollama_client, memory)
-    refiner = Refiner(ollama_client) if not skip_refinement else None
-    checker = Checker(memory)
-    context_updater = ContextUpdater(ollama_client, memory)
-    
-    # Load and preprocess
-    logger.info(f"Loading: {filepath}")
-    chunks = preprocessor.load_and_preprocess(filepath)
-    chapter_info = preprocessor.get_chapter_info(filepath)
-    
-    book_id = chapter_info['novel_name']
-    chapter_name = chapter_info['filename'].replace('.md', '')
-    chapter_num = chapter_info['chapter_num']
-    
-    # Update global state for signal handling
-    global _current_translation_state
-    _current_translation_state = {
-        'book_id': book_id,
-        'chapter_name': chapter_name,
-        'chunks_total': len(chunks),
-        'translated_chunks': {}
-    }
-    
-    # Load original text for checking
-    original_text = FileHandler.read_text(filepath)
-    
-    # Translate
-    logger.info(f"Translating {len(chunks)} chunks...")
-    translated_chunks = translator.translate_chunks(chunks, chapter_num)
-    translated_text = '\n\n'.join(translated_chunks)
-    
-    # Refine (optional)
-    if refiner and not skip_refinement:
-        logger.info("Refining translation...")
-        translated_text = refiner.refine_full_text(translated_text)
-    
-    # Check quality
-    logger.info("Checking translation quality...")
-    check_result = checker.check_chapter(original_text, translated_text)
-    
-    print("\n" + checker.generate_report(chapter_num, check_result))
-    
-    # Save output
-    output_path = save_partial_translation(
-        book_id, chapter_name,
-        {i: t for i, t in enumerate(translated_chunks)},
-        len(chunks),
-        is_final=True
-    )
-    
-    # Update context and glossary
-    logger.info("Updating memory and context...")
-    context_updater.process_chapter(original_text, translated_text, chapter_num)
-    
-    logger.info(f"Translation complete: {output_path}")
-    return output_path
+    try:
+        # Check model availability
+        if not ollama_client.check_model_available():
+            logger.error(f"Model {config['models']['translator']} not available in Ollama")
+            logger.info("Run: ollama pull " + config['models']['translator'])
+            return None
+        
+        # Memory manager
+        memory = MemoryManager(
+            glossary_path=config['paths'].get('glossary_file', 'data/glossary.json'),
+            context_path=config['paths'].get('context_memory_file', 'data/context_memory.json')
+        )
+        register_active_resources(memory_manager=memory)
+        
+        # Agents
+        preprocessor = Preprocessor(
+            chunk_size=config['processing'].get('chunk_size', DEFAULT_CHUNK_SIZE),
+            overlap_size=config['processing'].get('chunk_overlap', DEFAULT_OVERLAP_SIZE)
+        )
+        
+        translator = Translator(ollama_client, memory)
+        
+        # Use batch processing for refiner (5x speedup)
+        batch_size = config['processing'].get('batch_processing', {}).get('batch_size', 5)
+        refiner = Refiner(ollama_client, batch_size=batch_size) if not skip_refinement else None
+        checker = Checker(memory)
+        context_updater = ContextUpdater(ollama_client, memory)
+        
+        # Load and preprocess
+        logger.info(f"Loading: {filepath}")
+        chunks = preprocessor.load_and_preprocess(filepath)
+        chapter_info = preprocessor.get_chapter_info(filepath)
+        
+        book_id = chapter_info['novel_name']
+        chapter_name = chapter_info['filename'].replace('.md', '')
+        chapter_num = chapter_info['chapter_num']
+        
+        # Update global state for signal handling
+        global _current_translation_state
+        _current_translation_state = {
+            'book_id': book_id,
+            'chapter_name': chapter_name,
+            'chunks_total': len(chunks),
+            'translated_chunks': {}
+        }
+        
+        # Load original text for checking
+        original_text = FileHandler.read_text(filepath)
+        
+        # Translate
+        logger.info(f"Translating {len(chunks)} chunks...")
+        translated_chunks = translator.translate_chunks(chunks, chapter_num)
+        translated_text = '\n\n'.join(translated_chunks)
+        
+        # Refine (optional)
+        if refiner and not skip_refinement:
+            logger.info("Refining translation...")
+            translated_text = refiner.refine_full_text(translated_text)
+        
+        # Check quality
+        logger.info("Checking translation quality...")
+        check_result = checker.check_chapter(original_text, translated_text)
+        
+        print("\n" + checker.generate_report(chapter_num, check_result))
+        
+        # Save output
+        output_path = save_partial_translation(
+            book_id, chapter_name,
+            {i: t for i, t in enumerate(translated_chunks)},
+            len(chunks),
+            is_final=True
+        )
+        
+        # Update context and glossary
+        logger.info("Updating memory and context...")
+        context_updater.process_chapter(original_text, translated_text, chapter_num)
+        
+        logger.info(f"Translation complete: {output_path}")
+        return output_path
+        
+    except Exception as e:
+        logger.error(f"Translation failed: {e}", exc_info=True)
+        raise
+    finally:
+        # Ensure cleanup happens
+        cleanup_resources()
 
 
 def translate_novel(
@@ -334,10 +414,11 @@ def translate_novel(
     chapter_num: Optional[int],
     config: dict,
     start: int = 1,
-    skip_refinement: bool = False
+    skip_refinement: bool = False,
+    unload_after_chapter: bool = False
 ):
     """
-    Translate novel chapters.
+    Translate novel chapters with proper resource management.
     
     Args:
         novel_name: Name of the novel
@@ -345,6 +426,7 @@ def translate_novel(
         config: Configuration dict
         start: Starting chapter number
         skip_refinement: Whether to skip refinement
+        unload_after_chapter: Whether to unload model from GPU after each chapter
     """
     logger = logging.getLogger(__name__)
     
@@ -378,10 +460,15 @@ def translate_novel(
         print(f"{'='*60}")
         
         try:
+            # For batch translation, only unload on last chapter if requested
+            is_last = (i == start + len(chapters_to_process) - 1)
+            should_unload = unload_after_chapter if not is_last else True
+            
             output = translate_single_file(
                 str(chapter_file),
                 config,
-                skip_refinement=skip_refinement
+                skip_refinement=skip_refinement,
+                unload_on_exit=should_unload
             )
             
             if output:
@@ -400,6 +487,8 @@ def translate_novel(
     print(f"\n{'='*60}")
     print(f"All chapters complete!")
     print(f"{'='*60}")
+    print("\nTo free system memory, you may want to stop Ollama server:")
+    print("  ollama stop <model_name>  or  sudo systemctl stop ollama")
     return True
 
 
@@ -424,6 +513,9 @@ Examples:
   
   # Skip refinement (faster)
   python -m src.main --novel 古道仙鸿 --chapter 1 --skip-refinement
+  
+  # Unload model from GPU after each chapter (saves VRAM)
+  python -m src.main --novel 古道仙鸿 --all --unload-after-chapter
         """
     )
     
@@ -440,6 +532,8 @@ Examples:
     parser.add_argument("--skip-refinement", action="store_true", help="Skip refinement step")
     parser.add_argument("--two-stage", action="store_true", help="Enable two-stage translation")
     parser.add_argument("--single-stage", action="store_true", help="Force single-stage translation")
+    parser.add_argument("--unload-after-chapter", action="store_true", 
+                       help="Unload model from GPU after each chapter to save VRAM")
     
     # Configuration
     parser.add_argument("--config", default="config/settings.yaml", help="Config file path")
@@ -498,6 +592,9 @@ Examples:
             print("  Stage 1: Raw translation")
             print("  Stage 2: Literary refinement")
     
+    if args.unload_after_chapter:
+        print("\nMemory optimization: Model will be unloaded from GPU after each chapter")
+    
     print()
     
     # Run translation
@@ -507,7 +604,8 @@ Examples:
             output = translate_single_file(
                 args.input,
                 config,
-                skip_refinement=args.skip_refinement
+                skip_refinement=args.skip_refinement,
+                unload_on_exit=True
             )
             
             if output:
@@ -524,7 +622,8 @@ Examples:
                 args.chapter,
                 config,
                 start=args.start,
-                skip_refinement=args.skip_refinement
+                skip_refinement=args.skip_refinement,
+                unload_after_chapter=args.unload_after_chapter
             )
             
             return 0 if success else 1

@@ -4,7 +4,7 @@ Mocks OllamaClient to avoid real API calls.
 """
 
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, call
 import sys
 from pathlib import Path
 
@@ -17,6 +17,7 @@ from src.agents.checker import Checker
 from src.agents.context_updater import ContextUpdater
 from src.memory.memory_manager import MemoryManager
 from src.utils.ollama_client import OllamaClient
+from src.agents.prompt_patch import TRANSLATOR_SYSTEM_PROMPT, EDITOR_SYSTEM_PROMPT
 
 
 class TestTranslator(unittest.TestCase):
@@ -51,6 +52,39 @@ class TestTranslator(unittest.TestCase):
         
         self.assertEqual(result, "မင်္ဂလာပါ")
         self.mock_memory.push_to_buffer.assert_called_with("မင်္ဂလာပါ")
+    
+    def test_translate_strips_think_tags(self):
+        """Test translation strips <think> tags from output."""
+        self.mock_ollama.chat.return_value = "<think>thought</think>မင်္ဂလာပါ"
+        
+        result = self.translator.translate_paragraph("你好")
+        
+        self.assertNotIn("<think>", result)
+        self.assertNotIn("</think>", result)
+        self.assertNotIn("thought", result)
+        self.assertIn("မင်္ဂလာပါ", result)
+    
+    def test_translate_strips_answer_tags(self):
+        """Test translation strips <answer> tags from output."""
+        self.mock_ollama.chat.return_value = "<answer>မင်္ဂလာပါ</answer>"
+        
+        result = self.translator.translate_paragraph("你好")
+        
+        self.assertNotIn("<answer>", result)
+        self.assertNotIn("</answer>", result)
+        self.assertIn("မင်္ဂလာပါ", result)
+    
+    def test_translate_uses_hardened_prompt(self):
+        """Test translator uses hardened prompt with LANGUAGE_GUARD."""
+        self.mock_ollama.chat.return_value = "မင်္ဂလာပါ"
+        
+        self.translator.translate_paragraph("你好")
+        
+        # Verify the system prompt contains LANGUAGE_GUARD
+        call_args = self.mock_ollama.chat.call_args
+        system_prompt = call_args.kwargs.get('system_prompt', call_args[1].get('system_prompt', ''))
+        self.assertIn("Myanmar (Burmese) ONLY", system_prompt)
+        self.assertIn("FORBIDDEN", system_prompt)
 
 
 class TestRefiner(unittest.TestCase):
@@ -66,6 +100,27 @@ class TestRefiner(unittest.TestCase):
         
         self.assertEqual(result, "မြန်မာစာ")
         self.mock_ollama.chat.assert_called()
+    
+    def test_refine_strips_think_tags(self):
+        """Test refinement strips <think> tags from output."""
+        self.mock_ollama.chat.return_value = "<think>editing...</think>မြန်မာစာ"
+        
+        result = self.refiner.refine_paragraph("Raw Myanmar")
+        
+        self.assertNotIn("<think>", result)
+        self.assertNotIn("editing...", result)
+        self.assertIn("မြန်မာစာ", result)
+    
+    def test_refine_uses_hardened_prompt(self):
+        """Test refiner uses hardened prompt with LANGUAGE_GUARD."""
+        self.mock_ollama.chat.return_value = "မြန်မာစာ"
+        
+        self.refiner.refine_paragraph("Raw Myanmar")
+        
+        # Verify the system prompt contains LANGUAGE_GUARD
+        call_args = self.mock_ollama.chat.call_args
+        system_prompt = call_args.kwargs.get('system_prompt', call_args[1].get('system_prompt', ''))
+        self.assertIn("Myanmar (Burmese) ONLY", system_prompt)
 
 
 class TestChecker(unittest.TestCase):
@@ -142,6 +197,36 @@ class TestContextUpdater(unittest.TestCase):
         
         # Verify glossary_pending update
         self.mock_memory.update_chapter_context.assert_called_with(1)
+    
+    def test_extract_entities_handles_malformed_json(self):
+        """Test entity extraction handles malformed JSON gracefully."""
+        # Mock malformed response
+        self.mock_ollama.chat.return_value = "Not valid JSON"
+        
+        entities = self.updater.extract_entities("some text")
+        
+        # Should not crash, return empty structure
+        self.assertIsInstance(entities, dict)
+        self.assertEqual(entities.get('characters', []), [])
+    
+    def test_extract_entities_parses_valid_json(self):
+        """Test entity extraction parses valid JSON correctly."""
+        self.mock_ollama.chat.return_value = '{"new_terms": [{"source": "林渊", "target": "လင်ယွန်း", "category": "character"}]}'
+        
+        entities = self.updater.extract_entities("some text")
+        
+        # Should extract the character
+        self.assertEqual(len(entities.get('characters', [])), 1)
+        self.assertEqual(entities['characters'][0]['name'], '林渊')
+    
+    def test_extract_entities_handles_json_in_prose(self):
+        """Test extraction handles JSON embedded in prose."""
+        self.mock_ollama.chat.return_value = 'Here is the result:\n```json\n{"new_terms": [{"source": "X", "target": "Y", "category": "item"}]}\n```'
+        
+        entities = self.updater.extract_entities("some text")
+        
+        # Should extract from markdown fence
+        self.assertEqual(len(entities.get('items_artifacts', [])), 1)
 
 
 if __name__ == '__main__':

@@ -1,0 +1,104 @@
+# FAST Translation Configuration
+# Optimized for speed with Ollama - Single stage, smaller model, batch processing
+# =====================================================
+
+project:
+  name: "novel_translation"
+  source_language: "zh-CN"
+  target_language: "my-MM"
+  novel_genre: "Xianxia/Cultivation"
+
+# =====================================================
+# FAST MODEL CONFIGURATION
+# =====================================================
+models:
+  provider: "ollama"
+  
+  # FAST Models (smaller = faster)
+  translator: "qwen2.5:7b"      # 7B is 2x faster than 14B, good quality
+  editor: "qwen2.5:7b"
+  refiner: "qwen:7b"            # Lightweight refinement
+  checker: "qwen:7b"
+  ollama_base_url: "http://localhost:11434"
+  timeout: 120                  # Shorter timeout (2 min vs 5 min)
+  
+# =====================================================
+# SINGLE STAGE = 2x FASTER
+# Skip the refinement stage - translate in one pass
+# =====================================================
+translation_pipeline:
+  mode: "single_stage"          # FAST: No separate refinement stage
+  stage1_model: "qwen2.5:7b"
+  stage2_model: "qwen2.5:7b"
+  description: "Single-stage for maximum speed"
+
+# =====================================================
+# FAST PROCESSING SETTINGS
+# =====================================================
+processing:
+  chunk_size: 3000              # LARGER chunks = fewer API calls
+  chunk_overlap: 50             # Smaller overlap
+  max_retries: 2                # Fewer retries
+  temperature: 0.4              # Slightly higher for faster generation
+  top_p: 0.90
+  top_k: 40
+  repeat_penalty: 1.05          # Lower = faster
+  stream: true                  # Enable streaming
+  request_timeout: 180          # 3 minutes max
+  
+  # BATCH PROCESSING (NEW)
+  batch_processing:
+    enabled: true
+    batch_size: 5               # Process 5 paragraphs at once
+    max_batch_chars: 2000       # Max chars per batch
+
+# =====================================================
+# PATHS
+# =====================================================
+paths:
+  input_dir: "data/input"
+  output_dir: "data/output"
+  books_dir: "books"
+  glossary_file: "data/glossary.json"
+  context_memory_file: "data/context_memory.json"
+  log_file: "logs/translation.log"
+  templates_dir: "templates"
+
+# =====================================================
+# QUALITY SETTINGS (Relaxed for speed)
+# =====================================================
+myanmar_readability:
+  enabled: true
+  min_myanmar_ratio: 0.6        # Lower threshold = less reprocessing
+  flag_on_fail: true
+  block_on_fail: false
+
+# =====================================================
+# OUTPUT FORMAT
+# =====================================================
+output:
+  format: "markdown"
+  preserve_formatting: true
+  add_metadata: true
+  add_translator_notes: false
+
+# =====================================================
+# Model Router (Disabled for speed)
+# =====================================================
+model_router:
+  enabled: false                # Disable for speed
+  vram_budget_gb: 8.0
+  retry_on_failure: true
+  max_fallback_depth: 1
+  
+model_roles:
+  translator: ["qwen2.5:7b"]
+  refiner: ["qwen:7b"]
+  checker: ["qwen:7b"]
+
+qa_testing:
+  enabled: false                # Disable QA for speed
+  auto_retry: false
+  min_myanmar_ratio: 0.60
+  fail_on_placeholders: false
+  markdown_strict: false

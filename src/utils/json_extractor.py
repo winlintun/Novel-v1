@@ -89,3 +89,52 @@ def safe_parse_terms(raw: str) -> dict:
     logger.warning("Entity extraction failed after 3 attempts — returning empty terms")
     logger.debug("Raw response was: %s", raw[:300])
     return empty_result
+
+def extract_json_from_response(raw: str) -> dict:
+    """
+    Generic JSON extraction from LLM response.
+    Extracts any JSON object from the response, not just term extraction format.
+    
+    This is a more generic version of safe_parse_terms that doesn't require
+    the 'new_terms' key to be present.
+    
+    Args:
+        raw: Raw LLM response text that may contain JSON
+        
+    Returns:
+        Parsed JSON dict, or empty dict if extraction fails
+    """
+    if not raw or not raw.strip():
+        logger.warning("Empty response for JSON extraction")
+        return {}
+    
+    # Attempt 1: direct parse of entire response
+    try:
+        data = json.loads(raw.strip())
+        if isinstance(data, dict):
+            return data
+    except json.JSONDecodeError:
+        pass
+    
+    # Attempt 2: extract JSON block from prose
+    block = extract_json_block(raw)
+    if block:
+        try:
+            data = json.loads(block)
+            if isinstance(data, dict):
+                return data
+        except json.JSONDecodeError:
+            pass
+        
+        # Attempt 3: repair then parse
+        try:
+            data = json.loads(_repair_json(block))
+            if isinstance(data, dict):
+                logger.info("JSON repaired and extracted successfully")
+                return data
+        except json.JSONDecodeError:
+            pass
+    
+    logger.warning("JSON extraction failed after 3 attempts")
+    logger.debug("Raw response was: %s", raw[:300])
+    return {}
