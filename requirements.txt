@@ -6,6 +6,9 @@ requests>=2.31.0              # HTTP client for API calls
 python-dotenv>=1.0.0          # Environment variable management
 pydantic>=2.0.0               # Configuration validation
 
+# ── Cloud AI APIs ────────────────────────────────────────
+google-generativeai>=0.7.0    # Google Gemini API Python SDK
+
 # ── Local LLM ────────────────────────────────────────────
 ollama>=0.1.0                 # Ollama Python client for local models
 

@@ -54,7 +54,7 @@ CHINESE_CHAPTERS_DIR = "chinese_chapters"
 
 # Rate limit configuration
 RATE_LIMITS = {
-    "gemini": {"rpm": 15, "delay": 6.0, "description": "15 requests/minute"},
+    "gemini": {"rpm": 2, "delay": 30.0, "description": "2 requests/minute, 50/day"},
     "openrouter": {"rpm": 20, "delay": 5.0, "description": "20 requests/minute"},
 }
 

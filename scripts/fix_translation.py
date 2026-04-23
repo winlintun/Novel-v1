@@ -127,6 +127,66 @@ def fix_weird_repetitions(text: str) -> str:
     return text
 
 
+def fix_sentence_repetition(text: str) -> str:
+    """
+    Fix severe sentence-level repetition (stuttering/hallucination).
+    
+    This catches patterns like:
+    - "အရောင်းကနေ သူများကြီးထံ လွတ်လွင်စေခဲ့ပါတယ်။" repeated 5+ times
+    """
+    lines = text.split('\n')
+    result_lines = []
+    previous_line = None
+    repeat_count = 0
+    max_repeats = 2  # Allow max 2 consecutive identical lines
+    
+    for line in lines:
+        stripped = line.strip()
+        
+        # Skip empty lines
+        if not stripped:
+            result_lines.append(line)
+            continue
+        
+        # Check if this line is identical to previous (for non-trivial lines)
+        if stripped == previous_line and len(stripped) > 10:
+            repeat_count += 1
+            if repeat_count >= max_repeats:
+                # Skip this repeated line
+                continue
+        else:
+            repeat_count = 0
+            previous_line = stripped
+        
+        result_lines.append(line)
+    
+    # Also fix within-line repetition of phrases (3+ times)
+    # Pattern: phrase repeated 3+ times with optional spaces
+    text = '\n'.join(result_lines)
+    
+    # Find sentences that repeat 3+ times in a row
+    words = text.split()
+    filtered_words = []
+    i = 0
+    
+    while i < len(words):
+        word = words[i]
+        # Count consecutive identical words
+        count = 1
+        while i + count < len(words) and words[i + count] == word:
+            count += 1
+        
+        # Keep max 2 repetitions
+        if count > 2:
+            filtered_words.extend([word, word])  # Keep 2
+            i += count
+        else:
+            filtered_words.append(word)
+            i += 1
+    
+    return ' '.join(filtered_words)
+
+
 def fix_character_names(text: str, glossary: Dict[str, str]) -> str:
     """Ensure character names use glossary translations."""
     # Add common variations
@@ -243,6 +303,9 @@ def postprocess_translation(text: str, novel_name: str = "") -> str:
     
     text = remove_metadata_text(text)
     print("  ✓ Removed metadata text")
+    
+    text = fix_sentence_repetition(text)
+    print("  ✓ Fixed sentence repetitions")
     
     text = fix_weird_repetitions(text)
     print("  ✓ Fixed weird repetitions")

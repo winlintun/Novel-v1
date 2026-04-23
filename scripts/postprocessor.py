@@ -17,6 +17,10 @@ def fix_punctuation(text: str) -> str:
         (r'，', '၊ '),
         (r'？', '? '),
         (r'！', '! '),
+        (r'؟', '? '),
+        
+        # Specific phrase corrections based on English-Myanmar translation rules
+        (r'ဟန်ဆောင်နေ봤자 အသုံးမဝင်ပါဘူး', 'ဟန်ဆောင်နေတာ အသုံးမဝင်ပါဘူး'),
         
         # Sentence endings - formal → natural
         (r'လေသည်။', 'တယ်။'),

@@ -1,0 +1,61 @@
+{
+  "novel_name": "古道仙鸿_chapter_001",
+  "rules": {
+    "person": {
+      "name_type": "person",
+      "description": "Character names - phonetic translation",
+      "suffix": "",
+      "prefix": "",
+      "use_phonetic": true,
+      "phonetic_hints": {}
+    },
+    "place": {
+      "name_type": "place",
+      "description": "Places - phonetic + suffix",
+      "suffix": "မြို့",
+      "prefix": "",
+      "use_phonetic": true,
+      "phonetic_hints": {}
+    },
+    "sect": {
+      "name_type": "sect",
+      "description": "Sects - name + ဇုံ",
+      "suffix": "ဇုံ",
+      "prefix": "",
+      "use_phonetic": true,
+      "phonetic_hints": {}
+    },
+    "organization": {
+      "name_type": "organization",
+      "description": "Organizations - name + ဂိုဏ်း/အဖွဲ့",
+      "suffix": "ဂိုဏ်း",
+      "prefix": "",
+      "use_phonetic": true,
+      "phonetic_hints": {}
+    },
+    "title": {
+      "name_type": "title",
+      "description": "Titles - context-based translation",
+      "suffix": "",
+      "prefix": "",
+      "use_phonetic": false,
+      "phonetic_hints": {}
+    },
+    "item": {
+      "name_type": "item",
+      "description": "Items - phonetic or meaning",
+      "suffix": "",
+      "prefix": "",
+      "use_phonetic": true,
+      "phonetic_hints": {}
+    },
+    "technique": {
+      "name_type": "technique",
+      "description": "Techniques - phonetic or meaning",
+      "suffix": "",
+      "prefix": "",
+      "use_phonetic": true,
+      "phonetic_hints": {}
+    }
+  }
+}

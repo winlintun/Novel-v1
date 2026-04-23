@@ -171,53 +171,53 @@ def get_system_prompt(target_lang: str = "Myanmar (Burmese)", source_lang: str =
     if not glossary_loaded:
         logger.info("No glossary loaded - translations may have inconsistent names")
 
-    prompt = f"""You are a skilled Burmese literary writer who is also fluent in {source_display}. Your goal is to translate the provided {source_display} novel text into natural, conversational, and emotionally resonant Burmese.
+    prompt = f"""You are a master literary translator, specializing in converting {source_display}-language novels into rich, idiomatic Burmese. Your specific expertise lies in adapting East Asian novels (particularly those with Chinese origins) for a Burmese audience. You are not a machine; you are a linguistic artist. Your goal is to produce a translation that reads as if it were originally written in Burmese.
 
 CRITICAL INSTRUCTIONS:
-1. Translate in a conversational, modern Burmese tone. Avoid archaic or overly stiff/formal language.
+1. Translate in a conversational, modern, and polished novelistic Burmese tone. Avoid archaic or overly stiff/formal language.
 2. Output ONLY the Burmese translation. NO English. NO {source_display}. NO filler phrases.
 3. {style_note}
 4. Do not summarize; translate everything contextually to preserve the "flavor" of the story.
 5. Keep all Markdown formatting (headings, line breaks) intact.
+6. The output MUST begin with the chapter heading, formatted precisely on two separate lines:
+  - Line 1: `# [Chapter Number]`
+  - Line 2: ``
+  - Line 3: `## [Chapter Title]`
+7. Must include `Translator’s Notes:` paragraph if needed.
 
-STYLE RULES WITH EXAMPLES:
+CORE TRANSLATION PRINCIPLES & STYLE RULES:
 
-**1. DIALOGUE - Make it Sound Real**
+**1. Literary, Not Literal**
+- Avoid direct, word-for-word translation. Rephrase sentences and paragraphs to flow naturally in Burmese.
+
+**2. Idioms and Figurative Language**
+- Do not translate English or Chinese idioms literally. Find the closest Burmese cultural or linguistic equivalent that conveys the same meaning and emotional impact.
+
+**3. DIALOGUE - Make it Sound Real**
 - ❌ WRONG: "သင်သည် ဤနေရာသို့ အဘယ်ကြောင့် ရောက်ရှိလာသနည်း" ဟု သူမသည် မေးမြန်းလေသည်။
 - ✅ RIGHT: "မင်း ဘာကြောင့် ဒီကို လာတာလဲ" လို့ သူမ မေးလိုက်တယ်
+- Ensure all dialogue is natural and reflects each character's personality, status, and their relationship.
 - Keep spoken words SHORT, DIRECT, and EMOTIONALLY HONEST
 - Format: "..."လို့ [character] ပြောတယ် / မေးတယ် / တိုးတိုးပြောတယ်
 
-**2. EMOTIONS - Show, Don't Tell**
+**4. EMOTIONS - Show, Don't Tell**
 - ❌ WRONG (describing): သူသည် အလွန်ဝမ်းနည်းပူဆွေးသောခံစားချက်ကို ခံစားနေသည်
 - ✅ RIGHT (showing): သူ့ရင်ထဲမှာ တစ်ခုခု နာကျင်နေသလိုပဲ။ မျက်ရည်တွေ မသိမသာ စီးကျလာတယ်
 - Express feelings through PHYSICAL SENSATIONS and SHORT FRAGMENTED SENTENCES
-- Example: chest tightening, hands trembling, tears falling, heart pounding
 
-**3. SENTENCE STRUCTURE - Break Long Sentences**
-- ❌ WRONG (one long sentence): သူသည် တောင်ထိပ်သို့ တက်ရောက်ရောက်ချင်း အနောက်ဘက်တွင် နေဝင်ရောင်ခြည်များ ထိုးဖောက်ကာ တောအုပ်ကြီးများပေါ်သို့ ရောင်ခြည်ကျရောက်လျက် တည်ရှိသောမြင်ကွင်းကို မြင်တွေ့ခဲ့ရသည်
-- ✅ RIGHT (broken into 2-3 short sentences):
-  တောင်ထိပ်ကို ရောက်တာနဲ့ သူ ရပ်မိသွားတယ်။
-  နေဝင်ရောင်က တောအုပ်ကြီးကို ရွှေရောင်ဆိုးထားသလို ဖုံးလွှမ်းနေတယ်။
-  လှပါတယ်။ ဒါပေမဲ့ ရင်ထဲမှာ တစ်ဆုပ်ကြည်ကြည်လည်း ဖြစ်မိတယ်။
-- Break long sentences into 2-3 short sentences
-- Each sentence should carry ONE idea or ONE image
-- Short sentences create RHYTHM. Rhythm creates EMOTION.
+**5. SENTENCE STRUCTURE - Break Long Sentences**
+- Break long sentences into 2-3 short sentences to create rhythm and emotion.
 
-**4. LANGUAGE - Modern and Conversational**
-- ❌ AVOID ARCHAIC: သင်သည်၊ ထိုသို့သော၊ အလွန်မူ၊ ရှိပါသည်၊ ဟူ၍၊ ထိုသို့
-- ✅ USE MODERN: မင်း၊ အဲ့လိုမျိုး၊ သိပ်ကို၊ ရှိတယ်၊ လို့၊ အဲ့ဒါကြောင့်
-- Write the way a Burmese storyteller would tell it around a fire
-- Make it feel like it was originally written in Burmese
+**6. WRONG UNICODE PREVENTION**
+- ❌ WRONG: ဟန်ဆောင်နေ봤자 အသုံးမဝင်ပါဘူး
+- ✅ RIGHT: ဟန်ဆောင်နေတာ အသုံးမဝင်ပါဘူး
+- Ensure proper use of Burmese Unicode conventions.
 
-**5. ACTION SCENES - Active Verbs**
-- Use vivid, active verbs
-- Avoid passive constructions
-- Make the action immediate and visceral
+**7. CHARACTER FIXES**
+- Do not use the Arabic question mark `؟`. Always use the standard question mark `?`.
+- Use correct Burmese sentence enders (e.g. `။`).
 
-**6. CULTURAL ADAPTATION**
-- If a direct translation feels foreign, use a culturally familiar Burmese expression
-- Keep the MEANING and EMOTION, not the literal words{glossary_text}
+{glossary_text}
 
 FINAL REMINDER: You are not a translation machine. You are a Burmese novelist retelling this story. Make the reader FEEL the story — don't just translate the words."""
     return prompt
@@ -514,8 +514,8 @@ class OpenRouterTranslator(BaseTranslator):
 
 
 class GeminiTranslator(BaseTranslator):
-    """Google Gemini via AI Studio"""
-    
+    """Google Gemini via AI Studio using Python SDK"""
+
     # Placeholder values that should not be used
     PLACEHOLDER_KEYS = [
         "your_gemini_api_key_here",
@@ -526,171 +526,104 @@ class GeminiTranslator(BaseTranslator):
         "",
         None
     ]
-    
+
     def __init__(self):
         self.api_key = os.getenv("GEMINI_API_KEY")
-        self.model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
-        
+        self.model_name = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+
         if not self.api_key or self.api_key.strip() in self.PLACEHOLDER_KEYS:
             raise ValueError(
                 "GEMINI_API_KEY not set or is still the placeholder value in .env file.\n"
                 "To fix this:\n"
                 "1. Get your API key from https://makersuite.google.com/app/apikey\n"
-                "2. Edit .env file and set GEMINI_API_KEY=your_actual_api_key"
+                "2. Edit .env file and set GEMINI_API_KEY=your_actual_api_key\n"
+                "3. Install the SDK: pip install google-generativeai"
             )
-        
+
         # Validate API key format (Gemini keys are typically 39 characters)
         if len(self.api_key.strip()) < 20:
             raise ValueError(
                 f"GEMINI_API_KEY appears to be invalid (too short: {len(self.api_key)} chars).\n"
                 "Please check your .env file and ensure you've set a valid API key."
             )
-    
-    def translate_stream(self, text: str, system_prompt: str) -> Iterator[str]:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:streamGenerateContent?key={self.api_key}"
-        
-        # Try with system_instruction first (newer API format)
-        payload = {
-            "system_instruction": {"parts": [{"text": system_prompt}]},
-            "contents": [{"parts": [{"text": text}]}],
-            "generationConfig": {
-                "temperature": 0.3,
-                "maxOutputTokens": 4096  # Limit output tokens for consistency
-            }
-        }
-        
-        # Fallback payload without system_instruction (older API format)
-        # Used if the first attempt fails with certain errors
-        fallback_payload = {
-            "contents": [{
-                "role": "user",
-                "parts": [{"text": f"{system_prompt}\n\n{text}"}]
-            }],
-            "generationConfig": {
-                "temperature": 0.3,
-                "maxOutputTokens": 4096
-            }
-        }
-        
-        logger.debug(f"Gemini API URL: {url.replace(self.api_key, '***API_KEY_HIDDEN***')}")
-        logger.debug(f"Request payload size: {len(str(payload))} bytes")
-        
+
+        # Import and configure the Gemini SDK
         try:
-            with managed_request('POST', url, json=payload, stream=True, 
-                               timeout=300, verify=VERIFY_SSL) as response:
-                response.raise_for_status()
-                
-                for line in response.iter_lines():
-                    if line:
-                        try:
-                            line_str = line.decode('utf-8')
-                            if line_str.startswith('data: '):
-                                line_str = line_str[6:]
-                            data = json.loads(line_str)
-                            
-                            # Handle API errors in response
-                            if 'error' in data:
-                                error_msg = data.get('error', {}).get('message', 'Unknown API error')
-                                logger.error(f"Gemini API error: {error_msg}")
-                                raise ValueError(f"Gemini API error: {error_msg}")
-                            
-                            if 'candidates' in data and data['candidates']:
-                                candidate = data['candidates'][0]
-                                # Check for safety blocks
-                                if 'finishReason' in candidate and candidate['finishReason'] == 'SAFETY':
-                                    logger.warning("Response blocked by safety settings")
-                                    raise ValueError("Translation blocked by safety settings")
-                                if 'content' in candidate and 'parts' in candidate['content']:
-                                    for part in candidate['content']['parts']:
-                                        if 'text' in part:
-                                            yield part['text']
-                        except (json.JSONDecodeError, KeyError, IndexError) as e:
-                            logger.debug(f"Parse error in Gemini stream: {e}")
-                            continue
-                        except UnicodeDecodeError as e:
-                            logger.warning(f"Unicode decode error: {e}")
-                            continue
-        except requests.exceptions.HTTPError as e:
-            logger.error(f"HTTP error in Gemini: {e}")
-            if e.response is not None:
-                status_code = e.response.status_code
-                try:
-                    error_text = e.response.text
-                    error_data = json.loads(error_text)
-                    error_msg = error_data.get('error', {}).get('message', str(e))
-                    
-                    # Provide specific guidance based on error type
-                    if status_code == 400:
-                        if "API key" in error_msg or "api key" in error_msg.lower():
-                            raise ValueError(
-                                f"Gemini API Error: Invalid API key\n"
-                                f"Details: {error_msg}\n\n"
-                                f"To fix this:\n"
-                                f"1. Get your API key from: https://makersuite.google.com/app/apikey\n"
-                                f"2. Edit .env file and set GEMINI_API_KEY=your_actual_api_key\n"
-                                f"3. Make sure the key doesn't have quotes or extra spaces"
-                            )
-                        elif "quota" in error_msg.lower() or "rate limit" in error_msg.lower():
-                            raise ValueError(
-                                f"Gemini API Error: Quota exceeded\n"
-                                f"Details: {error_msg}\n\n"
-                                f"To fix this:\n"
-                                f"1. Wait a few minutes before trying again\n"
-                                f"2. Check your quota at: https://makersuite.google.com/app/apikey\n"
-                                f"3. Consider using a different model (e.g., --model openrouter)"
-                            )
-                        elif "model" in error_msg.lower() and ("not found" in error_msg.lower() or "does not exist" in error_msg.lower()):
-                            raise ValueError(
-                                f"Gemini API Error: Model not found\n"
-                                f"Details: {error_msg}\n\n"
-                                f"The model '{self.model}' may not be available for your API key.\n"
-                                f"To fix this:\n"
-                                f"1. Check available models at: https://ai.google.dev/models/gemini\n"
-                                f"2. Update GEMINI_MODEL in .env to a valid model (e.g., gemini-1.5-flash)\n"
-                                f"3. Make sure you have access to the model in Google AI Studio"
-                            )
-                        else:
-                            raise ValueError(f"Gemini API Error (400 Bad Request): {error_msg}")
-                    elif status_code == 401:
-                        raise ValueError(
-                            f"Gemini API Error: Unauthorized (401)\n"
-                            f"Details: {error_msg}\n\n"
-                            f"Your API key is invalid or expired.\n"
-                            f"1. Check your API key at: https://makersuite.google.com/app/apikey\n"
-                            f"2. Generate a new key if needed\n"
-                            f"3. Update .env file with the new key"
-                        )
-                    elif status_code == 403:
-                        raise ValueError(
-                            f"Gemini API Error: Forbidden (403)\n"
-                            f"Details: {error_msg}\n\n"
-                            f"Your API key doesn't have permission to use this model.\n"
-                            f"1. Make sure Gemini API is enabled for your key\n"
-                            f"2. Try a different model or API key"
-                        )
-                    elif status_code == 429:
-                        raise ValueError(
-                            f"Gemini API Error: Rate Limited (429)\n"
-                            f"Details: {error_msg}\n\n"
-                            f"Too many requests. Please wait a moment and try again."
-                        )
-                    else:
-                        raise ValueError(f"Gemini API error ({status_code}): {error_msg}")
-                except json.JSONDecodeError:
-                    # Show raw error text if not JSON
-                    error_text = e.response.text[:500] if e.response.text else str(e)
-                    raise ValueError(f"Gemini API error ({status_code}): {error_text}")
-            raise
-        except requests.exceptions.Timeout:
-            logger.error("Request timeout in Gemini")
-            raise ValueError("Request timeout - the API took too long to respond")
-        except requests.exceptions.ConnectionError:
-            logger.error("Connection error in Gemini")
-            raise ValueError("Connection error - please check your internet connection")
-    
+            import google.generativeai as genai
+            genai.configure(api_key=self.api_key)
+
+            # Configure the model with system instruction
+            self.model = genai.GenerativeModel(
+                model_name=self.model_name,
+                system_instruction="You are a professional translator. Translate the provided text accurately and naturally. Only output the final translation, without any extra commentary or conversational filler."
+            )
+        except ImportError:
+            raise ValueError(
+                "google-generativeai package not installed.\n"
+                "Install it with: pip install google-generativeai"
+            )
+
+    def translate_stream(self, text: str, system_prompt: str) -> Iterator[str]:
+        """Translate text using Gemini SDK with streaming."""
+        try:
+            # Update system instruction dynamically
+            import google.generativeai as genai
+            self.model = genai.GenerativeModel(
+                model_name=self.model_name,
+                system_instruction=system_prompt
+            )
+
+            # Generate content with streaming
+            response = self.model.generate_content(
+                text,
+                generation_config={
+                    "temperature": 0.3,
+                    "max_output_tokens": 4096,
+                },
+                stream=True
+            )
+
+            # Yield chunks as they arrive
+            for chunk in response:
+                if chunk.text:
+                    yield chunk.text
+
+        except Exception as e:
+            error_str = str(e).lower()
+
+            # Handle specific error types
+            if "api key" in error_str or "unauthorized" in error_str:
+                raise ValueError(
+                    f"Gemini API Error: Invalid API key\n"
+                    f"Details: {e}\n\n"
+                    f"To fix this:\n"
+                    f"1. Get your API key from: https://makersuite.google.com/app/apikey\n"
+                    f"2. Edit .env file and set GEMINI_API_KEY=your_actual_api_key"
+                )
+            elif "quota" in error_str or "rate limit" in error_str or "429" in error_str:
+                raise ValueError(
+                    f"Gemini API Error: Quota exceeded or rate limited\n"
+                    f"Details: {e}\n\n"
+                    f"To fix this:\n"
+                    f"1. Wait a few minutes before trying again\n"
+                    f"2. Check your quota at: https://makersuite.google.com/app/apikey\n"
+                    f"3. Consider using a different model (e.g., --model openrouter)"
+                )
+            elif "model" in error_str and ("not found" in error_str or "does not exist" in error_str):
+                raise ValueError(
+                    f"Gemini API Error: Model not found\n"
+                    f"Details: {e}\n\n"
+                    f"The model '{self.model_name}' may not be available.\n"
+                    f"To fix this:\n"
+                    f"1. Check available models at: https://ai.google.dev/models/gemini\n"
+                    f"2. Update GEMINI_MODEL in .env to a valid model (e.g., gemini-2.0-flash)"
+                )
+            else:
+                raise ValueError(f"Gemini API error: {e}")
+
     @property
     def name(self) -> str:
-        return f"gemini ({self.model})"
+        return f"gemini ({self.model_name})"
 
 
 class OllamaTranslator(BaseTranslator):
@@ -716,7 +649,9 @@ class OllamaTranslator(BaseTranslator):
                     "num_predict": -1,
                     "top_p": 0.92,
                     "top_k": 50,
-                    "repeat_penalty": 1.1
+                    "repeat_penalty": 1.3,
+                    "frequency_penalty": 0.5,
+                    "presence_penalty": 0.3
                 }
             }
         else:
@@ -734,7 +669,9 @@ class OllamaTranslator(BaseTranslator):
                     "num_ctx": 8192,
                     "top_p": 0.92,
                     "top_k": 50,
-                    "repeat_penalty": 1.1
+                    "repeat_penalty": 1.3,
+                    "frequency_penalty": 0.5,
+                    "presence_penalty": 0.3
                 }
             }
         
