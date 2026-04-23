@@ -464,22 +464,39 @@ Examples:
         logger = setup_logging()
         logger.info(f"Loaded config from {args.config}")
         print(f"Config: {args.config}")
-        print(f"Model: {config['models']['translator']}")
         print()
     except Exception as e:
         print(f"✗ Failed to load configuration: {e}")
         return 1
     
+    # Display model information
+    models_config = config.get('models', {})
+    provider = models_config.get('provider', 'ollama')
+    translator_model = models_config.get('translator', 'qwen2.5:14b')
+    editor_model = models_config.get('editor', translator_model)
+    
+    print("-" * 60)
+    print(f"Provider: {provider.upper()}")
+    print(f"Translator Model: {translator_model}")
+    print(f"Editor Model: {editor_model}")
+    print("-" * 60)
+    print()
+    
     # Override two-stage mode if specified
     if args.two_stage:
         config['translation_pipeline']['mode'] = 'two_stage'
         print("Mode: Two-stage translation")
+        print("  Stage 1: Raw translation")
+        print("  Stage 2: Literary refinement")
     elif args.single_stage:
         config['translation_pipeline']['mode'] = 'single_stage'
         print("Mode: Single-stage translation")
     else:
         mode = config['translation_pipeline'].get('mode', 'single_stage')
         print(f"Mode: {mode.replace('_', '-')} translation")
+        if mode == 'two_stage':
+            print("  Stage 1: Raw translation")
+            print("  Stage 2: Literary refinement")
     
     print()
     

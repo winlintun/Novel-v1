@@ -10,32 +10,12 @@ from typing import Dict, List, Optional
 from src.utils.ollama_client import OllamaClient
 from src.memory.memory_manager import MemoryManager
 
+from src.utils.postprocessor import clean_output, validate_output
+from src.utils.json_extractor import safe_parse_terms
+from src.agents.prompt_patch import TRANSLATOR_SYSTEM_PROMPT, EDITOR_SYSTEM_PROMPT
+
+
 logger = logging.getLogger(__name__)
-
-
-TRANSLATION_SYSTEM_PROMPT = """You are an expert Chinese-to-Myanmar literary translator specializing in Xianxia/Cultivation novels.
-
-CRITICAL RULES:
-1. Myanmar SOV Structure: Use Subject-Object-Verb order
-2. Tone Control: 
-   - Narrative: Formal, literary tone
-   - Dialogue: Natural spoken tone matching character personality
-3. Glossary Compliance: Use EXACT translations from glossary. Never transliterate names unless specified.
-4. Markdown Preservation: Keep all formatting (#, **, *, etc.)
-5. Literary Quality: Make it read like original Myanmar literature, not a translation
-6. No Additions: Do not add explanations or translator notes
-
-NARRATIVE STYLE:
-- Use formal Burmese sentence endings (သည်, သည်, etc.)
-- Break long Chinese sentences into readable Myanmar clauses
-- Use descriptive, evocative language
-
-DIALOGUE STYLE:
-- Short, direct sentences
-- Match character personality and status
-- Use appropriate particles (လား, ပါ, ဟေ့, etc.)
-
-OUTPUT ONLY the translated Myanmar text. No explanations, no Chinese, no notes."""
 
 
 class Translator:
@@ -82,12 +62,13 @@ class Translator:
         
         return "\n".join(prompt_parts)
     
-    def translate_paragraph(self, paragraph: str) -> str:
+    def translate_paragraph(self, paragraph: str, chapter_num: int = 0) -> str:
         """
         Translate a single paragraph.
         
         Args:
             paragraph: Chinese text paragraph
+            chapter_num: Current chapter number for logging
             
         Returns:
             Myanmar translation
@@ -96,13 +77,18 @@ class Translator:
         prompt = self.build_prompt(paragraph)
         
         # Call LLM
-        translated = self.ollama.chat(
+        raw = self.ollama.chat(
             prompt=prompt,
-            system_prompt=TRANSLATION_SYSTEM_PROMPT
+            system_prompt=TRANSLATOR_SYSTEM_PROMPT
         )
         
-        # Clean up response
-        translated = translated.strip()
+        # Clean output: strip <think>, <answer>, tags, etc.
+        translated = clean_output(raw)
+        
+        # Validate and log quality report
+        report = validate_output(translated, chapter_num)
+        if report["status"] != "APPROVED":
+            logger.warning(f"Translation quality issue in chapter {chapter_num}: {report}")
         
         # Push to context buffer
         self.memory.push_to_buffer(translated)
@@ -127,8 +113,8 @@ class Translator:
             logger.info(f"Translating chunk {i}/{total}...")
             
             try:
-                # Translate chunk
-                result = self.translate_paragraph(chunk['text'])
+                # Translate chunk with chapter number for quality tracking
+                result = self.translate_paragraph(chunk['text'], chapter_num)
                 translated.append(result)
                 
             except Exception as e:

@@ -7,28 +7,10 @@ import logging
 from typing import List
 
 from src.utils.ollama_client import OllamaClient
+from src.agents.prompt_patch import EDITOR_SYSTEM_PROMPT
+from src.utils.postprocessor import clean_output
 
 logger = logging.getLogger(__name__)
-
-
-REFINER_SYSTEM_PROMPT = """You are a professional Myanmar language editor specializing in literary texts.
-
-Your task is to improve the provided Myanmar translation while preserving meaning and structure.
-
-REFINEMENT GOALS:
-1. Flow: Ensure sentences connect smoothly, natural transitions
-2. Tone Consistency: Maintain appropriate tone (formal for narrative, natural for dialogue)
-3. Word Choice: Use evocative, literary vocabulary where appropriate
-4. Rhythm: Break overly long sentences; vary sentence length for readability
-5. Cultural Fit: Ensure expressions feel natural to Myanmar readers
-
-WHAT NOT TO CHANGE:
-- Do NOT alter names (use glossary terms exactly)
-- Do NOT change plot or meaning
-- Do NOT remove markdown formatting
-- Do NOT add explanations or notes
-
-OUTPUT ONLY the refined Myanmar text."""
 
 
 class Refiner:
@@ -56,12 +38,15 @@ class Refiner:
 
 REFINED TEXT:"""
         
-        refined = self.ollama.chat(
+        raw = self.ollama.chat(
             prompt=prompt,
-            system_prompt=REFINER_SYSTEM_PROMPT
+            system_prompt=EDITOR_SYSTEM_PROMPT
         )
         
-        return refined.strip()
+        # Clean output: strip <think>, <answer>, tags, etc.
+        refined = clean_output(raw)
+        
+        return refined
     
     def refine_chapter(self, paragraphs: List[str]) -> List[str]:
         """

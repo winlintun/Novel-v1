@@ -71,14 +71,48 @@ class FileHandler:
     
     @staticmethod
     def list_chapters(input_dir: str, novel_name: str) -> List[Path]:
-        """List all chapter files for a novel."""
+        """List all chapter files for a novel.
+        
+        Looks for files in:
+        1. data/input/novel_name/novel_name_chapter_XXX.md (subdirectory)
+        2. data/input/novel_name/novel_name_XXX.md (subdirectory, legacy)
+        3. data/input/novel_name_chapter_XXX.md (flat structure)
+        4. data/input/novel_name_XXX.md (flat structure, legacy)
+        """
         path = Path(input_dir)
         if not path.exists():
             return []
         
-        # Find files matching pattern: novel_name_XXX.md
-        pattern = f"{novel_name}_*.md"
-        files = sorted(path.glob(pattern))
+        files = []
+        
+        # Pattern 1: Files in subdirectory (e.g., data/input/古道仙鸿/古道仙鸿_chapter_001.md)
+        novel_dir = path / novel_name
+        if novel_dir.exists() and novel_dir.is_dir():
+            # Look for _chapter_ pattern first (new format)
+            pattern1 = f"{novel_name}_chapter_*.md"
+            files.extend(novel_dir.glob(pattern1))
+            # Also look for legacy format (novel_name_XXX.md)
+            pattern_legacy = f"{novel_name}_*.md"
+            files.extend(novel_dir.glob(pattern_legacy))
+        
+        # Pattern 2: Flat structure in root input dir
+        # Look for _chapter_ pattern first (new format)
+        pattern2 = f"{novel_name}_chapter_*.md"
+        files.extend(path.glob(pattern2))
+        # Also look for legacy format (novel_name_XXX.md)
+        pattern_flat_legacy = f"{novel_name}_*.md"
+        files.extend(path.glob(pattern_flat_legacy))
+        
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_files = []
+        for f in files:
+            if f not in seen:
+                seen.add(f)
+                unique_files.append(f)
+        
+        # Sort by filename to ensure correct chapter order
+        files = sorted(unique_files, key=lambda p: p.name)
         
         return files
     

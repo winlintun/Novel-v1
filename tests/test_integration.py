@@ -98,8 +98,9 @@ class TestChunking(unittest.TestCase):
         """Test large text creates multiple chunks."""
         preprocessor = Preprocessor(chunk_size=100)
         
-        # Create text larger than chunk size
-        text = "这是一段中文测试内容。" * 50
+        # Create text larger than chunk size with multiple paragraphs
+        paragraphs = ["这是一段中文测试内容。" for _ in range(50)]
+        text = "\n\n".join(paragraphs)
         chunks = preprocessor.create_chunks(text)
         
         self.assertGreater(len(chunks), 1)

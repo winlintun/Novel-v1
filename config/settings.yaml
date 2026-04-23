@@ -1,46 +1,78 @@
 # Novel Translation Pipeline Configuration
-# Merged from config.json and settings.yaml
+# Chinese (中文) → Myanmar (မြန်မာ) Novel Translation
+# =====================================================
 
 project:
   name: "novel_translation"
-  source_language: "zh-CN"
-  target_language: "my-MM"
+  source_language: "zh-CN"      # Chinese
+  target_language: "my-MM"      # Myanmar (Burmese)
   novel_genre: "Xianxia/Cultivation"
 
+# =====================================================
+# MODEL CONFIGURATION - Update your model here
+# =====================================================
 models:
-  # Primary models
-  translator: "qwen2.5:14b"
-  editor: "qwen2.5:14b"
-  refiner: "qwen:7b"
-  checker: "qwen:7b"
+  # Which provider to use: "ollama" (local) or "gemini" or "openrouter" (cloud)
+  provider: "ollama"
   
-  # Provider settings
-  provider: "ollama"  # ollama, gemini, openrouter
-  ai_backend: "gemini"
+  # Local Ollama Settings (when provider = "ollama")
+  # IMPORTANT: Use qwen2.5:14b or qwen2.5:7b for best Chinese→Myanmar results
+  # alibayram/hunyuan:7b and yxchia/seallms-v3-7b produce THAI instead of Myanmar!
+  translator: "qwen2.5:14b"     # Best for Chinese→Myanmar (9GB)
+  editor: "qwen2.5:14b"         # Can be same as translator
+  refiner: "qwen:7b"            # Smaller model for refinement (4GB)
+  checker: "qwen:7b"            # Smaller model for checking (4GB)
   ollama_base_url: "http://localhost:11434"
   timeout: 300
   
-  # Alternative models by provider
-  supported_models:
-    ollama:
-      - "qwen:7b"
-      - "qwen2.5:7b"
-      - "qwen2.5:14b"
-      - "translategemma"
-      - "translategemma:12b"
-      - "gemma:7b"
-    gemini:
-      - "gemini-2.5-flash"
-      - "gemini-2.0-flash"
-      - "gemini-1.5-flash"
-      - "gemini-1.5-pro"
-    openrouter:
-      - "meta-llama/llama-3.3-70b-instruct:free"
-      - "google/gemini-2.0-flash-exp:free"
-      - "google/gemini-2.5-flash-exp:free"
-      - "deepseek/deepseek-chat:free"
-      - "qwen/qwen-2.5-72b-instruct:free"
+  # AVAILABLE OLLAMA MODELS (run: ollama list)
+  # Recommended for Chinese→Myanmar:
+  #   - qwen2.5:14b (Best quality, 9GB) ⭐ RECOMMENDED
+  #   - qwen2.5:7b (Good quality, faster, 4GB)
+  #   - qwen:7b (Lightweight, 4GB)
+  # NOT recommended (produces wrong language):
+  #   - alibayram/hunyuan:7b (produces THAI ❌)
+  #   - yxchia/seallms-v3-7b (produces THAI ❌)
+  #   - translategemma:12b (may produce wrong language ❌)
+  
+  # Cloud API Settings (when provider = "gemini" or "openrouter")
+  # For Gemini: Get API key from https://makersuite.google.com/app/apikey
+  # For OpenRouter: Get API key from https://openrouter.ai/keys
+  cloud_model: "gemini-2.5-flash"  # or "google/gemini-2.5-flash-exp:free"
 
+# =====================================================
+# TRANSLATION MODE - One step or Two step?
+# =====================================================
+# TWO_STAGE (Recommended): Better quality but slower
+#   Stage 1: Raw translation (Chinese → Myanmar)
+#   Stage 2: Literary rewrite (improve flow and style)
+#
+# SINGLE_STAGE: Faster but lower quality
+#   Direct translation in one pass
+# =====================================================
+translation_pipeline:
+  mode: "two_stage"  # Options: "two_stage" or "single_stage"
+  stage1_model: "qwen2.5:14b"
+  stage2_model: "qwen2.5:14b"
+  description: "Two-stage uses raw translation + rewrite for better quality"
+
+# =====================================================
+# PROCESSING SETTINGS
+# =====================================================
+processing:
+  chunk_size: 1500        # Characters per chunk (1500-2000 recommended)
+  chunk_overlap: 100      # Overlap between chunks for context
+  max_retries: 3          # Retry failed chunks
+  temperature: 0.3        # 0.1-0.5 (lower = more consistent)
+  top_p: 0.92
+  top_k: 50
+  repeat_penalty: 1.1     # Prevents character repetition
+  stream: true
+  request_timeout: 900    # Seconds
+
+# =====================================================
+# PATHS
+# =====================================================
 paths:
   input_dir: "data/input"
   output_dir: "data/output"
@@ -48,86 +80,42 @@ paths:
   glossary_file: "data/glossary.json"
   context_memory_file: "data/context_memory.json"
   log_file: "logs/translation.log"
-  progress_file: "working_data/progress.json"
   templates_dir: "templates"
 
-processing:
-  chunk_size: 1500
-  chunk_overlap: 100
-  max_retries: 3
-  temperature: 0.3
-  top_p: 0.92
-  top_k: 50
-  repeat_penalty: 1.1
-  stream: true
-  request_timeout: 900
-  preview_update_every_n_tokens: 10
-
-# Translation pipeline modes
-translation_pipeline:
-  mode: "two_stage"  # single_stage or two_stage
-  stage1_model: "ollama:qwen2.5:14b"
-  stage2_model: "ollama:qwen2.5:14b"
-  description: "Two-stage uses raw translation + rewrite for better quality"
-
-# Translation modes (legacy support)
-translation_modes:
-  local:
-    script: "local_main.py"
-    description: "Use local Ollama - no rate limits, faster for bulk translation"
-    default_model: "ollama:qwen2.5:14b"
-    request_delay: 0.0
-  cloud:
-    script: "cloud_main.py"
-    description: "Use cloud APIs - rate limits apply"
-    providers:
-      gemini:
-        default_model: "gemini-2.5-flash"
-        rpm: 15
-        request_delay: 6.0
-        env_key: "GEMINI_API_KEY"
-      openrouter:
-        default_model: "google/gemini-2.0-flash-exp:free"
-        rpm: 20
-        request_delay: 5.0
-        env_key: "OPENROUTER_API_KEY"
-
-# Rate limits for cloud providers
-rate_limits:
-  gemini:
-    free_tier:
-      rpm: 15
-      tpm: 1000000
-      recommended_delay: 6.0
-  openrouter:
-    free_tier:
-      rpm: 20
-      rpd: 200
-      recommended_delay: 5.0
-
-# Quality settings
+# =====================================================
+# QUALITY SETTINGS
+# =====================================================
 myanmar_readability:
   enabled: true
-  min_myanmar_ratio: 0.7
+  min_myanmar_ratio: 0.7    # 70% of text should be Myanmar script
   flag_on_fail: true
   block_on_fail: false
 
-# Web UI settings
-web_ui:
-  port: 5000
-  auto_open_browser: true
-  host: "127.0.0.1"
-
-# Output settings
+# =====================================================
+# OUTPUT FORMAT
+# =====================================================
 output:
   format: "markdown"
-  preserve_formatting: true
-  add_metadata: true
+  preserve_formatting: true   # Keep chapter headers, italics, bold
+  add_metadata: true          # Add translation info header
   add_translator_notes: false
 
-# Legacy paths (for backward compatibility)
-legacy_paths:
-  input_novels: "input_novels"
-  english_chapters: "english_chapters"
-  chinese_chapters: "chinese_chapters"
-  working_data: "working_data"
+# =====================================================
+# AVAILABLE MODELS REFERENCE
+# =====================================================
+# OLLAMA (Local - Free, unlimited):
+#   - qwen2.5:14b (Recommended - good quality)
+#   - qwen2.5:7b (Faster, less quality)
+#   - qwen:7b (Lightweight)
+#   - gemma:7b
+#
+# GEMINI (Cloud - API key required):
+#   - gemini-2.5-flash (Fast, good quality)
+#   - gemini-2.0-flash
+#   - gemini-1.5-pro (Best quality, slower)
+#
+# OPENROUTER (Cloud - API key required):
+#   - google/gemini-2.5-flash-exp:free
+#   - meta-llama/llama-3.3-70b-instruct:free
+#   - deepseek/deepseek-chat:free
+# =====================================================

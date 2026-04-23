@@ -125,7 +125,15 @@ class OllamaClient:
         """Check if the configured model is available."""
         try:
             models = self.client.list()
-            available = [m['name'] for m in models.get('models', [])]
+            model_list = models.get('models', [])
+            
+            # Handle different API response formats
+            available = []
+            for m in model_list:
+                # Try 'model' key first (newer API), then 'name' (older API)
+                model_name = m.get('model') or m.get('name')
+                if model_name:
+                    available.append(model_name)
             
             if self.model in available:
                 return True

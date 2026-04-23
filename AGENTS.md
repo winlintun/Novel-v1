@@ -1,5 +1,44 @@
 # AGENTS.md - AI Agent Guidance for Novel Translation Project
 
+---
+
+## ⚡ MANDATORY SESSION PROTOCOL (Auto-runs — No prompt needed)
+
+> These rules execute automatically at the start and end of **every session**.
+> You do not need to be asked. This is non-negotiable default behavior.
+
+### 🟢 SESSION START — Do this FIRST, before any code or reply
+
+```
+STEP 1: Read AGENTS.md          ← you are here
+STEP 2: Read GEMINI.md          ← tool-specific rules
+STEP 3: Read CURRENT_STATE.md   ← what is done / not done / blocked
+STEP 4: Silently confirm the task against Architecture Decisions in CURRENT_STATE.md
+STEP 5: Proceed with the task
+```
+
+**If any file is missing:** Create it using the schema defined in this document. Do not skip.
+
+### 🔴 SESSION END — Do this LAST, after every task completes
+
+```
+STEP 1: Update CURRENT_STATE.md
+        - Mark completed tasks as [DONE]
+        - Move in-progress tasks to [IN PROGRESS]
+        - Log any new bugs or blockers discovered
+        - Update "Last Updated" date and "Last task completed" fields
+STEP 2: Run Code Review Workflow (sub-agents A + B in parallel)
+STEP 3: Fix all issues until both sub-agents respond READY_TO_COMMIT
+```
+
+**Trigger condition:** Any of these actions = session end update required:
+- A file in `src/` was created or modified
+- A feature was completed or partially completed  
+- A bug was found or fixed
+- Any decision was made that affects architecture
+
+---
+
 ## Project Overview
 
 This project is an advanced, AI-powered **Chinese-to-Myanmar (Burmese) novel translation system** specializing in Wuxia/Xianxia novels. It uses a multi-stage agent pipeline to translate web novels while preserving tone, style, literary depth, and strict terminology consistency.
@@ -304,6 +343,99 @@ novel_translation_project/
 └── README.md
 ```
 
+## 🛡 Code Drift Prevention (Mandatory)
+ 
+> ဒီ rules ၃ ချက်မရှိရင် feature ထပ်ထည့်တိုင်း pipeline တဖြည်းဖြည်း ပျက်စီးမယ်။ Non-negotiable။
+ 
+### 1. Modular Boundaries
+ 
+တစ်ဖိုင်နဲ့တဖိုင် တိုက်ရိုက်မခေါ်ရ — `MemoryManager` ကိုသာ ဖြတ်ရမည်။
+ 
+```
+ALLOWED                             FORBIDDEN
+──────────────────────────────      ──────────────────────────────
+Translator → MemoryManager          Translator → glossary.json (direct)
+Refiner    → MemoryManager          Checker    → context_memory.json (direct)
+Checker    → MemoryManager          ContextUpdater → Translator (cross-agent)
+```
+ 
+**Rules:**
+- Agent တစ်ခုက တစ်ခုကို import မလုပ်ရ (no cross-agent imports)
+- Data files (`glossary.json`, `context_memory.json`) ကို `FileHandler` မဖြတ်ဘဲ မဖတ်ရ မရေးရ
+- `MemoryManager` သည် data layer ၏ single gateway ဖြစ်သည်
+### 2. Type Hints (Every function, no exceptions)
+ 
+```python
+# WRONG — drift ဖြစ်စေတဲ့ ပုံစံ
+def translate(text, glossary, context):
+    ...
+ 
+# CORRECT — contract ရှင်းတယ်၊ AI မှားရေးဖို့ ခက်တယ်
+def translate(
+    text: str,
+    glossary: dict[str, str],
+    context: list[str],
+) -> str:
+    ...
+```
+ 
+**Required on:**
+- All `src/agents/*.py` public methods
+- All `src/memory/memory_manager.py` methods
+- All `src/utils/*.py` methods
+- Data models (use `TypedDict` or `dataclass`)
+```python
+# Data model example
+from typing import TypedDict
+ 
+class GlossaryTerm(TypedDict):
+    id: str
+    source: str
+    target: str
+    category: str        # "character" | "place" | "level" | "item"
+    chapter_first_seen: int
+    verified: bool
+```
+ 
+### 3. Automated Tests (Write test before or with code)
+ 
+**Structure:**
+```
+tests/
+├── test_translator.py       # Translator.translate_paragraph()
+├── test_refiner.py          # Refiner.refine_paragraph()
+├── test_checker.py          # Checker.check_chapter(), quality score
+├── test_memory_manager.py   # add_term(), get_term(), FIFO buffer
+├── test_context_updater.py  # extract_entities(), pending glossary routing
+├── test_file_handler.py     # atomic write, UTF-8-SIG, .bak backup
+└── test_integration.py      # End-to-end: input → output file
+```
+ 
+**Minimum test per function:**
+ 
+```python
+# test_memory_manager.py example
+def test_new_term_goes_to_pending_not_glossary():
+    mm = MemoryManager()
+    mm.add_pending_term("新术语", "မြန်မာ", "item", chapter=5)
+ 
+    assert mm.get_term("新术语") is None          # not in approved glossary
+    pending = mm.get_pending_terms()
+    assert any(t["source"] == "新术语" for t in pending)  # in pending only
+ 
+def test_unknown_term_returns_placeholder():
+    mm = MemoryManager()
+    result = mm.get_term("未知词")
+    assert result == "【?未知词?】"               # never None, never guessed
+```
+ 
+**Run before every commit:**
+```bash
+pytest tests/ -v --tb=short
+```
+ 
+**CI rule:** ဘယ် function အသစ်မဆို test မပါရင် Gemini reviewer က `NEEDS REVISION` ပြန်ရမည်။
+ 
 ---
 
 ## ✅ Best Practices
@@ -316,24 +448,54 @@ novel_translation_project/
 - **UTF-8-SIG encoding:** All file reads/writes use UTF-8-SIG to handle BOM characters correctly across platforms.
 
 ---
-
 ## 🔍 Code Review Workflow (Post-Implementation)
  
-After the main pipeline completes any implementation task, spawn **two sub-agents in parallel** automatically:
+> **Trigger:** Automatically after every feature, fix, or refactor. No prompt needed.
  
-| Sub-agent | Command | Focus |
-|-----------|---------|-------|
-| A | `gemini run "Review for bugs and code quality. List issues or say READY_TO_COMMIT"` | Bugs, logic errors, code quality |
-| B | `gemini run "Review for security issues only. List issues or say READY_TO_COMMIT"` | Security vulnerabilities |
+### Step-by-step Loop
  
-**Loop until done:**
-1. Run both sub-agents in parallel after every implementation.
-2. Fix **all** issues reported by either agent.
-3. Repeat until **both** respond with `READY_TO_COMMIT`.
-> This workflow triggers automatically after `src/main.py` completes a chapter translation run or any code change is made to the `src/` directory.
+```
+┌─────────────────────────────────────────────────────┐
+│  STEP 1 — OpenCode implements                       │
+│  Feature / fix / refactor task ကို ပြီးမြောက်သည်    │
+└────────────────────────┬────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────┐
+│  STEP 2 — Gemini reviews (run TWO in parallel)      │
+│                                                     │
+│  gemini run "Review the latest diff/changes for    │
+│  bugs and code quality. List all issues found,     │
+│  or respond with READY_TO_COMMIT if none."         │
+│                                                     │
+│  gemini run "Review the latest diff/changes for   │
+│  security issues only. List all issues found,     │
+│  or respond with READY_TO_COMMIT if none."        │
+└────────────────────────┬────────────────────────────┘
+                         │
+             ┌───────────┴───────────┐
+             │                       │
+     Issues found?             Both say
+             │                READY_TO_COMMIT
+             ▼                       │
+┌────────────────────────┐           ▼
+│  STEP 3 — OpenCode     │   ┌───────────────────┐
+│  fixes ALL issues from │   │  STEP 5 — Commit  │
+│  both Gemini agents    │   │  ယုံကြည်မှုဖြင့်   │
+└────────────┬───────────┘   │  commit လုပ်သည်   │
+             │               └───────────────────┘
+             ▼
+        STEP 4 — Repeat
+        Go back to STEP 2
+```
  
+### Rules
+ 
+- Gemini agents run **in parallel**, not sequentially.
+- OpenCode must fix **all** issues from **both** agents before looping.
+- Only commit when **both** agents respond `READY_TO_COMMIT` in the same round.
+- Do not commit if even one agent still has issues outstanding.
 ---
-
 
 ## 🖥 CLI Usage
 

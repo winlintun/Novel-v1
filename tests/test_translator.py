@@ -98,8 +98,9 @@ class TestPreprocessor(unittest.TestCase):
         """Test that chunks respect size limits."""
         preprocessor = Preprocessor(chunk_size=100)
         
-        # Create text larger than chunk size
-        text = "中文测试 " * 100
+        # Create text larger than chunk size with multiple paragraphs
+        paragraphs = ["中文测试 " for _ in range(100)]
+        text = "\n\n".join(paragraphs)
         chunks = preprocessor.create_chunks(text)
         
         # Should create multiple chunks

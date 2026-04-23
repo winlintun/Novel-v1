@@ -10,20 +10,24 @@ from typing import Dict, List, Any
 
 from src.utils.ollama_client import OllamaClient
 from src.memory.memory_manager import MemoryManager
+from src.utils.json_extractor import safe_parse_terms
 
 logger = logging.getLogger(__name__)
 
 
-EXTRACTION_PROMPT = """Extract entities from this Chinese Xianxia text.
+EXTRACTION_PROMPT = """You are a terminology extraction specialist.
+Extract NEW proper nouns from the Chinese Xianxia text that are NOT in the existing glossary.
 
-Return ONLY a JSON object with these keys:
-- characters: List of {name, description, type}
-- cultivation_realms: List of {name, description, level}
-- sects_organizations: List of {name, description, type}
-- items_artifacts: List of {name, description, type}
+RULES:
+1. Output ONLY valid JSON. No prose. No markdown fences. No explanation.
+2. Format EXACTLY: {"new_terms": [{"source": "Chinese", "target": "Myanmar", "category": "character|place|level|item"}]}
+3. Do NOT include terms already in the glossary.
+4. If no new terms found, return exactly: {"new_terms": []}
 
-If no entities in a category, return empty list [].
-Do NOT add explanations outside the JSON."""
+EXAMPLE OUTPUT:
+{"new_terms": [{"source": "林渊", "target": "လင်ယွန်း", "category": "character"}]}
+
+EXTRACT TERMS FROM THIS TEXT:"""
 
 
 class ContextUpdater:
@@ -45,6 +49,7 @@ class ContextUpdater:
     def extract_entities(self, text: str) -> Dict[str, List]:
         """
         Extract entities from text using LLM.
+        Uses safe_parse_terms to handle malformed JSON gracefully.
         
         Args:
             text: Chinese text to analyze
@@ -55,34 +60,43 @@ class ContextUpdater:
         # Limit text length for extraction
         sample_text = text[:3000]  # First 3000 chars
         
-        prompt = f"{EXTRACTION_PROMPT}\n\nTEXT:\n{sample_text}\n\nENTITIES (JSON):"
+        prompt = f"{EXTRACTION_PROMPT}\n\n{sample_text}\n\nENTITIES (JSON):"
         
         try:
-            response = self.ollama.chat(prompt=prompt)
+            raw_response = self.ollama.chat(prompt=prompt)
             
-            # Try to parse JSON
-            import json
+            # Use safe_parse_terms to handle malformed JSON
+            data = safe_parse_terms(raw_response)
             
-            # Clean up response
-            response = response.strip()
-            if response.startswith('```json'):
-                response = response[7:]
-            if response.startswith('```'):
-                response = response[3:]
-            if response.endswith('```'):
-                response = response[:-3]
-            response = response.strip()
+            # Convert new_terms format to legacy entity format for compatibility
+            new_terms = data.get("new_terms", [])
             
-            data = json.loads(response)
-            
-            # Validate structure
             result = {
-                'characters': data.get('characters', []),
-                'cultivation_realms': data.get('cultivation_realms', []),
-                'sects_organizations': data.get('sects_organizations', []),
-                'items_artifacts': data.get('items_artifacts', [])
+                'characters': [],
+                'cultivation_realms': [],
+                'sects_organizations': [],
+                'items_artifacts': []
             }
             
+            # Map category to result keys
+            category_map = {
+                'character': 'characters',
+                'place': 'sects_organizations',
+                'level': 'cultivation_realms',
+                'item': 'items_artifacts'
+            }
+            
+            for term in new_terms:
+                category = term.get('category', '')
+                target_key = category_map.get(category, 'items_artifacts')
+                
+                result[target_key].append({
+                    'name': term.get('source', ''),
+                    'description': term.get('target', ''),
+                    'type': category
+                })
+            
+            logger.info(f"Extracted {len(new_terms)} new entities")
             return result
             
         except Exception as e:
