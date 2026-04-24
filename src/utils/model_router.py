@@ -17,8 +17,8 @@ class ModelConfig:
 
 MODEL_REGISTRY: dict[str, ModelConfig] = {
     # Translation specialists
-    "hunyuan-mt:7b": ModelConfig("hunyuan-mt:7b", "translator", 14.0, 1, fallback="qwen2.5:14b"),
-    "translategemma:latest": ModelConfig("translategemma:latest", "translator", 8.0, 2, fallback="hunyuan-mt:7b"),
+    # NOTE: hunyuan-mt:7b is EXCLUDED - produces THAI instead of Myanmar
+    "translategemma:latest": ModelConfig("translategemma:latest", "translator", 8.0, 2, fallback="qwen2.5:7b"),
     
     # Reasoning & orchestration
     "qwen2.5:14b": ModelConfig("qwen2.5:14b", "refiner", 14.0, 1),  # Primary for literary editing

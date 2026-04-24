@@ -4,9 +4,15 @@ Glossary Synchronization Agent
 - Detects inconsistent translations across chapters
 - Proposes merges for duplicate terms
 """
+import logging
 from typing import Optional, List, Dict, Any
+
 from src.memory.memory_manager import MemoryManager
 from src.utils.ollama_client import OllamaClient
+from src.utils.file_handler import FileHandler
+from src.utils.json_extractor import extract_json_from_response
+
+logger = logging.getLogger(__name__)
 
 class GlossarySyncAgent:
     """Sync terminology consistency using multilingual LLM."""
@@ -62,16 +68,18 @@ Return ONLY valid JSON. No explanations.
         
         # Parse and validate response
         try:
-            from src.utils.json_extractor import extract_json_from_response
             result = extract_json_from_response(response)
             inconsistencies = result.get("inconsistencies", [])
             candidates = result.get("new_candidates", [])
             # Make sure it's lists
-            if not isinstance(inconsistencies, list): inconsistencies = []
-            if not isinstance(candidates, list): candidates = []
+            if not isinstance(inconsistencies, list):
+                inconsistencies = []
+            if not isinstance(candidates, list):
+                candidates = []
             return inconsistencies + candidates
-        except Exception:
+        except Exception as e:
             # Fallback: return empty, log warning
+            logger.warning(f"Failed to parse consistency check response: {e}")
             return []
     
     def propose_merges(self) -> List[Dict[str, Any]]:
@@ -79,14 +87,11 @@ Return ONLY valid JSON. No explanations.
         Analyze glossary_pending.json for terms that might duplicate existing entries.
         Returns merge suggestions for human approval.
         """
-        from src.utils.file_handler import FileHandler
-        import os
         pending = []
-        if os.path.exists("data/glossary_pending.json"):
-            pending_data = FileHandler.read_json("data/glossary_pending.json")
-            if pending_data:
-                pending = pending_data.get("pending_terms", [])
-                
+        pending_data = FileHandler.read_json("data/glossary_pending.json")
+        if pending_data:
+            pending = pending_data.get("pending_terms", [])
+
         approved = self.mm.get_all_terms()
         
         prompt = f"""
@@ -118,10 +123,10 @@ Return ONLY valid JSON.
             prompt=prompt,
             temperature=0.1
         )
-        
+
         try:
-            from src.utils.json_extractor import extract_json_from_response
             result = extract_json_from_response(response)
             return result.get("merge_suggestions", [])
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Failed to parse merge proposals response: {e}")
             return []

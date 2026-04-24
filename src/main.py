@@ -24,10 +24,11 @@ from pathlib import Path
 from typing import Optional, Dict, Any, List
 
 # Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.utils.file_handler import FileHandler
 from src.utils.ollama_client import OllamaClient
+from src.utils.progress_logger import ProgressLogger
 from src.memory.memory_manager import MemoryManager
 from src.agents.preprocessor import Preprocessor
 from src.agents.translator import Translator
@@ -80,7 +81,7 @@ def setup_logging(log_file: Optional[str] = None):
         log_file = f"{LOG_DIR}/translation_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
     
     # Create handlers
-    file_handler = logging.FileHandler(log_file, encoding='utf-8')
+    file_handler = logging.FileHandler(log_file, encoding='utf-8-sig')
     file_handler.addFilter(SensitiveDataFilter())
     
     console_handler = logging.StreamHandler()
@@ -221,7 +222,7 @@ Translation Progress:
 
 """
     
-    with open(output_file, 'w', encoding='utf-8') as f:
+    with open(output_file, 'w', encoding='utf-8-sig') as f:
         f.write(progress_info + full_text)
     
     return output_file
@@ -367,13 +368,30 @@ def translate_single_file(
             'translated_chunks': {}
         }
         
+        # Initialize progress logger for real-time tracking
+        progress_logger = ProgressLogger(
+            book_id=book_id,
+            chapter_name=chapter_name,
+            total_chunks=len(chunks),
+        )
+        logger.info(f"Progress logging enabled: {progress_logger.get_log_path()}")
+        print(f"📋 Progress log: {progress_logger.get_log_path()}")
+        
         # Load original text for checking
         original_text = FileHandler.read_text(filepath)
         
-        # Translate
+        # Translate with progress logging
         logger.info(f"Translating {len(chunks)} chunks...")
-        translated_chunks = translator.translate_chunks(chunks, chapter_num)
+        translated_chunks = translator.translate_chunks(
+            chunks,
+            chapter_num,
+            progress_logger=progress_logger
+        )
         translated_text = '\n\n'.join(translated_chunks)
+        
+        # Mark progress as complete for translation phase
+        progress_logger.finalize(success=True)
+        logger.info(f"Progress log finalized: {progress_logger.get_log_path()}")
         
         # Refine (optional)
         if refiner and not skip_refinement:
@@ -399,10 +417,15 @@ def translate_single_file(
         context_updater.process_chapter(original_text, translated_text, chapter_num)
         
         logger.info(f"Translation complete: {output_path}")
+        print(f"\n✅ Progress log saved: {progress_logger.get_log_path()}")
         return output_path
         
     except Exception as e:
         logger.error(f"Translation failed: {e}", exc_info=True)
+        # Finalize progress logger with failure status if it exists
+        if 'progress_logger' in locals():
+            progress_logger.finalize(success=False)
+            print(f"\n⚠️  Progress log saved (with errors): {progress_logger.get_log_path()}")
         raise
     finally:
         # Ensure cleanup happens

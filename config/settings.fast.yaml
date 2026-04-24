@@ -14,9 +14,9 @@ project:
 models:
   provider: "ollama"
   
-  # FAST Models (smaller = faster)
-  translator: "qwen2.5:7b"      # 7B is 2x faster than 14B, good quality
-  editor: "qwen2.5:7b"
+  # FAST Models (using available models)
+  translator: "qwen2.5:14b"     # Available model - 14B variant
+  editor: "qwen2.5:14b"
   refiner: "qwen:7b"            # Lightweight refinement
   checker: "qwen:7b"
   ollama_base_url: "http://localhost:11434"
@@ -28,23 +28,29 @@ models:
 # =====================================================
 translation_pipeline:
   mode: "single_stage"          # FAST: No separate refinement stage
-  stage1_model: "qwen2.5:7b"
-  stage2_model: "qwen2.5:7b"
+  stage1_model: "qwen2.5:14b"
+  stage2_model: "qwen2.5:14b"
   description: "Single-stage for maximum speed"
 
 # =====================================================
 # FAST PROCESSING SETTINGS
 # =====================================================
 processing:
-  chunk_size: 3000              # LARGER chunks = fewer API calls
-  chunk_overlap: 50             # Smaller overlap
-  max_retries: 2                # Fewer retries
-  temperature: 0.4              # Slightly higher for faster generation
-  top_p: 0.90
-  top_k: 40
-  repeat_penalty: 1.05          # Lower = faster
+  chunk_size: 1500              # Balanced: prevents context loss vs speed
+  chunk_overlap: 100            # Higher overlap for smooth transitions
+  max_retries: 3                # More retries for better quality
+  temperature: 0.3              # Lower = more deterministic, less repetition
+  top_p: 0.85
+  top_k: 30
+  repeat_penalty: 1.25          # HIGHER = prevents repetition loops (CRITICAL)
   stream: true                  # Enable streaming
   request_timeout: 180          # 3 minutes max
+  
+  # Validation settings (NEW)
+  validation:
+    enabled: true
+    max_repetition_ratio: 0.35    # If >35% repeated sentences, retry
+    min_myanmar_ratio: 0.65       # Minimum Myanmar character ratio
   
   # BATCH PROCESSING (NEW)
   batch_processing:
@@ -92,7 +98,7 @@ model_router:
   max_fallback_depth: 1
   
 model_roles:
-  translator: ["qwen2.5:7b"]
+  translator: ["qwen2.5:14b"]
   refiner: ["qwen:7b"]
   checker: ["qwen:7b"]
 

@@ -53,6 +53,19 @@ class MemoryManager:
                 "terms": [],
                 "total_terms": 0
             }
+        else:
+            # Normalize glossary terms to handle both 'source'/'target' and 'source_term'/'target_term' formats
+            terms = self.glossary.get("terms", [])
+            normalized_count = 0
+            for term in terms:
+                if "source_term" in term and "source" not in term:
+                    term["source"] = term["source_term"]
+                    normalized_count += 1
+                if "target_term" in term and "target" not in term:
+                    term["target"] = term["target_term"]
+            self.glossary["terms"] = terms
+            if normalized_count > 0:
+                logger.debug(f"Normalized {normalized_count} glossary terms from old format")
         
         # Load context memory
         self.context_memory = FileHandler.read_json(self.context_path)
@@ -98,7 +111,7 @@ class MemoryManager:
         terms = self.glossary.get("terms", [])
         
         # Check for duplicates
-        existing = {t["source"] for t in terms}
+        existing = {t.get("source") or t.get("source_term", "") for t in terms}
         if source in existing:
             return False
         
@@ -127,8 +140,11 @@ class MemoryManager:
         terms = self.glossary.get("terms", [])
         
         for term in terms:
-            if term["source"] == source:
+            term_source = term.get("source") or term.get("source_term", "")
+            if term_source == source:
+                # Always update both keys to ensure consistency
                 term["target"] = new_target
+                term["target_term"] = new_target
                 term["chapter_last_seen"] = chapter
                 term["updated_at"] = datetime.now().isoformat()
                 
@@ -143,8 +159,9 @@ class MemoryManager:
         terms = self.glossary.get("terms", [])
         
         for term in terms:
-            if term["source"] == source:
-                return term["target"]
+            term_source = term.get("source") or term.get("source_term", "")
+            if term_source == source:
+                return term.get("target") or term.get("target_term")
         
         return None
     
@@ -159,9 +176,12 @@ class MemoryManager:
         
         for term in terms[:limit]:
             verified = "✓" if term.get("verified") else "○"
+            source = self._sanitize_for_prompt(term.get("source") or term.get("source_term", ""))
+            target = self._sanitize_for_prompt(term.get("target") or term.get("target_term", ""))
+            category = self._sanitize_for_prompt(term.get('category', 'general'))
             lines.append(
-                f"  [{verified}] {term['source']} = {term['target']} "
-                f"({term.get('category', 'general')})"
+                f"  [{verified}] {source} = {target} "
+                f"({category})"
             )
         
         return "\n".join(lines)
@@ -169,6 +189,17 @@ class MemoryManager:
     def get_all_terms(self) -> List[Dict[str, Any]]:
         """Get all glossary terms."""
         return self.glossary.get("terms", [])
+    
+    def _sanitize_for_prompt(self, text: str) -> str:
+        """Sanitize text for safe use in LLM prompts."""
+        if not isinstance(text, str):
+            text = str(text)
+        # Remove newlines to prevent prompt structure breaking
+        text = text.replace('\n', ' ').replace('\r', '')
+        # Remove potentially dangerous sequences
+        text = text.replace('```', '').replace('"""', '').replace("'''", '')
+        # Limit length
+        return text[:100]
     
     # -------------------------------------------------------------------------
     # Tier 2: Context Memory Operations
@@ -193,7 +224,7 @@ class MemoryManager:
         if not self.paragraph_buffer:
             return "No previous context."
         
-        recent = list(self.paragraph_buffer)[-count:]
+        recent = [self._sanitize_for_prompt(text) for text in list(self.paragraph_buffer)[-count:]]
         return "PREVIOUS CONTEXT:\n" + "\n".join(recent)
     
     def clear_buffer(self):
@@ -203,7 +234,8 @@ class MemoryManager:
     
     def get_summary(self) -> str:
         """Get summary of previous chapters."""
-        return self.context_memory.get("summary", "")
+        summary = self.context_memory.get("summary", "")
+        return self._sanitize_for_prompt(summary)
     
     # -------------------------------------------------------------------------
     # Tier 3: Session Rules
@@ -221,7 +253,7 @@ class MemoryManager:
         
         lines = ["CORRECTION RULES:"]
         for incorrect, correct in self.session_rules.items():
-            lines.append(f"  {incorrect} -> {correct}")
+            lines.append(f"  {self._sanitize_for_prompt(incorrect)} -> {self._sanitize_for_prompt(correct)}")
         
         return "\n".join(lines)
     

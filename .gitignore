@@ -137,6 +137,7 @@ dmypy.json
 # ── Opencode ─────────────────────────────────────────────────────────────────
 .opencode/
 
-
+# file 
 need_to_fix.md
 need_fix.md
+need_fix_another.md

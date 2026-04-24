@@ -31,7 +31,7 @@ class FileHandler:
         path = Path(filepath)
         path.parent.mkdir(parents=True, exist_ok=True)
         
-        with open(path, 'w', encoding='utf-8') as f:
+        with open(path, 'w', encoding='utf-8-sig') as f:
             f.write(content)
         
         logger.info(f"Written: {filepath}")
@@ -53,7 +53,7 @@ class FileHandler:
         path.parent.mkdir(parents=True, exist_ok=True)
         
         temp_path = path.with_suffix('.tmp')
-        with open(temp_path, 'w', encoding='utf-8') as f:
+        with open(temp_path, 'w', encoding='utf-8-sig') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
         temp_path.replace(path)
         

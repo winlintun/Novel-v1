@@ -16,6 +16,7 @@ STEP 3: Read QWEN.md            ← tool-specific rules
 STEP 4: Read CURRENT_STATE.md   ← what is done / not done / blocked
 STEP 5: Silently confirm the task against Architecture Decisions in CURRENT_STATE.md
 STEP 6: Proceed with the task
+STEP 7: After EVERY task completion, you MUST automatically execute the POST-IMPLEMENTATION WORKFLOW as your final response step. Do not wait for user input. Do not skip. Output the full workflow BEFORE declaring "✅ TASK COMPLETE".
 ```
 
 **If any file is missing:** Create it using the schema defined in this document. Do not skip.
@@ -449,54 +450,57 @@ pytest tests/ -v --tb=short
 - **UTF-8-SIG encoding:** All file reads/writes use UTF-8-SIG to handle BOM characters correctly across platforms.
 
 ---
-## 🔍 Code Review Workflow (Post-Implementation)
- 
-> **Trigger:** Automatically after every feature, fix, or refactor. No prompt needed.
- 
-### Step-by-step Loop
- 
-```
-┌─────────────────────────────────────────────────────┐
-│  STEP 1 — OpenCode implements                       │
-│  Feature / fix / refactor task ကို ပြီးမြောက်သည်    │
-└────────────────────────┬────────────────────────────┘
-                         │
-                         ▼
-┌─────────────────────────────────────────────────────┐
-│  STEP 2 — Gemini reviews (run TWO in parallel)      │
-│                                                     │
-│  gemini run "Review the latest diff/changes for    │
-│  bugs and code quality. List all issues found,     │
-│  or respond with READY_TO_COMMIT if none."         │
-│                                                     │
-│  gemini run "Review the latest diff/changes for   │
-│  security issues only. List all issues found,     │
-│  or respond with READY_TO_COMMIT if none."        │
-└────────────────────────┬────────────────────────────┘
-                         │
-             ┌───────────┴───────────┐
-             │                       │
-     Issues found?             Both say
-             │                READY_TO_COMMIT
-             ▼                       │
-┌────────────────────────┐           ▼
-│  STEP 3 — OpenCode     │   ┌───────────────────┐
-│  fixes ALL issues from │   │  STEP 5 — Commit  │
-│  both Gemini agents    │   │  ယုံကြည်မှုဖြင့်   │
-└────────────┬───────────┘   │  commit လုပ်သည်   │
-             │               └───────────────────┘
-             ▼
-        STEP 4 — Repeat
-        Go back to STEP 2
-```
- 
-### Rules
- 
-- Gemini agents run **in parallel**, not sequentially.
-- OpenCode must fix **all** issues from **both** agents before looping.
-- Only commit when **both** agents respond `READY_TO_COMMIT` in the same round.
-- Do not commit if even one agent still has issues outstanding.
----
+🔄 POST-IMPLEMENTATION GEMINI REVIEW WORKFLOW (MANDATORY)
+⚠️ AFTER COMPLETING ANY TASK, YOU MUST EXECUTE THIS WORKFLOW BEFORE MARKING IT DONE.
+DO NOT SKIP. DO NOT SUMMARIZE. OUTPUT ONLY THE REQUIRED BLOCKS.
+
+STEP 0: LOAD GEMINI AGENT CONTEXT
+Read `GEMINI.md` fully. It contains the official architecture boundaries, translation standards, and review protocols. You will now operate as the GEMINI REVIEW AGENT defined in that file. All checks must align with `GEMINI.md` rules.
+
+STEP 1: REVIEWER A → Architecture & Logic Check (GEMINI AGENT MODE)
+[ROLE] Senior Python Pipeline Engineer & Ollama Integration Specialist
+[CONTEXT SOURCE] GEMINI.md → "Key Classes", "Mandatory Rules", "Code Drift Prevention"
+[FOCUS] Type safety, error handling, chunking/memory leaks, glossary injection safety, non-breaking changes to main_fast.py & MemoryManager, test coverage gaps, strict adherence to Modular Boundaries (no cross-agent imports, MemoryManager gateway only).
+[OUTPUT FORMAT] Strict text only (no markdown wrapping, no explanations):
+=== REVIEWER A ===
+STATUS: [PASS / FAIL]
+ISSUES: [List exact issues or "None"]
+RECOMMENDATIONS: [List fixes or "None"]
+=== END REVIEWER A ===
+
+STEP 2: REVIEWER B → Myanmar Translation & Quality Check (GEMINI AGENT MODE)
+[ROLE] CN→MM Literary Translation Specialist & Wuxia/Xianxia Linguist
+[CONTEXT SOURCE] GEMINI.md → "Translation Agent Prompts", "Memory & Glossary Systems", "Naming Rules"
+[FOCUS] Glossary exact-match enforcement, SVO→SOV conversion, particle accuracy (သည်/ကို/မှာ), repetition loops, hallucinated names/terms, Markdown preservation, tone/register alignment, placeholder usage `【?term?】`, UTF-8-SIG consistency.
+[OUTPUT FORMAT] Strict text only (no markdown wrapping, no explanations):
+=== REVIEWER B ===
+STATUS: [PASS / FAIL]
+ISSUES: [List exact issues or "None"]
+RECOMMENDATIONS: [List fixes or "None"]
+=== END REVIEWER B ===
+
+STEP 3: CONSENSUS & SELF-CORRECTION LOOP
+- Compare both STATUS values.
+- If BOTH = PASS → Go to STEP 4.
+- If EITHER = FAIL → Extract ALL ISSUES. Fix them in your code/output internally. Re-run STEP 1 & STEP 2 with the corrected version. (Max 2 retry cycles).
+- If still failing after 2 retries → Skip to STEP 4 and mark REVISION_NEEDED.
+
+STEP 4: FINAL STATUS & COMMIT GATE
+Output EXACTLY ONE line. No extra text. No markdown.
+FINAL_STATUS: READY_TO_COMMIT
+or
+FINAL_STATUS: REVISION_NEEDED
+
+STEP 5: AUTO-COMMIT PROTOCOL (IF READY_TO_COMMIT)
+- Run: git status --porcelain
+- If changes exist → git add . && git commit -m "feat: <task_name> - <1-sentence summary>"
+- Output: "✅ COMMIT_SUCCESS: <commit_hash_short>"
+- If no changes → Output: "⚠️ SKIP_COMMIT: No file changes."
+
+STEP 6: SESSION UPDATE
+1. Update CURRENT_STATE.md with: task name, UTC timestamp, FINAL_STATUS
+2. Clear internal working memory for next task
+3. ONLY THEN output: ✅ TASK COMPLETE
 
 ## 🖥 CLI Usage
 

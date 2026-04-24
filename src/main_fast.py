@@ -16,8 +16,8 @@ import atexit
 from pathlib import Path
 from typing import Optional
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent))
+# Add project root to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.utils.file_handler import FileHandler
 from src.utils.ollama_client import OllamaClient
@@ -256,6 +256,16 @@ def main():
                 # Translate (single-stage, large chunks)
                 logger.info("Translating with large chunks...")
                 translated = translator.translate_chapter(text, chapter_num, use_chunking=True)
+                
+                # Check for repetition issues
+                validation_config = config.get('processing', {}).get('validation', {})
+                if validation_config.get('enabled', True):
+                    from src.utils.postprocessor import check_repetition
+                    rep_threshold = validation_config.get('max_repetition_ratio', 0.35)
+                    if check_repetition(translated, threshold=rep_threshold):
+                        logger.warning(f"⚠️  High repetition detected in chapter {chapter_num} (>{rep_threshold*100:.0f}%). Marking for review...")
+                        # Add warning marker to output
+                        translated = f"<!-- WARNING: High repetition detected (>35%). Please review this translation. -->\n\n{translated}"
                 
                 # Optional: Quick batch refinement if enabled
                 pipe_config = config.get('translation_pipeline', {})

@@ -20,7 +20,7 @@ class TestQATesterAgent(unittest.TestCase):
         """Set up test fixtures."""
         self.memory = Mock(spec=MemoryManager)
         self.memory.get_all_terms.return_value = [
-            {"source": "A", "target": "မြန်မာစာ", "frequency": 10}
+            {"source": "A", "target": "မြန်မာစာ", "verified": True}
         ]
         self.qa_agent = QATesterAgent(self.memory)
     

@@ -1,5 +1,223 @@
 {
-  "version": "1.0",
-  "terms": [],
-  "total_terms": 0
+  "glossary_version": "3.0",
+  "novel_name": "my_story",
+  "source_language": "Chinese",
+  "target_language": "Myanmar",
+  "last_updated": "2025-04-23",
+  "total_terms": 3,
+  "terms": [
+    {
+      "id": "term_001",
+      "source_term": "李小龙",
+      "target_term": "လီရှောင်လုံ",
+      "aliases_cn": [
+        "小李",
+        "龙儿",
+        "少宗主",
+        "李少主"
+      ],
+      "aliases_mm": [
+        "လီရှောင်လုံ",
+        "ရှောင်လုံ",
+        "အငယ်ဆုံး"
+      ],
+      "category": "person_character",
+      "translation_rule": "transliterate",
+      "pronunciation_guide": "လီ-ရှောင်-လုံ",
+      "do_not_translate": true,
+      "priority": 1,
+      "gender": "male",
+      "usage_frequency": "high",
+      "semantic_tags": [
+        "protagonist",
+        "young_master",
+        "cultivator",
+        "male"
+      ],
+      "status": {
+        "active": true,
+        "alive": true,
+        "current_arc": "training",
+        "last_known_location": "Azure Dragon Sect"
+      },
+      "chapter_range": {
+        "first_seen": 1,
+        "last_seen": null
+      },
+      "relationships": [
+        {
+          "target_id": "term_003",
+          "type": "member_of",
+          "description": "Member of Azure Dragon Sect"
+        }
+      ],
+      "dialogue_register": {
+        "to_elders": "polite_formal",
+        "to_peers": "casual_friendly",
+        "to_enemies": "cold_dismissive",
+        "inner_monologue": "first_person_intimate"
+      },
+      "exceptions": [
+        {
+          "condition": "spoken_by_enemies",
+          "use_term": "ကောင်လေးလီ",
+          "note": "Enemies call him 'that brat Li' — dismissive tone"
+        },
+        {
+          "condition": "formal_sect_announcement",
+          "use_term": "နောင်တော်လီ",
+          "note": "Formal title in public sect events"
+        }
+      ],
+      "examples": [
+        {
+          "context_type": "narrative",
+          "cn_sentence": "李小龙走进了房间。",
+          "mm_sentence": "လီရှောင်လုံသည် အခန်းထဲသို့ ဝင်ရောက်ခဲ့သည်။"
+        },
+        {
+          "context_type": "dialogue_peer",
+          "cn_sentence": "小李，你来了？",
+          "mm_sentence": "ရှောင်လုံ၊ မင်း ရောက်လာပြီလား?"
+        }
+      ],
+      "verified": true,
+      "last_updated_chapter": 5,
+      "source": "李小龙",
+      "target": "လီရှောင်လုံ"
+    },
+    {
+      "id": "term_002",
+      "source_term": "气",
+      "target_term": "ချီ",
+      "aliases_cn": [
+        "真气",
+        "内力",
+        "灵气",
+        "元气"
+      ],
+      "aliases_mm": [
+        "ချီ",
+        "အတွင်းအင်အား",
+        "ချီအင်အား"
+      ],
+      "category": "cultivation_concept",
+      "translation_rule": "transliterate",
+      "pronunciation_guide": "ချီ",
+      "do_not_translate": true,
+      "priority": 2,
+      "gender": "none",
+      "usage_frequency": "very_high",
+      "semantic_tags": [
+        "energy",
+        "internal_force",
+        "cultivation_core"
+      ],
+      "status": {
+        "active": true,
+        "alive": null,
+        "current_arc": null,
+        "last_known_location": null
+      },
+      "chapter_range": {
+        "first_seen": 1,
+        "last_seen": null
+      },
+      "relationships": [],
+      "dialogue_register": null,
+      "exceptions": [
+        {
+          "condition": "in_poetic_verse",
+          "use_term": "အာကာသချီ",
+          "note": "In poems or ancient texts, use full poetic form"
+        }
+      ],
+      "examples": [
+        {
+          "context_type": "action",
+          "cn_sentence": "他运起真气攻击。",
+          "mm_sentence": "သူသည် ချီအင်အားကို လှုပ်ရှားစေ၍ တိုက်ခိုက်ခဲ့သည်။"
+        }
+      ],
+      "verified": true,
+      "last_updated_chapter": 1,
+      "source": "气",
+      "target": "ချီ"
+    },
+    {
+      "id": "term_003",
+      "source_term": "宗门",
+      "target_term": "ဂိုဏ်း",
+      "aliases_cn": [
+        "门派",
+        "宗",
+        "派",
+        "世家"
+      ],
+      "aliases_mm": [
+        "ဂိုဏ်း",
+        "ဂိုဏ်းတော်",
+        "အဖွဲ့အစည်း",
+        "မျိုးရိုး"
+      ],
+      "category": "organization",
+      "translation_rule": "translate",
+      "pronunciation_guide": null,
+      "do_not_translate": false,
+      "priority": 2,
+      "gender": "none",
+      "usage_frequency": "medium",
+      "semantic_tags": [
+        "sect",
+        "organization",
+        "martial_arts_group"
+      ],
+      "status": {
+        "active": true,
+        "alive": null,
+        "current_arc": null,
+        "last_known_location": null
+      },
+      "chapter_range": {
+        "first_seen": 2,
+        "last_seen": null
+      },
+      "relationships": [
+        {
+          "target_id": "term_001",
+          "type": "contains_member",
+          "description": "Contains Li Xiaolong as a member"
+        }
+      ],
+      "dialogue_register": null,
+      "exceptions": [
+        {
+          "condition": "possessive_own_sect",
+          "use_term": "ဂိုဏ်းတော်",
+          "note": "When members speak about their own sect respectfully: 'ငါတို့ ဂိုဏ်းတော်'"
+        },
+        {
+          "condition": "small_group",
+          "use_term": "အဖွဲ့",
+          "note": "For small, informal groups rather than large sects"
+        }
+      ],
+      "examples": [
+        {
+          "context_type": "narrative",
+          "cn_sentence": "他是宗门的弟子。",
+          "mm_sentence": "သူသည် ဂိုဏ်း၏ တပည့်ဖြစ်သည်။"
+        },
+        {
+          "context_type": "dialogue_respectful",
+          "cn_sentence": "为了宗门的荣耀！",
+          "mm_sentence": "ငါတို့ ဂိုဏ်းတော်၏ ဂုဏ်သိက္ခာအတွက်!"
+        }
+      ],
+      "verified": false,
+      "last_updated_chapter": 2,
+      "source": "宗门",
+      "target": "ဂိုဏ်း"
+    }
+  ]
 }

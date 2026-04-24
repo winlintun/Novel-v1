@@ -29,32 +29,57 @@ class FastTranslator:
         self.ollama = ollama_client
         self.memory = memory_manager
         self.use_streaming = use_streaming
+        
+        # Initialize glossary matcher for dynamic term extraction
+        try:
+            from src.utils.glossary_matcher import GlossaryMatcher
+            self.glossary_matcher = GlossaryMatcher(memory_manager.glossary_path)
+        except Exception as e:
+            logging.warning(f"Could not initialize GlossaryMatcher: {e}")
+            self.glossary_matcher = None
     
     def build_prompt(self, text: str) -> str:
-        """Build translation prompt with memory context."""
+        """Build translation prompt with memory context and dynamic glossary."""
         mem = self.memory.get_all_memory_for_prompt()
-        
         prompt_parts = []
         
-        # Add glossary (brief version for speed)
-        if mem['glossary']:
-            prompt_parts.append(mem['glossary'][:2000])  # Limit glossary size
+        # Add glossary - use dynamic matcher if available, fallback to static
+        glossary_section = ""
+        if self.glossary_matcher:
+            # Get only relevant terms for this text
+            dynamic_glossary = self.glossary_matcher.get_relevant_glossary_snippet(text, max_entries=20)
+            if dynamic_glossary:
+                glossary_section = dynamic_glossary
+        
+        if not glossary_section and mem['glossary']:
+            # Fallback to static glossary (limited size)
+            glossary_section = mem['glossary'][:2000]
+        
+        if glossary_section:
+            prompt_parts.append(glossary_section)
             prompt_parts.append("")
         
         # Add context (last paragraph only for speed)
         if mem['context'] and mem['context'] != "No previous context.":
-            # Get just the last paragraph for context
             context_lines = mem['context'].split('\n')
             if len(context_lines) > 2:
                 brief_context = '\n'.join(context_lines[-2:])
                 prompt_parts.append(brief_context)
                 prompt_parts.append("")
         
-        # Add source text
+        # Add source text with detailed translation instructions
         prompt_parts.append("SOURCE TEXT TO TRANSLATE:")
         prompt_parts.append(text)
         prompt_parts.append("")
-        prompt_parts.append("MYANMAR TRANSLATION:")
+        prompt_parts.append("""MYANMAR TRANSLATION RULES:
+1. Convert Chinese SVO to Myanmar SOV order
+   Example: "他吃饭" (SVO) → "သူစားသည်" (SOV - He rice eats)
+2. Use correct particles: သည် (subject), ကို (object), မှာ (location), ဖြင့် (instrument)
+3. Use EXACT glossary terms above - do not transliterate character names
+4. Preserve all Markdown formatting (#, **, lists, quotes)
+5. Output ONLY Myanmar Unicode (U+1000-U+109F). No Thai, no Chinese.
+
+MYANMAR TRANSLATION:""")
         
         return "\n".join(prompt_parts)
     

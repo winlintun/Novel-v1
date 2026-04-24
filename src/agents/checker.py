@@ -5,7 +5,7 @@ Validates translation quality and glossary consistency.
 
 import re
 import logging
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Any
 
 from src.memory.memory_manager import MemoryManager
 
@@ -36,8 +36,11 @@ class Checker:
         terms = self.memory.get_all_terms()
         
         for term in terms:
-            source = term['source']
-            target = term['target']
+            source = term.get('source') or term.get('source_term', '')
+            target = term.get('target') or term.get('target_term', '')
+            
+            if not source or not target:
+                continue
             
             # Check if source term appears in text (shouldn't happen if translated)
             if source in text:
@@ -134,7 +137,7 @@ class Checker:
         self,
         original: str,
         translated: str
-    ) -> Dict[str, any]:
+    ) -> Dict[str, Any]:
         """
         Run all checks on a chapter translation.
         

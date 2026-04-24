@@ -173,7 +173,7 @@ class TestFileOperations(unittest.TestCase):
         
         # Verify file exists and is valid JSON
         self.assertTrue(filepath.exists())
-        with open(filepath, 'r') as f:
+        with open(filepath, 'r', encoding='utf-8-sig') as f:
             loaded = json.load(f)
         
         self.assertEqual(loaded, data)

@@ -8,8 +8,8 @@
 ---
 
 ## Last Updated
-- Date: 2026-04-23
-- Last task completed: Implemented Multi-Model Router, Linguistic Rules, Glossary Sync, and QA Tester per need_fix.md
+- Date: 2026-04-24
+- Last task completed: Progress Logger implementation COMPLETE - Both Reviewer A and B PASSED. All 212 tests passing. File encoding standardized to UTF-8-SIG across entire codebase.
 
 ---
 
@@ -34,6 +34,11 @@
 | Fast Refiner | `src/agents/fast_refiner.py` | [DONE] | Batch processing (5 paragraphs per API call) |
 | Fast Main | `src/main_fast.py` | [DONE] | Fast entry point with optimized pipeline, signal handling |
 | Cleanup Tool | `tools/cleanup.py` | [DONE] | Ollama memory management and cleanup utility |
+| Glossary v3.0 Manager | `src/utils/glossary_v3_manager.py` | [DONE] | Rich metadata support (aliases, exceptions, examples) |
+| Glossary v3.0 Loader | `src/utils/glossary_v3_loader.py` | [DONE] | JSON I/O with validation, caching, and prompt export |
+| Glossary Matcher | `src/utils/glossary_matcher.py` | [DONE] | Dynamic term extraction for relevant glossary injection |
+| Repetition Detector | `src/utils/postprocessor.py` | [DONE] | check_repetition() function for output quality |
+| Progress Logger | `src/utils/progress_logger.py` | [DONE] | Real-time translation progress tracking with live log file |
 
 ---
 
@@ -58,6 +63,7 @@
 | `USER_GUIDE.md` | [DONE] | User instructions & examples |
 | `MEMORY_MANAGEMENT.md` | [DONE] | Memory cleanup and Ollama management |
 | `FAST_MODE.md` | [DONE] | Fast translation mode documentation |
+| `ERROR_LOG.md` | [DONE] | Error tracking and fix record for AI agents |
 | `README.md` | [TODO] | Project overview |
 
 ---
@@ -69,6 +75,12 @@
 - (none)
 
 ### Completed
+- [x] Created `tools/extract_pdf_terms.py` for automated term extraction and context updates from English MD and Myanmar PDF pairs.
+- [x] **Translation Progress Logger**: Real-time progress tracking with live markdown log files showing each translated chunk as it completes. See logs/progress/ folder.
+- [x] Implemented Multi-Model Router
+- [x] Added Linguistic Rules SVO->SOV
+- [x] Added Glossary Sync Agent
+- [x] Added QA Tester Agent
 - [x] Core 4-stage translation pipeline
 - [x] Local Ollama support
 - [x] Cloud API support (Gemini, OpenRouter)
@@ -77,7 +89,7 @@
 - [x] Myanmar Unicode quality validation
 - [x] Configuration system (settings.yaml)
 - [x] User documentation
-- [x] 165+ passing tests (Unit, Integration, Regression, Quality)
+- [x] 201+ passing tests (Unit, Integration, Regression, Quality)
 - [x] LANGUAGE_GUARD hardened prompts (prevents Thai/Chinese output)
 - [x] Output postprocessor (strips <think>, <answer> tags)
 - [x] Safe JSON extractor (handles malformed model responses)
@@ -103,6 +115,22 @@
   - [x] Performance characteristics
   - [x] Common issues & solutions
   - [x] Best practices for Qwen
+- [x] **Glossary v3.0 Integration** (need_fix_another.md):
+  - [x] `src/utils/glossary_v3_manager.py` - Rich metadata dataclasses (aliases, exceptions, dialogue_register)
+  - [x] `src/utils/glossary_v3_loader.py` - JSON I/O with validation and caching
+  - [x] `tests/test_glossary_v3.py` - 21 comprehensive unit tests (all passing)
+  - [x] Config section in `settings.yaml` - Full v3.0 configuration options
+  - [x] Non-breaking addition - compatible with existing pipeline
+  - [x] Features: alias matching, exception rules, prompt export (markdown/json/plain)
+- [x] **Translation Quality Fixes** (need_fix.md + need_fix_another.md):
+  - [x] Updated `data/glossary.json` - 8 correct terms for 古道仙鸿 (罗青, 黄牛, 方宗主, etc.)
+  - [x] Fixed `config/settings.fast.yaml` - chunk_size: 1500, repeat_penalty: 1.25, temperature: 0.3
+  - [x] Created `src/utils/glossary_matcher.py` - Dynamic glossary term extraction
+  - [x] Added `check_repetition()` to `src/utils/postprocessor.py` - Detects repetitive output
+  - [x] Updated `src/agents/fast_translator.py` - Uses dynamic glossary, enhanced SOV prompt with examples
+  - [x] Updated `src/main_fast.py` - Repetition guard after translation
+  - [x] Post-implementation code review: Both reviewers PASSED
+  - [x] All 201 tests passing
 
 ### Planned
 - [ ] Batch chapter translation (`--all` flag) - PARTIAL (implemented in main.py)
@@ -119,12 +147,37 @@
 - (none currently)
 
 ### Recently Fixed
+- ✅ **CRITICAL: Fixed problematic model references**:
+  - `config/settings.yaml`: Changed `stage1_model` from `yxchia/seallms-v3-7b:Q4_K_M` to `qwen2.5:14b` (produces THAI ❌)
+  - `config/settings.yaml`: Removed `hunyuan-mt:7b` from model_roles translator list (produces THAI ❌)
+  - `src/utils/model_router.py`: Removed `hunyuan-mt:7b` from MODEL_REGISTRY and fixed translategemma fallback to `qwen2.5:7b`
+  - Updated model_roles to use only verified Myanmar-capable models: qwen2.5:14b, qwen2.5:7b, qwen:7b
+  - Added documentation comments warning about Thai-producing models
+- ✅ Translation quality fixes (need_fix.md + need_fix_another.md): Updated glossary with 8 correct characters, fixed pipeline settings (chunk_size: 1500, repeat_penalty: 1.25, temperature: 0.3), added GlossaryMatcher and repetition detection, enhanced SOV prompt with examples. Post-implementation code review PASSED.
 - ✅ Thai output bug: Added LANGUAGE_GUARD to all system prompts
 - ✅ </think> </answer> tag leakage: Added clean_output() postprocessor
+- ✅ extract_pdf_terms.py KeyError: Fixed curly brace escaping in ALIGNMENT_PROMPT template (JSON example was interpreted as format placeholder)
+- ✅ Glossary v3.0 code review fixes:
+  - Fixed Python 3.10+ union syntax (`str | Path` → `Union[str, Path]`)
+  - Fixed deprecated `datetime.utcnow()` → `datetime.now(timezone.utc)`
+  - Added proper logging to exception handling
+  - Removed unused imports (json, re, hashlib, datetime from manager)
+  - Fixed test file encoding to use utf-8-sig
+  - Documented lookup ambiguity in docstrings
+- ✅ Corrupted context_memory.json: Reset to clean state (contained Thai contamination, XML tags, mixed languages)
 - ✅ Entity extraction JSON decode errors: Added safe_parse_terms() with 3-attempt fallback
 - ✅ Missing language guard: LANGUAGE_GUARD now prefixes all agent prompts
 - ✅ Memory cleanup on exit: Added signal handlers, atexit cleanup, and OllamaClient cleanup()
 - ✅ Ollama server keeps running after translation: Created cleanup tool (tools/cleanup.py)
+- ✅ Code review fixes for existing modules:
+  - `src/agents/glossary_sync.py`: Moved imports to top of file, added proper logging, replaced `os.path.exists()` with FileHandler
+  - `src/agents/qa_tester.py`: Removed non-existent `frequency` field reference from glossary schema
+  - `src/utils/glossary_v3_loader.py`: Replaced direct `open()` with `FileHandler.read_json()`
+  - `tests/test_qa_tester.py`: Updated mock to use `verified` field instead of non-existent `frequency` field
+- ✅ ERROR_LOG.md created: Tracks all runtime errors and fixes for AI agent reference
+- ✅ ERROR-001 Fixed: Glossary key mismatch (`source`/`target` vs `source_term`/`target_term`)
+- ✅ ERROR-002 Fixed: Module import path issue in `main_fast.py`
+- ✅ ERROR-003 Fixed: Unavailable model config in `settings.fast.yaml`
 
 ---
 
@@ -191,6 +244,15 @@ python -m src.main --novel 古道仙鸿 --all
 
 # With automatic memory cleanup between chapters
 python -m src.main --novel 古道仙鸿 --all --unload-after-chapter
+```
+
+### Monitor Translation Progress
+```bash
+# While translation is running, watch progress in real-time:
+tail -f logs/progress/progress_古道仙鸿_ch001_*.md
+
+# View completed progress log:
+cat logs/progress/progress_古道仙鸿_ch001_20250424_143022.md
 ```
 
 ### Run Translation (Fast Mode - 5-10x Speedup)

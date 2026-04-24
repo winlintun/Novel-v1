@@ -9,6 +9,7 @@ from typing import Dict, List, Optional
 
 from src.utils.ollama_client import OllamaClient
 from src.memory.memory_manager import MemoryManager
+from src.utils.progress_logger import ProgressLogger
 
 from src.utils.postprocessor import clean_output, validate_output
 from src.utils.json_extractor import safe_parse_terms
@@ -95,13 +96,19 @@ class Translator:
         
         return translated
     
-    def translate_chunks(self, chunks: List[Dict], chapter_num: int = 0) -> List[str]:
+    def translate_chunks(
+        self,
+        chunks: List[Dict],
+        chapter_num: int = 0,
+        progress_logger: Optional[ProgressLogger] = None,
+    ) -> List[str]:
         """
         Translate multiple chunks.
         
         Args:
             chunks: List of chunk dictionaries from preprocessor
             chapter_num: Current chapter number
+            progress_logger: Optional ProgressLogger for real-time progress tracking
             
         Returns:
             List of translated texts
@@ -116,6 +123,14 @@ class Translator:
                 # Translate chunk with chapter number for quality tracking
                 result = self.translate_paragraph(chunk['text'], chapter_num)
                 translated.append(result)
+                
+                # Log progress if logger is provided
+                if progress_logger:
+                    progress_logger.log_chunk(
+                        chunk_index=i - 1,
+                        chunk_text=result,
+                        source_text=chunk.get('text', '')
+                    )
                 
             except Exception as e:
                 logger.error(f"Failed to translate chunk {i}: {e}")

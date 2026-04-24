@@ -18,7 +18,7 @@ models:
   # Local Ollama Settings (when provider = "ollama")
   # IMPORTANT: Use qwen2.5:14b or qwen2.5:7b for best Chinese→Myanmar results
   # alibayram/hunyuan:7b and yxchia/seallms-v3-7b produce THAI instead of Myanmar!
-  translator: "qwen2.5:14b"     # Best for Chinese→Myanmar (9GB)
+  translator: "qwen2.5:14b"     # Best for Chinese→Myanmar (9GB) ⭐ RECOMMENDED
   editor: "qwen2.5:14b"         # Can be same as translator
   refiner: "qwen:7b"            # Smaller model for refinement (4GB)
   checker: "qwen:7b"            # Smaller model for checking (4GB)
@@ -52,8 +52,8 @@ models:
 # =====================================================
 translation_pipeline:
   mode: "two_stage"  # Options: "two_stage" or "single_stage"
-  stage1_model: "qwen2.5:14b"
-  stage2_model: "qwen2.5:14b"
+  stage1_model: "qwen2.5:14b"  # Fixed: yxchia/seallms produces THAI instead of Myanmar
+  stage2_model: "qwen:7b"
   description: "Two-stage uses raw translation + rewrite for better quality"
 
 # =====================================================
@@ -128,12 +128,15 @@ model_router:
   max_fallback_depth: 2
   
 # Model Role Mapping (override defaults)
+# NOTE: Models that produce THAI instead of Myanmar are excluded:
+#   - hunyuan/hunyuan-mt (produces THAI ❌)
+#   - yxchia/seallms-v3-7b (produces THAI ❌)
 model_roles:
-  translator: ["hunyuan-mt:7b", "translategemma:latest", "qwen2.5:14b"]
-  refiner: ["qwen2.5:14b", "seallm3:7b"]
-  checker: ["qwen:7b", "gemma:2b"]
-  glossary_sync: ["aya-expanse:8b"]
-  qa_final: ["gemma:2b", "qwen:7b"]
+  translator: ["qwen2.5:14b", "qwen2.5:7b", "qwen:7b"]
+  refiner: ["qwen2.5:14b", "qwen:7b"]
+  checker: ["qwen:7b", "gemma:7b"]
+  glossary_sync: ["qwen:7b"]
+  qa_final: ["qwen:7b", "gemma:7b"]
 
 qa_testing:
   enabled: true
@@ -141,3 +144,27 @@ qa_testing:
   min_myanmar_ratio: 0.70    # Minimum Myanmar character ratio
   fail_on_placeholders: false # Allow 【?term?】 placeholders (for pending review)
   markdown_strict: true      # Enforce single H1, balanced formatting
+
+# =====================================================
+# GLOSSARY v3.0 SETTINGS
+# =====================================================
+# Rich metadata glossary with aliases, exceptions, examples
+# Compatible with existing pipeline - non-breaking addition
+glossary_v3:
+  enabled: true
+  path: "data/glossary_v3.json"          # Path to rich JSON glossary
+  max_prompt_entries: 40                 # Max terms injected into AI prompt
+  priority_threshold: 2                  # Only include terms with priority <= N
+  include_examples: false                # Include example sentences in prompt? (uses more tokens)
+  track_usage: true                      # Auto-track which terms appear in output
+  alias_matching: true                   # Enable CN alias → term resolution
+  exception_rules: true                  # Apply contextual exception rules
+  
+  # Prompt formatting
+  prompt_format: "markdown"              # markdown|json|plain
+  show_pronunciation: false              # Include pronunciation_guide in prompt?
+  show_exceptions_count: true            # Show "X exceptions" note?
+  
+  # Performance
+  cache_ttl_minutes: 30                  # Reload glossary if file modified
+  lazy_load: true                        # Load only when first needed

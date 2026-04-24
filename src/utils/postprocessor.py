@@ -5,14 +5,14 @@ Strips: <think>, <answer>, HTML comments, non-Myanmar language leakage.
 """
 
 import re
-from typing import Optional
+from typing import Optional, List
 
 
 # Myanmar Unicode range: \u1000-\u109F (basic) + \uAA60-\uAA7F (extended)
 _MYANMAR_PATTERN = re.compile(r"[\u1000-\u109F\uAA60-\uAA7F]")
 
 # Tags from reasoning models (DeepSeek, Hunyuan, Qwen-thinking, etc.)
-_TAG_PATTERNS: list[re.Pattern] = [
+_TAG_PATTERNS: List[re.Pattern] = [
     re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE),
     re.compile(r"</?think>", re.IGNORECASE),
     re.compile(r"<answer>", re.IGNORECASE),
@@ -21,7 +21,7 @@ _TAG_PATTERNS: list[re.Pattern] = [
 ]
 
 # Stray header artifacts left by models
-_HEADER_ARTIFACTS: list[re.Pattern] = [
+_HEADER_ARTIFACTS: List[re.Pattern] = [
     re.compile(r"^MYANMAR TRANSLMENT:.*$", re.MULTILINE),
     re.compile(r"^MYANMAR TRANSLATION:.*$", re.MULTILINE),
     re.compile(r"^TEXT TO TRANSLATE:.*$", re.MULTILINE),
@@ -102,3 +102,33 @@ def validate_output(text: str, chapter: int) -> dict:
         "status": "APPROVED" if ratio >= 0.70 and leakage["thai_chars"] == 0 else "NEEDS_REVIEW",
     }
     return report
+
+
+def check_repetition(text: str, threshold: float = 0.35) -> bool:
+    """
+    Check if text has excessive sentence repetition.
+    
+    Args:
+        text: Translated text to check
+        threshold: Ratio of repeated sentences to trigger warning (0.35 = 35%)
+        
+    Returns:
+        True if repetition ratio exceeds threshold
+    """
+    from collections import Counter
+    
+    if not text or len(text) < 100:
+        return False
+    
+    # Split on Myanmar sentence ending (။) or newlines
+    sentences = [s.strip() for s in re.split(r'[။\n]+', text) 
+                 if len(s.strip()) > 10]
+    
+    if len(sentences) < 5:  # Too short to analyze
+        return False
+    
+    counts = Counter(sentences)
+    repeated = sum(c for c in counts.values() if c > 1)
+    
+    repetition_ratio = repeated / len(sentences)
+    return repetition_ratio > threshold
