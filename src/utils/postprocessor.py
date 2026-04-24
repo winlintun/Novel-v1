@@ -35,6 +35,16 @@ _THAI_PATTERN = re.compile(r"[\u0E00-\u0E7F]+")
 # Chinese characters — should not remain in translated output body
 _CHINESE_PATTERN = re.compile(r"[\u4E00-\u9FFF\u3400-\u4DBF]+")
 
+# English/Latin characters — should be minimized in Myanmar output
+# Allows markdown syntax (*, _, #, etc.) but detects words
+_LATIN_WORD_PATTERN = re.compile(r"[a-zA-Z]{3,}")  # 3+ letter Latin words
+
+# English common words that indicate language drift
+_ENGLISH_COMMON_WORDS = re.compile(
+    r'\b(the|and|for|are|but|not|you|all|can|had|her|was|one|our|out|day|get|has|him|his|how|its|may|new|now|old|see|two|who|boy|did|she|use|her|way|many|oil|sit|set|run|eat|far|sea|eye|ago|off|too|any|say|man|try|ask|end|why|let|put|far|few|did|she|try|way|own|say|too|old|tell|very|when|much|would|there|their|what|said|each|which|will|about|could|other|after|first|never|these|think|where|being|every|great|might|shall|still|those|while|this|that|with|from|they|have|were|been|time|than|them|into|just|like|over|also|back|only|know|take|year|good|some|come|make|well|look|down|most|long|find|here|both|made|part|even|more|such|work|life|right|through|during|before|between|should|however|something|someone|because|without|another|nothing|everything|everyone|really|always|around|another|within|another|himself|herself|itself|myself|yourself|themselves|yourselves|ourselves)\b',
+    re.IGNORECASE
+)
+
 
 def strip_reasoning_tags(text: str) -> str:
     """Remove <think>...</think> and <answer> tags from reasoning model output."""
@@ -53,12 +63,20 @@ def strip_header_artifacts(text: str) -> str:
 def detect_language_leakage(text: str) -> dict[str, int]:
     """
     Count non-Myanmar language characters in output.
-    Returns counts for Thai and Chinese.
+    Returns counts for Thai, Chinese, and English.
     Used for quality logging.
     """
+    thai_count = len(_THAI_PATTERN.findall(text))
+    chinese_count = len(_CHINESE_PATTERN.findall(text))
+    latin_words = len(_LATIN_WORD_PATTERN.findall(text))
+    english_common = len(_ENGLISH_COMMON_WORDS.findall(text))
+    
     return {
-        "thai_chars": len(_THAI_PATTERN.findall(text)),
-        "chinese_chars": len(_CHINESE_PATTERN.findall(text)),
+        "thai_chars": thai_count,
+        "chinese_chars": chinese_count,
+        "latin_words": latin_words,
+        "english_common_words": english_common,
+        "has_english": latin_words > 0 or english_common > 0,
     }
 
 
@@ -90,16 +108,33 @@ def validate_output(text: str, chapter: int) -> dict:
     """
     Run quality checks on cleaned output.
     Returns a report dict for logging.
+    
+    Status levels:
+    - APPROVED: >70% Myanmar, no Thai, minimal English
+    - NEEDS_REVIEW: Some issues but usable
+    - REJECTED: Critical issues (Thai detected or <30% Myanmar)
     """
     leakage = detect_language_leakage(text)
     ratio = myanmar_char_ratio(text)
+    
+    # Determine status
+    if leakage["thai_chars"] > 0:
+        status = "REJECTED"
+    elif ratio < 0.30:
+        status = "REJECTED"
+    elif ratio < 0.70 or leakage["latin_words"] > 5:
+        status = "NEEDS_REVIEW"
+    else:
+        status = "APPROVED"
 
     report = {
         "chapter": chapter,
         "myanmar_ratio": round(ratio, 3),
         "thai_chars_leaked": leakage["thai_chars"],
         "chinese_chars_leaked": leakage["chinese_chars"],
-        "status": "APPROVED" if ratio >= 0.70 and leakage["thai_chars"] == 0 else "NEEDS_REVIEW",
+        "latin_words_found": leakage["latin_words"],
+        "english_common_words": leakage["english_common_words"],
+        "status": status,
     }
     return report
 

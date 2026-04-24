@@ -11,7 +11,7 @@ from src.utils.ollama_client import OllamaClient
 from src.memory.memory_manager import MemoryManager
 from src.utils.progress_logger import ProgressLogger
 
-from src.utils.postprocessor import clean_output, validate_output
+from src.utils.postprocessor import clean_output, validate_output, detect_language_leakage
 from src.utils.json_extractor import safe_parse_terms
 from src.agents.prompt_patch import TRANSLATOR_SYSTEM_PROMPT, EDITOR_SYSTEM_PROMPT
 
@@ -65,7 +65,7 @@ class Translator:
     
     def translate_paragraph(self, paragraph: str, chapter_num: int = 0) -> str:
         """
-        Translate a single paragraph.
+        Translate a single paragraph with English detection and retry.
         
         Args:
             paragraph: Chinese text paragraph
@@ -77,18 +77,43 @@ class Translator:
         # Build prompt with context
         prompt = self.build_prompt(paragraph)
         
-        # Call LLM
+        # First attempt
         raw = self.ollama.chat(
             prompt=prompt,
             system_prompt=TRANSLATOR_SYSTEM_PROMPT
         )
         
-        # Clean output: strip <think>, <answer>, tags, etc.
+        # Clean output
         translated = clean_output(raw)
+        
+        # Check for English leakage
+        leakage = detect_language_leakage(translated)
+        if leakage.get("has_english", False) and leakage.get("latin_words", 0) > 3:
+            logger.warning(f"English detected in translation (chapter {chapter_num}), retrying with stronger prompt...")
+            
+            # Retry with reinforced language guard
+            retry_prompt = prompt + "\n\n⚠️ REMINDER: Output MUST be 100% Myanmar (Burmese). NO ENGLISH WORDS ALLOWED."
+            retry_system = TRANSLATOR_SYSTEM_PROMPT + "\n\n[RETRY MODE] Previous output contained English. This time output ONLY Myanmar text. Use 【?term?】 for unknown words."
+            
+            raw_retry = self.ollama.chat(
+                prompt=retry_prompt,
+                system_prompt=retry_system
+            )
+            translated_retry = clean_output(raw_retry)
+            
+            # Check if retry is better
+            leakage_retry = detect_language_leakage(translated_retry)
+            if leakage_retry.get("latin_words", 0) < leakage.get("latin_words", 0):
+                logger.info(f"Retry successful - reduced English words from {leakage['latin_words']} to {leakage_retry['latin_words']}")
+                translated = translated_retry
+            else:
+                logger.warning(f"Retry did not improve English content")
         
         # Validate and log quality report
         report = validate_output(translated, chapter_num)
-        if report["status"] != "APPROVED":
+        if report["status"] == "REJECTED":
+            logger.error(f"CRITICAL: Translation REJECTED in chapter {chapter_num}: {report}")
+        elif report["status"] == "NEEDS_REVIEW":
             logger.warning(f"Translation quality issue in chapter {chapter_num}: {report}")
         
         # Push to context buffer

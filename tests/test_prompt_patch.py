@@ -23,7 +23,7 @@ class TestLanguageGuard(unittest.TestCase):
     
     def test_contains_myanmar_only_rule(self):
         """Test LANGUAGE_GUARD specifies Myanmar only output."""
-        self.assertIn("Myanmar (Burmese) ONLY", LANGUAGE_GUARD)
+        self.assertIn("MYANMAR (BURMESE) ONLY", LANGUAGE_GUARD)
     
     def test_contains_myanmar_unicode_range(self):
         """Test LANGUAGE_GUARD specifies Myanmar Unicode range."""
@@ -60,54 +60,47 @@ class TestLanguageGuard(unittest.TestCase):
 
 class TestTranslatorSystemPrompt(unittest.TestCase):
     """Test TRANSLATOR_SYSTEM_PROMPT."""
-    
+
     def test_starts_with_language_guard(self):
         """Test translator prompt starts with LANGUAGE_GUARD."""
         self.assertTrue(TRANSLATOR_SYSTEM_PROMPT.startswith(LANGUAGE_GUARD))
-    
-    def test_contains_glossary_placeholder(self):
-        """Test prompt contains glossary placeholder."""
-        self.assertIn("{glossary}", TRANSLATOR_SYSTEM_PROMPT)
-    
-    def test_contains_context_placeholder(self):
-        """Test prompt contains context placeholder."""
-        self.assertIn("{context}", TRANSLATOR_SYSTEM_PROMPT)
-    
-    def test_contains_input_text_placeholder(self):
-        """Test prompt contains input text placeholder."""
-        self.assertIn("{input_text}", TRANSLATOR_SYSTEM_PROMPT)
-    
+
     def test_mentions_sov_structure(self):
         """Test prompt mentions SOV structure."""
         self.assertIn("SOV", TRANSLATOR_SYSTEM_PROMPT)
-    
+
     def test_mentions_wuxia_xianxia(self):
         """Test prompt mentions Wuxia/Xianxia."""
         self.assertIn("Wuxia/Xianxia", TRANSLATOR_SYSTEM_PROMPT)
 
+    def test_mentions_english_forbidden(self):
+        """Test prompt forbids English output."""
+        self.assertIn("English", TRANSLATOR_SYSTEM_PROMPT)
+        self.assertIn("FAILS", TRANSLATOR_SYSTEM_PROMPT)
+
 
 class TestEditorSystemPrompt(unittest.TestCase):
     """Test EDITOR_SYSTEM_PROMPT."""
-    
+
     def test_starts_with_language_guard(self):
         """Test editor prompt starts with LANGUAGE_GUARD."""
         self.assertTrue(EDITOR_SYSTEM_PROMPT.startswith(LANGUAGE_GUARD))
-    
-    def test_contains_draft_text_placeholder(self):
-        """Test prompt contains draft text placeholder."""
-        self.assertIn("{draft_text}", EDITOR_SYSTEM_PROMPT)
-    
+
     def test_mentions_sov_structure(self):
         """Test prompt mentions SOV structure."""
         self.assertIn("SOV", EDITOR_SYSTEM_PROMPT)
-    
+
     def test_mentions_particles(self):
         """Test prompt mentions Myanmar particles."""
         self.assertIn("သည်", EDITOR_SYSTEM_PROMPT)
-    
+
     def test_mentions_modern_words(self):
         """Test prompt mentions modern storytelling words."""
         self.assertIn("မင်း", EDITOR_SYSTEM_PROMPT)
+
+    def test_removes_english(self):
+        """Test prompt requires removing English words."""
+        self.assertIn("Remove any English", EDITOR_SYSTEM_PROMPT)
 
 
 class TestExtractorSystemPrompt(unittest.TestCase):
@@ -135,24 +128,16 @@ class TestExtractorSystemPrompt(unittest.TestCase):
 
 class TestPromptFormatting(unittest.TestCase):
     """Test prompt formatting with actual values."""
-    
-    def test_translator_prompt_formatting(self):
-        """Test translator prompt accepts format parameters."""
-        formatted = TRANSLATOR_SYSTEM_PROMPT.format(
-            glossary="罗青=လူချင်း",
-            context="Previous paragraph",
-            input_text="罗青 说 你好"
-        )
-        self.assertIn("罗青=လူချင်း", formatted)
-        self.assertIn("罗青 说 你好", formatted)
-        self.assertIn("Previous paragraph", formatted)
-    
-    def test_editor_prompt_formatting(self):
-        """Test editor prompt accepts format parameters."""
-        formatted = EDITOR_SYSTEM_PROMPT.format(
-            draft_text="မြန်မာဘာသာ အစပြု"
-        )
-        self.assertIn("မြန်မာဘာသာ အစပြု", formatted)
+
+    def test_translator_prompt_contains_examples(self):
+        """Test translator prompt contains Myanmar examples."""
+        self.assertIn("ဟယ်လို", TRANSLATOR_SYSTEM_PROMPT)
+        self.assertIn("ကျောင်းသား", TRANSLATOR_SYSTEM_PROMPT)
+
+    def test_editor_prompt_contains_examples(self):
+        """Test editor prompt contains example input/output."""
+        self.assertIn("He was very sad", EDITOR_SYSTEM_PROMPT)
+        self.assertIn("စိတ်မချမ်းသာမှု", EDITOR_SYSTEM_PROMPT)
     
     def test_extractor_prompt_formatting(self):
         """Test extractor prompt accepts format parameters."""

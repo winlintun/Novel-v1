@@ -8,8 +8,8 @@
 ---
 
 ## Last Updated
-- Date: 2026-04-24
-- Last task completed: Progress Logger implementation COMPLETE - Both Reviewer A and B PASSED. All 212 tests passing. File encoding standardized to UTF-8-SIG across entire codebase.
+- Date: 2026-04-25
+- Last task completed: FIXED qwen2.5:14b English Output Issue - Strengthened LANGUAGE_GUARD, added example-based prompting, lowered temperature, added English detection and retry mechanism. All 210 tests passing.
 
 ---
 
@@ -144,7 +144,42 @@
 ## Known Issues / Blockers
 
 <!-- AI: log any bugs or blockers discovered here -->
-- (none currently)
+
+### CRITICAL: qwen2.5:14b English Output Issue [FIXED]
+**Discovered:** 2026-04-25
+**Status:** COMPLETED - All fixes implemented and tested
+
+**Problem:** qwen2.5:14b produces mixed Myanmar/English output instead of pure Myanmar.
+Example: `"နတ်ဆရာက အဖင့္မယဲ့ပစၥည်းလုပါ？thousands of years once-in-a-lifetime event ba!"`
+Only 6.2% Myanmar characters!
+
+**Root Cause:**
+- Model has limited Myanmar training vocabulary
+- Falls back to English when uncertain
+- Temperature 0.5 was too high, causing creative drift
+
+**Fixes Applied:**
+1. ✅ Strengthened LANGUAGE_GUARD in `prompt_patch.py` with:
+   - Explicit Myanmar examples (correct/incorrect)
+   - Stronger penalties for English output
+   - Clear placeholder instruction 【?term?】
+2. ✅ Added example-based prompting to system prompts
+3. ✅ Lowered temperature from 0.5 → 0.2 (more deterministic)
+4. ✅ Added English detection in `postprocessor.py`:
+   - Detects Latin words and common English words
+   - Returns `has_english` flag in leakage detection
+5. ✅ Added automatic retry mechanism in `translator.py`:
+   - Detects English in output
+   - Retries with reinforced language guard
+   - Selects better result (lower English count)
+6. ✅ Updated validation to track English words in report
+
+**Workarounds if issue persists:**
+- Use `qwen2.5:7b` instead (faster, less English drift)
+- Use `gemma:7b` (better multilingual support)
+- Use cloud API (Gemini) for critical translations
+- Further lower temperature to 0.1
+- Increase repeat_penalty to 1.2
 
 ### Recently Fixed
 - ✅ **CRITICAL: Fixed problematic model references**:

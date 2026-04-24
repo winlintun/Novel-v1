@@ -83,8 +83,9 @@ class TestTranslator(unittest.TestCase):
         # Verify the system prompt contains LANGUAGE_GUARD
         call_args = self.mock_ollama.chat.call_args
         system_prompt = call_args.kwargs.get('system_prompt', call_args[1].get('system_prompt', ''))
-        self.assertIn("Myanmar (Burmese) ONLY", system_prompt)
+        self.assertIn("MYANMAR (BURMESE) ONLY", system_prompt)
         self.assertIn("FORBIDDEN", system_prompt)
+        self.assertIn("English words in output = INCORRECT", system_prompt)
 
 
 class TestRefiner(unittest.TestCase):
@@ -120,7 +121,8 @@ class TestRefiner(unittest.TestCase):
         # Verify the system prompt contains LANGUAGE_GUARD
         call_args = self.mock_ollama.chat.call_args
         system_prompt = call_args.kwargs.get('system_prompt', call_args[1].get('system_prompt', ''))
-        self.assertIn("Myanmar (Burmese) ONLY", system_prompt)
+        self.assertIn("MYANMAR (BURMESE) ONLY", system_prompt)
+        self.assertIn("Remove any English words", system_prompt)
 
 
 class TestChecker(unittest.TestCase):

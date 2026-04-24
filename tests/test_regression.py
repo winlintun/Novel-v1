@@ -55,10 +55,10 @@ class TestPostprocessorRegression(unittest.TestCase):
     
     def test_thai_output_bug_fixed(self):
         """Test that Thai output detection still works (Bug Fix Regression)."""
-        # This was a critical bug: Thai output should be detected
+        # This was a critical bug: Thai output should be detected and REJECTED
         thai_text = "မြန်မာစာ กรุงเทพฯ"
         report = validate_output(thai_text, chapter=1)
-        self.assertEqual(report["status"], "NEEDS_REVIEW")
+        self.assertEqual(report["status"], "REJECTED")  # Thai is critical error
         self.assertGreater(report["thai_chars_leaked"], 0)
     
     def test_think_tag_stripping_regression(self):
@@ -113,7 +113,7 @@ class TestLanguageGuardRegression(unittest.TestCase):
     
     def test_language_guard_contains_myanmar_rule(self):
         """Test LANGUAGE_GUARD specifies Myanmar only."""
-        self.assertIn("Myanmar (Burmese) ONLY", LANGUAGE_GUARD)
+        self.assertIn("MYANMAR (BURMESE) ONLY", LANGUAGE_GUARD)
     
     def test_language_guard_forbids_thai(self):
         """Test LANGUAGE_GUARD forbids Thai."""
