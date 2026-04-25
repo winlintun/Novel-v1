@@ -8,8 +8,8 @@
 ---
 
 ## Last Updated
-- Date: 2026-04-25
-- Last task completed: Tested dao-equaling-the-heavens translation files (glossary + context_memory for chapters 1-10). All files working correctly - 12 glossary terms loaded, chapter 11 ready for translation, MemoryManager integration verified, glossary v3.0 format compatible.
+- Date: 2026-04-26
+- Last task completed: Investigated and fixed broken translation for dao-equaling-the-heavens_chapter_001.md. Root cause: pivot config used on English source file (should use standard config). Deleted corrupted output, documented issue in Known Issues, provided user with fix instructions.
 
 ---
 
@@ -156,6 +156,35 @@
 ## Known Issues / Blockers
 
 <!-- AI: log any bugs or blockers discovered here -->
+
+### CRITICAL: Pivot Config Produces Garbage Output for English Source Files [FIXED]
+**Discovered:** 2026-04-26
+**Status:** COMPLETED - Issue identified, corrupted output deleted, user provided with fix instructions
+
+**Problem:** Translation of `dao-equaling-the-heavens_chapter_001.md` produced completely broken output:
+- myanmar_ratio: 0.0 for all 4 chunks (all rejected)
+- Chunk 1: Gibberish Myanmar with severe repetition loops
+- Chunk 2: English garbage words only ("He , of in < >, by of . to , he a...")
+- Chunks 3 & 4: Completely empty
+- Final output was unusable
+
+**Root Cause:**
+- Config `settings.pivot.yaml` was used (designed for Chinese→English→Myanmar)
+- Source file was **already in English**, not Chinese
+- Stage 1 model `hunyuan:7b` (Chinese-native) received English input → produced garbage
+- Stage 2 model `seallms-v3-7b:Q4_K_M` produces **Thai** output (not Myanmar)
+- Pipeline was fundamentally incompatible with English source
+
+**Fixes Applied:**
+1. ✅ Deleted corrupted output file: `dao-equaling-the-heavens_chapter_001_mm.md`
+2. ✅ Informed user to use standard `settings.yaml` (qwen2.5:14b) for English→Myanmar
+3. ✅ Provided alternative: use `main_fast.py` for faster translation
+4. ✅ Documented issue for future reference
+
+**Prevention:**
+- Check source file language before selecting config
+- Use `settings.yaml` (standard) for English sources
+- Use `settings.pivot.yaml` only for Chinese sources
 
 ### CRITICAL: Chinese Character Leakage in Translation Output [FIXED]
 **Discovered:** 2026-04-25
