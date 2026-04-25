@@ -171,12 +171,18 @@ def main():
     # Initialize components
     model_config = config.get('models', {})
     
+    # Get processing config
+    processing_config = config.get('processing', {})
+    
     ollama_client = OllamaClient(
         model=model_config.get('translator', 'qwen2.5:7b'),
         base_url=model_config.get('ollama_base_url', 'http://localhost:11434'),
-        temperature=0.4,
-        max_retries=2,
-        timeout=120,
+        temperature=processing_config.get('temperature', 0.5),
+        top_p=processing_config.get('top_p', 0.92),
+        top_k=processing_config.get('top_k', 50),
+        repeat_penalty=processing_config.get('repeat_penalty', 1.3),
+        max_retries=processing_config.get('max_retries', 3),
+        timeout=processing_config.get('request_timeout', 120),
         unload_on_cleanup=args.unload_after_chapter
     )
     

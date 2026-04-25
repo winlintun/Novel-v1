@@ -314,7 +314,10 @@ def translate_single_file(
     ollama_client = OllamaClient(
         model=config['models']['translator'],
         base_url=config['models'].get('ollama_base_url', 'http://localhost:11434'),
-        temperature=config['processing'].get('temperature', 0.3),
+        temperature=config['processing'].get('temperature', 0.5),
+        top_p=config['processing'].get('top_p', 0.92),
+        top_k=config['processing'].get('top_k', 50),
+        repeat_penalty=config['processing'].get('repeat_penalty', 1.3),
         max_retries=config['processing'].get('max_retries', 3),
         unload_on_cleanup=unload_on_exit
     )

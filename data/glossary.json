@@ -1,10 +1,10 @@
-{
+﻿{
   "glossary_version": "3.0",
   "novel_name": "my_story",
   "source_language": "Chinese",
   "target_language": "Myanmar",
-  "last_updated": "2025-04-23",
-  "total_terms": 3,
+  "last_updated": "2026-04-24T14:03:45.420223",
+  "total_terms": 5,
   "terms": [
     {
       "id": "term_001",
@@ -218,6 +218,26 @@
       "last_updated_chapter": 2,
       "source": "宗门",
       "target": "ဂိုဏ်း"
+    },
+    {
+      "id": "term_004",
+      "source": "古堂主",
+      "target": "[古堂主]",
+      "category": "character",
+      "chapter_first_seen": 4,
+      "chapter_last_seen": 4,
+      "verified": false,
+      "added_at": "2026-04-24T14:03:45.419104"
+    },
+    {
+      "id": "term_005",
+      "source": "罗青",
+      "target": "[罗青]",
+      "category": "character",
+      "chapter_first_seen": 4,
+      "chapter_last_seen": 4,
+      "verified": false,
+      "added_at": "2026-04-24T14:03:45.420219"
     }
   ]
 }

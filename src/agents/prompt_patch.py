@@ -5,38 +5,34 @@ Paste LANGUAGE_GUARD into the TOP of every agent system prompt.
 """
 
 # ── Paste this block at the TOP of every system prompt ──────────────────────
-LANGUAGE_GUARD = """CRITICAL LANGUAGE RULE — READ FIRST AND OBEY ABSOLUTELY:
+LANGUAGE_GUARD = """CRITICAL RULE — OBEY WITHOUT EXCEPTION:
+You MUST output ONLY in Myanmar (Burmese) language using Myanmar Unicode script (U+1000–U+109F).
 
-🚨 MANDATORY OUTPUT LANGUAGE: MYANMAR (BURMESE) ONLY — 100% STRICT ENFORCEMENT
+✅ CORRECT OUTPUT examples:
+   "ဤအရာသည် မြန်မာဘာသာစကားဖြစ်သည်။"
+   "ကျွန်တော်နားလည်ပါတယ်။"
+   "ဒါက အရမ်းကောင်းတဲ့ စာအုပ်ပါ။"
 
-✅ CORRECT OUTPUT (Myanmar Unicode U+1000–U+109F):
-   - Example 1: "မြန်မာဘာသာဖြင့် ဘာသာပြန်ပါ။"
-   - Example 2: "သူသည် စာအုပ်ကို ဖတ်သည်။"
-   - Example 3: "ကျွန်တော် ကျေးဇူးတင်ပါတယ်။"
+❌ WRONG OUTPUT (English contamination):
+   "This is a book" - NEVER output English words
+   "神仙打群架" - NEVER output Chinese characters
+   "นี่คือหนังสือ" - NEVER output Thai script
 
-❌ ABSOLUTELY FORBIDDEN — NEVER OUTPUT THESE:
-   - Thai (ภาษาไทย) — FORBIDDEN
-   - English (Latin script) — FORBIDDEN except in code/markdown syntax
-   - Chinese (中文) — FORBIDDEN
-   - Japanese (日本語) — FORBIDDEN
-   - Korean (한국어) — FORBIDDEN
-   - Any other language script
+STRICT PROHIBITIONS:
+- ❌ NEVER output English words or phrases
+- ❌ NEVER output Chinese characters
+- ❌ NEVER output Thai script
+- ❌ NEVER output Japanese or Korean
+- ❌ NEVER output Latin alphabet (a-z, A-Z) except in 【?term?】 placeholders
+- VIOLATION: If you output any non-Myanmar text, the translation is REJECTED.
 
-⚠️ IF UNSURE OF A MYANMAR WORD:
-   - Use placeholder 【?term?】 — DO NOT guess in English or Thai
-   - Example: "သူသည် 【?法宝?】 ကို ပိုက်၏" (CORRECT)
-   - NOT: "သူသည် magic treasure ကို ပိုက်၏" (WRONG - English!)
-
-🎯 PENALTY FOR VIOLATION:
-   - English words in output = INCORRECT translation
-   - Thai characters in output = CRITICAL ERROR
-   - Mixed languages = TRANSLATION REJECTED
-
-📝 OUTPUT RULES:
-   - Return ONLY Myanmar text
-   - Zero preamble. Zero explanation. Zero English.
-   - Do NOT output <think>, <answer>, or XML tags
-   - Do NOT output original Chinese text
+CORRECT OUTPUT FORMAT:
+- ALL text MUST be Myanmar Unicode characters (U+1000–U+109F) only
+- Use 【?term?】 for unknown words - NEVER use English as substitute
+- Do NOT output <think>, <answer>, or any XML/HTML tags
+- Do NOT output the original Chinese text
+- Return ONLY the Myanmar translation. Zero preamble. Zero explanation.
+- Myanmar ONLY. No exceptions.
 """
 
 # ── Translator Agent system prompt (Stage 1) ────────────────────────────────

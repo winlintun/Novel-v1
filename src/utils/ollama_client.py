@@ -18,7 +18,10 @@ class OllamaClient:
         self,
         model: str = "qwen2.5:14b",
         base_url: str = "http://localhost:11434",
-        temperature: float = 0.3,
+        temperature: float = 0.5,
+        top_p: float = 0.92,
+        top_k: int = 50,
+        repeat_penalty: float = 1.3,
         max_retries: int = 3,
         timeout: int = 300,
         unload_on_cleanup: bool = False
@@ -29,7 +32,10 @@ class OllamaClient:
         Args:
             model: Model name to use
             base_url: Ollama server URL
-            temperature: Sampling temperature
+            temperature: Sampling temperature (0.5 recommended for Myanmar translation)
+            top_p: Nucleus sampling parameter
+            top_k: Top-k sampling parameter
+            repeat_penalty: Penalty for token repetition (1.3-1.5 recommended for Myanmar)
             max_retries: Max retry attempts on failure
             timeout: Request timeout in seconds
             unload_on_cleanup: Whether to unload model from GPU on cleanup (frees VRAM)
@@ -37,6 +43,9 @@ class OllamaClient:
         self.model = model
         self.base_url = base_url
         self.temperature = temperature
+        self.top_p = top_p
+        self.top_k = top_k
+        self.repeat_penalty = repeat_penalty
         self.max_retries = max_retries
         self.timeout = timeout
         self.unload_on_cleanup = unload_on_cleanup
@@ -116,11 +125,12 @@ class OllamaClient:
                     messages=messages,
                     options={
                         "temperature": self.temperature,
-                        "num_predict": 4096,
-                        "top_p": 0.92,
-                        "top_k": 50,
-                        "repeat_penalty": 1.1
-                    }
+                        "num_predict": 2048,
+                        "top_p": self.top_p,
+                        "top_k": self.top_k,
+                        "repeat_penalty": self.repeat_penalty
+                    },
+                    keep_alive="5m"
                 )
                 
                 return response['message']['content']
@@ -165,8 +175,12 @@ class OllamaClient:
                 stream=True,
                 options={
                     "temperature": self.temperature,
-                    "num_predict": 4096
-                }
+                    "num_predict": 2048,
+                    "top_p": self.top_p,
+                    "top_k": self.top_k,
+                    "repeat_penalty": self.repeat_penalty
+                },
+                keep_alive="5m"
             )
             
             for chunk in stream:
