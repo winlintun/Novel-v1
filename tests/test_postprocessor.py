@@ -17,6 +17,7 @@ from src.utils.postprocessor import (
     myanmar_char_ratio,
     clean_output,
     validate_output,
+    remove_chinese_characters,
 )
 
 
@@ -181,6 +182,49 @@ More text"""
         result = clean_output(raw)
         self.assertEqual(result[0], "မ")  # Starts with Myanmar
         self.assertEqual(result[-1], "ာ")  # Ends with Myanmar
+    
+    def test_removes_chinese_characters(self):
+        """Test Chinese characters are removed in clean_output."""
+        raw = "မြန်မာဘာသာ 中文句子 မြန်မာစာ"
+        result = clean_output(raw)
+        self.assertNotIn("中", result)
+        self.assertNotIn("文", result)
+        self.assertNotIn("句", result)
+        self.assertIn("မြန်မာဘာသာ", result)
+        self.assertIn("မြန်မာစာ", result)
+
+
+class TestRemoveChineseCharacters(unittest.TestCase):
+    """Test Chinese character removal."""
+    
+    def test_remove_simple_chinese(self):
+        """Test removing simple Chinese characters."""
+        text = "မြန်မာစာ 你好 မြန်မာစာ"
+        result = remove_chinese_characters(text)
+        self.assertNotIn("你", result)
+        self.assertNotIn("好", result)
+        self.assertIn("မြန်မာစာ", result)
+    
+    def test_remove_mixed_chinese(self):
+        """Test removing mixed Chinese from colloquial text."""
+        text = '千年难逢的事儿吧正好被我撞到了'
+        result = remove_chinese_characters(text)
+        self.assertEqual(result, "")
+    
+    def test_preserve_myanmar_only(self):
+        """Test Myanmar-only text is unchanged."""
+        text = "မြန်မာဘာသာ စာသား"
+        result = remove_chinese_characters(text)
+        self.assertEqual(result, text)
+    
+    def test_remove_complex_chinese_sentence(self):
+        """Test removing complex Chinese sentence."""
+        text = "မြန်မာ遇到的神仙十分不仗义 မြန်မာ"
+        result = remove_chinese_characters(text)
+        self.assertNotIn("遇", result)
+        self.assertNotIn("到", result)
+        self.assertNotIn("神", result)
+        self.assertIn("မြန်မာ", result)
 
 
 class TestValidateOutput(unittest.TestCase):
@@ -209,6 +253,20 @@ class TestValidateOutput(unittest.TestCase):
         report = validate_output(text, chapter=3)
         self.assertEqual(report["status"], "REJECTED")
         self.assertGreater(report["thai_chars_leaked"], 0)
+    
+    def test_rejected_chinese_leakage(self):
+        """Test Chinese leakage causes rejection (critical error)."""
+        text = "မြန်မာဘာသာ 遇到的神仙"
+        report = validate_output(text, chapter=4)
+        self.assertEqual(report["status"], "REJECTED")
+        self.assertGreater(report["chinese_chars_leaked"], 0)
+    
+    def test_chinese_leakage_detected_in_report(self):
+        """Test Chinese leakage is correctly counted in report."""
+        text = "မြန်မာစာ 中文 မြန်မာ"
+        report = validate_output(text, chapter=5)
+        # Should detect at least 1 Chinese character
+        self.assertGreater(report["chinese_chars_leaked"], 0)
     
     def test_report_structure(self):
         """Test report contains all required fields."""

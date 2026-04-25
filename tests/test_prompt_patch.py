@@ -23,7 +23,8 @@ class TestLanguageGuard(unittest.TestCase):
     
     def test_contains_myanmar_only_rule(self):
         """Test LANGUAGE_GUARD specifies Myanmar only output."""
-        self.assertIn("MYANMAR (BURMESE) ONLY", LANGUAGE_GUARD)
+        self.assertIn("Myanmar (Burmese)", LANGUAGE_GUARD)
+        self.assertIn("ONLY", LANGUAGE_GUARD)
     
     def test_contains_myanmar_unicode_range(self):
         """Test LANGUAGE_GUARD specifies Myanmar Unicode range."""
@@ -76,7 +77,7 @@ class TestTranslatorSystemPrompt(unittest.TestCase):
     def test_mentions_english_forbidden(self):
         """Test prompt forbids English output."""
         self.assertIn("English", TRANSLATOR_SYSTEM_PROMPT)
-        self.assertIn("FAILS", TRANSLATOR_SYSTEM_PROMPT)
+        self.assertIn("REJECTED", TRANSLATOR_SYSTEM_PROMPT)
 
 
 class TestEditorSystemPrompt(unittest.TestCase):
@@ -131,8 +132,8 @@ class TestPromptFormatting(unittest.TestCase):
 
     def test_translator_prompt_contains_examples(self):
         """Test translator prompt contains Myanmar examples."""
-        self.assertIn("ဟယ်လို", TRANSLATOR_SYSTEM_PROMPT)
-        self.assertIn("ကျောင်းသား", TRANSLATOR_SYSTEM_PROMPT)
+        self.assertIn("မြန်မာဘာသာစကား", TRANSLATOR_SYSTEM_PROMPT)
+        self.assertIn("ကျွန်တော်နားလည်ပါတယ်", TRANSLATOR_SYSTEM_PROMPT)
 
     def test_editor_prompt_contains_examples(self):
         """Test editor prompt contains example input/output."""

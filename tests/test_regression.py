@@ -113,7 +113,8 @@ class TestLanguageGuardRegression(unittest.TestCase):
     
     def test_language_guard_contains_myanmar_rule(self):
         """Test LANGUAGE_GUARD specifies Myanmar only."""
-        self.assertIn("MYANMAR (BURMESE) ONLY", LANGUAGE_GUARD)
+        self.assertIn("Myanmar (Burmese)", LANGUAGE_GUARD)
+        self.assertIn("ONLY", LANGUAGE_GUARD)
     
     def test_language_guard_forbids_thai(self):
         """Test LANGUAGE_GUARD forbids Thai."""

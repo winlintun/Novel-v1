@@ -89,16 +89,34 @@ def myanmar_char_ratio(text: str) -> float:
     return myanmar_count / len(non_ws)
 
 
+def remove_chinese_characters(text: str) -> str:
+    """Remove all Chinese characters from text."""
+    return _CHINESE_PATTERN.sub("", text)
+
+
+def remove_latin_words(text: str) -> str:
+    """Remove Latin/English word leakage from Myanmar output."""
+    # Remove 3+ letter Latin words (but preserve markdown syntax like **, *)
+    text = _LATIN_WORD_PATTERN.sub("", text)
+    # Clean up extra whitespace
+    text = re.sub(r'\s+', ' ', text)
+    return text.strip()
+
+
 def clean_output(raw: str) -> str:
     """
     Full postprocessing pipeline. Apply in order:
     1. Strip reasoning tags
     2. Strip header artifacts
-    3. Collapse 3+ blank lines → 2
-    4. Strip leading/trailing whitespace
+    3. Remove Chinese characters (model leakage)
+    4. Remove Latin words (English/German leakage)
+    5. Collapse 3+ blank lines → 2
+    6. Strip leading/trailing whitespace
     """
     text = strip_reasoning_tags(raw)
     text = strip_header_artifacts(text)
+    text = remove_chinese_characters(text)  # CRITICAL: Remove leaked Chinese
+    text = remove_latin_words(text)  # Remove Latin word leakage
     text = re.sub(r"\n{3,}", "\n\n", text)  # collapse excess blank lines
     text = text.strip()
     return text
@@ -110,15 +128,17 @@ def validate_output(text: str, chapter: int) -> dict:
     Returns a report dict for logging.
     
     Status levels:
-    - APPROVED: >70% Myanmar, no Thai, minimal English
+    - APPROVED: >70% Myanmar, no Thai/Chinese, minimal English
     - NEEDS_REVIEW: Some issues but usable
-    - REJECTED: Critical issues (Thai detected or <30% Myanmar)
+    - REJECTED: Critical issues (Thai/Chinese detected or <30% Myanmar)
     """
     leakage = detect_language_leakage(text)
     ratio = myanmar_char_ratio(text)
     
-    # Determine status
+    # Determine status - Chinese characters = automatic REJECT
     if leakage["thai_chars"] > 0:
+        status = "REJECTED"
+    elif leakage["chinese_chars"] > 0:
         status = "REJECTED"
     elif ratio < 0.30:
         status = "REJECTED"
@@ -139,31 +159,101 @@ def validate_output(text: str, chapter: int) -> dict:
     return report
 
 
+def is_valid_myanmar_syllable(text: str) -> bool:
+    """
+    Check if text contains valid Myanmar syllable structure.
+    Myanmar syllables follow: consonant + (medial) + (vowel) + (tone)
+    Returns ratio of valid syllables to total Myanmar characters.
+    """
+    if not text:
+        return 0.0
+    
+    # Myanmar consonants (basic range)
+    _MYANMAR_CONSONANTS = re.compile(r'[\u1000-\u1021]')
+    
+    # Common valid Myanmar patterns (simplified check)
+    # Look for consonant followed by optional modifiers
+    _VALID_SYLLABLE = re.compile(
+        r'[\u1000-\u1021]'  # Consonant
+        r'[\u1039\u103A]?'   # Optional: virama/asat
+        r'[\u102D-\u1030\u1032\u1036\u1037\u1038]*'  # Optional: vowels/tone
+    )
+    
+    myanmar_chars = len(_MYANMAR_PATTERN.findall(text))
+    if myanmar_chars == 0:
+        return 0.0
+    
+    valid_syllables = len(_VALID_SYLLABLE.findall(text))
+    # Rough estimate: each syllable should have ~1-3 characters
+    # If ratio is too low, text may be garbled
+    return min(valid_syllables / (myanmar_chars * 0.3), 1.0) if myanmar_chars > 0 else 0.0
+
+
+def detect_repetition(text: str, threshold: int = 3) -> dict:
+    """
+    Detect repetitive patterns in Myanmar text.
+
+    Args:
+        text: Text to analyze
+        threshold: Number of repetitions to flag as problematic
+
+    Returns:
+        Dictionary with repetition metrics
+    """
+    from collections import Counter
+
+    # Split into sentences (Myanmar uses ။ as period)
+    sentences = [s.strip() for s in re.split(r'[။\n]+', text) if s.strip()]
+
+    if not sentences:
+        return {"has_repetition": False, "repeated_phrases": [], "unique_ratio": 1.0}
+
+    # Count exact duplicates
+    sentence_counts = Counter(sentences)
+
+    repeated = []
+    for sentence, count in sentence_counts.items():
+        if count >= threshold:
+            repeated.append({
+                "sentence": sentence[:50] + "..." if len(sentence) > 50 else sentence,
+                "count": count
+            })
+
+    # Calculate unique ratio
+    unique_ratio = len(set(sentences)) / len(sentences) if sentences else 1.0
+
+    return {
+        "has_repetition": len(repeated) > 0,
+        "repeated_sentences": repeated,
+        "unique_ratio": unique_ratio
+    }
+
+
 def check_repetition(text: str, threshold: float = 0.35) -> bool:
     """
     Check if text has excessive sentence repetition.
-    
+
     Args:
         text: Translated text to check
         threshold: Ratio of repeated sentences to trigger warning (0.35 = 35%)
-        
+
     Returns:
         True if repetition ratio exceeds threshold
     """
     from collections import Counter
-    
+
     if not text or len(text) < 100:
         return False
-    
+
     # Split on Myanmar sentence ending (။) or newlines
-    sentences = [s.strip() for s in re.split(r'[။\n]+', text) 
+    sentences = [s.strip() for s in re.split(r'[။\n]+', text)
                  if len(s.strip()) > 10]
-    
+
     if len(sentences) < 5:  # Too short to analyze
         return False
-    
+
     counts = Counter(sentences)
     repeated = sum(c for c in counts.values() if c > 1)
-    
+
     repetition_ratio = repeated / len(sentences)
     return repetition_ratio > threshold

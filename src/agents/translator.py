@@ -86,14 +86,25 @@ class Translator:
         # Clean output
         translated = clean_output(raw)
         
-        # Check for English leakage
+        # Check for language leakage (English or Chinese)
         leakage = detect_language_leakage(translated)
+        needs_retry = False
+        retry_reason = ""
+        
         if leakage.get("has_english", False) and leakage.get("latin_words", 0) > 3:
-            logger.warning(f"English detected in translation (chapter {chapter_num}), retrying with stronger prompt...")
+            needs_retry = True
+            retry_reason = f"English ({leakage['latin_words']} words)"
+        
+        if leakage.get("chinese_chars", 0) > 0:
+            needs_retry = True
+            retry_reason = f"Chinese ({leakage['chinese_chars']} chars)"
+        
+        if needs_retry:
+            logger.warning(f"{retry_reason} detected in translation (chapter {chapter_num}), retrying with stronger prompt...")
             
             # Retry with reinforced language guard
-            retry_prompt = prompt + "\n\n⚠️ REMINDER: Output MUST be 100% Myanmar (Burmese). NO ENGLISH WORDS ALLOWED."
-            retry_system = TRANSLATOR_SYSTEM_PROMPT + "\n\n[RETRY MODE] Previous output contained English. This time output ONLY Myanmar text. Use 【?term?】 for unknown words."
+            retry_prompt = prompt + "\n\n⚠️ CRITICAL: Your previous output contained " + retry_reason + ". This time output ONLY Myanmar text. NO Chinese or English allowed. Use 【?term?】 for unknown words."
+            retry_system = TRANSLATOR_SYSTEM_PROMPT + "\n\n[RETRY MODE] Previous output failed - contained " + retry_reason + ". This time output 100% Myanmar ONLY."
             
             raw_retry = self.ollama.chat(
                 prompt=retry_prompt,
@@ -103,11 +114,20 @@ class Translator:
             
             # Check if retry is better
             leakage_retry = detect_language_leakage(translated_retry)
-            if leakage_retry.get("latin_words", 0) < leakage.get("latin_words", 0):
+            
+            # Determine if retry improved
+            improved = False
+            if leakage.get("chinese_chars", 0) > 0 and leakage_retry.get("chinese_chars", 0) < leakage.get("chinese_chars", 0):
+                improved = True
+                logger.info(f"Retry successful - reduced Chinese chars from {leakage['chinese_chars']} to {leakage_retry['chinese_chars']}")
+            elif leakage.get("latin_words", 0) > 0 and leakage_retry.get("latin_words", 0) < leakage.get("latin_words", 0):
+                improved = True
                 logger.info(f"Retry successful - reduced English words from {leakage['latin_words']} to {leakage_retry['latin_words']}")
+            
+            if improved:
                 translated = translated_retry
             else:
-                logger.warning(f"Retry did not improve English content")
+                logger.warning(f"Retry did not improve language content")
         
         # Validate and log quality report
         report = validate_output(translated, chapter_num)

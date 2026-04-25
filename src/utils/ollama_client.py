@@ -125,7 +125,7 @@ class OllamaClient:
                     messages=messages,
                     options={
                         "temperature": self.temperature,
-                        "num_predict": 2048,
+                        "num_predict": 800,   # Reduced for better Myanmar control
                         "top_p": self.top_p,
                         "top_k": self.top_k,
                         "repeat_penalty": self.repeat_penalty

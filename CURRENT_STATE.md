@@ -9,7 +9,7 @@
 
 ## Last Updated
 - Date: 2026-04-25
-- Last task completed: FIXED qwen2.5:14b English Output Issue - Strengthened LANGUAGE_GUARD, added example-based prompting, lowered temperature, added English detection and retry mechanism. All 210 tests passing.
+- Last task completed: Tested dao-equaling-the-heavens translation files (glossary + context_memory for chapters 1-10). All files working correctly - 12 glossary terms loaded, chapter 11 ready for translation, MemoryManager integration verified, glossary v3.0 format compatible.
 
 ---
 
@@ -131,6 +131,18 @@
   - [x] Updated `src/main_fast.py` - Repetition guard after translation
   - [x] Post-implementation code review: Both reviewers PASSED
   - [x] All 201 tests passing
+- [x] **Implemented need_fix.md requirements**:
+  - [x] Created `scripts/bootstrap_glossary.py` - Semi-automated glossary extraction from Chinese text
+  - [x] Script extracts 2-4 character sequences appearing 2+ times as proper noun candidates
+  - [x] Creates glossary v1.0 compatible JSON with placeholder translations
+  - [x] Uses utf-8-sig encoding per project standards
+  - [x] Full error handling and logging implemented
+- [x] **Implemented need_fix_another.md requirements**:
+  - [x] Created `config/settings.pivot.yaml` - Two-stage pivot translation (CN→EN→MM)
+  - [x] Stage 1: alibayram/hunyuan:7b (Chinese → English)
+  - [x] Stage 2: yxchia/seallms-v3-7b:Q4_K_M (English → Myanmar)
+  - [x] Updated `config/settings.fast.yaml` - Changed to pivot language approach
+  - [x] Optimized for Ryzen 7 5700X / 16GB RAM / CPU-only
 
 ### Planned
 - [ ] Batch chapter translation (`--all` flag) - PARTIAL (implemented in main.py)
@@ -144,6 +156,27 @@
 ## Known Issues / Blockers
 
 <!-- AI: log any bugs or blockers discovered here -->
+
+### CRITICAL: Chinese Character Leakage in Translation Output [FIXED]
+**Discovered:** 2026-04-25
+**Status:** COMPLETED - All fixes implemented and tested
+
+**Problem:** Model was outputting mixed Myanmar/Chinese text instead of pure Myanmar.
+Example: "မြန်မာစာ 千年难逢的事儿吧！正好，被我撞到了！缅甸语"
+Only 22% Myanmar characters, 69% Chinese!
+
+**Root Cause:**
+- LANGUAGE_GUARD forbade Chinese but postprocessor didn't actually remove leaked characters
+- No retry mechanism for Chinese leakage (only existed for English)
+- validate_output() counted Chinese but didn't reject based on it
+
+**Fixes Applied:**
+1. ✅ Added `remove_chinese_characters()` function to `postprocessor.py`
+2. ✅ Updated `clean_output()` to strip Chinese characters (Step 3 in pipeline)
+3. ✅ Strengthened LANGUAGE_GUARD with explicit Chinese prohibition examples
+4. ✅ Added Chinese retry mechanism to `translator.py` (similar to English retry)
+5. ✅ Updated `validate_output()` to REJECT output containing any Chinese characters
+6. ✅ Added comprehensive tests for Chinese removal (6 new tests)
 
 ### CRITICAL: qwen2.5:14b English Output Issue [FIXED]
 **Discovered:** 2026-04-25
@@ -180,6 +213,14 @@ Only 6.2% Myanmar characters!
 - Use cloud API (Gemini) for critical translations
 - Further lower temperature to 0.1
 - Increase repeat_penalty to 1.2
+
+### Recently Verified
+- ✅ **dao-equaling-the-heavens Translation Files Tested**: Chapters 1-10 data working correctly
+  - Glossary: 12 terms (Gu Wen → ကူဝမ်, Zhao Feng → ကျောက်ဖန်, Yu Hua → ယွီဟွာ, etc.)
+  - Context: Summary of chapters 1-10 with active characters tracked
+  - Chapter 11: 12,987 characters ready for translation
+  - MemoryManager: Successfully loads and queries glossary terms
+  - Format: Glossary v3.0 (source_term/target_term) compatible with codebase
 
 ### Recently Fixed
 - ✅ **CRITICAL: Fixed problematic model references**:

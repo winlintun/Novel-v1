@@ -67,10 +67,10 @@ processing:
   chunk_size: 800         # Characters per chunk (800-1000 for 14B models, 1500 for 7B)
   chunk_overlap: 50       # Overlap between chunks for context
   max_retries: 3          # Retry failed chunks
-  temperature: 0.5        # 0.5 for Myanmar (higher = more creative/fluent for dialogue)
+  temperature: 0.2        # 0.2 for Myanmar (lower = more deterministic, less hallucination)
   top_p: 0.92             # Nucleus sampling - keep diverse but focused
   top_k: 50               # Top-k token selection
-  repeat_penalty: 1.3     # 1.3-1.5 for Myanmar (prevents character repetition loops)
+  repeat_penalty: 1.5     # 1.5 for Myanmar (stronger prevention of repetition loops)
   stream: true
   request_timeout: 900    # Seconds
 
