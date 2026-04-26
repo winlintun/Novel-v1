@@ -90,16 +90,43 @@ ENGLISH TRANSLATION:"""
         repeat_penalty=1.15
     )
     
-    system_prompt_2 = """CRITICAL: Output ONLY Myanmar (Burmese) language.
-You are an expert English-to-Myanmar literary translator.
-Translate to natural Myanmar prose. NO English words."""
+    system_prompt_2 = """CRITICAL: Output ONLY Myanmar (Burmese) language using Myanmar Unicode script.
+
+FORBIDDEN: English words, Chinese characters, Thai script, Latin alphabet.
+
+You are an expert English-to-Myanmar literary translator specializing in Wuxia/Xianxia novels.
+
+RULES:
+1. Convert English SVO to Myanmar SOV sentence structure
+2. Use natural Myanmar prose - literary for narrative, spoken for dialogue
+3. For names in pinyin (Luo Qing, Xiao Rong), use the glossary below
+4. Use 【?term?】 placeholder for unknown words
+5. NO English words. NO Chinese characters.
+6. Use formal tone: သည် for "is/am/are", ကို for object marker"""
     
-    prompt_2 = f"""Translate the following English text to Myanmar:
+    prompt_2 = f"""Translate the following English text to Myanmar using the glossary.
+
+GLOSSARY (USE THESE EXACT TERMS):
+CHARACTERS:
+- Luo Qing → လော်ချင်း
+- Xiao Rong Town → ရှောင်ရုံးမြို့
+- Luo Village → လော်ကျေးရွာ
+
+LOCATIONS:
+- town → မြို့
+- village → ရွာ/ကျေးရွာ
+- mountain → တောင်
+
+DESCRIPTIONS:
+- twelve years old → အသက်ဆယ့်နှစ်နှစ်
+- ordinary appearance → ပုံသဏ္ဍာန်အရိုးအစင်း
+- poor household → ဆင်းရဲသော မိသားစု
+- villager → ရွာသား
 
 ENGLISH TEXT:
 {english_result}
 
-MYANMAR TRANSLATION:"""
+MYANMAR TRANSLATION (SOV structure, natural Myanmar):
     
     try:
         myanmar_result = client2.chat(prompt=prompt_2, system_prompt=system_prompt_2)
