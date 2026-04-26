@@ -5,7 +5,7 @@ Core Chinese to Myanmar translation using Ollama.
 """
 
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 
 from src.utils.ollama_client import OllamaClient
 from src.memory.memory_manager import MemoryManager
@@ -28,16 +28,32 @@ class Translator:
     def __init__(
         self,
         ollama_client: OllamaClient,
-        memory_manager: MemoryManager
+        memory_manager: MemoryManager,
+        config: Optional[Dict[str, Any]] = None
     ):
         self.ollama = ollama_client
         self.memory = memory_manager
+        self.config = config or {}
+        
+        pipeline = self.config.get('translation_pipeline', {})
+        self._custom_system_prompt = pipeline.get('stage1_system_prompt')
+        self._custom_prompt_template = pipeline.get('stage1_prompt', '{text}')
+        self._fallback_system_prompt = TRANSLATOR_SYSTEM_PROMPT
     
     def build_prompt(self, text: str) -> str:
         """Build translation prompt with memory context."""
         # Get all memory context
         mem = self.memory.get_all_memory_for_prompt()
+        glossary_text = mem['glossary'] if mem['glossary'] else ""
         
+        # Use custom template from config if available
+        if self._custom_prompt_template and self._custom_prompt_template != '{text}':
+            prompt = self._custom_prompt_template.replace('{text}', text).replace('{glossary}', glossary_text)
+            if mem['context'] and mem['context'] != "No previous context.":
+                prompt = prompt.replace('{context}', mem['context'])
+            return prompt
+        
+        # Fallback to default template
         prompt_parts = []
         
         # Add glossary
@@ -77,12 +93,24 @@ class Translator:
         # Build prompt with context
         prompt = self.build_prompt(paragraph)
         
+        # Use custom system prompt from config if available, otherwise fallback
+        system_prompt = self._custom_system_prompt if self._custom_system_prompt else self._fallback_system_prompt
+        
         # First attempt
         raw = self.ollama.chat(
             prompt=prompt,
-            system_prompt=TRANSLATOR_SYSTEM_PROMPT
+            system_prompt=system_prompt
         )
         
+        # Handle empty response (model collapse)
+        if not raw or not raw.strip():
+            logger.warning(f"Empty response from model in chapter {chapter_num}. Retrying with reinforced prompt...")
+            retry_system = system_prompt + "\n\nIMPORTANT: You must provide a translation. Do not return an empty response."
+            raw = self.ollama.chat(
+                prompt=prompt,
+                system_prompt=retry_system
+            )
+            
         # Clean output
         translated = clean_output(raw)
         
@@ -104,7 +132,7 @@ class Translator:
             
             # Retry with reinforced language guard
             retry_prompt = prompt + "\n\n⚠️ CRITICAL: Your previous output contained " + retry_reason + ". This time output ONLY Myanmar text. NO Chinese or English allowed. Use 【?term?】 for unknown words."
-            retry_system = TRANSLATOR_SYSTEM_PROMPT + "\n\n[RETRY MODE] Previous output failed - contained " + retry_reason + ". This time output 100% Myanmar ONLY."
+            retry_system = system_prompt + "\n\n[RETRY MODE] Previous output failed - contained " + retry_reason + ". This time output 100% Myanmar ONLY."
             
             raw_retry = self.ollama.chat(
                 prompt=retry_prompt,

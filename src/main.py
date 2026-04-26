@@ -21,7 +21,7 @@ import logging
 import atexit
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Tuple
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -266,13 +266,13 @@ def get_default_config() -> dict:
     }
 
 
-def is_two_stage_mode(config: dict) -> bool:
+def is_two_stage_mode(config: Dict[str, Any]) -> bool:
     """Check if two-stage translation is enabled."""
     pipeline = config.get("translation_pipeline", {})
     return pipeline.get("mode") == "two_stage"
 
 
-def get_stage_models(config: dict) -> tuple:
+def get_stage_models(config: Dict[str, Any]) -> Tuple[str, str]:
     """Get stage 1 and stage 2 models from config."""
     pipeline = config.get("translation_pipeline", {})
     return (
@@ -347,11 +347,13 @@ def translate_single_file(
         
         # Determine if pivot translation is needed
         pipeline_config = config.get('translation_pipeline', {})
-        if pipeline_config.get('stage1_target_lang') == 'english':
+        is_pivot = pipeline_config.get('stage1_target_lang') == 'english'
+        
+        if is_pivot:
             from src.agents.pivot_translator import PivotTranslator
             translator = PivotTranslator(ollama_client, memory, config)
         else:
-            translator = Translator(ollama_client, memory)
+            translator = Translator(ollama_client, memory, config)
         
         # Use batch processing for refiner (5x speedup)
         batch_size = config['processing'].get('batch_processing', {}).get('batch_size', 5)
@@ -389,13 +391,52 @@ def translate_single_file(
         # Load original text for checking
         original_text = FileHandler.read_text(filepath)
         
-        # Translate with progress logging
-        logger.info(f"Translating {len(chunks)} chunks...")
-        translated_chunks = translator.translate_chunks(
-            chunks,
-            chapter_num,
-            progress_logger=progress_logger
-        )
+        if is_pivot:
+            # Setup paths
+            en_dir = Path(OUTPUT_DIR) / book_id / "en"
+            mm_dir = Path(OUTPUT_DIR) / book_id / "mm"
+            en_dir.mkdir(parents=True, exist_ok=True)
+            mm_dir.mkdir(parents=True, exist_ok=True)
+            en_path = en_dir / f"{chapter_name}.md"
+            
+            # Check if English translation already exists (resume capability)
+            if en_path.exists():
+                logger.info(f"Found existing English translation: {en_path}")
+                print(f"📄 Using existing English translation: {en_path}")
+                english_text = FileHandler.read_text(str(en_path))
+                # Split English text back into chunks (by double newline)
+                english_chunks = english_text.split('\n\n')
+                # Filter out empty chunks
+                english_chunks = [chunk.strip() for chunk in english_chunks if chunk.strip()]
+            else:
+                # STEP 1: CN -> EN
+                logger.info(f"STEP 1: Translating {len(chunks)} chunks to English...")
+                print(f"🔄 Step 1: Translating {len(chunks)} chunks Chinese → English...")
+                english_chunks = translator.translate_chunks_stage1(chunks)
+                english_text = '\n\n'.join(english_chunks)
+                
+                # Save English version
+                FileHandler.write_text(en_path, english_text)
+                logger.info(f"Step 1 Complete. English version saved to: {en_path}")
+                print(f"✅ Step 1 Complete! English saved to: {en_path}")
+            
+            # STEP 2: EN -> MM (reads from saved EN file)
+            logger.info(f"STEP 2: Translating from English to Myanmar...")
+            print(f"🔄 Step 2: Translating {len(english_chunks)} chunks English → Myanmar...")
+            translated_chunks = translator.translate_chunks_stage2(
+                english_chunks, 
+                chapter_num,
+                progress_logger=progress_logger
+            )
+        else:
+            # Standard CN -> MM
+            logger.info(f"Translating {len(chunks)} chunks...")
+            translated_chunks = translator.translate_chunks(
+                chunks,
+                chapter_num,
+                progress_logger=progress_logger
+            )
+        
         translated_text = '\n\n'.join(translated_chunks)
         
         # Mark progress as complete for translation phase
@@ -413,13 +454,33 @@ def translate_single_file(
         
         print("\n" + checker.generate_report(chapter_num, check_result))
         
-        # Save output
-        output_path = save_partial_translation(
-            book_id, chapter_name,
-            {i: t for i, t in enumerate(translated_chunks)},
-            len(chunks),
-            is_final=True
-        )
+        # Save output (MM version)
+        if is_pivot:
+            mm_dir = Path(OUTPUT_DIR) / book_id / "mm"
+            mm_dir.mkdir(parents=True, exist_ok=True)
+            output_path = mm_dir / f"{chapter_name}.md"
+            
+            # Add metadata
+            progress_info = f"""<!--
+Translation Progress:
+- Chapter: {chapter_name}
+- Chunks Completed: {len(chunks)}/{len(chunks)}
+- Source: {en_path}
+- Timestamp: {datetime.now().isoformat()}
+- Status: COMPLETE
+-->
+
+"""
+            FileHandler.write_text(output_path, progress_info + translated_text)
+            logger.info(f"Myanmar translation saved to: {output_path}")
+            print(f"✅ Myanmar translation saved to: {output_path}")
+        else:
+            output_path = save_partial_translation(
+                book_id, chapter_name,
+                {i: t for i, t in enumerate(translated_chunks)},
+                len(chunks),
+                is_final=True
+            )
         
         # Update context and glossary
         logger.info("Updating memory and context...")
@@ -444,11 +505,11 @@ def translate_single_file(
 def translate_novel(
     novel_name: str,
     chapter_num: Optional[int],
-    config: dict,
+    config: Dict[str, Any],
     start: int = 1,
     skip_refinement: bool = False,
     unload_after_chapter: bool = False
-):
+) -> bool:
     """
     Translate novel chapters with proper resource management.
     
