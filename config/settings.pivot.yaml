@@ -29,10 +29,10 @@ models:
   translator: "qwen2.5:14b"     # Chinese → English (9GB)
   
   # Stage 2: English → Myanmar  
-  # qwen:7b - Stable Myanmar output (confirmed available)
-  editor: "qwen:7b"             # English → Myanmar (8.1GB)
-  refiner: "qwen:7b"            # Refinement (8.1GB)
-  checker: "qwen:7b"            # QA check (8.1GB)
+  # qwen2.5:14b - Better multilingual capabilities, superior Myanmar output
+  editor: "qwen2.5:14b"         # English → Myanmar (9GB)
+  refiner: "qwen2.5:14b"        # Refinement (9GB)
+  checker: "qwen2.5:7b"         # QA check (4GB) - lightweight for checking
   
   ollama_base_url: "http://localhost:11434"
   timeout: 300                  # API call timeout (5 minutes)
@@ -79,7 +79,7 @@ translation_pipeline:
     ENGLISH TRANSLATION:
   
   # Stage 2: English → Myanmar (final output)
-  stage2_model: "qwen:7b"
+  stage2_model: "qwen2.5:14b"
   stage2_source_lang: "english"
   stage2_target_lang: "myanmar"
   stage2_prompt: |
@@ -226,10 +226,10 @@ model_router:
 
 model_roles:
   translator: ["qwen2.5:14b", "qwen2.5:7b"]
-  refiner: ["qwen:7b", "qwen2.5:14b"]
-  checker: ["qwen:7b"]
-  glossary_sync: ["qwen:7b"]
-  qa_final: ["qwen:7b"]
+  refiner: ["qwen2.5:14b"]
+  checker: ["qwen2.5:7b", "qwen:7b"]
+  glossary_sync: ["qwen2.5:7b"]
+  qa_final: ["qwen2.5:7b"]
 
 # =====================================================
 # QA SETTINGS

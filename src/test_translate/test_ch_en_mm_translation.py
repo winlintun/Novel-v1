@@ -55,7 +55,8 @@ def translate_sentence_cn_en_mm(chinese_text: str) -> dict[str, Any]:
     client1 = OllamaClient(
         model="qwen2.5:14b",
         temperature=0.3,
-        repeat_penalty=1.15
+        repeat_penalty=1.15,
+        unload_on_cleanup=True
     )
     
     system_prompt_1 = """You are an expert Chinese-to-English literary translator.
@@ -82,12 +83,13 @@ ENGLISH TRANSLATION:"""
     print(f"\n{'='*60}")
     print("STAGE 2: English → Myanmar")
     print(f"{'='*60}")
-    print("Model: qwen:7b")
+    print("Model: qwen2.5:14b (better multilingual capabilities)")
     
     client2 = OllamaClient(
-        model="qwen:7b",
-        temperature=0.3,
-        repeat_penalty=1.15
+        model="qwen2.5:14b",
+        temperature=0.2,
+        repeat_penalty=1.15,
+        unload_on_cleanup=True
     )
     
     system_prompt_2 = """CRITICAL: Output ONLY Myanmar (Burmese) language using Myanmar Unicode script.
