@@ -9,7 +9,7 @@
 
 ## Last Updated
 - Date: 2026-04-26
-- Last task completed: Updated settings.pivot.yaml to use AVAILABLE models only (qwen2.5:14b + qwen:7b). Added complete glossary from eng-mm-prompt.md (57 terms for 古道仙鸿 novel). Fixed prompts with comprehensive glossary injection and LANGUAGE_GUARD.
+- Last task completed: Updated src/test_translate/test_ch_en_mm_translation.py with comprehensive chapter translation test. Features: log file display, output validation, Gemini reviewer integration, full pipeline testing.
 
 ---
 
@@ -40,6 +40,7 @@
 | Repetition Detector | `src/utils/postprocessor.py` | [DONE] | check_repetition() function for output quality |
 | Progress Logger | `src/utils/progress_logger.py` | [DONE] | Real-time translation progress tracking with live log file |
 | Pivot Test Script | `test_pivot_translation.py` | [DONE] | Standalone test for CN→EN→MM workflow validation |
+| Chapter Translation Test | `src/test_translate/test_ch_en_mm_translation.py` | [DONE] | Full chapter translation with log display, output validation, Gemini reviewer integration |
 
 ---
 
