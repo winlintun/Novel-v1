@@ -5,6 +5,7 @@ Core Chinese to Myanmar translation using Ollama.
 """
 
 import logging
+import re
 from typing import Dict, List, Optional, Any
 
 from src.utils.ollama_client import OllamaClient
@@ -17,6 +18,42 @@ from src.agents.prompt_patch import TRANSLATOR_SYSTEM_PROMPT, EDITOR_SYSTEM_PROM
 
 
 logger = logging.getLogger(__name__)
+
+
+def get_language_prompt(source_lang: str) -> str:
+    """Get system prompt based on source language with full translation rules."""
+    source_lower = source_lang.lower() if source_lang else "english"
+    
+    if source_lower == "chinese":
+        return """You are a master literary translator specializing in Chinese Xianxia and Wuxia novels.
+Translate the following Chinese text into natural, high-quality literary Myanmar.
+
+STRICT RULES:
+1. SYNTAX: Convert Chinese SVO structure to natural Myanmar SOV order. Do NOT translate word-by-word.
+2. TERMINOLOGY: Use EXACT terms from glossary.json. For unknown terms, output 【?term?】 placeholder - never guess.
+3. MARKDOWN: Preserve ALL formatting (#, **, *, lists, quotes). Do not add or remove any Markdown.
+4. CONTEXT: Use the previous context to correctly resolve pronouns (he/she/they).
+5. TONE: Use formal/literary Myanmar for narrative. Use natural spoken Myanmar for dialogue (adjust pronouns: မင်း, ရှင်, ကျွန်တော်/ကျွန်မ based on character status).
+6. PARTICLES: Use proper particles (သည်/ကို/မှာ/အတွက်) for grammatical correctness.
+7. OUTPUT: Return ONLY the translated Myanmar text. Zero explanations.
+
+Text to translate:"""
+    
+    else:
+        return """You are a master literary translator, specializing in converting English-language novels (especially those with Chinese origins) into rich, idiomatic Burmese.
+
+Your goal is to produce a translation that reads as if it were originally written in Burmese for a native Burmese reader.
+
+STRICT RULES:
+1. SYNTAX: Use natural Myanmar SOV order. Rephrase for natural Burmese flow, not literal translation.
+2. TERMINOLOGY: Use EXACT terms from glossary.json. For unknown terms, output 【?term?】 placeholder - never guess.
+3. MARKDOWN: Preserve ALL formatting (#, **, *, lists, quotes). Do not add or remove any Markdown.
+4. TONE: Preserve the original epic, mystical, intense, or emotional tone. Use formal yet flowing literary Burmese.
+5. PARTICLES: Use proper particles (သည်/ကို/မှာ/အတွက်) for grammatical correctness.
+6. DIALOGUE: Make spoken lines sound natural and lively in Burmese while keeping character's personality and hierarchy.
+7. OUTPUT: Return ONLY the translated Myanmar text. Zero explanations.
+
+Text to translate:"""
 
 
 class Translator:
@@ -39,6 +76,12 @@ class Translator:
         self._custom_system_prompt = pipeline.get('stage1_system_prompt')
         self._custom_prompt_template = pipeline.get('stage1_prompt', '{text}')
         self._fallback_system_prompt = TRANSLATOR_SYSTEM_PROMPT
+    
+    def get_system_prompt(self, source_lang: str = "english") -> str:
+        """Get system prompt based on source language (chinese or english)."""
+        if self._custom_system_prompt:
+            return self._custom_system_prompt
+        return get_language_prompt(source_lang)
     
     def build_prompt(self, text: str) -> str:
         """Build translation prompt with memory context."""
@@ -169,6 +212,47 @@ class Translator:
         
         return translated
     
+    def translate_with_fallback(
+        self,
+        text: str,
+        source_lang: str = "english",
+        chapter_num: int = 0
+    ) -> str:
+        """Translate with fallback retry on empty or short output."""
+        result = self.translate_paragraph(text, chapter_num)
+        
+        if not result or len(result.strip()) < 50:
+            logger.warning("Empty or short output detected. Using fallback prompt...")
+            fallback_prompt = self.get_fallback_prompt(source_lang)
+            
+            prompt = self.build_prompt(text)
+            system_prompt = fallback_prompt
+            
+            result = self.ollama.chat(
+                prompt=prompt,
+                system_prompt=system_prompt
+            )
+        
+        if not result:
+            logger.error("Translation returned empty after fallback")
+            raise ValueError("Translation failed completely. Check model and prompt.")
+        
+        return result
+    
+    def get_fallback_prompt(self, source_lang: str) -> str:
+        """Get fallback prompt for retry on empty output."""
+        source_lower = source_lang.lower() if source_lang else "english"
+        
+        if source_lower == "chinese":
+            return """You are a professional translator. Translate the following Chinese text to Myanmar.Keep all names and terms as-is. Output ONLY the translation.
+
+Text to translate:"""
+        
+        return """You are a professional translator. Translate the following English text to Myanmar.
+Keep all names and technical terms as-is. Output ONLY the translation.
+
+Text to translate:"""
+    
     def translate_chunks(
         self,
         chunks: List[Dict],
@@ -213,38 +297,29 @@ class Translator:
     
     def translate_chapter(
         self,
-        text: str,
-        chapter_num: int = 0,
-        use_chunking: bool = True
+        chunks: List[Dict[str, Any]],
+        chapter_num: int = 0
     ) -> str:
         """
-        Translate entire chapter text.
+        Translate pre-processed chunks (recommended flow).
+        
+        This method expects chunks from Preprocessor.create_chunks() to be passed in.
+        For the old monolithic flow, use Preprocessor + translate_chunks() externally.
         
         Args:
-            text: Full chapter text
+            chunks: List of chunk dictionaries from Preprocessor
             chapter_num: Chapter number
-            use_chunking: Whether to use chunking for long chapters
             
         Returns:
             Full translated chapter
         """
-        from src.agents.preprocessor import Preprocessor
-        
         logger.info(f"Translating Chapter {chapter_num}")
         
         # Clear context buffer for new chapter
         self.memory.clear_buffer()
         
-        if use_chunking:
-            # Use preprocessor to chunk
-            preprocessor = Preprocessor()
-            chunks = preprocessor.create_chunks(text)
-            
-            # Translate chunks
-            translated_chunks = self.translate_chunks(chunks, chapter_num)
-            
-            # Join results
-            return '\n\n'.join(translated_chunks)
-        else:
-            # Translate as single paragraph
-            return self.translate_paragraph(text)
+        # Translate chunks
+        translated_chunks = self.translate_chunks(chunks, chapter_num)
+        
+        # Join results
+        return '\n\n'.join(translated_chunks)

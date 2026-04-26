@@ -6,7 +6,7 @@ Splits text into chunks, cleans markdown, prepares for translation.
 
 import re
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from pathlib import Path
 
 from src.utils.file_handler import FileHandler
@@ -25,6 +25,47 @@ class Preprocessor:
     def __init__(self, chunk_size: int = 1500, overlap_size: int = 100):
         self.chunk_size = chunk_size
         self.overlap_size = overlap_size
+    
+    def detect_language(self, text: str) -> str:
+        """Detect language of input text (chinese, english, or unknown).
+        
+        Uses simple character analysis:
+        - Chinese: high count of CJK characters or common Chinese particles
+        - English: high count of ASCII letters
+        - unknown: default fallback
+        """
+        if not text or len(text.strip()) < 50:
+            return "unknown"
+        
+        text_sample = text[:500]
+        
+        chinese_chars = len(re.findall(r'[\u4e00-\u9fff]', text_sample))
+        ascii_letters = sum(1 for c in text_sample if c.isascii() and c.isalpha())
+        
+        chinese_particles = ["的", "是", "我", "你", "他", "在", "有", "个", "来", "不", "到", "这", "那"]
+        particle_count = sum(1 for p in chinese_particles if p in text_sample[:100])
+        
+        if chinese_chars > 10 or particle_count >= 3:
+            return "chinese"
+        elif ascii_letters > 100:
+            return "english"
+        else:
+            return "unknown"
+    
+    def _llm_detect_language(self, client: Optional[Any] = None, text: str = "english") -> str:
+        """Fallback language detection using LLM (slower but more accurate)."""
+        if client is None:
+            return "english"
+        
+        prompt = f"""Detect the source language of this text. Answer only with one word: 'chinese' or 'english'.
+
+Text: {text[:300]}
+Language:"""
+        try:
+            result = client.generate(prompt)
+            return result.strip().lower()
+        except Exception:
+            return "english"
     
     def estimate_tokens(self, text: str) -> int:
         """Estimate token count for Chinese text."""
