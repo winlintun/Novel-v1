@@ -77,7 +77,14 @@ english_chapters/
 
 
 # ── Project Specific: Input/Output ────────────────────────────────────────────
+# Models
+models/
+models/*
+*.gguf
+
 # Input novels (user files - don't commit)
+data/input/
+data/input/*
 input_novels/*.txt
 input_novels/*.md
 !input_novels/.gitkeep
@@ -145,5 +152,3 @@ need_fix_another.md
 data/input/*/*.md
 data/output/*/*.md
 Novel-Step.md
-data/input/*
-models/*
