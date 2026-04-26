@@ -204,29 +204,22 @@ INPUT TEXT:
 
 ---
 
-### 6. QA / Final Reviewer Agent (Stage 6)
+### 6. QA Tester Agent (Stage 6)
 
-**Goal:** Final human-readable quality gate before saving output.
+**Goal:** Automated quality assurance and final validation of the translated chapter.
 
-```text
-You are a final QA reviewer for novel translation.
+**Checks:**
+- Markdown structure (H1 count, balanced formatting)
+- Glossary consistency for verified terms
+- Myanmar Unicode ratio (>70%)
+- Placeholder detection (`【?term?】`)
+- Chapter title formatting and number validation
 
-RULES:
-1. Check for logical flow, missing sentences, or meaning drift.
-2. Verify narrative/dialogue tone consistency.
-3. Ensure Markdown is intact.
-4. OUTPUT FORMAT:
-   STATUS: [APPROVED / NEEDS REVISION]
-   ISSUES: [Brief list or "None"]
-   FINAL TEXT: [Myanmar text]
-
-INPUT TEXT:
-{input_text}
-```
+**Implementation:** `src/agents/qa_tester.py` → `QATesterAgent` class
 
 ---
 
-### 8. Term Extractor Agent (Post-Chapter)
+### 7. Term Extractor Agent (Post-Chapter)
 
 **Goal:** Detect new proper nouns and cultivation terms not yet in the glossary. Output routes to `data/glossary_pending.json` for human review — never directly to `glossary.json`.
 
