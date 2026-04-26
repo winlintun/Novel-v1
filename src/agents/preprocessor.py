@@ -10,11 +10,12 @@ from typing import List, Dict, Any, Optional
 from pathlib import Path
 
 from src.utils.file_handler import FileHandler
+from src.agents.base_agent import BaseAgent
 
 logger = logging.getLogger(__name__)
 
 
-class Preprocessor:
+class Preprocessor(BaseAgent):
     """
     Preprocesses novel chapters for translation.
     - Splits into paragraphs
@@ -22,7 +23,15 @@ class Preprocessor:
     - Preserves markdown formatting
     """
     
-    def __init__(self, chunk_size: int = 1500, overlap_size: int = 100):
+    def __init__(
+        self,
+        chunk_size: int = 1500,
+        overlap_size: int = 100,
+        ollama_client: Optional[Any] = None,
+        memory_manager: Optional[Any] = None,
+        config: Optional[Dict[str, Any]] = None
+    ):
+        super().__init__(ollama_client, memory_manager, config)
         self.chunk_size = chunk_size
         self.overlap_size = overlap_size
     

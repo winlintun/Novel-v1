@@ -11,6 +11,7 @@ from typing import Dict, List, Any
 from src.utils.ollama_client import OllamaClient
 from src.memory.memory_manager import MemoryManager
 from src.utils.json_extractor import safe_parse_terms
+from src.agents.base_agent import BaseAgent
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ EXAMPLE OUTPUT:
 EXTRACT TERMS FROM THIS TEXT:"""
 
 
-class ContextUpdater:
+class ContextUpdater(BaseAgent):
     """
     Updates memory after chapter translation:
     - Extracts new entities
@@ -41,10 +42,10 @@ class ContextUpdater:
     def __init__(
         self,
         ollama_client: OllamaClient,
-        memory_manager: MemoryManager
+        memory_manager: MemoryManager,
+        config: Dict[str, Any] = None
     ):
-        self.ollama = ollama_client
-        self.memory = memory_manager
+        super().__init__(ollama_client, memory_manager, config)
     
     def extract_entities(self, text: str) -> Dict[str, List]:
         """
@@ -63,7 +64,7 @@ class ContextUpdater:
         prompt = f"{EXTRACTION_PROMPT}\n\n{sample_text}\n\nENTITIES (JSON):"
         
         try:
-            raw_response = self.ollama.chat(prompt=prompt)
+            raw_response = self.client.chat(prompt=prompt)
             
             # Use safe_parse_terms to handle malformed JSON
             data = safe_parse_terms(raw_response)
