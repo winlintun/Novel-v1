@@ -9,7 +9,7 @@
 
 ## Last Updated
 - Date: 2026-04-26
-- Last task completed: Updated USER_GUIDE.md to document the newly supported Pivot Translation (CN→EN→MM) mode, and fixed configuration files (settings.pivot.yaml) & test scripts per reviewer feedback.
+- Last task completed: Integrated local `padauk-gemma-q8_0.gguf` model into the codebase. Created `Modelfile` for Ollama import, `config/settings.padauk.yaml`, and updated model router logic in `src/utils/model_router.py`. Verified working with `test_padauk.py`.
 
 ---
 

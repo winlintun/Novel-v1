@@ -16,12 +16,15 @@ class ModelConfig:
     fallback: Optional[str] = None
 
 MODEL_REGISTRY: dict[str, ModelConfig] = {
+    # Padauk-Gemma (Local GGUF - Highest Quality Myanmar Output)
+    "padauk-gemma:q8_0": ModelConfig("padauk-gemma:q8_0", "translator", 8.0, 1, fallback="qwen2.5:14b"),
+    
     # Translation specialists
     # NOTE: hunyuan-mt:7b is EXCLUDED - produces THAI instead of Myanmar
     "translategemma:latest": ModelConfig("translategemma:latest", "translator", 8.0, 2, fallback="qwen2.5:7b"),
     
     # Reasoning & orchestration
-    "qwen2.5:14b": ModelConfig("qwen2.5:14b", "refiner", 14.0, 1),  # Primary for literary editing
+    "qwen2.5:14b": ModelConfig("qwen2.5:14b", "refiner", 14.0, 2),  # Primary for literary editing
     
     # Fast validation
     "qwen:7b": ModelConfig("qwen:7b", "checker", 8.0, 1),
@@ -31,7 +34,7 @@ MODEL_REGISTRY: dict[str, ModelConfig] = {
     "aya-expanse:8b": ModelConfig("aya-expanse:8b", "glossary", 16.0, 1),
     
     # Burmese fluency specialist
-    "seallm3:7b": ModelConfig("seallm3:7b", "refiner", 8.0, 3, fallback="qwen2.5:14b"),
+    "seallm3:7b": ModelConfig("seallm3:7b", "refiner", 8.0, 3, fallback="padauk-gemma:q8_0"),
 }
 
 def get_model_for_role(

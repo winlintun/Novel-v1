@@ -1,0 +1,174 @@
+# Novel Translation Pipeline Configuration
+# Chinese (中文) → Myanmar (မြန်မာ) Novel Translation
+# =====================================================
+
+project:
+  name: "novel_translation"
+  source_language: "zh-CN"      # Chinese
+  target_language: "my-MM"      # Myanmar (Burmese)
+  novel_genre: "Xianxia/Cultivation"
+
+# =====================================================
+# MODEL CONFIGURATION - Update your model here
+# =====================================================
+models:
+  # Which provider to use: "ollama" (local) or "gemini" or "openrouter" (cloud)
+  provider: "ollama"
+  
+  # Local Ollama Settings (when provider = "ollama")
+  # IMPORTANT: Use qwen2.5:14b or qwen2.5:7b for best Chinese→Myanmar results
+  # alibayram/hunyuan:7b and yxchia/seallms-v3-7b produce THAI instead of Myanmar!
+  translator: "padauk-gemma:q8_0"     # Best for Chinese/English→Myanmar (8GB) ⭐ RECOMMENDED
+  editor: "padauk-gemma:q8_0"         # Can be same as translator
+  refiner: "padauk-gemma:q8_0"        # Smaller model for refinement (8GB)
+  checker: "qwen:7b"                  # Smaller model for checking (4GB)
+  ollama_base_url: "http://localhost:11434"
+  timeout: 300
+  
+  # AVAILABLE OLLAMA MODELS (run: ollama list)
+  # Recommended for Chinese→Myanmar:
+  #   - qwen2.5:14b (Best Chinese understanding, 9GB) ⭐ RECOMMENDED
+  #     NOTE: May produce some English fallback. Use temperature: 0.2 to minimize.
+  #   - qwen2.5:7b (Good quality, faster, 4GB) - Less English drift than 14B
+  #   - qwen:7b (Lightweight, 4GB) - Fastest, least English drift
+  # Alternative options if qwen2.5:14b produces too much English:
+  #   - gemma:7b (Better multilingual support, may have less English drift)
+  #   - mistral:7b (Good at following instructions)
+  # NOT recommended (produces wrong language):
+  #   - alibayram/hunyuan:7b (produces THAI ❌)
+  #   - yxchia/seallms-v3-7b (produces THAI ❌)
+  #   - translategemma:12b (may produce wrong language ❌)
+  
+  # Cloud API Settings (when provider = "gemini" or "openrouter")
+  # For Gemini: Get API key from https://makersuite.google.com/app/apikey
+  # For OpenRouter: Get API key from https://openrouter.ai/keys
+  cloud_model: "gemini-2.5-flash"  # or "google/gemini-2.5-flash-exp:free"
+
+# =====================================================
+# TRANSLATION MODE - One step or Two step?
+# =====================================================
+# TWO_STAGE (Recommended): Better quality but slower
+#   Stage 1: Raw translation (Chinese → Myanmar)
+#   Stage 2: Literary rewrite (improve flow and style)
+#
+# SINGLE_STAGE: Faster but lower quality
+#   Direct translation in one pass
+# =====================================================
+translation_pipeline:
+  mode: "two_stage"  # Options: "two_stage" or "single_stage"
+  stage1_model: "padauk-gemma:q8_0"  # Padauk model for CN/EN -> MM
+  stage2_model: "padauk-gemma:q8_0"
+  description: "Two-stage uses raw translation + rewrite for better quality"
+
+# =====================================================
+# PROCESSING SETTINGS
+# =====================================================
+processing:
+  chunk_size: 800         # Characters per chunk (800-1000 for 14B models, 1500 for 7B)
+  chunk_overlap: 50       # Overlap between chunks for context
+  max_retries: 3          # Retry failed chunks
+  temperature: 0.2        # 0.2 for Myanmar (lower = more deterministic, less hallucination)
+  top_p: 0.92             # Nucleus sampling - keep diverse but focused
+  top_k: 50               # Top-k token selection
+  repeat_penalty: 1.5     # 1.5 for Myanmar (stronger prevention of repetition loops)
+  stream: true
+  request_timeout: 900    # Seconds
+
+# =====================================================
+# PATHS
+# =====================================================
+paths:
+  input_dir: "data/input"
+  output_dir: "data/output"
+  books_dir: "books"
+  glossary_file: "data/glossary.json"
+  context_memory_file: "data/context_memory.json"
+  log_file: "logs/translation.log"
+  templates_dir: "templates"
+
+# =====================================================
+# QUALITY SETTINGS
+# =====================================================
+myanmar_readability:
+  enabled: true
+  min_myanmar_ratio: 0.7    # 70% of text should be Myanmar script
+  flag_on_fail: true
+  block_on_fail: false
+
+# =====================================================
+# OUTPUT FORMAT
+# =====================================================
+output:
+  format: "markdown"
+  preserve_formatting: true   # Keep chapter headers, italics, bold
+  add_metadata: true          # Add translation info header
+  add_translator_notes: false
+
+# =====================================================
+# AVAILABLE MODELS REFERENCE
+# =====================================================
+# OLLAMA (Local - Free, unlimited):
+#   - qwen2.5:14b (Recommended - good quality)
+#   - qwen2.5:7b (Faster, less quality)
+#   - qwen:7b (Lightweight)
+#   - gemma:7b
+#
+# GEMINI (Cloud - API key required):
+#   - gemini-2.5-flash (Fast, good quality)
+#   - gemini-2.0-flash
+#   - gemini-1.5-pro (Best quality, slower)
+#
+# OPENROUTER (Cloud - API key required):
+#   - google/gemini-2.5-flash-exp:free
+#   - meta-llama/llama-3.3-70b-instruct:free
+#   - deepseek/deepseek-chat:free
+# =====================================================
+# === ADD TO END OF FILE ===
+# Multi-Model Router Settings
+model_router:
+  enabled: true
+  vram_budget_gb: 16.0  # Adjust based on your GPU
+  retry_on_failure: true
+  max_fallback_depth: 2
+  
+# Model Role Mapping (override defaults)
+# NOTE: Models that produce THAI instead of Myanmar are excluded:
+#   - hunyuan/hunyuan-mt (produces THAI ❌)
+#   - yxchia/seallms-v3-7b (produces THAI ❌)
+model_roles:
+  translator: ["qwen2.5:14b", "qwen2.5:7b", "qwen:7b"]
+  refiner: ["qwen2.5:14b", "qwen:7b"]
+  checker: ["qwen:7b", "gemma:7b"]
+  glossary_sync: ["qwen:7b"]
+  qa_final: ["qwen:7b", "gemma:7b"]
+
+qa_testing:
+  enabled: true
+  auto_retry: false          # Auto-retry refinement if QA fails
+  min_myanmar_ratio: 0.70    # Minimum Myanmar character ratio
+  fail_on_placeholders: false # Allow 【?term?】 placeholders (for pending review)
+  markdown_strict: true      # Enforce single H1, balanced formatting
+
+# =====================================================
+# GLOSSARY v3.0 SETTINGS
+# =====================================================
+# Rich metadata glossary with aliases, exceptions, examples
+# Compatible with existing pipeline - non-breaking addition
+glossary_v3:
+  enabled: true
+  path: "data/glossary_v3.json"          # Path to rich JSON glossary
+  max_prompt_entries: 40                 # Max terms injected into AI prompt
+  priority_threshold: 2                  # Only include terms with priority <= N
+  include_examples: false                # Include example sentences in prompt? (uses more tokens)
+  track_usage: true                      # Auto-track which terms appear in output
+  alias_matching: true                   # Enable CN alias → term resolution
+  exception_rules: true                  # Apply contextual exception rules
+  
+  # Prompt formatting
+  prompt_format: "markdown"              # markdown|json|plain
+  show_pronunciation: false              # Include pronunciation_guide in prompt?
+  show_exceptions_count: true            # Show "X exceptions" note?
+  
+  # Performance
+  cache_ttl_minutes: 30                  # Reload glossary if file modified
+  lazy_load: true                        # Load only when first needed

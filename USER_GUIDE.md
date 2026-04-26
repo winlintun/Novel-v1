@@ -49,9 +49,10 @@ curl -fsSL https://ollama.com/install.sh | sh
 ### Step 2: Pull a Model
 ```bash
 # Recommended models for Chinese→Myanmar:
-ollama pull qwen2.5:14b    # Best quality (9GB)
-ollama pull qwen2.5:7b     # Faster, less quality (4GB)
-ollama pull qwen:7b        # Lightweight (4GB)
+ollama pull qwen2.5:14b    # Good quality (9GB)
+# Or use the local Padauk-Gemma model (Best EN/CN -> MM):
+ollama create padauk-gemma:q8_0 -f Modelfile  # See project for Modelfile
+
 
 # Verify model is installed
 ollama list
