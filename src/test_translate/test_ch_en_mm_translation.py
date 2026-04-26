@@ -126,7 +126,7 @@ DESCRIPTIONS:
 ENGLISH TEXT:
 {english_result}
 
-MYANMAR TRANSLATION (SOV structure, natural Myanmar):
+MYANMAR TRANSLATION (SOV structure, natural Myanmar):"""
     
     try:
         myanmar_result = client2.chat(prompt=prompt_2, system_prompt=system_prompt_2)
