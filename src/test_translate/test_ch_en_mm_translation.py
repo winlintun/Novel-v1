@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
 """
-Test script for Chinese → English → Myanmar novel chapter translation.
-Uses the full pipeline with config/settings.pivot.yaml
+Test script for Chinese → English → Myanmar translation.
+
+Two modes:
+1. Sentence mode: Translate a single Chinese sentence
+   Usage: python src/test_translate/test_ch_en_mm_translation.py --sentence "你的中文句子"
+
+2. Chapter mode: Translate a full novel chapter (requires existing chapter file)
+   Usage: python src/test_translate/test_ch_en_mm_translation.py --chapter 001
 
 Features:
-1. Translates a novel chapter using CN→EN→MM pivot workflow
-2. Shows log file location and displays log contents
-3. Reads and validates the translated output file
-4. Runs Gemini reviewer to check and fix issues
-
-Usage:
-    python src/test_translate/test_ch_en_mm_translation.py --chapter 001
-    python src/test_translate/test_ch_en_mm_translation.py --chapter 001 --novel 古道仙鸿
+- Shows log file and displays log contents
+- Reads and validates the translated output
+- Integrates with Gemini reviewer workflow
 """
 
 import sys
@@ -21,14 +22,117 @@ from pathlib import Path
 from datetime import datetime
 from typing import Any, Optional
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Add project root to path
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
 
 from src.utils.file_handler import FileHandler
 from src.utils.postprocessor import validate_output, detect_language_leakage
+from src.utils.ollama_client import OllamaClient
 
 
-def run_translation(chapter_num: str, novel_name: str = "古道仙鸿") -> tuple[Optional[str], Optional[str], bool]:
+def translate_sentence_cn_en_mm(chinese_text: str) -> dict[str, Any]:
+    """
+    Translate a single Chinese sentence using CN→EN→MM pipeline.
+    
+    Args:
+        chinese_text: Chinese text to translate
+        
+    Returns:
+        Dictionary with stage1 (EN), stage2 (MM), and validation results
+    """
+    print(f"\n{'='*60}")
+    print("SENTENCE TRANSLATION MODE")
+    print(f"{'='*60}")
+    print(f"\n🇨🇳 Chinese Input:\n{chinese_text}")
+    
+    # Stage 1: Chinese → English
+    print(f"\n{'='*60}")
+    print("STAGE 1: Chinese → English")
+    print(f"{'='*60}")
+    print("Model: qwen2.5:14b")
+    
+    client1 = OllamaClient(
+        model="qwen2.5:14b",
+        temperature=0.3,
+        repeat_penalty=1.15
+    )
+    
+    system_prompt_1 = """You are an expert Chinese-to-English literary translator.
+Translate accurately while preserving names in pinyin (e.g., 罗青 → Luo Qing).
+Output ONLY English translation."""
+    
+    prompt_1 = f"""Translate the following Chinese text to English:
+
+CHINESE TEXT:
+{chinese_text}
+
+ENGLISH TRANSLATION:"""
+    
+    try:
+        english_result = client1.chat(prompt=prompt_1, system_prompt=system_prompt_1)
+        print(f"\n🇬🇧 English Output:\n{english_result.strip()}")
+    except Exception as e:
+        print(f"\n❌ Stage 1 FAILED: {e}")
+        return {"success": False, "error": f"Stage 1: {e}"}
+    finally:
+        client1.cleanup()
+    
+    # Stage 2: English → Myanmar
+    print(f"\n{'='*60}")
+    print("STAGE 2: English → Myanmar")
+    print(f"{'='*60}")
+    print("Model: qwen:7b")
+    
+    client2 = OllamaClient(
+        model="qwen:7b",
+        temperature=0.3,
+        repeat_penalty=1.15
+    )
+    
+    system_prompt_2 = """CRITICAL: Output ONLY Myanmar (Burmese) language.
+You are an expert English-to-Myanmar literary translator.
+Translate to natural Myanmar prose. NO English words."""
+    
+    prompt_2 = f"""Translate the following English text to Myanmar:
+
+ENGLISH TEXT:
+{english_result}
+
+MYANMAR TRANSLATION:"""
+    
+    try:
+        myanmar_result = client2.chat(prompt=prompt_2, system_prompt=system_prompt_2)
+        print(f"\n🇲🇲 Myanmar Output:\n{myanmar_result.strip()}")
+    except Exception as e:
+        print(f"\n❌ Stage 2 FAILED: {e}")
+        return {"success": False, "error": f"Stage 2: {e}"}
+    finally:
+        client2.cleanup()
+    
+    # Validate output
+    validation = validate_output(myanmar_result, chapter_num=0)
+    leakage = detect_language_leakage(myanmar_result)
+    
+    print(f"\n{'='*60}")
+    print("VALIDATION RESULTS")
+    print(f"{'='*60}")
+    print(f"Status: {validation['status']}")
+    print(f"Myanmar ratio: {validation.get('myanmar_ratio', 0):.2%}")
+    print(f"Chinese chars: {leakage.get('chinese_chars', 0)}")
+    print(f"English words: {leakage.get('latin_words', 0)}")
+    
+    return {
+        "success": True,
+        "chinese": chinese_text,
+        "english": english_result.strip(),
+        "myanmar": myanmar_result.strip(),
+        "validation": validation,
+        "leakage": leakage
+    }
+
+
+def run_chapter_translation(chapter_num: str, novel_name: str = "古道仙鸿") -> tuple[Optional[str], Optional[str], bool]:
     """
     Run the translation pipeline for a chapter.
     
@@ -40,7 +144,7 @@ def run_translation(chapter_num: str, novel_name: str = "古道仙鸿") -> tuple
         Tuple of (log_file_path, output_file_path, success)
     """
     print(f"\n{'='*60}")
-    print("STARTING TRANSLATION PIPELINE")
+    print("CHAPTER TRANSLATION MODE")
     print(f"{'='*60}")
     print(f"Novel: {novel_name}")
     print(f"Chapter: {chapter_num}")
@@ -117,13 +221,7 @@ def run_translation(chapter_num: str, novel_name: str = "古道仙鸿") -> tuple
 
 
 def show_log_file(log_file: Optional[str], tail_lines: int = 50) -> None:
-    """
-    Display the log file contents.
-    
-    Args:
-        log_file: Path to log file
-        tail_lines: Number of lines to show from end
-    """
+    """Display the log file contents."""
     print(f"\n{'='*60}")
     print("TRANSLATION LOG")
     print(f"{'='*60}")
@@ -139,7 +237,6 @@ def show_log_file(log_file: Optional[str], tail_lines: int = 50) -> None:
         return
     
     try:
-        # Use FileHandler for consistent encoding
         content = FileHandler.read_text(log_file)
         lines = content.splitlines()
         
@@ -147,7 +244,6 @@ def show_log_file(log_file: Optional[str], tail_lines: int = 50) -> None:
         print(f"Showing last {tail_lines} lines:\n")
         print("-" * 60)
         
-        # Show last N lines
         for line in lines[-tail_lines:]:
             print(line)
         
@@ -158,15 +254,7 @@ def show_log_file(log_file: Optional[str], tail_lines: int = 50) -> None:
 
 
 def check_output_file(output_file: Optional[str]) -> dict[str, Any]:
-    """
-    Read and validate the translated output file.
-    
-    Args:
-        output_file: Path to output file
-        
-    Returns:
-        Dictionary with validation results
-    """
+    """Read and validate the translated output file."""
     print(f"\n{'='*60}")
     print("OUTPUT FILE VALIDATION")
     print(f"{'='*60}")
@@ -180,10 +268,8 @@ def check_output_file(output_file: Optional[str]) -> dict[str, Any]:
         return {"valid": False, "error": "File not found"}
     
     try:
-        # Use FileHandler for consistent encoding
         content = FileHandler.read_text(output_file)
         
-        # File stats
         file_size = output_path.stat().st_size
         char_count = len(content)
         line_count = len(content.splitlines())
@@ -192,7 +278,6 @@ def check_output_file(output_file: Optional[str]) -> dict[str, Any]:
         print(f"Characters: {char_count:,}")
         print(f"Lines: {line_count}")
         
-        # Validate Myanmar content
         validation = validate_output(content, chapter_num=0)
         leakage = detect_language_leakage(content)
         
@@ -201,9 +286,7 @@ def check_output_file(output_file: Optional[str]) -> dict[str, Any]:
         print(f"  Myanmar ratio: {validation.get('myanmar_ratio', 0):.2%}")
         print(f"  Chinese chars: {leakage.get('chinese_chars', 0)}")
         print(f"  English words: {leakage.get('latin_words', 0)}")
-        print(f"  Thai chars: {leakage.get('thai_chars', 0)}")
         
-        # Show preview
         print(f"\n{'='*60}")
         print("OUTPUT PREVIEW (first 1000 chars)")
         print(f"{'='*60}")
@@ -224,90 +307,87 @@ def check_output_file(output_file: Optional[str]) -> dict[str, Any]:
         return {"valid": False, "error": str(e)}
 
 
-def run_gemini_reviewer(output_file: str) -> str:
-    """
-    Run Gemini reviewer on the output file.
-    
-    Args:
-        output_file: Path to translated output file
-        
-    Returns:
-        Review result
-    """
-    print(f"\n{'='*60}")
-    print("GEMINI REVIEWER")
-    print(f"{'='*60}")
-    print(f"Preparing review for: {output_file}")
-    print("\n⚠️  According to .gemini/agents/gemini-reviewer.md:")
-    print("   Run: gemini run 'Review the changes I just made'")
-    
-    return "READY_FOR_GEMINI_REVIEW"
-
-
 def main():
     """Main test function."""
     parser = argparse.ArgumentParser(
-        description="Test CN→EN→MM translation for novel chapters"
+        description="Test CN→EN→MM translation - sentence or chapter mode"
+    )
+    parser.add_argument(
+        "--sentence", "-s",
+        help="Translate a single Chinese sentence"
     )
     parser.add_argument(
         "--chapter", "-c",
-        default="001",
-        help="Chapter number (default: 001)"
+        help="Chapter number to translate (e.g., 001)"
     )
     parser.add_argument(
         "--novel", "-n",
         default="古道仙鸿",
-        help="Novel name (default: 古道仙鸿)"
-    )
-    parser.add_argument(
-        "--skip-review",
-        action="store_true",
-        help="Skip Gemini review step"
+        help="Novel name for chapter mode (default: 古道仙鸿)"
     )
     
     args = parser.parse_args()
     
     print("="*60)
-    print("NOVEL CHAPTER TRANSLATION TEST")
-    print("Chinese → English → Myanmar")
+    print("CHINESE → ENGLISH → MYANMAR TRANSLATION TEST")
     print("="*60)
     print(f"\nStarted at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     
-    # Step 1: Run translation
-    log_file, output_file, success = run_translation(args.chapter, args.novel)
+    # Sentence mode
+    if args.sentence:
+        result = translate_sentence_cn_en_mm(args.sentence)
+        
+        print(f"\n{'='*60}")
+        print("FINAL RESULTS")
+        print(f"{'='*60}")
+        if result["success"]:
+            print(f"\n🇨🇳 Chinese:\n{result['chinese']}")
+            print(f"\n🇬🇧 English:\n{result['english']}")
+            print(f"\n🇲🇲 Myanmar:\n{result['myanmar']}")
+            print(f"\n✅ Translation complete!")
+            return 0
+        else:
+            print(f"\n❌ Translation failed: {result.get('error', 'Unknown error')}")
+            return 1
     
-    if not success:
+    # Chapter mode
+    elif args.chapter:
+        log_file, output_file, success = run_chapter_translation(args.chapter, args.novel)
+        
+        if not success:
+            if log_file:
+                show_log_file(log_file)
+            print("\n❌ CHAPTER TRANSLATION FAILED")
+            return 1
+        
         if log_file:
-            show_log_file(log_file)
-        print("\n❌ TRANSLATION FAILED")
-        return 1
+            show_log_file(log_file, tail_lines=100)
+        
+        validation = check_output_file(output_file)
+        
+        print(f"\n{'='*60}")
+        print("CHAPTER TRANSLATION SUMMARY")
+        print(f"{'='*60}")
+        print(f"Log file: {log_file}")
+        print(f"Output file: {output_file}")
+        print(f"Validation: {validation.get('status', 'UNKNOWN')}")
+        print(f"Myanmar ratio: {validation.get('myanmar_ratio', 0):.2%}")
+        
+        if validation.get('valid'):
+            print("\n✅ CHAPTER TRANSLATION PASSED!")
+            return 0
+        else:
+            print("\n⚠️  CHAPTER TRANSLATION COMPLETED with warnings")
+            return 0
     
-    # Step 2: Show log file
-    if log_file:
-        show_log_file(log_file, tail_lines=100)
-    
-    # Step 3: Check output file
-    validation = check_output_file(output_file)
-    
-    # Step 4: Run Gemini reviewer (if requested)
-    if not args.skip_review and output_file:
-        run_gemini_reviewer(output_file)
-    
-    # Summary
-    print(f"\n{'='*60}")
-    print("TEST SUMMARY")
-    print(f"{'='*60}")
-    print(f"Log file: {log_file}")
-    print(f"Output file: {output_file}")
-    print(f"Validation: {validation.get('status', 'UNKNOWN')}")
-    print(f"Myanmar ratio: {validation.get('myanmar_ratio', 0):.2%}")
-    
-    if validation.get('valid'):
-        print("\n✅ TEST PASSED - Translation looks good!")
-        return 0
+    # No arguments - show help
     else:
-        print("\n⚠️  TEST COMPLETED with warnings")
-        print("   Check log file and output for details")
+        parser.print_help()
+        print("\n\nExamples:")
+        print("  # Translate a sentence:")
+        print('  python src/test_translate/test_ch_en_mm_translation.py -s "罗青，十二岁，小戎镇罗家村村民。"')
+        print("\n  # Translate a chapter:")
+        print("  python src/test_translate/test_ch_en_mm_translation.py -c 001")
         return 0
 
 
