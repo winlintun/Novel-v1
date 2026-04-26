@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Test script for Chinese → English → Myanmar pivot translation workflow.
 Tests the two-stage pipeline with alternative 7B models.
@@ -67,9 +67,11 @@ def test_stage1_chinese_to_english(text: str, config: dict) -> str:
     pipeline = config.get('translation_pipeline', {})
     processing = config.get('processing', {})
     
-    model = pipeline.get('stage1_model', models.get('translator', 'qwen2.5:7b'))
+    model = pipeline.get('stage1_model', models.get('translator', 'qwen2.5:14b'))
     temperature = processing.get('temperature', 0.3)
     repeat_penalty = processing.get('repeat_penalty', 1.15)
+    top_p = processing.get('top_p', 0.92)
+    top_k = processing.get('top_k', 50)
     
     print(f"\n{'='*60}")
     print("STAGE 1: Chinese → English")
@@ -83,14 +85,16 @@ def test_stage1_chinese_to_english(text: str, config: dict) -> str:
     client = OllamaClient(
         model=model,
         temperature=temperature,
-        repeat_penalty=repeat_penalty
+        repeat_penalty=repeat_penalty,
+        top_p=top_p,
+        top_k=top_k
     )
     
     # Use prompt from config
     prompt_template = pipeline.get('stage1_prompt', '')
     prompt = prompt_template.format(text=text, glossary="")
     
-    system_prompt = "You are an expert Chinese-to-English literary translator. Output ONLY English translation."
+    system_prompt = pipeline.get("stage1_system_prompt", "You are an expert Chinese-to-English literary translator. Output ONLY English translation.")
     
     try:
         result = client.chat(prompt=prompt, system_prompt=system_prompt)
@@ -121,6 +125,8 @@ def test_stage2_english_to_myanmar(text: str, config: dict) -> str:
     model = pipeline.get('stage2_model', models.get('editor', 'qwen:7b'))
     temperature = processing.get('temperature', 0.3)
     repeat_penalty = processing.get('repeat_penalty', 1.15)
+    top_p = processing.get('top_p', 0.92)
+    top_k = processing.get('top_k', 50)
     
     print(f"\n{'='*60}")
     print("STAGE 2: English → Myanmar")
@@ -134,14 +140,16 @@ def test_stage2_english_to_myanmar(text: str, config: dict) -> str:
     client = OllamaClient(
         model=model,
         temperature=temperature,
-        repeat_penalty=repeat_penalty
+        repeat_penalty=repeat_penalty,
+        top_p=top_p,
+        top_k=top_k
     )
     
     # Use prompt from config
     prompt_template = pipeline.get('stage2_prompt', '')
     prompt = prompt_template.format(text=text, glossary="")
     
-    system_prompt = "CRITICAL: Output ONLY Myanmar (Burmese) language. NO English or Chinese."
+    system_prompt = pipeline.get("stage2_system_prompt", "CRITICAL: Output ONLY Myanmar (Burmese) language using Myanmar Unicode script. NO English words or Chinese characters.")
     
     try:
         result = client.chat(prompt=prompt, system_prompt=system_prompt)

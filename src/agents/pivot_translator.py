@@ -38,13 +38,19 @@ class PivotTranslator:
         self.stage1_model = pipeline.get('stage1_model', models.get('translator', 'qwen2.5:14b'))
         self.stage2_model = pipeline.get('stage2_model', models.get('editor', 'qwen2.5:14b'))
         
+        # Parameters
+        self.temperature = processing.get('temperature', 0.3)
+        self.repeat_penalty = processing.get('repeat_penalty', 1.15)
+        self.top_p = processing.get('top_p', 0.92)
+        self.top_k = processing.get('top_k', 50)
+        
         # Prompt templates
         self.stage1_prompt_template = pipeline.get('stage1_prompt', '{text}')
         self.stage2_prompt_template = pipeline.get('stage2_prompt', '{text}')
         
         # System prompts
-        self.stage1_system_prompt = "You are an expert Chinese-to-English literary translator. Output ONLY English translation."
-        self.stage2_system_prompt = "CRITICAL: Output ONLY Myanmar (Burmese) language using Myanmar Unicode script. NO English words or Chinese characters."
+        self.stage1_system_prompt = pipeline.get('stage1_system_prompt', "You are an expert Chinese-to-English literary translator. Output ONLY English translation.")
+        self.stage2_system_prompt = pipeline.get('stage2_system_prompt', "CRITICAL: Output ONLY Myanmar (Burmese) language using Myanmar Unicode script. NO English words or Chinese characters.")
 
     def translate_paragraph(self, paragraph: str, chapter_num: int = 0) -> str:
         """Translate a single paragraph using the two-stage pivot."""
@@ -62,8 +68,10 @@ class PivotTranslator:
             else:
                 client1 = OllamaClient(
                     model=self.stage1_model,
-                    temperature=0.3,
-                    repeat_penalty=1.15,
+                    temperature=self.temperature,
+                    top_p=self.top_p,
+                    top_k=self.top_k,
+                    repeat_penalty=self.repeat_penalty,
                     unload_on_cleanup=True
                 )
                 cleanup1 = True
@@ -89,8 +97,10 @@ class PivotTranslator:
             else:
                 client2 = OllamaClient(
                     model=self.stage2_model,
-                    temperature=0.2, # Use conservative temperature for Myanmar output
-                    repeat_penalty=1.15,
+                    temperature=min(0.2, self.temperature), # Use conservative temperature for Myanmar output
+                    top_p=self.top_p,
+                    top_k=self.top_k,
+                    repeat_penalty=self.repeat_penalty,
                     unload_on_cleanup=True
                 )
                 cleanup2 = True

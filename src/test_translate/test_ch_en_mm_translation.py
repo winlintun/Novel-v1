@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Test script for Chinese → English → Myanmar translation.
 
@@ -50,7 +50,7 @@ def translate_sentence_cn_en_mm(chinese_text: str) -> dict[str, Any]:
     print(f"\n{'='*60}")
     print("STAGE 1: Chinese → English")
     print(f"{'='*60}")
-    print("Model: qwen2.5:14b")
+    print("Model: qwen2.5:14b (CN->EN)")
     
     client1 = OllamaClient(
         model="qwen2.5:14b",
@@ -83,10 +83,10 @@ ENGLISH TRANSLATION:"""
     print(f"\n{'='*60}")
     print("STAGE 2: English → Myanmar")
     print(f"{'='*60}")
-    print("Model: qwen2.5:14b (better multilingual capabilities)")
+    print("Model: qwen:7b (EN->MM)")
     
     client2 = OllamaClient(
-        model="qwen2.5:14b",
+        model="qwen:7b",
         temperature=0.2,
         repeat_penalty=1.15,
         unload_on_cleanup=True
@@ -178,7 +178,7 @@ def run_chapter_translation(chapter_num: str, novel_name: str = "古道仙鸿") 
     print(f"Novel: {novel_name}")
     print(f"Chapter: {chapter_num}")
     print(f"Config: config/settings.pivot.yaml")
-    print(f"Models: qwen2.5:14b (CN→EN) → qwen:7b (EN→MM)")
+    print(f"Models: qwen2.5:14b (CN->EN) -> qwen:7b (EN->MM)")
     
     # Validate config exists
     config_path = Path("config/settings.pivot.yaml")

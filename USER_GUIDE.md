@@ -137,9 +137,33 @@ translation_pipeline:
 
 ---
 
-## ⚙️ Translation Mode: One-Step vs Two-Step
+## ⚙️ Translation Mode: One-Step, Two-Step, and Pivot
 
-### Two-Stage Mode (Recommended) ✅
+### Pivot Mode (CN→EN→MM) (New/Recommended for Complex Texts) 🌟
+**How it works:**
+1. **Stage 1** - Chinese to English: Uses a high-capability model (`qwen2.5:14b`) to accurately translate the complex Chinese text into English, preserving names in Pinyin.
+2. **Stage 2** - English to Myanmar: Uses a model tuned for Myanmar generation (`qwen:7b`) to translate the English text into natural Myanmar SOV prose.
+
+**Pros:**
+- Drastically reduces "language confusion" where models output mixed Chinese/Myanmar.
+- High accuracy leveraging the strong CN→EN capabilities of larger models.
+- Can run on mid-range hardware by sequentially loading a 14B then a 7B model.
+
+**Cons:**
+- Slower than single-stage.
+- Requires two different model passes.
+
+**When to use:** Highly complex Wuxia/Xianxia text where direct CN→MM translation yields garbage or mixed-language output.
+
+**Configuration:**
+Use the dedicated pivot config file:
+```bash
+python -m src.main --config config/settings.pivot.yaml --novel 古道仙鸿 --chapter 1
+```
+
+---
+
+### Two-Stage Mode (Standard) ✅
 **How it works:**
 1. **Stage 1** - Raw Translation: Chinese → Myanmar (literal translation)
 2. **Stage 2** - Literary Rewrite: Improve flow, naturalness, style
@@ -148,20 +172,16 @@ translation_pipeline:
 - Better literary quality
 - More natural Myanmar prose
 - Corrects awkward phrasing
-- Better for novels/stories
 
 **Cons:**
 - 2x slower (two API calls per chunk)
-- Higher API costs
 
-**When to use:** Novels, stories, literary content
+**When to use:** Novels, stories, when direct CN→MM translation quality is already decent.
 
 **Configuration:**
 ```yaml
 translation_pipeline:
   mode: "two_stage"
-  stage1_model: "ollama:qwen2.5:14b"
-  stage2_model: "ollama:qwen2.5:14b"
 ```
 
 ---
@@ -173,19 +193,12 @@ translation_pipeline:
 **Pros:**
 - 2x faster
 - Lower API costs
-- Good for technical content
 
 **Cons:**
 - May have robotic/awkward phrasing
 - Less literary polish
 
 **When to use:** Technical docs, quick drafts, large volumes
-
-**Configuration:**
-```yaml
-translation_pipeline:
-  mode: "single_stage"
-```
 
 **CLI Override:**
 ```bash
@@ -318,9 +331,9 @@ echo "GEMINI_API_KEY=your_key_here" > .env
 
 | Model | Speed | Quality | Size | Best For |
 |-------|-------|---------|------|----------|
-| qwen2.5:14b | Medium | Excellent | 9GB | Production novels |
+| qwen2.5:14b | Medium | Excellent | 9GB | Production novels, Pivot Stage 1 (CN→EN) |
 | qwen2.5:7b | Fast | Good | 4GB | Quick drafts |
-| qwen:7b | Very Fast | Okay | 4GB | Testing |
+| qwen:7b | Very Fast | Okay | 4GB | Testing, Pivot Stage 2 (EN→MM) |
 | Gemini Flash | Fast | Excellent | Cloud | High quality, no local GPU |
 | OpenRouter | Fast | Good | Cloud | Free tier available |
 

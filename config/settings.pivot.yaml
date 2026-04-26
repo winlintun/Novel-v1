@@ -1,4 +1,4 @@
-# Pivot Language Configuration - USE AVAILABLE MODELS ONLY
+﻿# Pivot Language Configuration - USE AVAILABLE MODELS ONLY
 # Chinese → English → Myanmar (Two-stage pipeline)
 # =====================================================
 # ⚠️ IMPORTANT: Use this config ONLY for Chinese source files!
@@ -58,20 +58,7 @@ translation_pipeline:
     5. Output ONLY English translation, no explanations, no Chinese characters
     
     GLOSSARY (PRESERVE THESE NAMES IN PINYIN):
-    - 罗青 → Luo Qing
-    - 黄牛 → Huang Niu  
-    - 小戎镇 → Xiao Rong Town
-    - 罗家村 → Luo Village
-    - 小戎山 → Xiao Rong Mountain
-    - 方宗主 → Sect Leader Fang
-    - 方尊 → Fang Zun
-    - 古堂主 → Hall Master Gu
-    - 秦岭 → Qin Ling
-    - 魔教 → Demon Sect
-    - 北宗 → Northern Branch
-    - 蟠龙山 → Pan Long Mountain
-    - 仙人 → immortal
-    - 法力 → magical power
+    {glossary}
     
     CHINESE TEXT:
     {text}
@@ -79,7 +66,7 @@ translation_pipeline:
     ENGLISH TRANSLATION:
   
   # Stage 2: English → Myanmar (final output)
-  stage2_model: "qwen2.5:14b"
+  stage2_model: "qwen:7b"
   stage2_source_lang: "english"
   stage2_target_lang: "myanmar"
   stage2_prompt: |
@@ -103,65 +90,7 @@ translation_pipeline:
     7. ALIASES: Chinese aliases in parentheses help identify characters (e.g., 罗青 = Luo Qing).
     
     COMPLETE GLOSSARY (USE EXACT MYANMAR TERMS):
-    
-    CHARACTERS:
-    - Luo Qing (罗青) → လော်ချင်း (Main character, 12-year-old cowherd)
-    - Huang Niu (黄牛/牛哥) → နွားကြီး (Yellow Ox companion)
-    - Sect Leader Fang (方宗主) → ဖန်ဂိုဏ်းချုပ် (Northern Sect Leader)
-    - Fang Zun (方尊/尊儿) → ဖန်ဇွန်း (Sect Leader's son)
-    - Hall Master Gu (古堂主/古姨) → ဂူးခန်းမမှူး (Hall Master, Qin Ling's wife)
-    - Qin Ling (秦岭) → ချင်းလင်း (Deceased husband of Hall Master Gu)
-    - Uncle Su (苏伯伯) → ဦးလေးစု (Southern Sect Leader)
-    - Gu Wen (顾文) → ကူဝမ် (from dao-equaling-the-heavens)
-    - Zhao Feng (赵峰) → ကျောက်ဖန် (from dao-equaling-the-heavens)
-    - Yu Hua (余华) → ယွီဟွာ (from dao-equaling-the-heavens)
-    - Jiang Fugui (江富贵) → ကျန်ဖူကွေ့ (from dao-equaling-the-heavens)
-    
-    LOCATIONS:
-    - Xiao Rong Town (小戎镇) → ရှောင်ရုံးမြို့
-    - Luo Village (罗家村) → လော်ကျေးရွာ
-    - Xiao Rong Mountain (小戎山) → ရှောင်ရုံးတောင်
-    - Pan Long Mountain (蟠龙山) → ပန်လုံးတောင် (Northern Sect HQ)
-    - Moon Wave Lake (月波湖) → လမင်းရေကန် (Southern Sect HQ)
-    - Divine Land (神州) → ရှင်းကျိုးတိုက်ကြီး
-    - Bianjing (汴京) → ပြန့်ကျင်း (from dao-equaling-the-heavens)
-    - Daqian (大乾) → တာချန် (from dao-equaling-the-heavens)
-    - Dragon Bridge (龙桥) → နဂါးတံတား
-    
-    ORGANIZATIONS:
-    - Demon Sect (魔教/圣教) → နတ်ဆိုးဂိုဏ်း
-    - Holy Sect (圣教/圣宗) → မြင့်မြတ်သောဂိုဏ်း
-    - Northern Branch (北宗) → မြောက်ဘက်ဂိုဏ်း
-    - Southern Branch (南宗) → တောင်ဘက်ဂိုဏ်း
-    - Taoist Sect (道门) → တာအိုဂိုဏ်း
-    - Three Pure Sect (三清门) → ဆန်ချင်းဂိုဏ်း (from dao-equaling-the-heavens)
-    
-    CULTIVATION:
-    - Immortal (仙人/神仙) → အင်မော်တယ်
-    - Magical Power (法力/灵力) → ဝိညာဉ်စွမ်းအင်
-    - Immortal Arts (仙术) → အင်မော်တယ်အတတ်ပညာ
-    - Riding the Wind (御风而行) → လေကိုစီးပြီးခရီးသွားခြင်း
-    - Protective Aura (护身光环) → ခန္ဓာကိုယ်အကာအကွယ်
-    
-    ITEMS:
-    - Brocade Pouch (锦囊) → သိုလှောင်အိတ်
-    - Great Bright Pill (大明丹) → ဉာဏ်အလင်းဖွင့်ဆေးလုံး
-    - Supreme Cauldron (至尊鼎) → အမြင့်မြတ်ဆုံးဆေးမီးအိုး
-    - Spirit Tablet (灵牌) → ဝိညာဉ်ကမ္ပည်းပြား
-    - Heavenly Marrow (天髓) → ကောင်းကင်ရိုးတွင်းခြင်ဆီ (from dao-equaling-the-heavens)
-    - Emperor's Elixir (帝浆) → ဧကရာဇ်ဆေးရည် (from dao-equaling-the-heavens)
-    
-    TITLES:
-    - Sect Leader (宗主) → ဂိုဏ်းခေါင်းချုပ်
-    - Hall Master (堂主) → ခန်းမမှူး
-    - Dharma Protector Elder (护法长老) → တရားဓမ္မအကြီးအကဲ
-    
-    ACTIONS:
-    - Group Fight (群殴/神仙群殴) → အုပ်စုလိုက်တိုက်ခိုက်ခြင်း
-    - One Strike Kill (一招毙命) → ချက်ချင်းသေစေနိုင်သည့်တိုက်ခိုက်မှု
-    - Mountain Protection Array (护山法阵) → တောင်ကာကွယ်ရေးမှော်အစီအရင်
-    - Mutual Admiration (惺惺相惜) → အချင်းချင်းနားလည်လေးစားခြင်း
-    - Heaven-Filling Hatred (弥天大仇) → မိုးကောင်းကင်မျှကြီးမားလှသောရန်ငြိုးကြီး
+    {glossary}
     
     ENGLISH TEXT:
     {text}
