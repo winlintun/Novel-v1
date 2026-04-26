@@ -9,7 +9,7 @@
 
 ## Last Updated
 - Date: 2026-04-26
-- Last task completed: Upgraded main codebase to natively support Pivot Translation (CN→EN→MM) via PivotTranslator agent when stage1_target_lang is 'english'. Replicated successful logic from test_ch_en_mm_translation.py.
+- Last task completed: Updated USER_GUIDE.md to document the newly supported Pivot Translation (CN→EN→MM) mode, and fixed configuration files (settings.pivot.yaml) & test scripts per reviewer feedback.
 
 ---
 
