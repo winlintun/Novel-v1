@@ -4,12 +4,27 @@ Handles reading and writing of all project files with proper encoding.
 """
 
 import json
-import yaml
-from pathlib import Path
-from typing import Dict, List, Any, Optional
 import logging
+import yaml
+import re
+from pathlib import Path
+from typing import List, Optional, Dict, Any
 
 logger = logging.getLogger(__name__)
+import yaml
+
+
+def _extract_chapter_num(filename: str) -> int:
+    """Extract chapter number from filename for numeric sorting."""
+    # New format: novel_name_chapter_XXX.md
+    match = re.match(r'.+_chapter_(\d+)\.md', filename)
+    if match:
+        return int(match.group(1))
+    # Legacy format: novel_name_XXX.md
+    match = re.match(r'.+_(\d+)\.md', filename)
+    if match:
+        return int(match.group(1))
+    return 0
 
 
 class FileHandler:
@@ -111,8 +126,15 @@ class FileHandler:
                 seen.add(f)
                 unique_files.append(f)
         
-        # Sort by filename to ensure correct chapter order
-        files = sorted(unique_files, key=lambda p: p.name)
+        # Filter out non-chapter files like "(Copy)"
+        files = [f for f in unique_files if '(Copy)' not in f.name and re.search(r'_\d+\.md$', f.name)]
+        
+        # Sort by chapter number to ensure correct numeric order
+        def sort_key(p):
+            name = p.name
+            return _extract_chapter_num(name)
+        
+        files = sorted(files, key=sort_key)
         
         return files
     
