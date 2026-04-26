@@ -155,7 +155,11 @@ class OllamaClient:
                         options=options,
                         keep_alive=self.keep_alive
                     )
-                    return response['response']
+                    # Bug fix: padauk-gemma outputs in 'thinking' field, fallback
+                    raw_response = response['response']
+                    if not raw_response and response.get('thinking'):
+                        raw_response = response['thinking']
+                    return raw_response
                 else:
                     # Use /api/chat (default, maintains conversation history)
                     messages = []
@@ -169,7 +173,11 @@ class OllamaClient:
                         options=options,
                         keep_alive=self.keep_alive
                     )
-                    return response['message']['content']
+                    # Bug fix: padauk-gemma outputs in 'thinking' field, fallback
+                    raw_content = response['message']['content']
+                    if not raw_content and response['message'].get('thinking'):
+                        raw_content = response['message']['thinking']
+                    return raw_content
                 
             except Exception as e:
                 error_msg = str(e).lower()
