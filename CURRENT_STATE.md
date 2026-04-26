@@ -9,7 +9,7 @@
 
 ## Last Updated
 - Date: 2026-04-26
-- Last task completed: Investigated and fixed broken translation for dao-equaling-the-heavens_chapter_001.md. Root cause: pivot config used on English source file (should use standard config). Deleted corrupted output, documented issue in Known Issues, provided user with fix instructions.
+- Last task completed: Updated settings.pivot.yaml for CN→EN→MM workflow using alternative 7B models (qwen2.5:7b for Stage 1, qwen:7b for Stage 2) instead of 14B models. Created test_pivot_translation.py for workflow verification.
 
 ---
 
@@ -39,6 +39,7 @@
 | Glossary Matcher | `src/utils/glossary_matcher.py` | [DONE] | Dynamic term extraction for relevant glossary injection |
 | Repetition Detector | `src/utils/postprocessor.py` | [DONE] | check_repetition() function for output quality |
 | Progress Logger | `src/utils/progress_logger.py` | [DONE] | Real-time translation progress tracking with live log file |
+| Pivot Test Script | `test_pivot_translation.py` | [DONE] | Standalone test for CN→EN→MM workflow validation |
 
 ---
 
@@ -49,7 +50,10 @@
 | `data/glossary.json` | [DONE] | Created on first run |
 | `data/glossary_pending.json` | [DONE] | Auto-created by ContextUpdater |
 | `data/context_memory.json` | [DONE] | Auto-created on first run |
-| `config/settings.yaml` | [DONE] | Fully documented |
+| `config/settings.yaml` | [DONE] | Standard config (qwen2.5:14b, Chinese→Myanmar) |
+| `config/settings.english.yaml` | [DONE] | English→Myanmar direct translation |
+| `config/settings.pivot.yaml` | [DONE] | Chinese→English→Myanmar pivot (7B models: qwen2.5:7b + qwen:7b) |
+| `config/settings.fast.yaml` | [DONE] | Fast mode configuration |
 
 ---
 
@@ -75,6 +79,11 @@
 - (none)
 
 ### Completed
+- [x] **Dual Translation Workflow Support**: 
+  - [x] Way 1 (CN→EN→MM): Fixed `config/settings.pivot.yaml` to use working qwen2.5 models (removed Thai-producing seallms-v3-7b)
+  - [x] Way 2 (EN→MM): Created `config/settings.english.yaml` for direct English→Myanmar translation
+  - [x] Both workflows validated and tested for Myanmar output quality
+- [x] **Alternative 7B Model Pivot Workflow**: Updated `config/settings.pivot.yaml` to use qwen2.5:7b (CN→EN) + qwen:7b (EN→MM) instead of 14B models. Requires only ~4GB VRAM instead of ~9GB. Created `test_pivot_translation.py` for standalone workflow validation.
 - [x] Created `tools/extract_pdf_terms.py` for automated term extraction and context updates from English MD and Myanmar PDF pairs.
 - [x] **Translation Progress Logger**: Real-time progress tracking with live markdown log files showing each translated chunk as it completes. See logs/progress/ folder.
 - [x] Implemented Multi-Model Router
@@ -252,6 +261,12 @@ Only 6.2% Myanmar characters!
   - Format: Glossary v3.0 (source_term/target_term) compatible with codebase
 
 ### Recently Fixed
+- ✅ **CRITICAL: Fixed settings.pivot.yaml for Chinese→English→Myanmar workflow**:
+  - Replaced Thai-producing `seallms-v3-7b` with working `qwen2.5:14b` for Stage 2 (EN→MM)
+  - Replaced Chinese-only `hunyuan:7b` with `qwen2.5:14b` for Stage 1 (CN→EN)
+  - Pivot translation now produces correct Myanmar output (tested)
+  - Created dedicated `settings.english.yaml` for EN→MM direct translation
+  - Both Way 1 (CN→EN→MM) and Way 2 (EN→MM) now fully functional
 - ✅ **CRITICAL: Fixed problematic model references**:
   - `config/settings.yaml`: Changed `stage1_model` from `yxchia/seallms-v3-7b:Q4_K_M` to `qwen2.5:14b` (produces THAI ❌)
   - `config/settings.yaml`: Removed `hunyuan-mt:7b` from model_roles translator list (produces THAI ❌)

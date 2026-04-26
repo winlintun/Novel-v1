@@ -1,11 +1,11 @@
-# Pivot Language Configuration - FIXED VERSION
+# Pivot Language Configuration - ALTERNATIVE MODELS (No 14B)
 # Chinese → English → Myanmar (Two-stage pipeline)
 # =====================================================
 # ⚠️ IMPORTANT: Use this config ONLY for Chinese source files!
 # For English sources, use settings.english.yaml instead!
 #
-# This config uses qwen2.5 models which correctly produce Myanmar output.
-# The old config used seallms-v3-7b which produces THAI ❌
+# This config uses qwen2.5:7b and qwen:7b models instead of qwen2.5:14b
+# Requires ~4GB VRAM instead of ~9GB - suitable for lower-end GPUs
 
 project:
   name: "novel_translation"
@@ -14,22 +14,21 @@ project:
   novel_genre: "Xianxia/Cultivation"
 
 # =====================================================
-# MODEL CONFIGURATION - Working Pivot Pipeline
+# MODEL CONFIGURATION - Alternative 7B Models (No 14B)
 # =====================================================
-# FIXED: Using qwen2.5 models that actually produce Myanmar output
-# OLD (broken): seallms-v3-7b produces THAI ❌
-# NEW (working): qwen2.5:14b produces Myanmar ✅
+# Stage 1: qwen2.5:7b - Good Chinese understanding, faster
+# Stage 2: qwen:7b - Stable Myanmar output, lightweight
 
 models:
   provider: "ollama"
   
   # Stage 1: Chinese → English
-  # qwen2.5:14b has excellent Chinese understanding
-  translator: "qwen2.5:14b"     # Chinese → English (9GB)
+  # qwen2.5:7b - Good Chinese comprehension, 4GB VRAM
+  translator: "qwen2.5:7b"      # Chinese → English (4GB)
   
   # Stage 2: English → Myanmar  
-  # qwen2.5:14b works well for English → Myanmar too
-  editor: "qwen2.5:14b"         # English → Myanmar
+  # qwen:7b - Tested, stable Myanmar output
+  editor: "qwen:7b"             # English → Myanmar (4GB)
   refiner: "qwen:7b"            # Refinement (4GB)
   checker: "qwen:7b"            # QA check (4GB)
   
@@ -43,28 +42,69 @@ translation_pipeline:
   mode: "two_stage"
   
   # Stage 1: Chinese → English (pivot)
-  stage1_model: "qwen2.5:14b"
+  stage1_model: "qwen2.5:7b"
   stage1_source_lang: "chinese"
   stage1_target_lang: "english"
+  stage1_prompt: |
+    You are an expert Chinese-to-English literary translator specializing in Wuxia/Xianxia novels.
+
+    STRICT RULES:
+    1. PRESERVE all Chinese names in pinyin (e.g., 罗青 → Luo Qing, 小戎镇 → Xiao Rong Town)
+    2. PRESERVE all place names in pinyin
+    3. PRESERVE all cultivation terms literally (e.g., 神仙 → immortal, 法力 → magical power)
+    4. DO NOT translate names to English meanings
+    5. Output ONLY English translation, no explanations
+    
+    GLOSSARY (USE EXACT TERMS):
+    {glossary}
+    
+    CHINESE TEXT:
+    {text}
+    
+    ENGLISH TRANSLATION:
   
   # Stage 2: English → Myanmar (final output)
-  stage2_model: "qwen2.5:14b"
+  stage2_model: "qwen:7b"
   stage2_source_lang: "english"
   stage2_target_lang: "myanmar"
+  stage2_prompt: |
+    CRITICAL LANGUAGE RULE — READ FIRST:
+    - Output language: Myanmar (Burmese) ONLY.
+    - Script: Myanmar Unicode (U+1000–U+109F). Example: မြန်မာဘာသာ
+    - FORBIDDEN output languages: Thai, Chinese, English, Japanese, Korean.
+    - If you are unsure of a word, write 【?term?】 — do NOT switch to Thai or Chinese.
+    - Return ONLY the Myanmar translation. Zero preamble. Zero explanation.
+
+    You are an expert English-to-Myanmar literary translator specializing in Wuxia/Xianxia novels.
+
+    STRICT RULES:
+    1. SYNTAX: Convert English SVO structure to natural Myanmar SOV order
+    2. TERMINOLOGY: Use EXACT terms from the GLOSSARY. For pinyin names (Luo Qing), transliterate to Myanmar phonetics.
+    3. TONE: Use formal/literary Myanmar for narrative. Use natural spoken Myanmar for dialogue (pronouns: မင်း, ရှင်, ကျွန်တော်/ကျွန်မ based on status).
+    4. PLACEHOLDERS: Use 【?term?】 for unknown proper nouns, cultivation terms, or names not in glossary.
+    5. NO ENGLISH: Remove all English words. NO CHINESE: Remove all Chinese characters.
+    
+    GLOSSARY (USE EXACT TERMS):
+    {glossary}
+    
+    ENGLISH TEXT:
+    {text}
+    
+    MYANMAR TRANSLATION:
   
-  description: "Pivot: CN→EN→MM using qwen2.5 (working models)"
+  description: "Pivot: CN→EN→MM using 7B models (lightweight)"
 
 # =====================================================
 # PROCESSING SETTINGS
 # =====================================================
 processing:
-  chunk_size: 1200              # Safe for 14B models
+  chunk_size: 1500              # Optimal for qwen2.5:7b per QWEN.md
   overlap_size: 100             # Context continuity
   max_retries: 3
-  temperature: 0.3              # Lower for more accurate translation
+  temperature: 0.3              # Lower for accuracy
   top_p: 0.92
   top_k: 50
-  repeat_penalty: 1.25          # Prevents repetition loops
+  repeat_penalty: 1.15          # Per QWEN.md recommendation for Qwen
   stream: true
   request_timeout: 300
 
@@ -103,13 +143,13 @@ output:
 # =====================================================
 model_router:
   enabled: true
-  vram_budget_gb: 16.0
+  vram_budget_gb: 8.0           # Lower VRAM requirement
   retry_on_failure: true
   max_fallback_depth: 2
 
 model_roles:
-  translator: ["qwen2.5:14b", "qwen2.5:7b"]
-  refiner: ["qwen2.5:14b", "qwen:7b"]
+  translator: ["qwen2.5:7b", "qwen:7b"]
+  refiner: ["qwen:7b"]
   checker: ["qwen:7b"]
   glossary_sync: ["qwen:7b"]
   qa_final: ["qwen:7b"]
@@ -121,7 +161,7 @@ qa_testing:
   enabled: true
   auto_retry: false
   min_myanmar_ratio: 0.70
-  fail_on_placeholders: false
+  fail_on_placeholders: true    # Catch unresolved terms
   markdown_strict: true
 
 # =====================================================
@@ -129,7 +169,7 @@ qa_testing:
 # =====================================================
 glossary_v3:
   enabled: true
-  path: "data/glossary_v3.json"
+  path: "data/glossary.json"    # Use standard glossary
   max_prompt_entries: 40
   priority_threshold: 2
   include_examples: false
