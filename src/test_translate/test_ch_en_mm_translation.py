@@ -111,7 +111,7 @@ MYANMAR TRANSLATION:"""
         client2.cleanup()
     
     # Validate output
-    validation = validate_output(myanmar_result, chapter_num=0)
+    validation = validate_output(myanmar_result, chapter=0)
     leakage = detect_language_leakage(myanmar_result)
     
     print(f"\n{'='*60}")
@@ -278,7 +278,7 @@ def check_output_file(output_file: Optional[str]) -> dict[str, Any]:
         print(f"Characters: {char_count:,}")
         print(f"Lines: {line_count}")
         
-        validation = validate_output(content, chapter_num=0)
+        validation = validate_output(content, chapter=0)
         leakage = detect_language_leakage(content)
         
         print(f"\nValidation Results:")
