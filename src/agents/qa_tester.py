@@ -5,10 +5,14 @@ QA Tester Agent - Automated Validation
 - Chapter structure verification
 """
 import re
+import logging
 from typing import Optional, Dict, Any, List
+from src.agents.base_agent import BaseAgent
 from src.memory.memory_manager import MemoryManager
 
-class QATesterAgent:
+logger = logging.getLogger(__name__)
+
+class QATesterAgent(BaseAgent):
     """Automated quality assurance for translated chapters."""
     
     # Myanmar Unicode block ranges
@@ -18,8 +22,8 @@ class QATesterAgent:
         (0xA9E0, 0xA9FF),   # Myanmar Extended-B
     ]
     
-    def __init__(self, memory_manager: MemoryManager):
-        self.mm = memory_manager
+    def __init__(self, memory_manager: MemoryManager, config: Dict[str, Any] = None):
+        super().__init__(memory_manager=memory_manager, config=config)
     
     def validate_output(self, text: str, chapter_num: int) -> Dict[str, Any]:
         """
@@ -84,7 +88,7 @@ class QATesterAgent:
     def _check_glossary_consistency(self, text: str) -> List[str]:
         """Check that verified glossary terms appear in approved form."""
         issues = []
-        glossary = self.mm.get_all_terms()
+        glossary = self.memory.get_all_terms()
 
         for term_data in glossary:
             approved_mm = term_data.get("target")

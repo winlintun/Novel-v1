@@ -144,3 +144,4 @@ need_fix_another.md
 *.pdf
 data/input/*/*.md
 data/output/*/*.md
+Novel-Step.md

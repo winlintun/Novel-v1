@@ -11,7 +11,6 @@
 ```
 1. Read this file (GEMINI.md)
 2. Read AGENTS.md
-2. Read QWEN.md
 3. Read CURRENT_STATE.md
 4. Check Architecture Decisions — confirm your task does not violate any
 5. Begin task

@@ -14,6 +14,7 @@ from src.utils.progress_logger import ProgressLogger
 
 from src.utils.postprocessor import clean_output, validate_output, detect_language_leakage
 from src.utils.json_extractor import safe_parse_terms
+from src.agents.base_agent import BaseAgent
 from src.agents.prompt_patch import TRANSLATOR_SYSTEM_PROMPT, EDITOR_SYSTEM_PROMPT
 
 
@@ -56,7 +57,7 @@ STRICT RULES:
 Text to translate:"""
 
 
-class Translator:
+class Translator(BaseAgent):
     """
     Translates Chinese text to Myanmar using LLM.
     Integrates glossary and context memory.
@@ -64,13 +65,12 @@ class Translator:
     
     def __init__(
         self,
-        ollama_client: OllamaClient,
-        memory_manager: MemoryManager,
+        ollama_client: Optional[OllamaClient] = None,
+        memory_manager: Optional[MemoryManager] = None,
         config: Optional[Dict[str, Any]] = None
     ):
+        super().__init__(ollama_client, memory_manager, config)
         self.ollama = ollama_client
-        self.memory = memory_manager
-        self.config = config or {}
         
         pipeline = self.config.get('translation_pipeline', {})
         self._custom_system_prompt = pipeline.get('stage1_system_prompt')

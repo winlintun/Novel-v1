@@ -3,14 +3,16 @@
   "novel_name": "dao-equaling-the-heavens",
   "source_language": "English",
   "target_language": "Myanmar",
-  "last_updated": "2026-04-26T16:30:00.000000",
-  "total_terms": 45,
+  "last_updated": "2026-04-27T01:27:14.155611",
+  "total_terms": 51,
   "terms": [
     {
       "id": "term_gdxh_001",
       "source_term": "Luo Qing",
       "target_term": "လော်ချင်း",
-      "aliases_cn": ["罗青"],
+      "aliases_cn": [
+        "罗青"
+      ],
       "category": "person_character",
       "translation_rule": "transliterate",
       "priority": 1,
@@ -22,7 +24,10 @@
       "id": "term_gdxh_002",
       "source_term": "Huang Niu",
       "target_term": "နွားကြီး",
-      "aliases_cn": ["黄牛", "牛哥"],
+      "aliases_cn": [
+        "黄牛",
+        "牛哥"
+      ],
       "category": "person_character",
       "translation_rule": "transliterate",
       "priority": 1,
@@ -34,7 +39,9 @@
       "id": "term_gdxh_003",
       "source_term": "Sect Leader Fang",
       "target_term": "ဖန်ဂိုဏ်းချုပ်",
-      "aliases_cn": ["方宗主"],
+      "aliases_cn": [
+        "方宗主"
+      ],
       "category": "person_character",
       "translation_rule": "transliterate",
       "priority": 1,
@@ -46,7 +53,10 @@
       "id": "term_gdxh_004",
       "source_term": "Fang Zun",
       "target_term": "ဖန်ဇွန်း",
-      "aliases_cn": ["方尊", "尊儿"],
+      "aliases_cn": [
+        "方尊",
+        "尊儿"
+      ],
       "category": "person_character",
       "translation_rule": "transliterate",
       "priority": 1,
@@ -58,7 +68,10 @@
       "id": "term_gdxh_005",
       "source_term": "Hall Master Gu",
       "target_term": "ဂူးခန်းမမှူး",
-      "aliases_cn": ["古堂主", "古姨"],
+      "aliases_cn": [
+        "古堂主",
+        "古姨"
+      ],
       "category": "person_character",
       "translation_rule": "transliterate",
       "priority": 1,
@@ -70,7 +83,9 @@
       "id": "term_gdxh_006",
       "source_term": "Qin Ling",
       "target_term": "ချင်းလင်း",
-      "aliases_cn": ["秦岭"],
+      "aliases_cn": [
+        "秦岭"
+      ],
       "category": "person_character",
       "translation_rule": "transliterate",
       "priority": 2,
@@ -82,7 +97,9 @@
       "id": "term_gdxh_007",
       "source_term": "Uncle Su",
       "target_term": "ဦးလေးစု",
-      "aliases_cn": ["苏伯伯"],
+      "aliases_cn": [
+        "苏伯伯"
+      ],
       "category": "person_character",
       "translation_rule": "transliterate",
       "priority": 2,
@@ -94,7 +111,9 @@
       "id": "term_gdxh_008",
       "source_term": "Xiao Rong Town",
       "target_term": "ရှောင်ရုံးမြို့",
-      "aliases_cn": ["小戎镇"],
+      "aliases_cn": [
+        "小戎镇"
+      ],
       "category": "location",
       "translation_rule": "transliterate",
       "priority": 1,
@@ -106,7 +125,9 @@
       "id": "term_gdxh_009",
       "source_term": "Luo Village",
       "target_term": "လော်ကျေးရွာ",
-      "aliases_cn": ["罗家村"],
+      "aliases_cn": [
+        "罗家村"
+      ],
       "category": "location",
       "translation_rule": "transliterate",
       "priority": 1,
@@ -118,7 +139,9 @@
       "id": "term_gdxh_010",
       "source_term": "Xiao Rong Mountain",
       "target_term": "ရှောင်ရုံးတောင်",
-      "aliases_cn": ["小戎山"],
+      "aliases_cn": [
+        "小戎山"
+      ],
       "category": "location",
       "translation_rule": "transliterate",
       "priority": 1,
@@ -130,7 +153,9 @@
       "id": "term_gdxh_011",
       "source_term": "Pan Long Mountain",
       "target_term": "ပန်လုံးတောင်",
-      "aliases_cn": ["蟠龙山"],
+      "aliases_cn": [
+        "蟠龙山"
+      ],
       "category": "location",
       "translation_rule": "transliterate",
       "priority": 1,
@@ -142,7 +167,9 @@
       "id": "term_gdxh_012",
       "source_term": "Moon Wave Lake",
       "target_term": "လမင်းရေကန်",
-      "aliases_cn": ["月波湖"],
+      "aliases_cn": [
+        "月波湖"
+      ],
       "category": "location",
       "translation_rule": "translate",
       "priority": 1,
@@ -154,7 +181,9 @@
       "id": "term_gdxh_013",
       "source_term": "Divine Land",
       "target_term": "ရှင်းကျိုးတိုက်ကြီး",
-      "aliases_cn": ["神州"],
+      "aliases_cn": [
+        "神州"
+      ],
       "category": "location",
       "translation_rule": "translate",
       "priority": 2,
@@ -166,7 +195,10 @@
       "id": "term_gdxh_014",
       "source_term": "Demon Sect",
       "target_term": "နတ်ဆိုးဂိုဏ်း",
-      "aliases_cn": ["魔教", "圣教"],
+      "aliases_cn": [
+        "魔教",
+        "圣教"
+      ],
       "category": "organization",
       "translation_rule": "translate",
       "priority": 1,
@@ -178,7 +210,10 @@
       "id": "term_gdxh_015",
       "source_term": "Holy Sect",
       "target_term": "မြင့်မြတ်သောဂိုဏ်း",
-      "aliases_cn": ["圣教", "圣宗"],
+      "aliases_cn": [
+        "圣教",
+        "圣宗"
+      ],
       "category": "organization",
       "translation_rule": "translate",
       "priority": 1,
@@ -190,7 +225,9 @@
       "id": "term_gdxh_016",
       "source_term": "Northern Branch",
       "target_term": "မြောက်ဘက်ဂိုဏ်း",
-      "aliases_cn": ["北宗"],
+      "aliases_cn": [
+        "北宗"
+      ],
       "category": "organization",
       "translation_rule": "translate",
       "priority": 1,
@@ -202,7 +239,9 @@
       "id": "term_gdxh_017",
       "source_term": "Southern Branch",
       "target_term": "တောင်ဘက်ဂိုဏ်း",
-      "aliases_cn": ["南宗"],
+      "aliases_cn": [
+        "南宗"
+      ],
       "category": "organization",
       "translation_rule": "translate",
       "priority": 1,
@@ -214,7 +253,9 @@
       "id": "term_gdxh_018",
       "source_term": "Taoist Sect",
       "target_term": "တာအိုဂိုဏ်း",
-      "aliases_cn": ["道门"],
+      "aliases_cn": [
+        "道门"
+      ],
       "category": "organization",
       "translation_rule": "translate",
       "priority": 1,
@@ -226,7 +267,10 @@
       "id": "term_gdxh_019",
       "source_term": "Immortal",
       "target_term": "အင်မော်တယ်",
-      "aliases_cn": ["仙人", "神仙"],
+      "aliases_cn": [
+        "仙人",
+        "神仙"
+      ],
       "category": "cultivation_concept",
       "translation_rule": "translate",
       "priority": 1,
@@ -238,7 +282,10 @@
       "id": "term_gdxh_020",
       "source_term": "Magical Power",
       "target_term": "ဝိညာဉ်စွမ်းအင်",
-      "aliases_cn": ["法力", "灵力"],
+      "aliases_cn": [
+        "法力",
+        "灵力"
+      ],
       "category": "cultivation_concept",
       "translation_rule": "translate",
       "priority": 1,
@@ -250,7 +297,9 @@
       "id": "term_gdxh_021",
       "source_term": "Immortal Arts",
       "target_term": "အင်မော်တယ်အတတ်ပညာ",
-      "aliases_cn": ["仙术"],
+      "aliases_cn": [
+        "仙术"
+      ],
       "category": "cultivation_concept",
       "translation_rule": "translate",
       "priority": 1,
@@ -262,7 +311,9 @@
       "id": "term_gdxh_022",
       "source_term": "Riding the Wind",
       "target_term": "လေကိုစီးပြီးခရီးသွားခြင်း",
-      "aliases_cn": ["御风而行"],
+      "aliases_cn": [
+        "御风而行"
+      ],
       "category": "cultivation_concept",
       "translation_rule": "translate",
       "priority": 2,
@@ -274,7 +325,9 @@
       "id": "term_gdxh_023",
       "source_term": "Protective Aura",
       "target_term": "ခန္ဓာကိုယ်အကာအကွယ်",
-      "aliases_cn": ["护身光环"],
+      "aliases_cn": [
+        "护身光环"
+      ],
       "category": "cultivation_concept",
       "translation_rule": "translate",
       "priority": 2,
@@ -286,7 +339,9 @@
       "id": "term_gdxh_024",
       "source_term": "Brocade Pouch",
       "target_term": "သိုလှောင်အိတ်",
-      "aliases_cn": ["锦囊"],
+      "aliases_cn": [
+        "锦囊"
+      ],
       "category": "item_artifact",
       "translation_rule": "translate",
       "priority": 2,
@@ -298,7 +353,9 @@
       "id": "term_gdxh_025",
       "source_term": "Great Bright Pill",
       "target_term": "ဉာဏ်အလင်းဖွင့်ဆေးလုံး",
-      "aliases_cn": ["大明丹"],
+      "aliases_cn": [
+        "大明丹"
+      ],
       "category": "item_artifact",
       "translation_rule": "translate",
       "priority": 2,
@@ -310,7 +367,9 @@
       "id": "term_gdxh_026",
       "source_term": "Supreme Cauldron",
       "target_term": "အမြင့်မြတ်ဆုံးဆေးမီးအိုး",
-      "aliases_cn": ["至尊鼎"],
+      "aliases_cn": [
+        "至尊鼎"
+      ],
       "category": "item_artifact",
       "translation_rule": "translate",
       "priority": 2,
@@ -322,7 +381,9 @@
       "id": "term_gdxh_027",
       "source_term": "Spirit Tablet",
       "target_term": "ဝိညာဉ်ကမ္ပည်းပြား",
-      "aliases_cn": ["灵牌"],
+      "aliases_cn": [
+        "灵牌"
+      ],
       "category": "item_artifact",
       "translation_rule": "translate",
       "priority": 2,
@@ -334,7 +395,9 @@
       "id": "term_gdxh_028",
       "source_term": "Sect Leader",
       "target_term": "ဂိုဏ်းခေါင်းချုပ်",
-      "aliases_cn": ["宗主"],
+      "aliases_cn": [
+        "宗主"
+      ],
       "category": "title",
       "translation_rule": "translate",
       "priority": 1,
@@ -346,7 +409,9 @@
       "id": "term_gdxh_029",
       "source_term": "Hall Master",
       "target_term": "ခန်းမမှူး",
-      "aliases_cn": ["堂主"],
+      "aliases_cn": [
+        "堂主"
+      ],
       "category": "title",
       "translation_rule": "translate",
       "priority": 1,
@@ -358,7 +423,9 @@
       "id": "term_gdxh_030",
       "source_term": "Dharma Protector Elder",
       "target_term": "တရားဓမ္မအကြီးအကဲ",
-      "aliases_cn": ["护法长老"],
+      "aliases_cn": [
+        "护法长老"
+      ],
       "category": "title",
       "translation_rule": "translate",
       "priority": 2,
@@ -370,7 +437,10 @@
       "id": "term_gdxh_031",
       "source_term": "Group Fight",
       "target_term": "အုပ်စုလိုက်တိုက်ခိုက်ခြင်း",
-      "aliases_cn": ["群殴", "神仙群殴"],
+      "aliases_cn": [
+        "群殴",
+        "神仙群殴"
+      ],
       "category": "action",
       "translation_rule": "translate",
       "priority": 2,
@@ -382,7 +452,9 @@
       "id": "term_gdxh_032",
       "source_term": "One Strike Kill",
       "target_term": "ချက်ချင်းသေစေနိုင်သည့်တိုက်ခိုက်မှု",
-      "aliases_cn": ["一招毙命"],
+      "aliases_cn": [
+        "一招毙命"
+      ],
       "category": "action",
       "translation_rule": "translate",
       "priority": 2,
@@ -394,7 +466,9 @@
       "id": "term_gdxh_033",
       "source_term": "Mountain Protection Array",
       "target_term": "တောင်ကာကွယ်ရေးမှော်အစီအရင်",
-      "aliases_cn": ["护山法阵"],
+      "aliases_cn": [
+        "护山法阵"
+      ],
       "category": "location",
       "translation_rule": "translate",
       "priority": 2,
@@ -561,6 +635,66 @@
       "usage_frequency": "medium",
       "source": "Water House",
       "target": "ရေရောင်းဌာန"
+    },
+    {
+      "id": "term_046",
+      "source": "罗青",
+      "target": "[罗青]",
+      "category": "character",
+      "chapter_first_seen": 1,
+      "chapter_last_seen": 1,
+      "verified": false,
+      "added_at": "2026-04-26T19:06:21.950960"
+    },
+    {
+      "id": "term_047",
+      "source": "小墨",
+      "target": "[小墨]",
+      "category": "character",
+      "chapter_first_seen": 0,
+      "chapter_last_seen": 0,
+      "verified": false,
+      "added_at": "2026-04-26T23:41:15.147600"
+    },
+    {
+      "id": "term_048",
+      "source": "顏山傲",
+      "target": "[顏山傲]",
+      "category": "character",
+      "chapter_first_seen": 0,
+      "chapter_last_seen": 0,
+      "verified": false,
+      "added_at": "2026-04-26T23:41:15.153506"
+    },
+    {
+      "id": "term_049",
+      "source": "蘇蘇",
+      "target": "[蘇蘇]",
+      "category": "character",
+      "chapter_first_seen": 0,
+      "chapter_last_seen": 0,
+      "verified": false,
+      "added_at": "2026-04-26T23:41:15.157206"
+    },
+    {
+      "id": "term_050",
+      "source": "魏荀",
+      "target": "[魏荀]",
+      "category": "character",
+      "chapter_first_seen": 0,
+      "chapter_last_seen": 0,
+      "verified": false,
+      "added_at": "2026-04-26T23:41:15.160588"
+    },
+    {
+      "id": "term_051",
+      "source": "Chinese",
+      "target": "[Chinese]",
+      "category": "item",
+      "chapter_first_seen": 3,
+      "chapter_last_seen": 3,
+      "verified": false,
+      "added_at": "2026-04-27T01:27:14.155582"
     }
   ]
 }

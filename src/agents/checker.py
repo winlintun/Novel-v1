@@ -8,11 +8,12 @@ import logging
 from typing import List, Dict, Tuple, Any
 
 from src.memory.memory_manager import MemoryManager
+from src.agents.base_agent import BaseAgent
 
 logger = logging.getLogger(__name__)
 
 
-class Checker:
+class Checker(BaseAgent):
     """
     Checks translation for:
     - Glossary consistency
@@ -21,7 +22,8 @@ class Checker:
     - Basic quality indicators
     """
     
-    def __init__(self, memory_manager: MemoryManager):
+    def __init__(self, memory_manager: MemoryManager = None, config: dict = None):
+        super().__init__(memory_manager=memory_manager, config=config)
         self.memory = memory_manager
     
     def check_glossary_consistency(self, text: str) -> List[Dict[str, str]]:

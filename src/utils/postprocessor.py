@@ -103,20 +103,38 @@ def remove_latin_words(text: str) -> str:
     return text.strip()
 
 
-def clean_output(raw: str) -> str:
+def clean_output(raw: str, aggressive: bool = False) -> str:
     """
     Full postprocessing pipeline. Apply in order:
     1. Strip reasoning tags
     2. Strip header artifacts
-    3. Remove Chinese characters (model leakage)
-    4. Remove Latin words (English/German leakage)
+    3. Remove Chinese characters (model leakage) - only if aggressive=True
+    4. Remove Latin words (English/German leakage) - only if aggressive=True
     5. Collapse 3+ blank lines → 2
     6. Strip leading/trailing whitespace
+    
+    Args:
+        raw: Raw LLM output
+        aggressive: If True, aggressively remove all Chinese/Latin characters.
+                   If False (default), only strip tags and artifacts to prevent
+                   over-processing that could corrupt Myanmar output (per need_fix.md).
+    
+    Returns:
+        Cleaned text
     """
     text = strip_reasoning_tags(raw)
     text = strip_header_artifacts(text)
-    text = remove_chinese_characters(text)  # CRITICAL: Remove leaked Chinese
-    text = remove_latin_words(text)  # Remove Latin word leakage
+    
+    # Fixed: Only aggressively remove Chinese/Latin if explicitly requested
+    # Per need_fix.md: Over-aggressive post-processing can corrupt Myanmar script output
+    if aggressive:
+        text = remove_chinese_characters(text)
+        text = remove_latin_words(text)
+    else:
+        # Light cleanup: only remove obvious leakage patterns, not all Latin/Chinese
+        # This preserves intentional mixed content (like pinyin names in parentheses)
+        pass
+    
     text = re.sub(r"\n{3,}", "\n\n", text)  # collapse excess blank lines
     text = text.strip()
     return text

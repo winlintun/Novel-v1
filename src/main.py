@@ -36,6 +36,8 @@ from src.agents.refiner import Refiner
 from src.agents.checker import Checker
 from src.agents.context_updater import ContextUpdater
 from src.agents.qa_tester import QATesterAgent
+from src.agents.reflection_agent import ReflectionAgent
+from src.agents.myanmar_quality_checker import MyanmarQualityChecker
 
 
 # Constants
@@ -358,6 +360,12 @@ def translate_single_file(
         # Use batch processing for refiner (5x speedup)
         batch_size = config['processing'].get('batch_processing', {}).get('batch_size', 5)
         refiner = Refiner(ollama_client, batch_size=batch_size) if not skip_refinement else None
+        
+        # New specialized agents
+        reflection_agent = ReflectionAgent(ollama_client, config) if config.get('translation_pipeline', {}).get('use_reflection', False) else None
+        myanmar_checker = MyanmarQualityChecker(config)
+        qa_tester = QATesterAgent(memory)
+        
         checker = Checker(memory)
         context_updater = ContextUpdater(ollama_client, memory)
         
@@ -448,11 +456,32 @@ def translate_single_file(
             logger.info("Refining translation...")
             translated_text = refiner.refine_full_text(translated_text)
         
+        # Reflection & Self-Correction (optional)
+        if reflection_agent and not skip_refinement:
+            logger.info("Running reflection and self-correction...")
+            translated_text = reflection_agent.reflect_and_improve(translated_text, original_text)
+        
         # Check quality
         logger.info("Checking translation quality...")
         check_result = checker.check_chapter(original_text, translated_text)
         
+        # Enhanced Myanmar Quality Check
+        myanmar_quality = myanmar_checker.check_quality(translated_text)
+        check_result['myanmar_quality_score'] = myanmar_quality['score']
+        check_result['myanmar_issues'] = myanmar_quality['issues']
+        
+        # QA Validation
+        qa_report = qa_tester.validate_output(translated_text, chapter_num)
+        check_result['qa_passed'] = qa_report['passed']
+        check_result['qa_issues'] = qa_report['issues']
+        
         print("\n" + checker.generate_report(chapter_num, check_result))
+        
+        # Add Myanmar quality report if issues found
+        if myanmar_quality['issues']:
+            print(f"🇲🇲 Myanmar Quality Issues: {len(myanmar_quality['issues'])}")
+            for issue in myanmar_quality['issues'][:5]:
+                print(f"  - {issue}")
         
         # Save output (MM version)
         if is_pivot:
@@ -628,6 +657,10 @@ Examples:
     parser.add_argument("--unload-after-chapter", action="store_true", 
                        help="Unload model from GPU after each chapter to save VRAM")
     
+    # Source language (auto-selects config)
+    parser.add_argument("--lang", "-l", choices=["en", "zh", "english", "chinese"], 
+                       help="Source language: en/english (English→Myanmar) or zh/chinese (Chinese→Myanmar). Auto-selects config.")
+    
     # Configuration
     parser.add_argument("--config", default="config/settings.yaml", help="Config file path")
     
@@ -647,6 +680,15 @@ Examples:
     
     # Load configuration
     try:
+        # Auto-select config based on source language
+        if args.lang:
+            if args.lang in ['en', 'english']:
+                args.config = "config/settings.english.yaml"
+                print(f"Auto-selected English config: {args.config}")
+            elif args.lang in ['zh', 'chinese']:
+                args.config = "config/settings.pivot.yaml"
+                print(f"Auto-selected Chinese config: {args.config}")
+        
         config = load_config(args.config)
         logger = setup_logging()
         logger.info(f"Loaded config from {args.config}")

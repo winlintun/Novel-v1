@@ -184,14 +184,22 @@ More text"""
         self.assertEqual(result[-1], "ာ")  # Ends with Myanmar
     
     def test_removes_chinese_characters(self):
-        """Test Chinese characters are removed in clean_output."""
+        """Test Chinese characters are removed in clean_output with aggressive=True."""
         raw = "မြန်မာဘာသာ 中文句子 မြန်မာစာ"
-        result = clean_output(raw)
+        result = clean_output(raw, aggressive=True)  # Use aggressive mode to remove Chinese
         self.assertNotIn("中", result)
         self.assertNotIn("文", result)
         self.assertNotIn("句", result)
         self.assertIn("မြန်မာဘာသာ", result)
         self.assertIn("မြန်မာစာ", result)
+    
+    def test_default_no_aggressive_removal(self):
+        """Test that clean_output does NOT aggressively remove Chinese by default (per need_fix.md)."""
+        raw = "မြန်မာဘာသာ 中文句子 မြန်မာစာ"
+        result = clean_output(raw)  # Default: aggressive=False
+        # By default, Chinese characters should be preserved to avoid over-processing
+        self.assertIn("中", result)
+        self.assertIn("文", result)
 
 
 class TestRemoveChineseCharacters(unittest.TestCase):

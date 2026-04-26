@@ -4,10 +4,10 @@
 # ⚠️ IMPORTANT: Use this config ONLY for Chinese source files!
 # For English sources, use settings.english.yaml instead!
 #
-# UPDATED: Using only models confirmed available in ollama list:
-#   - qwen2.5:14b (9GB) - Stage 1: CN→EN
-#   - qwen:7b (8.1GB) - Stage 2: EN→MM
-#   - gemma:7b (5GB) - Fallback
+# UPDATED: Using models as specified in need_fix.md:
+#   - Stage 1 (CN→EN): alibayram/hunyuan:7b (best for Chinese)
+#   - Stage 2 (EN→MM): padauk-gemma:q8_0 OR yxchia/seallms-v3-7b:Q4_K_M
+#   - Stage 3/4 (Checker/QA): qwen:7b (good at JSON and logic)
 
 project:
   name: "novel_translation"
@@ -16,23 +16,32 @@ project:
   novel_genre: "Xianxia/Cultivation"
 
 # =====================================================
-# MODEL CONFIGURATION - Using Available Models Only
+# MODEL CONFIGURATION - Using Recommended Models from need_fix.md
 # =====================================================
-# From ollama_model_list.md:
-# Available: qwen2.5:14b, qwen:7b, gemma:7b, hunyuan:7b, seallms-v3-7b, translategemma:12b
+# Recommended models per need_fix.md:
+#   - alibayram/hunyuan:7b - Stage 1: CN→EN (excellent Chinese understanding)
+#   - padauk-gemma:q8_0 OR yxchia/seallms-v3-7b:Q4_K_M - Stage 2: EN→MM
+#   - qwen:7b - Stage 3/4: Checker/QA (JSON reading and logic checking)
+# 
+# NOTE: qwen2.5:14b and translategemma:12b should NOT be used (16GB RAM mismatch)
+# NOTE: gemma:7b is NOT good for Myanmar
 
 models:
   provider: "ollama"
   
-  # Stage 1: Chinese → English
-  # qwen2.5:14b - Excellent Chinese understanding (confirmed available)
-  translator: "qwen2.5:14b"     # Chinese → English (9GB)
+  # Stage 1: Chinese → English (as per need_fix.md)
+  translator: "alibayram/hunyuan:7b"
   
-  # Stage 2: English → Myanmar  
-  # qwen2.5:14b - Better multilingual capabilities, superior Myanmar output
-  editor: "qwen2.5:14b"         # English → Myanmar (9GB)
-  refiner: "qwen2.5:14b"        # Refinement (9GB)
-  checker: "qwen2.5:7b"         # QA check (4GB) - lightweight for checking
+  # Stage 2: English → Myanmar
+  # Option 1: padauk-gemma:q8_0 (local model)
+  # Option 2: yxchia/seallms-v3-7b:Q4_K_M (if padauk not available)
+  editor: "padauk-gemma:q8_0"
+  refiner: "padauk-gemma:q8_0"
+  
+  # Stage 3 & 4: Checker/QA (as per need_fix.md)
+  # qwen:7b is good at JSON and logic checking
+  # DO NOT use for Myanmar text generation
+  checker: "qwen:7b"
   
   ollama_base_url: "http://localhost:11434"
   timeout: 300                  # API call timeout (5 minutes)
@@ -44,7 +53,7 @@ translation_pipeline:
   mode: "two_stage"
   
   # Stage 1: Chinese → English (pivot)
-  stage1_model: "qwen2.5:14b"
+  stage1_model: "alibayram/hunyuan:7b"
   stage1_source_lang: "chinese"
   stage1_target_lang: "english"
   stage1_prompt: |
@@ -66,7 +75,7 @@ translation_pipeline:
     ENGLISH TRANSLATION:
   
   # Stage 2: English → Myanmar (final output)
-  stage2_model: "qwen:7b"
+  stage2_model: "padauk-gemma:q8_0"
   stage2_source_lang: "english"
   stage2_target_lang: "myanmar"
   stage2_prompt: |
@@ -83,36 +92,50 @@ translation_pipeline:
     STRICT RULES:
     1. SYNTAX: Convert English SVO structure to natural Myanmar SOV order
     2. TERMINOLOGY: Use EXACT terms from GLOSSARY below. Transliterate pinyin names to Myanmar phonetics.
-    3. TONE: Use formal/literary Myanmar for narrative. Use natural spoken Myanmar for dialogue (pronouns: မင်း, ရှင်, ကျွန်တော်/ကျွန်မ based on status).
-    4. IDIOMS: Do NOT translate English idioms literally. Find Burmese cultural equivalents.
-    5. PLACEHOLDERS: Use 【?term?】 for unknown proper nouns, cultivation terms, or names not in glossary.
-    6. NO ENGLISH: Remove all English words. NO CHINESE: Remove all Chinese characters.
-    7. ALIASES: Chinese aliases in parentheses help identify characters (e.g., 罗青 = Luo Qing).
-    
+    3. PARTICLES: Use ၍/ဖြင့် for 'by/with', ၌/မှာ for 'at/in', ကို/အား for object marker, ၏/သည့် for possession
+    4. TONE: Use formal/literary Myanmar for narrative. Use natural spoken Myanmar for dialogue.
+    5. PRONOUNS: Maintain character register - inferiors use ကျွန်တော်/ကျွန်မ to superiors; superiors use မင်း/နင် to inferiors; equals use သင်/ခင်ဗျား
+    6. IDIOMS: Do NOT translate English idioms literally. Find Burmese cultural equivalents.
+    7. PLACEHOLDERS: Use 【?term?】 for unknown proper nouns, cultivation terms, or names not in glossary.
+    8. NO ENGLISH: Remove all English words. NO CHINESE: Remove all Chinese characters.
+    9. ALIASES: Chinese aliases in parentheses help identify characters (e.g., 罗青 = Luo Qing).
+    10. MARKDOWN: Preserve all Markdown syntax exactly: # headers, **bold**, *italics*, > quotes, - lists.
+
     COMPLETE GLOSSARY (USE EXACT MYANMAR TERMS):
     {glossary}
-    
+
     ENGLISH TEXT:
     {text}
-    
+
     MYANMAR TRANSLATION:
   
-  description: "Pivot: CN→EN→MM using available models (qwen2.5:14b + qwen:7b)"
+  description: "Pivot: CN→EN→MM using need_fix.md recommended models"
 
 # =====================================================
-# PROCESSING SETTINGS
+# PROCESSING SETTINGS - Optimized per need_fix.md
 # =====================================================
+# Fixed: Sampling parameters mismatch
+# Temperature: 0.1-0.3 for consistent, literal translation
+# top_p: 0.95
+# repeat_penalty: 1.0
 processing:
   chunk_size: 1200              # Conservative for stability
   overlap_size: 100             # Context continuity
   max_retries: 3
-  temperature: 0.3              # Lower for accuracy
-  top_p: 0.92
-  top_k: 50
-  repeat_penalty: 1.15          # Prevents repetition loops
+  temperature: 0.2              # Lower for more consistent, literal translation (0.1-0.3 range)
+  top_p: 0.95                   # Nucleus sampling threshold
+  top_k: 50                     # Top-k token selection
+  repeat_penalty: 1.15          # CRITICAL: Must be 1.1+ to prevent Myanmar character repetition loops
   stream: true
   request_timeout: 300
   rate_limit_delay: 0.5         # Seconds between API calls
+  
+  # Fixed: Context window & truncation issue
+  # Increased num_ctx to 8192 as recommended
+  num_ctx: 8192                 # Context window size
+  
+  # Fixed: Model Loading State - increase keep_alive
+  keep_alive: "10m"             # Keep model loaded longer to prevent unload/reload
 
 # =====================================================
 # PATHS
@@ -149,16 +172,17 @@ output:
 # =====================================================
 model_router:
   enabled: true
-  vram_budget_gb: 16.0          # Need for 14B + 7B sequential loading
+  vram_budget_gb: 16.0          # Need for sequential model loading
   retry_on_failure: true
   max_fallback_depth: 2
 
+# Fixed: Model roles per need_fix.md
 model_roles:
-  translator: ["qwen2.5:14b", "qwen2.5:7b"]
-  refiner: ["qwen2.5:14b"]
-  checker: ["qwen2.5:7b", "qwen:7b"]
-  glossary_sync: ["qwen2.5:7b"]
-  qa_final: ["qwen2.5:7b"]
+  translator: ["alibayram/hunyuan:7b"]
+  refiner: ["padauk-gemma:q8_0", "yxchia/seallms-v3-7b:Q4_K_M"]
+  checker: ["qwen:7b"]          # JSON and logic checking only
+  glossary_sync: ["qwen:7b"]
+  qa_final: ["qwen:7b"]
 
 # =====================================================
 # QA SETTINGS

@@ -58,6 +58,8 @@ translation_pipeline:
   mode: "two_stage"  # Options: "two_stage" or "single_stage"
   stage1_model: "qwen2.5:14b"  # Fixed: yxchia/seallms produces THAI instead of Myanmar
   stage2_model: "qwen:7b"
+  use_reflection: false       # Set to true to enable self-correction (slower but better quality)
+  reflection_model: "qwen:7b"
   description: "Two-stage uses raw translation + rewrite for better quality"
 
 # =====================================================

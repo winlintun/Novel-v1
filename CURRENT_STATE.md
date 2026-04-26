@@ -8,15 +8,11 @@
 ---
 
 ## Last Updated
-- Date: 2026-04-26
-- Last task completed: Added README.md, CI/CD pipeline, rate limit handling, removed checkpoint resume
-  1. Two-step translation workflow with file persistence (EN→output/novel/en/, MM→output/novel/mm/)
-  2. CRITICAL: repeat_penalty 1.0 → 1.15 (prevents Myanmar infinite repetition)
-  3. CRITICAL: Added LANGUAGE_GUARD to settings.english.yaml
-  4. Fixed UTF-8-SIG encoding consistency and Myanmar particle (ဖြင့့် → ဖြင့်)
-  5. Fixed type hints (dict → Dict[str, Any]) per AGENTS.md Code Drift Prevention rules
-  6. Changed to fail-fast error handling with proper resource cleanup
-  7. All 221 tests passing, both Gemini reviewers PASS
+- Date: 2026-04-27
+- Last task completed: Integrated ReflectionAgent, MyanmarQualityChecker, and QATesterAgent into the main pipeline; Updated ROADMAP, CONTRIBUTING, GLOSSARY_GUIDE, and README documentation.
+- BaseAgent refactoring completed for all agents
+- Web UI initial version ready using Streamlit
+- 6-stage translation pipeline documented and implemented
 
 ---
 
@@ -24,12 +20,17 @@
 
 | Component | File | Status | Notes |
 |-----------|------|--------|-------|
-| Entry point / CLI | `src/main.py` | [DONE] | Supports local Ollama and cloud APIs, with resource cleanup, PivotTranslator routing, and two-step file persistence |
+| Entry point / CLI | `src/main.py` | [DONE] | Now orchestrates Reflection and Myanmar Quality agents |
 | Preprocessor | `src/agents/preprocessor.py` | [DONE] | Chunking with overlap support |
 | Translator Agent (Stage 1) | `src/agents/translator.py` | [DONE] | Chinese → Myanmar translation |
-| Pivot Translator | `src/agents/pivot_translator.py` | [DONE] | Native CN→EN→MM translation routing with optimized model loading. Now raises exceptions on failure (fail-fast) instead of returning error strings. Proper resource cleanup with try/finally blocks |
+| Reflection Agent | `src/agents/reflection_agent.py` | [DONE] | Self-correction and iterative improvement |
+| Myanmar Quality Checker | `src/agents/myanmar_quality_checker.py` | [DONE] | Linguistic checks for tone and naturalness |
+| QA Tester Agent | `src/agents/qa_tester.py` | [DONE] | Automated validation of output quality |
+| Pivot Translator | `src/agents/pivot_translator.py` | [DONE] | Native CN→EN→MM translation routing |
 | Editor Agent (Stage 2) | `src/agents/refiner.py" | [DONE] | Literary quality refinement |
-| Consistency Checker (Stage 3) | `src/agents/checker.py` | [DONE] | Glossary and quality checking |
+| Consistency Checker (Stage 3) | `src/agents/checker.py` | [DONE] | Enhanced with Myanmar Quality checks |
+| Web UI | `ui/streamlit_app.py` | [DONE] | Initial Streamlit interface for novel translation |
+
 | QA Reviewer (Stage 4) | `src/agents/checker.py` | [DONE] | Part of Checker class |
 | Term Extractor | `src/agents/context_updater.py` | [DONE] | Post-chapter term extraction |
 | Memory Manager | `src/memory/memory_manager.py` | [DONE] | 3-tier memory system |

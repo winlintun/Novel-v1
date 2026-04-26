@@ -13,7 +13,23 @@ This pipeline uses a multi-stage agent system to translate web novels while pres
 ## Architecture
 
 ```
-Input (Chinese) → Preprocess → Stage 1 (CN→EN) → Stage 2 (EN→MM) → Refine → QA Check → Output (Myanmar)
+Input (Chinese) → Preprocess → Stage 1 (CN→EN) → Stage 2 (EN→MM) → Refine → Reflection (Critique) → QA Check → Output (Myanmar)
+```
+
+## Advanced Features
+
+### 🧠 Reflection & Self-Correction
+The `ReflectionAgent` implements Andrew Ng's translation-agent pattern. After the initial translation and refinement, the model analyzes its own work, identifies issues (awkward phrasing, tone inconsistency, etc.), and iteratively improves it.
+
+### 🇲🇲 Myanmar Quality Checker
+A specialized `MyanmarQualityChecker` validates translations for linguistic naturalness, proper particle usage, and tone consistency. It helps ensure the output sounds like literary Myanmar rather than a machine translation.
+
+### 🌐 Web Interface
+A Streamlit-based Web UI provides a user-friendly way to manage translations, view progress, and edit the glossary.
+
+Run the UI:
+```bash
+streamlit run ui/streamlit_app.py
 ```
 
 ## Supported Models

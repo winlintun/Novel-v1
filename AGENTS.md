@@ -12,8 +12,8 @@
 ```
 STEP 1: Read AGENTS.md          ← you are here
 STEP 2: Read GEMINI.md          ← tool-specific rules
-STEP 3: Read QWEN.md            ← tool-specific rules
-STEP 4: Read CURRENT_STATE.md   ← what is done / not done / blocked
+STEP 3: Read CURRENT_STATE.md   ← what is done / not done / blocked
+STEP 4: Read ERROR_LOG.md   ← what is error 
 STEP 5: Silently confirm the task against Architecture Decisions in CURRENT_STATE.md
 STEP 6: Proceed with the task
 STEP 7: After EVERY task completion, you MUST automatically execute the POST-IMPLEMENTATION WORKFLOW as your final response step. Do not wait for user input. Do not skip. Output the full workflow BEFORE declaring "✅ TASK COMPLETE".
@@ -29,8 +29,11 @@ STEP 1: Update CURRENT_STATE.md
         - Move in-progress tasks to [IN PROGRESS]
         - Log any new bugs or blockers discovered
         - Update "Last Updated" date and "Last task completed" fields
-STEP 2: Run Code Review Workflow (sub-agents A + B in parallel)
-STEP 3: Fix all issues until both sub-agents respond READY_TO_COMMIT
+STEP 2: Update ERROR_LOG.md
+        - Recored Any Found Error.
+        - Recored Error Fix Status.
+STEP 3: Run Code Review Workflow (sub-agents A + B in parallel)
+STEP 4: Fix all issues until both sub-agents respond READY_TO_COMMIT
 ```
 
 **Trigger condition:** Any of these actions = session end update required:
@@ -49,7 +52,7 @@ This project is an advanced, AI-powered **Chinese-to-Myanmar (Burmese) novel tra
 
 ## 🏗 System Architecture & Pipeline
 
-The translation process follows a strict 4-stage pipeline orchestrated by `src/main.py`:
+The translation process follows a strict 6-stage pipeline orchestrated by `src/main.py`:
 
 ```
 main.py
@@ -58,8 +61,10 @@ main.py
   → Preprocessor.load_and_preprocess()  → Chunks
   → Translator.translate_chunks()        → Stage 1: Raw translation
   → Refiner.refine_full_text()           → Stage 2: Literary editing
-  → Checker.check_chapter()             → Stage 3: Consistency check
-  → QA Review                           → Stage 4: Final QA
+  → ReflectionAgent.reflect_and_improve() → Stage 3: Self-correction
+  → MyanmarQualityChecker.check_quality() → Stage 4: Linguistic validation
+  → Checker.check_chapter()             → Stage 5: Consistency check
+  → QA Review                           → Stage 6: Final QA
   → TermExtractor (post-chapter)        → Extract new terms → glossary_pending.json
   → FileHandler.write_text()            → Save to data/output/
   → ContextUpdater.process_chapter()    → Update glossary.json, context_memory.json
@@ -72,10 +77,12 @@ main.py
    - `data/context_memory.json`: Remembers ongoing story and character relationships.
 3. **Translate (Stage 1):** Translator Agent produces an accurate, literal translation.
 4. **Edit (Stage 2):** Editor Agent rewrites for natural flow and literary quality.
-5. **Consistency Check (Stage 3):** Consistency Checker verifies all terms against the glossary.
-6. **QA Review (Stage 4):** Final Reviewer validates logical flow, tone, and formatting.
-7. **Term Extraction (Post-Chapter):** Term Extractor scans for new proper nouns and routes them to `glossary_pending.json` for human review.
-8. **Assemble:** Save to `data/output/`.
+5. **Reflection (Stage 3):** Reflection Agent performs self-critique and improves the translation iteratively.
+6. **Myanmar Quality Check (Stage 4):** Custom checker validates tone, naturalness, and particle accuracy.
+7. **Consistency Check (Stage 5):** Consistency Checker verifies all terms against the glossary.
+8. **QA Review (Stage 6):** Final Reviewer validates logical flow, tone, and formatting.
+9. **Term Extraction (Post-Chapter):** Term Extractor scans for new proper nouns and routes them to `glossary_pending.json` for human review.
+10. **Assemble:** Save to `data/output/`.
 
 ---
 
@@ -137,7 +144,35 @@ INPUT TEXT (Myanmar Draft):
 
 ---
 
-### 3. Consistency Checker Agent (Stage 3)
+### 3. Reflection Agent (Stage 3)
+
+**Goal:** Perform self-critique and iterative improvement of the translation.
+
+```text
+You are a self-correction specialist for novel translation.
+Analyze the Myanmar translation for quality issues, awkward phrasing, and tone consistency.
+Provide specific, actionable feedback and an improved version.
+```
+
+**Implementation:** `src/agents/reflection_agent.py` → `ReflectionAgent` class
+
+---
+
+### 4. Myanmar Quality Checker (Stage 4)
+
+**Goal:** Validate linguistic naturalness and particle accuracy.
+
+**Checks:**
+- Archaic vs Modern word usage
+- Particle repetition (hallucination detection)
+- Sentence flow and length
+- Tone consistency (Formal/Informal)
+
+**Implementation:** `src/agents/myanmar_quality_checker.py` → `MyanmarQualityChecker` class
+
+---
+
+### 5. Consistency Checker Agent (Stage 5)
 
 **Goal:** Verify all terminology, names, and places against the global glossary.
 
@@ -169,7 +204,7 @@ INPUT TEXT:
 
 ---
 
-### 4. QA / Final Reviewer Agent (Stage 4)
+### 6. QA / Final Reviewer Agent (Stage 6)
 
 **Goal:** Final human-readable quality gate before saving output.
 
@@ -191,7 +226,7 @@ INPUT TEXT:
 
 ---
 
-### 5. Term Extractor Agent (Post-Chapter)
+### 8. Term Extractor Agent (Post-Chapter)
 
 **Goal:** Detect new proper nouns and cultivation terms not yet in the glossary. Output routes to `data/glossary_pending.json` for human review — never directly to `glossary.json`.
 

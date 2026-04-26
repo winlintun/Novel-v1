@@ -113,6 +113,15 @@ MYANMAR TRANSLATION:""")
                     stream=False
                 )
             
+            # Handle empty response (model collapse)
+            if not raw or not raw.strip():
+                logger.warning(f"Empty response from model in chapter {chapter_num}. Retrying with reinforced prompt...")
+                retry_system = TRANSLATOR_SYSTEM_PROMPT + "\n\nIMPORTANT: You must provide a translation. Do not return an empty response."
+                raw = self.ollama.chat(
+                    prompt=prompt,
+                    system_prompt=retry_system
+                )
+            
             # Clean output
             translated = clean_output(raw)
             

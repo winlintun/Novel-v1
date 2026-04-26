@@ -8,6 +8,7 @@ import logging
 from typing import List
 
 from src.utils.ollama_client import OllamaClient
+from src.agents.base_agent import BaseAgent
 from src.agents.prompt_patch import EDITOR_SYSTEM_PROMPT
 from src.utils.postprocessor import clean_output
 
@@ -29,13 +30,14 @@ Return paragraphs separated by "---PARA---"
 DO NOT add explanations, only the refined text."""
 
 
-class Refiner:
+class Refiner(BaseAgent):
     """
     Refines translated text for better quality.
     Uses batch processing for 5-10x speedup over paragraph-by-paragraph.
     """
     
-    def __init__(self, ollama_client: OllamaClient, batch_size: int = 5):
+    def __init__(self, ollama_client: OllamaClient = None, batch_size: int = 5, config: dict = None):
+        super().__init__(ollama_client, config=config)
         self.ollama = ollama_client
         self.batch_size = batch_size
     
