@@ -134,15 +134,21 @@ class Preprocessor:
         """Extract chapter information from filename."""
         path = Path(filepath)
         
-        # Parse filename: novel_name_XXX.md
-        match = re.match(r'(.+)_(\d+)\.md', path.name)
+        # New format: novel_name_chapter_XXX.md
+        match = re.match(r'(.+)_chapter_(\d+)\.md', path.name)
         
         if match:
             novel_name = match.group(1)
             chapter_num = int(match.group(2))
         else:
-            novel_name = path.stem
-            chapter_num = 0
+            # Legacy format: novel_name_XXX.md
+            match = re.match(r'(.+)_(\d+)\.md', path.name)
+            if match:
+                novel_name = match.group(1)
+                chapter_num = int(match.group(2))
+            else:
+                novel_name = path.stem
+                chapter_num = 0
         
         return {
             'filepath': filepath,
