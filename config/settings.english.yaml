@@ -1,0 +1,132 @@
+# English to Myanmar Translation Configuration
+# Direct translation for English source novels
+# =====================================================
+# Use this config when your source files are ALREADY in English
+# DO NOT use this for Chinese sources - use settings.pivot.yaml instead
+
+project:
+  name: "novel_translation"
+  source_language: "en-US"      # English input
+  target_language: "my-MM"      # Myanmar output
+  novel_genre: "Xianxia/Cultivation"
+
+# =====================================================
+# MODEL CONFIGURATION - English → Myanmar
+# =====================================================
+models:
+  provider: "ollama"
+  
+  # For English → Myanmar, qwen2.5:14b works well
+  # It has strong multilingual capabilities
+  translator: "qwen2.5:14b"     # Best for EN→MM (9GB) ⭐ RECOMMENDED
+  editor: "qwen2.5:14b"         # Can be same as translator
+  refiner: "qwen:7b"            # Smaller model for refinement (4GB)
+  checker: "qwen:7b"            # Smaller model for checking (4GB)
+  
+  ollama_base_url: "http://localhost:11434"
+  timeout: 300
+
+# =====================================================
+# TRANSLATION MODE
+# =====================================================
+# TWO_STAGE (Recommended): Better quality but slower
+#   Stage 1: Raw translation (English → Myanmar)
+#   Stage 2: Literary rewrite (improve flow and style)
+#
+# SINGLE_STAGE: Faster but lower quality
+#   Direct translation in one pass
+# =====================================================
+translation_pipeline:
+  mode: "two_stage"  # Options: "two_stage" or "single_stage"
+  stage1_model: "qwen2.5:14b"  # English → Myanmar raw translation
+  stage2_model: "qwen:7b"      # Literary refinement
+  description: "Two-stage translation for English source novels"
+
+# =====================================================
+# PROCESSING SETTINGS
+# =====================================================
+processing:
+  chunk_size: 1500              # Characters per chunk (optimal for 14B)
+  chunk_overlap: 50             # Overlap between chunks for context
+  max_retries: 3                # Retry failed chunks
+  temperature: 0.3              # Lower for more deterministic output
+  top_p: 0.92                   # Nucleus sampling
+  top_k: 50                     # Top-k token selection
+  repeat_penalty: 1.25          # Prevents repetition loops
+  stream: true
+  request_timeout: 900          # Seconds
+
+# =====================================================
+# PATHS
+# =====================================================
+paths:
+  input_dir: "data/input"
+  output_dir: "data/output"
+  books_dir: "books"
+  glossary_file: "data/glossary.json"
+  context_memory_file: "data/context_memory.json"
+  log_file: "logs/translation.log"
+  templates_dir: "templates"
+
+# =====================================================
+# QUALITY SETTINGS
+# =====================================================
+myanmar_readability:
+  enabled: true
+  min_myanmar_ratio: 0.70       # 70% of text should be Myanmar script
+  flag_on_fail: true
+  block_on_fail: false
+
+# =====================================================
+# OUTPUT FORMAT
+# =====================================================
+output:
+  format: "markdown"
+  preserve_formatting: true     # Keep chapter headers, italics, bold
+  add_metadata: true            # Add translation info header
+  add_translator_notes: false
+
+# =====================================================
+# MODEL ROUTER
+# =====================================================
+model_router:
+  enabled: true
+  vram_budget_gb: 16.0          # Adjust based on your GPU
+  retry_on_failure: true
+  max_fallback_depth: 2
+
+# Model roles for fallback
+model_roles:
+  translator: ["qwen2.5:14b", "qwen2.5:7b", "qwen:7b"]
+  refiner: ["qwen2.5:14b", "qwen:7b"]
+  checker: ["qwen:7b", "gemma:7b"]
+  glossary_sync: ["qwen:7b"]
+  qa_final: ["qwen:7b", "gemma:7b"]
+
+# =====================================================
+# QA SETTINGS
+# =====================================================
+qa_testing:
+  enabled: true
+  auto_retry: false             # Auto-retry refinement if QA fails
+  min_myanmar_ratio: 0.70       # Minimum Myanmar character ratio
+  fail_on_placeholders: false   # Allow 【?term?】 placeholders
+  markdown_strict: true         # Enforce single H1, balanced formatting
+
+# =====================================================
+# GLOSSARY V3 SETTINGS
+# =====================================================
+glossary_v3:
+  enabled: true
+  path: "data/glossary_v3.json"
+  max_prompt_entries: 40
+  priority_threshold: 2
+  include_examples: false
+  track_usage: true
+  alias_matching: true
+  exception_rules: true
+  prompt_format: "markdown"
+  show_pronunciation: false
+  show_exceptions_count: true
+  cache_ttl_minutes: 30
+  lazy_load: true
