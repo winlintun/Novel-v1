@@ -345,7 +345,13 @@ def translate_single_file(
             overlap_size=config['processing'].get('chunk_overlap', DEFAULT_OVERLAP_SIZE)
         )
         
-        translator = Translator(ollama_client, memory)
+        # Determine if pivot translation is needed
+        pipeline_config = config.get('translation_pipeline', {})
+        if pipeline_config.get('stage1_target_lang') == 'english':
+            from src.agents.pivot_translator import PivotTranslator
+            translator = PivotTranslator(ollama_client, memory, config)
+        else:
+            translator = Translator(ollama_client, memory)
         
         # Use batch processing for refiner (5x speedup)
         batch_size = config['processing'].get('batch_processing', {}).get('batch_size', 5)

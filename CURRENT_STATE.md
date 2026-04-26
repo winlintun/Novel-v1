@@ -9,7 +9,7 @@
 
 ## Last Updated
 - Date: 2026-04-26
-- Last task completed: Updated src/test_translate/test_ch_en_mm_translation.py with comprehensive chapter translation test. Features: log file display, output validation, Gemini reviewer integration, full pipeline testing.
+- Last task completed: Upgraded main codebase to natively support Pivot Translation (CN→EN→MM) via PivotTranslator agent when stage1_target_lang is 'english'. Replicated successful logic from test_ch_en_mm_translation.py.
 
 ---
 
@@ -17,9 +17,10 @@
 
 | Component | File | Status | Notes |
 |-----------|------|--------|-------|
-| Entry point / CLI | `src/main.py` | [DONE] | Supports local Ollama and cloud APIs, with resource cleanup |
+| Entry point / CLI | `src/main.py` | [DONE] | Supports local Ollama and cloud APIs, with resource cleanup and PivotTranslator routing |
 | Preprocessor | `src/agents/preprocessor.py` | [DONE] | Chunking with overlap support |
 | Translator Agent (Stage 1) | `src/agents/translator.py` | [DONE] | Chinese → Myanmar translation |
+| Pivot Translator | `src/agents/pivot_translator.py` | [DONE] | Native CN→EN→MM translation routing |
 | Editor Agent (Stage 2) | `src/agents/refiner.py` | [DONE] | Literary quality refinement |
 | Consistency Checker (Stage 3) | `src/agents/checker.py` | [DONE] | Glossary and quality checking |
 | QA Reviewer (Stage 4) | `src/agents/checker.py` | [DONE] | Part of Checker class |
@@ -80,6 +81,7 @@
 - (none)
 
 ### Completed
+- [x] **Native Pivot Translation Support**: Integrated CN→EN→MM routing in `src/main.py` using new `PivotTranslator` agent based on `test_ch_en_mm_translation.py`.
 - [x] **Dual Translation Workflow Support**: 
   - [x] Way 1 (CN→EN→MM): Fixed `config/settings.pivot.yaml` to use working qwen2.5 models (removed Thai-producing seallms-v3-7b)
   - [x] Way 2 (EN→MM): Created `config/settings.english.yaml` for direct English→Myanmar translation
