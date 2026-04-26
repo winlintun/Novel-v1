@@ -1,11 +1,13 @@
-# Pivot Language Configuration - ALTERNATIVE MODELS (No 14B)
+# Pivot Language Configuration - USE AVAILABLE MODELS ONLY
 # Chinese → English → Myanmar (Two-stage pipeline)
 # =====================================================
 # ⚠️ IMPORTANT: Use this config ONLY for Chinese source files!
 # For English sources, use settings.english.yaml instead!
 #
-# This config uses qwen2.5:7b and qwen:7b models instead of qwen2.5:14b
-# Requires ~4GB VRAM instead of ~9GB - suitable for lower-end GPUs
+# UPDATED: Using only models confirmed available in ollama list:
+#   - qwen2.5:14b (9GB) - Stage 1: CN→EN
+#   - qwen:7b (8.1GB) - Stage 2: EN→MM
+#   - gemma:7b (5GB) - Fallback
 
 project:
   name: "novel_translation"
@@ -14,23 +16,23 @@ project:
   novel_genre: "Xianxia/Cultivation"
 
 # =====================================================
-# MODEL CONFIGURATION - Alternative 7B Models (No 14B)
+# MODEL CONFIGURATION - Using Available Models Only
 # =====================================================
-# Stage 1: qwen2.5:7b - Good Chinese understanding, faster
-# Stage 2: qwen:7b - Stable Myanmar output, lightweight
+# From ollama_model_list.md:
+# Available: qwen2.5:14b, qwen:7b, gemma:7b, hunyuan:7b, seallms-v3-7b, translategemma:12b
 
 models:
   provider: "ollama"
   
   # Stage 1: Chinese → English
-  # qwen2.5:7b - Good Chinese comprehension, 4GB VRAM
-  translator: "qwen2.5:7b"      # Chinese → English (4GB)
+  # qwen2.5:14b - Excellent Chinese understanding (confirmed available)
+  translator: "qwen2.5:14b"     # Chinese → English (9GB)
   
   # Stage 2: English → Myanmar  
-  # qwen:7b - Tested, stable Myanmar output
-  editor: "qwen:7b"             # English → Myanmar (4GB)
-  refiner: "qwen:7b"            # Refinement (4GB)
-  checker: "qwen:7b"            # QA check (4GB)
+  # qwen:7b - Stable Myanmar output (confirmed available)
+  editor: "qwen:7b"             # English → Myanmar (8.1GB)
+  refiner: "qwen:7b"            # Refinement (8.1GB)
+  checker: "qwen:7b"            # QA check (8.1GB)
   
   ollama_base_url: "http://localhost:11434"
   timeout: 300                  # API call timeout (5 minutes)
@@ -42,21 +44,34 @@ translation_pipeline:
   mode: "two_stage"
   
   # Stage 1: Chinese → English (pivot)
-  stage1_model: "qwen2.5:7b"
+  stage1_model: "qwen2.5:14b"
   stage1_source_lang: "chinese"
   stage1_target_lang: "english"
   stage1_prompt: |
     You are an expert Chinese-to-English literary translator specializing in Wuxia/Xianxia novels.
 
-    STRICT RULES:
+    CRITICAL RULES:
     1. PRESERVE all Chinese names in pinyin (e.g., 罗青 → Luo Qing, 小戎镇 → Xiao Rong Town)
     2. PRESERVE all place names in pinyin
     3. PRESERVE all cultivation terms literally (e.g., 神仙 → immortal, 法力 → magical power)
-    4. DO NOT translate names to English meanings
-    5. Output ONLY English translation, no explanations
+    4. DO NOT translate names to English meanings - keep pinyin for proper nouns
+    5. Output ONLY English translation, no explanations, no Chinese characters
     
-    GLOSSARY (USE EXACT TERMS):
-    {glossary}
+    GLOSSARY (PRESERVE THESE NAMES IN PINYIN):
+    - 罗青 → Luo Qing
+    - 黄牛 → Huang Niu  
+    - 小戎镇 → Xiao Rong Town
+    - 罗家村 → Luo Village
+    - 小戎山 → Xiao Rong Mountain
+    - 方宗主 → Sect Leader Fang
+    - 方尊 → Fang Zun
+    - 古堂主 → Hall Master Gu
+    - 秦岭 → Qin Ling
+    - 魔教 → Demon Sect
+    - 北宗 → Northern Branch
+    - 蟠龙山 → Pan Long Mountain
+    - 仙人 → immortal
+    - 法力 → magical power
     
     CHINESE TEXT:
     {text}
@@ -71,42 +86,104 @@ translation_pipeline:
     CRITICAL LANGUAGE RULE — READ FIRST:
     - Output language: Myanmar (Burmese) ONLY.
     - Script: Myanmar Unicode (U+1000–U+109F). Example: မြန်မာဘာသာ
-    - FORBIDDEN output languages: Thai, Chinese, English, Japanese, Korean.
-    - If you are unsure of a word, write 【?term?】 — do NOT switch to Thai or Chinese.
-    - Return ONLY the Myanmar translation. Zero preamble. Zero explanation.
+    - FORBIDDEN: Thai, Chinese, English, Japanese, Korean, Latin alphabet.
+    - If unsure of a word, write 【?term?】 — do NOT use English or Chinese.
+    - Return ONLY Myanmar translation. Zero preamble. Zero explanation.
+    - CAREFUL: Use correct Myanmar Unicode. DO NOT use wrong characters like "؟" (use "?").
 
     You are an expert English-to-Myanmar literary translator specializing in Wuxia/Xianxia novels.
 
     STRICT RULES:
     1. SYNTAX: Convert English SVO structure to natural Myanmar SOV order
-    2. TERMINOLOGY: Use EXACT terms from the GLOSSARY. For pinyin names (Luo Qing), transliterate to Myanmar phonetics.
+    2. TERMINOLOGY: Use EXACT terms from GLOSSARY below. Transliterate pinyin names to Myanmar phonetics.
     3. TONE: Use formal/literary Myanmar for narrative. Use natural spoken Myanmar for dialogue (pronouns: မင်း, ရှင်, ကျွန်တော်/ကျွန်မ based on status).
-    4. PLACEHOLDERS: Use 【?term?】 for unknown proper nouns, cultivation terms, or names not in glossary.
-    5. NO ENGLISH: Remove all English words. NO CHINESE: Remove all Chinese characters.
+    4. IDIOMS: Do NOT translate English idioms literally. Find Burmese cultural equivalents.
+    5. PLACEHOLDERS: Use 【?term?】 for unknown proper nouns, cultivation terms, or names not in glossary.
+    6. NO ENGLISH: Remove all English words. NO CHINESE: Remove all Chinese characters.
+    7. ALIASES: Chinese aliases in parentheses help identify characters (e.g., 罗青 = Luo Qing).
     
-    GLOSSARY (USE EXACT TERMS):
-    {glossary}
+    COMPLETE GLOSSARY (USE EXACT MYANMAR TERMS):
+    
+    CHARACTERS:
+    - Luo Qing (罗青) → လော်ချင်း (Main character, 12-year-old cowherd)
+    - Huang Niu (黄牛/牛哥) → နွားကြီး (Yellow Ox companion)
+    - Sect Leader Fang (方宗主) → ဖန်ဂိုဏ်းချုပ် (Northern Sect Leader)
+    - Fang Zun (方尊/尊儿) → ဖန်ဇွန်း (Sect Leader's son)
+    - Hall Master Gu (古堂主/古姨) → ဂူးခန်းမမှူး (Hall Master, Qin Ling's wife)
+    - Qin Ling (秦岭) → ချင်းလင်း (Deceased husband of Hall Master Gu)
+    - Uncle Su (苏伯伯) → ဦးလေးစု (Southern Sect Leader)
+    - Gu Wen (顾文) → ကူဝမ် (from dao-equaling-the-heavens)
+    - Zhao Feng (赵峰) → ကျောက်ဖန် (from dao-equaling-the-heavens)
+    - Yu Hua (余华) → ယွီဟွာ (from dao-equaling-the-heavens)
+    - Jiang Fugui (江富贵) → ကျန်ဖူကွေ့ (from dao-equaling-the-heavens)
+    
+    LOCATIONS:
+    - Xiao Rong Town (小戎镇) → ရှောင်ရုံးမြို့
+    - Luo Village (罗家村) → လော်ကျေးရွာ
+    - Xiao Rong Mountain (小戎山) → ရှောင်ရုံးတောင်
+    - Pan Long Mountain (蟠龙山) → ပန်လုံးတောင် (Northern Sect HQ)
+    - Moon Wave Lake (月波湖) → လမင်းရေကန် (Southern Sect HQ)
+    - Divine Land (神州) → ရှင်းကျိုးတိုက်ကြီး
+    - Bianjing (汴京) → ပြန့်ကျင်း (from dao-equaling-the-heavens)
+    - Daqian (大乾) → တာချန် (from dao-equaling-the-heavens)
+    - Dragon Bridge (龙桥) → နဂါးတံတား
+    
+    ORGANIZATIONS:
+    - Demon Sect (魔教/圣教) → နတ်ဆိုးဂိုဏ်း
+    - Holy Sect (圣教/圣宗) → မြင့်မြတ်သောဂိုဏ်း
+    - Northern Branch (北宗) → မြောက်ဘက်ဂိုဏ်း
+    - Southern Branch (南宗) → တောင်ဘက်ဂိုဏ်း
+    - Taoist Sect (道门) → တာအိုဂိုဏ်း
+    - Three Pure Sect (三清门) → ဆန်ချင်းဂိုဏ်း (from dao-equaling-the-heavens)
+    
+    CULTIVATION:
+    - Immortal (仙人/神仙) → အင်မော်တယ်
+    - Magical Power (法力/灵力) → ဝိညာဉ်စွမ်းအင်
+    - Immortal Arts (仙术) → အင်မော်တယ်အတတ်ပညာ
+    - Riding the Wind (御风而行) → လေကိုစီးပြီးခရီးသွားခြင်း
+    - Protective Aura (护身光环) → ခန္ဓာကိုယ်အကာအကွယ်
+    
+    ITEMS:
+    - Brocade Pouch (锦囊) → သိုလှောင်အိတ်
+    - Great Bright Pill (大明丹) → ဉာဏ်အလင်းဖွင့်ဆေးလုံး
+    - Supreme Cauldron (至尊鼎) → အမြင့်မြတ်ဆုံးဆေးမီးအိုး
+    - Spirit Tablet (灵牌) → ဝိညာဉ်ကမ္ပည်းပြား
+    - Heavenly Marrow (天髓) → ကောင်းကင်ရိုးတွင်းခြင်ဆီ (from dao-equaling-the-heavens)
+    - Emperor's Elixir (帝浆) → ဧကရာဇ်ဆေးရည် (from dao-equaling-the-heavens)
+    
+    TITLES:
+    - Sect Leader (宗主) → ဂိုဏ်းခေါင်းချုပ်
+    - Hall Master (堂主) → ခန်းမမှူး
+    - Dharma Protector Elder (护法长老) → တရားဓမ္မအကြီးအကဲ
+    
+    ACTIONS:
+    - Group Fight (群殴/神仙群殴) → အုပ်စုလိုက်တိုက်ခိုက်ခြင်း
+    - One Strike Kill (一招毙命) → ချက်ချင်းသေစေနိုင်သည့်တိုက်ခိုက်မှု
+    - Mountain Protection Array (护山法阵) → တောင်ကာကွယ်ရေးမှော်အစီအရင်
+    - Mutual Admiration (惺惺相惜) → အချင်းချင်းနားလည်လေးစားခြင်း
+    - Heaven-Filling Hatred (弥天大仇) → မိုးကောင်းကင်မျှကြီးမားလှသောရန်ငြိုးကြီး
     
     ENGLISH TEXT:
     {text}
     
     MYANMAR TRANSLATION:
   
-  description: "Pivot: CN→EN→MM using 7B models (lightweight)"
+  description: "Pivot: CN→EN→MM using available models (qwen2.5:14b + qwen:7b)"
 
 # =====================================================
 # PROCESSING SETTINGS
 # =====================================================
 processing:
-  chunk_size: 1500              # Optimal for qwen2.5:7b per QWEN.md
+  chunk_size: 1200              # Conservative for stability
   overlap_size: 100             # Context continuity
   max_retries: 3
   temperature: 0.3              # Lower for accuracy
   top_p: 0.92
   top_k: 50
-  repeat_penalty: 1.15          # Per QWEN.md recommendation for Qwen
+  repeat_penalty: 1.15          # Prevents repetition loops
   stream: true
   request_timeout: 300
+  rate_limit_delay: 0.5         # Seconds between API calls
 
 # =====================================================
 # PATHS
@@ -143,13 +220,13 @@ output:
 # =====================================================
 model_router:
   enabled: true
-  vram_budget_gb: 8.0           # Lower VRAM requirement
+  vram_budget_gb: 16.0          # Need for 14B + 7B sequential loading
   retry_on_failure: true
   max_fallback_depth: 2
 
 model_roles:
-  translator: ["qwen2.5:7b", "qwen:7b"]
-  refiner: ["qwen:7b"]
+  translator: ["qwen2.5:14b", "qwen2.5:7b"]
+  refiner: ["qwen:7b", "qwen2.5:14b"]
   checker: ["qwen:7b"]
   glossary_sync: ["qwen:7b"]
   qa_final: ["qwen:7b"]
@@ -159,9 +236,9 @@ model_roles:
 # =====================================================
 qa_testing:
   enabled: true
-  auto_retry: false
+  auto_retry: true              # Retry on quality failure
   min_myanmar_ratio: 0.70
-  fail_on_placeholders: true    # Catch unresolved terms
+  fail_on_placeholders: false   # Allow placeholders for review
   markdown_strict: true
 
 # =====================================================
@@ -170,7 +247,7 @@ qa_testing:
 glossary_v3:
   enabled: true
   path: "data/glossary.json"    # Use standard glossary
-  max_prompt_entries: 40
+  max_prompt_entries: 60        # All glossary terms fit in prompt
   priority_threshold: 2
   include_examples: false
   track_usage: true

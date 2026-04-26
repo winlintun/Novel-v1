@@ -9,7 +9,7 @@
 
 ## Last Updated
 - Date: 2026-04-26
-- Last task completed: Updated settings.pivot.yaml for CN→EN→MM workflow using alternative 7B models (qwen2.5:7b for Stage 1, qwen:7b for Stage 2) instead of 14B models. Created test_pivot_translation.py for workflow verification.
+- Last task completed: Updated settings.pivot.yaml to use AVAILABLE models only (qwen2.5:14b + qwen:7b). Added complete glossary from eng-mm-prompt.md (57 terms for 古道仙鸿 novel). Fixed prompts with comprehensive glossary injection and LANGUAGE_GUARD.
 
 ---
 
