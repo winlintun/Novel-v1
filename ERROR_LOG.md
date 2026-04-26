@@ -43,6 +43,64 @@
 
 ## Resolved Issues
 
+### ERROR-004: Duplicate detect_language() function
+**Date**: 2026-04-27
+**File**: `src/agents/translator.py`, `src/agents/preprocessor.py`
+**Error Message**:
+```
+Code review found detect_language() defined in TWO locations:
+- translator.py (module-level function)
+- preprocessor.py (Preprocessor class method)
+```
+**Root Cause**: Initial implementation copied the function to both files from Novel-Step.md
+**Fix Applied**: Removed duplicate from translator.py, kept in preprocessor.py as class method
+**Files Modified**:
+- `src/agents/translator.py` - removed duplicate function
+- `src/agents/preprocessor.py` - kept detect_language() method
+**Status**: RESOLVED
+**Verified By**: code-reviewer (REVIEWER A, iteration 3)
+
+### ERROR-005: Missing SVO→SOV rules in new prompts
+**Date**: 2026-04-27
+**File**: `src/agents/translator.py`
+**Error Message**:
+```
+REVIEWER B found new prompts missing mandatory translation rules:
+- SVO→SOV conversion rule
+- Particle accuracy rules (သည်/ကို/မှာ)
+- Glossary enforcement with 【?term?】 placeholders
+```
+**Root Cause**: Initial prompt implementation from Novel-Step.md did not include full AGENTS.md rules
+**Fix Applied**: Added full translation rules to get_language_prompt():
+- SYNTAX: Convert Chinese SVO to Myanmar SOV
+- TERMINOLOGY: Use EXACT glossary terms with 【?term?】 placeholder
+- PARTICLES: Proper particle usage rules
+- MARKDOWN: Preserve all formatting
+**Files Modified**:
+- `src/agents/translator.py` - updated get_language_prompt()
+**Status**: RESOLVED
+**Verified By**: code-reviewer (REVIEWER B, iteration 1)
+
+### ERROR-006: Modular boundary violation - Preprocessor import in Translator
+**Date**: 2026-04-27
+**File**: `src/agents/translator.py`
+**Error Message**:
+```
+AGENTS.md Code Drift Prevention: Agent တစ်ခုက တစ်ခုကို import မလုပ်ရ
+(translator.py imported Preprocessor directly)
+```
+**Root Cause**: Initial translate_chapter() method instantiated Preprocessor internally
+**Fix Applied**: 
+1. Removed Preprocessor import from top of translator.py
+2. Refactored translate_chapter() to take pre-processed chunks as parameter
+3. Recommended flow now: Preprocessor.load_and_preprocess() → Translator.translate_chunks()
+**Files Modified**:
+- `src/agents/translator.py` - refactored translate_chapter()
+**Status**: RESOLVED
+**Verified By**: code-reviewer (REVIEWER A, iteration 3)
+
+---
+
 ### ERROR-001: KeyError 'source' in glossary consistency check
 **Date**: 2026-04-24
 **File**: `src/memory/memory_manager.py`, `src/agents/checker.py`
