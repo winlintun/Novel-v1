@@ -145,3 +145,5 @@ need_fix_another.md
 data/input/*/*.md
 data/output/*/*.md
 Novel-Step.md
+data/input/*
+models/*
