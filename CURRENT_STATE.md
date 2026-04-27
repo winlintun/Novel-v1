@@ -22,7 +22,11 @@
      - Added AMD-specific setup guide for RX 580 with ROCm instructions
      - Added AMD environment variable guidance to `config/settings.yaml`
      - Supports Polaris (gfx803) architecture detection
-  2. **CODE REFACTORING - Phase 1 Complete** (per need_fix.md):
+  1. **Bug Fix - MyanmarQualityChecker**:
+     - Fixed `TypeError: MyanmarQualityChecker.__init__() got an unexpected keyword argument 'ollama_client'`
+     - Updated `MyanmarQualityChecker.__init__` to accept `ollama_client`, `memory_manager`, and `config` parameters
+     - This aligns with how other agents are instantiated in the pipeline orchestrator
+   2. **CODE REFACTORING - Phase 1 Complete** (per need_fix.md):
      - Created new module structure: `src/cli/`, `src/pipeline/`, `src/web/`, `src/config/`, `src/core/`, `src/types/`
      - Implemented `src/exceptions.py` with structured error hierarchy (NovelTranslationError, ModelError, GlossaryError, etc.)
      - Implemented Pydantic configuration with validation (`src/config/models.py`, `src/config/loader.py`)

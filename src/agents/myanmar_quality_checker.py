@@ -34,8 +34,15 @@ class MyanmarQualityChecker(BaseAgent):
     # Required particles for proper grammar
     REQUIRED_PARTICLES = ["သည်", "ကို", "မှာ", "အတွက်", "ဖြင့်", "၍"]
     
-    def __init__(self, config: Dict[str, Any] = None):
+    def __init__(
+        self,
+        ollama_client: Any = None,
+        memory_manager: Any = None,
+        config: Dict[str, Any] = None
+    ):
         super().__init__(config=config)
+        self.ollama_client = ollama_client
+        self.memory_manager = memory_manager
     
     def check_quality(self, text: str) -> Dict[str, Any]:
         """
