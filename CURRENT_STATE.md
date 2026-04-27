@@ -9,7 +9,7 @@
 
 ## Last Updated
 - Date: 2026-04-27
-- Last task completed: Added `--test` flag to `main.py` for easy sample translation; Updated `USER_GUIDE.md` with testing instructions; Verified pipeline with `sample.md`.
+- Last task completed: Integrated Web UI (Streamlit) into `main.py` via `--ui` flag; Added `--test` flag for easy pipeline validation with `sample.md`; Updated documentation and requirements.
 - Refactored ContextUpdater and Preprocessor to inherit from BaseAgent for architectural consistency.
 - Integrated ReflectionAgent, MyanmarQualityChecker, and QATesterAgent into the main pipeline; Updated ROADMAP, CONTRIBUTING, GLOSSARY_GUIDE, and README documentation.
 - BaseAgent refactoring completed for all agents

@@ -665,6 +665,9 @@ Examples:
     # Configuration
     parser.add_argument("--config", default="config/settings.yaml", help="Config file path")
     
+    # UI option
+    parser.add_argument("--ui", action="store_true", help="Launch the Web UI (Streamlit)")
+    
     args = parser.parse_args()
     
     # Setup
@@ -673,6 +676,30 @@ Examples:
     print("=" * 60)
     print()
     
+    # Launch UI if requested
+    if args.ui:
+        print("🚀 Launching Web UI...")
+        import subprocess
+        ui_script = Path("ui/streamlit_app.py")
+        if not ui_script.exists():
+            print(f"✗ Error: Web UI script not found at {ui_script}")
+            return 1
+        
+        try:
+            # Check if streamlit is installed
+            subprocess.run(["streamlit", "--version"], capture_output=True, check=True)
+            subprocess.run(["streamlit", "run", str(ui_script)])
+            return 0
+        except subprocess.CalledProcessError:
+            print("✗ Error: Streamlit is not installed. Please run: pip install streamlit")
+            return 1
+        except KeyboardInterrupt:
+            print("\nWeb UI stopped.")
+            return 0
+        except Exception as e:
+            print(f"✗ Error launching Web UI: {e}")
+            return 1
+
     # Validate arguments
     if args.test:
         # Use sample.md for testing

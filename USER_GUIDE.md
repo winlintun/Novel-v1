@@ -23,7 +23,7 @@ data/input/
     └── ...
 ```
 
-### 3. Run Translation
+### 2. Run Translation
 ```bash
 # Translate single chapter
 python -m src.main --novel 古道仙鸿 --chapter 1
@@ -36,7 +36,27 @@ python -m src.main --novel 古道仙鸿 --all --start 10
 
 # NEW: Run a quick test translation with sample data
 python -m src.main --test
+
+# NEW: Launch the Web UI (Streamlit)
+python -m src.main --ui
 ```
+
+---
+
+## 🌐 Using the Web UI
+
+The project includes a user-friendly Web UI built with Streamlit. It allows you to configure models, select novels, and monitor translation progress visually.
+
+### Launching the UI
+```bash
+python -m src.main --ui
+```
+This will start the Streamlit server and open the UI in your default web browser (usually at `http://localhost:8501`).
+
+### UI Features
+- **Translate Tab**: Select a novel from `data/input`, choose the translation mode (Single/Two Stage), and start the process.
+- **Glossary Tab**: View approved terms and pending terms extracted by the agents.
+- **Progress Tab**: Monitor the real-time progress of ongoing and recent translations.
 
 ---
 
