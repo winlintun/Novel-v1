@@ -668,6 +668,10 @@ Examples:
     # UI option
     parser.add_argument("--ui", action="store_true", help="Launch the Web UI (Streamlit)")
     
+    # Glossary generation
+    parser.add_argument("--generate-glossary", action="store_true", 
+                       help="Automatically generate glossary from novel chapters before translation")
+    
     args = parser.parse_args()
     
     # Setup
@@ -699,6 +703,42 @@ Examples:
         except Exception as e:
             print(f"✗ Error launching Web UI: {e}")
             return 1
+
+    # Glossary generation mode
+    if args.generate_glossary:
+        if not args.novel:
+            print("✗ Error: Must specify --novel for glossary generation")
+            return 1
+        
+        print(f"🔍 Generating glossary for novel: {args.novel}")
+        
+        # Load config
+        config = load_config(args.config)
+        ollama_client = OllamaClient(model=config['models']['translator'])
+        memory = MemoryManager()
+        
+        from src.agents.glossary_generator import GlossaryGenerator
+        generator = GlossaryGenerator(ollama_client, memory, config)
+        
+        # List files
+        input_dir = config['paths'].get('input_dir', INPUT_DIR)
+        chapter_files = FileHandler.list_chapters(input_dir, args.novel)
+        
+        if not chapter_files:
+            print(f"✗ Error: No chapters found for {args.novel}")
+            return 1
+            
+        # Process first 5 chapters for glossary (representative sample)
+        sample_files = [str(f) for f in chapter_files[:5]]
+        source_lang = "Chinese" if args.lang in ['zh', 'chinese'] or not args.lang else "English"
+        
+        print(f"Processing {len(sample_files)} chapters (Source: {source_lang})...")
+        terms = generator.process_files(sample_files, source_lang)
+        generator.save_to_pending(terms)
+        
+        print(f"\n✅ Extracted {len(terms)} terms to data/glossary_pending.json")
+        print("Please review and approve them in the glossary file before starting translation.")
+        return 0
 
     # Validate arguments
     if args.test:

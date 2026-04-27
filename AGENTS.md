@@ -66,6 +66,7 @@ main.py
   → Checker.check_chapter()             → Stage 5: Consistency check
   → QA Review                           → Stage 6: Final QA
   → TermExtractor (post-chapter)        → Extract new terms → glossary_pending.json
+  → GlossaryGenerator (optional/pre)    → Auto-extract terms from novel source
   → FileHandler.write_text()            → Save to data/output/
   → ContextUpdater.process_chapter()    → Update glossary.json, context_memory.json
 ```
@@ -245,6 +246,21 @@ TRANSLATED TEXT:
 
 **Output file:** `data/glossary_pending.json`
 **Implementation:** `src/agents/context_updater.py` → `ContextUpdater` class
+
+---
+
+### 8. Glossary Generator Agent (Pre-Translation)
+
+**Goal:** Automatically extract key terminology (names, places, items) from the novel's first few chapters before translation starts.
+
+**Workflow:**
+1. Scan input files (usually chapters 1-5).
+2. Extract terms using LLM with transliteration proposals.
+3. Save to `data/glossary_pending.json` for manual review.
+
+**CLI Command:** `python -m src.main --novel <novel_name> --generate-glossary`
+
+**Implementation:** `src/agents/glossary_generator.py` → `GlossaryGenerator` class
 
 ---
 

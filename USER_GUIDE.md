@@ -39,7 +39,31 @@ python -m src.main --test
 
 # NEW: Launch the Web UI (Streamlit)
 python -m src.main --ui
+
+# NEW: Automatically generate glossary from novel chapters
+python -m src.main --novel 古道仙鸿 --generate-glossary
 ```
+
+---
+
+## 📖 Glossary Generation
+
+Before starting a full translation, it's highly recommended to generate a glossary of key terms (character names, places, items). This ensures consistency throughout the novel.
+
+### Generate Glossary
+```bash
+python -m src.main --novel 古道仙鸿 --generate-glossary
+```
+**This command will:**
+1. Scan the first few chapters of your novel.
+2. Extract important proper nouns and cultivation terms.
+3. Propose Myanmar transliterations for them.
+4. Save them to `data/glossary_pending.json`.
+
+**After generation:**
+- Open `data/glossary_pending.json`.
+- Review the proposed terms.
+- Approved terms should be moved to `data/glossary.json` (or you can approve them via the Web UI if implemented).
 
 ---
 

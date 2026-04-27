@@ -127,7 +127,7 @@ class Translator(BaseAgent):
         Translate a single paragraph with English detection and retry.
         
         Args:
-            paragraph: Chinese text paragraph
+            paragraph: Source text paragraph (Chinese or English)
             chapter_num: Current chapter number for logging
             
         Returns:
@@ -136,8 +136,14 @@ class Translator(BaseAgent):
         # Build prompt with context
         prompt = self.build_prompt(paragraph)
         
-        # Use custom system prompt from config if available, otherwise fallback
-        system_prompt = self._custom_system_prompt if self._custom_system_prompt else self._fallback_system_prompt
+        # Select correct system prompt based on source language
+        source_lang = self.config.get('project', {}).get('source_language', 'chinese')
+        if 'en' in source_lang.lower():
+            lang_key = 'english'
+        else:
+            lang_key = 'chinese'
+            
+        system_prompt = self.get_system_prompt(lang_key)
         
         # First attempt
         raw = self.ollama.chat(

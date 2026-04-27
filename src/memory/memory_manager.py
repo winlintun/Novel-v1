@@ -268,6 +268,47 @@ class MemoryManager:
         
         logger.info(f"Promoted to glossary: {incorrect} -> {correct}")
     
+    def add_pending_term(
+        self,
+        source: str,
+        target: str,
+        category: str = "general",
+        chapter: int = 0
+    ) -> bool:
+        """Add a term to the pending glossary for review."""
+        pending_path = Path("data/glossary_pending.json")
+        
+        # Load existing pending terms
+        pending_data = FileHandler.read_json(str(pending_path))
+        if not pending_data:
+            pending_data = {"pending_terms": []}
+        
+        pending_terms = pending_data.get("pending_terms", [])
+        
+        # Check for duplicates in approved glossary
+        if self.get_term(source):
+            return False
+            
+        # Check for duplicates in pending list
+        if any(t.get("source") == source for t in pending_terms):
+            return False
+            
+        new_pending = {
+            "source": source,
+            "target": target,
+            "category": category,
+            "extracted_from_chapter": chapter,
+            "status": "pending",
+            "added_at": datetime.now().isoformat()
+        }
+        
+        pending_terms.append(new_pending)
+        pending_data["pending_terms"] = pending_terms
+        
+        FileHandler.write_json(str(pending_path), pending_data)
+        logger.info(f"Added pending glossary term: {source} -> {target}")
+        return True
+
     def get_all_memory_for_prompt(self) -> Dict[str, str]:
         """Get all memory tiers formatted for prompts."""
         return {

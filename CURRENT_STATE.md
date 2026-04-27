@@ -9,7 +9,8 @@
 
 ## Last Updated
 - Date: 2026-04-27
-- Last task completed: Integrated Web UI (Streamlit) into `main.py` via `--ui` flag; Added `--test` flag for easy pipeline validation with `sample.md`; Updated documentation and requirements.
+- Last task completed: Added `GlossaryGenerator` agent for pre-translation terminology extraction; Fixed English source support bug in `Translator` agent by ensuring correct system prompt selection; Updated `AGENTS.md` and `USER_GUIDE.md`.
+- Integrated Web UI (Streamlit) into `main.py` via `--ui` flag; Added `--test` flag for easy pipeline validation with `sample.md`.
 - Refactored ContextUpdater and Preprocessor to inherit from BaseAgent for architectural consistency.
 - Integrated ReflectionAgent, MyanmarQualityChecker, and QATesterAgent into the main pipeline; Updated ROADMAP, CONTRIBUTING, GLOSSARY_GUIDE, and README documentation.
 - BaseAgent refactoring completed for all agents
@@ -31,6 +32,7 @@
 | Pivot Translator | `src/agents/pivot_translator.py` | [DONE] | Native CN→EN→MM translation routing |
 | Editor Agent (Stage 2) | `src/agents/refiner.py" | [DONE] | Literary quality refinement |
 | Consistency Checker (Stage 3) | `src/agents/checker.py` | [DONE] | Enhanced with Myanmar Quality checks |
+| Glossary Generator | `src/agents/glossary_generator.py` | [DONE] | Pre-translation terminology extraction |
 | Web UI | `ui/streamlit_app.py` | [DONE] | Initial Streamlit interface for novel translation |
 
 | QA Reviewer (Stage 4) | `src/agents/checker.py` | [DONE] | Part of Checker class |
