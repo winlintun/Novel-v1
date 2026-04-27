@@ -99,11 +99,11 @@ def render_sidebar():
         with st.expander("🔧 Model Settings (Advanced)"):
             api_key = st.text_input("API Key", type="password", placeholder="••••••••")
             context_window = st.selectbox("Context Window", ["4K", "8K", "16K", "32K"], index=1)
-            temperature = st.slider("Temperature", 0.0, 2.0, 0.3)
-            max_tokens = st.number_input("Max Output Tokens", min_value=256, value=4096, step=256)
-            top_p = st.slider("Top P", 0.0, 1.0, 0.95)
-            freq_penalty = st.slider("Frequency Penalty", 0.0, 2.0, 1.1)
-            pres_penalty = st.slider("Presence Penalty", 0.0, 2.0, 0.0)
+            temperature = st.slider("Temperature", 0.0, 2.0, 0.3, key="adv_temp")
+            max_tokens = st.number_input("Max Output Tokens", min_value=256, value=4096, step=256, key="adv_max_tokens")
+            top_p = st.slider("Top P", 0.0, 1.0, 0.95, key="adv_top_p")
+            freq_penalty = st.slider("Frequency Penalty", 0.0, 2.0, 1.1, key="adv_freq_penalty")
+            pres_penalty = st.slider("Presence Penalty", 0.0, 2.0, 0.0, key="adv_pres_penalty")
             
             if st.button("🔄 Reset to Defaults"):
                 st.rerun()
@@ -111,32 +111,35 @@ def render_sidebar():
         st.divider()
         
         with st.expander("⚡ Translation Behavior"):
-            batch_size = st.number_input("Batch Size", min_value=1, value=5)
-            retry_on_fail = st.checkbox("Retry on Failure", value=True)
-            max_retries = st.number_input("Max Retries", min_value=1, value=3)
-            delay_retry = st.number_input("Delay Between Retries (sec)", min_value=1, value=2)
+            batch_size = st.number_input("Batch Size", min_value=1, value=5, key="bh_batch_size")
+            retry_on_fail = st.checkbox("Retry on Failure", value=True, key="bh_retry_on_fail")
+            max_retries = st.number_input("Max Retries", min_value=1, value=3, key="bh_max_retries")
+            delay_retry = st.number_input("Delay Between Retries (sec)", min_value=1, value=2, key="bh_delay_retry")
             
-            fallback = st.selectbox("Fallback Strategy", ["Skip & Log", "Use Simpler Model", "Notify & Pause"])
-            concurrent_workers = st.number_input("Concurrent Workers", min_value=1, value=1)
+            fallback = st.selectbox("Fallback Strategy", ["Skip & Log", "Use Simpler Model", "Notify & Pause"], key="bh_fallback")
+            concurrent_workers = st.number_input("Concurrent Workers", min_value=1, value=1, key="bh_concurrent_workers")
             
             col_f1, col_f2 = st.columns(2)
             with col_f1:
-                preserve_formatting = st.checkbox("Preserve Formatting", value=True)
+                preserve_formatting = st.checkbox("Preserve Formatting", value=True, key="bh_preserve_formatting")
             with col_f2:
-                term_separation = st.checkbox("Term Separation", value=True)
+                term_separation = st.checkbox("Term Separation", value=True, key="bh_term_separation")
         
         st.divider()
         
         with st.expander("📚 Glossary Settings"):
-            enable_glossary = st.checkbox("Enable Glossary for Translation", value=True)
-            
-            priority = st.radio("Glossary Priority", ["Strict", "Flexible"])
-            
+            enable_glossary = st.checkbox("Enable Glossary for Translation", value=True, key="gs_enable_glossary")
+
+            priority = st.radio("Glossary Priority", ["Strict", "Flexible"], key="gs_priority")
+
             col_n1, col_n2 = st.columns(2)
             with col_n1:
-                new_term_notify = st.checkbox("New Term Notify", value=True)
+                new_term_notify = st.checkbox("New Term Notify", value=True, key="gs_new_term_notify")
             with col_n2:
-                auto_generate = st.button("🔄 Auto Generate", use_container_width=True)
+                if st.button("🔄 Auto Generate", use_container_width=True, key="gs_auto_generate"):
+                    # Trigger glossary generation
+                    st.session_state.trigger_glossary_generation = True
+                    st.info("Glossary generation will start with next translation")
             
             st.markdown("**Glossary Quick View (Top 5):**")
             glossary_path = "data/glossary.json"
@@ -168,7 +171,25 @@ def render_sidebar():
         "fast_mode": fast_mode,
         "enable_reflection": enable_reflection,
         "resume_failed": resume_failed,
+        # Model Settings (Advanced)
         "temperature": temperature,
         "max_tokens": max_tokens,
         "context_window": context_window,
+        "top_p": top_p,
+        "freq_penalty": freq_penalty,
+        "pres_penalty": pres_penalty,
+        "api_key": api_key,
+        # Translation Behavior
+        "batch_size": batch_size,
+        "retry_on_fail": retry_on_fail,
+        "max_retries": max_retries,
+        "delay_retry": delay_retry,
+        "fallback": fallback,
+        "concurrent_workers": concurrent_workers,
+        "preserve_formatting": preserve_formatting,
+        "term_separation": term_separation,
+        # Glossary Settings
+        "enable_glossary": enable_glossary,
+        "priority": priority,
+        "new_term_notify": new_term_notify,
     }

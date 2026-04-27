@@ -62,21 +62,65 @@ with col_nav2:
             st.rerun()
     else:
         if st.button("🚀 Start Translation", type="primary"):
-            # Update config with selected model if specified
-            if settings.get("model"):
-                try:
-                    import yaml
-                    config_path = Path("config/settings.yaml")
-                    if config_path.exists():
-                        with open(config_path, 'r') as f:
-                            cfg = yaml.safe_load(f)
-                        if cfg and 'models' in cfg:
+            # Update config with all selected settings
+            try:
+                import yaml
+                config_path = Path("config/settings.yaml")
+                if config_path.exists():
+                    with open(config_path, 'r') as f:
+                        cfg = yaml.safe_load(f)
+                    
+                    if cfg:
+                        # Update model settings
+                        if 'models' not in cfg:
+                            cfg['models'] = {}
+                        if settings.get("model"):
                             cfg['models']['translator'] = settings["model"]
                             cfg['models']['editor'] = settings["model"]
-                            with open(config_path, 'w') as f:
-                                yaml.dump(cfg, f)
-                except Exception as e:
-                    st.warning(f"Could not update model in config: {e}")
+                        
+                        # Update processing settings from Advanced Model Settings
+                        if 'processing' not in cfg:
+                            cfg['processing'] = {}
+                        if settings.get("temperature") is not None:
+                            cfg['processing']['temperature'] = settings["temperature"]
+                        if settings.get("max_tokens") is not None:
+                            cfg['processing']['max_tokens'] = settings["max_tokens"]
+                        
+                        # Map context window to num_ctx
+                        if settings.get("context_window"):
+                            ctx_map = {"4K": 4096, "8K": 8192, "16K": 16384, "32K": 32768}
+                            cfg['processing']['num_ctx'] = ctx_map.get(settings["context_window"], 8192)
+                        
+                        # Update batch processing settings
+                        if 'batch_processing' not in cfg['processing']:
+                            cfg['processing']['batch_processing'] = {}
+                        if settings.get("batch_size") is not None:
+                            cfg['processing']['batch_processing']['batch_size'] = settings["batch_size"]
+                        
+                        # Update retry settings
+                        if settings.get("max_retries") is not None:
+                            cfg['processing']['max_retries'] = settings["max_retries"]
+                        
+                        # Update glossary settings
+                        if 'glossary_v3' not in cfg:
+                            cfg['glossary_v3'] = {}
+                        if settings.get("enable_glossary") is not None:
+                            cfg['glossary_v3']['enabled'] = settings["enable_glossary"]
+                        if settings.get("priority"):
+                            cfg['glossary_v3']['priority'] = settings["priority"].lower()
+                        
+                        # Update pipeline mode settings
+                        if 'translation_pipeline' not in cfg:
+                            cfg['translation_pipeline'] = {}
+                        if settings.get("enable_reflection") is not None:
+                            cfg['translation_pipeline']['use_reflection'] = settings["enable_reflection"]
+                        
+                        with open(config_path, 'w') as f:
+                            yaml.dump(cfg, f)
+                        
+                        st.info(f"Settings saved: model={settings.get('model')}, temp={settings.get('temperature')}")
+            except Exception as e:
+                st.warning(f"Could not update config: {e}")
             
             cmd = ["python3", "-m", "src.main"]
             
@@ -104,8 +148,8 @@ with col_nav2:
             if settings.get("two_stage"):
                 cmd.append("--two-stage")
             
-            # Note: use_glossary is handled internally by the translation pipeline
-            # based on glossary availability
+            # Note: use_glossary is handled internally based on config
+            # Note: enable_reflection is saved to config above
             
             try:
                 # Use project root as CWD

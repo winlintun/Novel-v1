@@ -23,7 +23,12 @@
   11. Fixed Progress page - clear old logs button now works (ERROR-024)
   12. Fixed Translate page - output files now found in chapters/ subdirectory (ERROR-025)
   13. Fixed Translate page - model selection and two-stage mode now applied (ERROR-026)
-  14. All fixes verified with test suite
+  14. Fixed Web UI Sidebar - ALL settings now applied (ERROR-027):
+      - Translation Settings: model, source language, two-stage, fast mode, reflection
+      - Model Settings (Advanced): temperature, max_tokens, context_window, top_p
+      - Translation Behavior: batch_size, max_retries, fallback strategy
+      - Glossary Settings: enable_glossary, priority (strict/flexible)
+  15. All fixes verified with test suite
 - Fixed UI syntax errors (Glossary_Editor, horizontal parameter) per code-reviewer; All UI files working
 - Added GlossaryGenerator agent for pre-translation terminology extraction; Fixed English source support bug in Translator agent by ensuring correct system prompt selection; Updated AGENTS.md and USER_GUIDE.md.
 - Integrated Web UI (Streamlit) into `main.py` via `--ui` flag; Added `--test` flag for easy pipeline validation with `sample.md`.

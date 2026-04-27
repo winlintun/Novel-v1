@@ -39,6 +39,36 @@
 
 *No active issues currently.*
 
+### ERROR-027: Web UI Sidebar Settings Not Applied
+**Date**: 2026-04-27
+**File**: `ui/components/sidebar.py`, `ui/pages/2_Translate.py`
+**Error Message**:
+```
+Translation Settings: Use Glossary checkbox not working
+Model Settings (Advanced): temperature, max_tokens, context_window not saved
+Translation Behavior: batch_size, retries, fallback not applied
+Glossary Settings: enable_glossary, priority not working
+```
+**Root Cause**: Many sidebar settings were defined in UI but not returned in settings dict, and not applied when starting translation
+**Fix Applied**:
+1. Updated `ui/components/sidebar.py`:
+   - Added all missing settings to return dictionary
+   - Added unique keys to all form elements to prevent conflicts
+   - Added variables: top_p, freq_penalty, pres_penalty, api_key
+   - Added variables: batch_size, retry_on_fail, max_retries, delay_retry, fallback, concurrent_workers, preserve_formatting, term_separation
+   - Added variables: enable_glossary, priority, new_term_notify
+2. Updated `ui/pages/2_Translate.py`:
+   - Added comprehensive config update before translation
+   - Saves: model, temperature, max_tokens, context_window (as num_ctx)
+   - Saves: batch_size, max_retries
+   - Saves: enable_glossary, priority
+   - Saves: enable_reflection
+   - Added user feedback showing saved settings
+**Files Modified**:
+- `ui/components/sidebar.py` - Added all settings to return dict, added unique keys
+- `ui/pages/2_Translate.py` - Added config update logic
+**Status**: RESOLVED
+
 ---
 
 ## Issues Fixed in Web UI Update Session
