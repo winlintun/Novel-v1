@@ -23,7 +23,7 @@ data/input/
     └── ...
 ```
 
-### 2. Run Translation
+### 3. Run Translation
 ```bash
 # Translate single chapter
 python -m src.main --novel 古道仙鸿 --chapter 1
@@ -33,6 +33,32 @@ python -m src.main --novel 古道仙鸿 --all
 
 # Translate from chapter 10 onwards
 python -m src.main --novel 古道仙鸿 --all --start 10
+
+# NEW: Run a quick test translation with sample data
+python -m src.main --test
+```
+
+---
+
+## 🧪 Testing with Sample Data
+
+If you want to verify your setup (Ollama, models, and pipeline) without translating a full novel, you can use the built-in test mode.
+
+### Run Sample Test
+```bash
+python -m src.main --test
+```
+**This command will:**
+1. Check for `data/input/sample.md` (and create a basic one if missing).
+2. Auto-select the English→Myanmar translation configuration.
+3. Run the full pipeline (Translate → Refine → Quality Check).
+4. Save the result to `data/output/sample_mm.md`.
+
+### Run Custom File Test
+You can also test any specific file:
+```bash
+python -m src.main --input your_file.md --lang zh  # for Chinese
+python -m src.main --input your_file.md --lang en  # for English
 ```
 
 ---

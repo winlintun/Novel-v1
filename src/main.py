@@ -649,6 +649,7 @@ Examples:
     
     # File input
     parser.add_argument("--input", "-i", help="Input file path (alternative to --novel)")
+    parser.add_argument("--test", "-t", action="store_true", help="Run a test translation using sample.md")
     
     # Processing options
     parser.add_argument("--skip-refinement", action="store_true", help="Skip refinement step")
@@ -673,9 +674,23 @@ Examples:
     print()
     
     # Validate arguments
+    if args.test:
+        # Use sample.md for testing
+        test_file = Path("data/input/sample.md")
+        if not test_file.exists():
+            print(f"Creating sample test file: {test_file}")
+            os.makedirs("data/input", exist_ok=True)
+            with open(test_file, "w", encoding="utf-8-sig") as f:
+                f.write("# Sample Chapter\n\nThis is a sample text for translation testing.")
+        
+        args.input = str(test_file)
+        if not args.lang:
+            args.lang = "en"
+            print("Auto-selected language: English (for sample.md)")
+
     if not args.novel and not args.input:
         parser.print_help()
-        print("\n✗ Error: Must specify --novel or --input")
+        print("\n✗ Error: Must specify --novel, --input, or --test")
         return 1
     
     # Load configuration
