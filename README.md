@@ -2,6 +2,21 @@
 
 Automated Chinese-to-Myanmar (Burmese) novel translation system specializing in Wuxia/Xianxia cultivation novels.
 
+> ⚠️ **IMPORTANT: Use the Launchers!** ⚠️
+> 
+> **Windows users**: Use `translate.bat` instead of `py -m src.main`
+> **Linux/Mac users**: Use `python3 run.py` instead of `python3 -m src.main`
+> 
+> These launchers **automatically clean Python cache** before running, ensuring you always execute the latest code. See [LAUNCHERS.md](LAUNCHERS.md) for details.
+> 
+> ```bash
+> # ❌ Old way (may run cached/outdated code)
+> py -m src.main --input file.md
+> 
+> # ✅ New way (always runs fresh code)
+> translate.bat --input file.md
+> ```
+
 ## Overview
 
 This pipeline uses a multi-stage agent system to translate web novels while preserving:

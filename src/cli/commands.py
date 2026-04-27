@@ -73,6 +73,11 @@ def run_translation_pipeline(args: argparse.Namespace) -> int:
     Returns:
         Exit code (0 for success, 1 for failure)
     """
+    # Clean cache if requested
+    if getattr(args, 'clean', False):
+        from src.utils.cache_cleaner import clean_cache_with_report
+        clean_cache_with_report()
+    
     logger = setup_logging()
     
     try:

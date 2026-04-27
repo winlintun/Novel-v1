@@ -10,7 +10,61 @@
 ## Last Updated
 - Date: 2026-04-28
 - Last task completed:
-  1. **Reorganized ROADMAP.md by Priority**:
+  1. **ADDED: Auto-Clean Launchers for Python Cache**:
+     - **Problem**: Users running old cached Python code even after updates (seeing `qwen:7b` instead of `padauk-gemma:q8_0`)
+     - **Solution**: Created launcher scripts that automatically clean `__pycache__` and `.pyc` files before running
+     - **New Files**:
+       - `translate.bat` (Windows): Main one-click launcher with auto-clean
+       - `run.bat` (Windows): Advanced launcher with detailed output
+       - `run.py` (Cross-platform): Python launcher that cleans cache first
+       - `src/utils/cache_cleaner.py`: Utility module for cache cleaning
+       - `LAUNCHERS.md`: Comprehensive documentation for launchers
+       - `diagnose.py`: Diagnostic tool to verify configuration
+     - **Features**:
+       - Automatically removes all `__pycache__` directories
+       - Removes all `.pyc` and `.pyo` compiled files
+       - Shows cleaning report before translation starts
+       - Passes all arguments through to main program
+     - **Usage**:
+       ```bash
+       # Windows (recommended)
+       translate.bat --input data\input\novel\chapter.md
+       
+       # Cross-platform
+       python3 run.py --input data/input/novel/chapter.md
+       ```
+     - **Also Added**:
+       - `--clean` flag to `src/cli/parser.py` for manual cache cleaning
+       - Prominent warning in README.md about using launchers
+  2. **ENHANCED: Auto-Detection of Source Language with Smart Model Selection**:
+     - **Feature**: Enhanced auto-detection to automatically detect if input is English or Chinese
+     - **Smart Model Selection**: Based on detected language, automatically selects optimal models:
+       - **English detected**: Uses `way1` (EN→MM direct) with `padauk-gemma:q8_0` for all stages
+       - **Chinese detected**: Uses `way2` (CN→EN→MM pivot) with `alibayram/hunyuan:7b` for Stage 1, `padauk-gemma:q8_0` for Stage 2
+     - **Visual Feedback**: Added formatted banner showing detected language, workflow, and auto-selected models
+     - **Logging**: Logger now reports auto-detection decisions for transparency
+     - **Files Modified**:
+       - `src/cli/commands.py`: Enhanced `_resolve_workflow()` to use Preprocessor.detect_language(), updated `_apply_workflow_config()` with automatic model selection and logging
+       - `src/cli/formatters.py`: Added `print_auto_detection_result()` function for formatted detection display
+     - **How it works**:
+       1. Reads input file and uses `Preprocessor.detect_language()` to analyze text
+       2. If Chinese chars > 10 or Chinese particles detected → triggers `way2`
+       3. If ASCII letters > 100 → triggers `way1`
+       4. Automatically overrides config with optimal models for each workflow
+       5. Displays formatted banner showing detection results before translation starts
+  3. **FIXED: Translation REJECTED - Model producing English instead of Myanmar**:
+     - **Issue**: User reported `CRITICAL: Translation REJECTED` with myanmar_ratio: 0.0, chinese_chars_leaked: 12, latin_words: 295
+     - **Root Cause**: Config was using `qwen:7b` as translator model, which outputs English/Latin text, NOT Myanmar
+     - **Solution**: Changed all model settings from `qwen:7b` to `padauk-gemma:q8_0`:
+       - `models.translator`: qwen:7b → padauk-gemma:q8_0
+       - `models.editor`: qwen:7b → padauk-gemma:q8_0
+       - `models.refiner`: qwen:7b → padauk-gemma:q8_0
+       - `fast_config.translator`: qwen2.5:14b → padauk-gemma:q8_0
+       - `fast_config.editor`: qwen:7b → padauk-gemma:q8_0
+       - `fast_config.refiner`: qwen:7b → padauk-gemma:q8_0
+     - **Files Modified**: `config/settings.yaml`
+     - **Verification**: Confirmed `padauk-gemma:q8_0` is installed on user's system
+  3. **Reorganized ROADMAP.md by Priority**:
      - Changed from version-based to priority-based structure (High/Medium/Low)
      - Updated status indicators for all features (✅ DONE / 🔄 In Progress / 📋 Planned)
      - Added ETA timeline for each feature

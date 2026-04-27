@@ -193,6 +193,11 @@ Examples:
         help="Run test translation with sample file"
     )
     utility_group.add_argument(
+        "--clean",
+        action="store_true",
+        help="Clear Python cache (__pycache__ and .pyc files) before running"
+    )
+    utility_group.add_argument(
         "--version",
         action="version",
         version="%(prog)s 2.0.0",
