@@ -28,11 +28,14 @@ class OllamaClient:
         unload_on_cleanup: bool = False,
         use_generate_endpoint: bool = False,  # New: Option to use /api/generate instead of /api/chat
         num_ctx: int = 8192,  # New: Configurable context window (default 8192 per need_fix.md)
-        keep_alive: str = "10m"  # New: Configurable keep_alive (default 10m per need_fix.md)
+        keep_alive: str = "10m",  # New: Configurable keep_alive (default 10m per need_fix.md)
+        use_gpu: bool = True,  # New: Enable GPU acceleration
+        gpu_layers: int = -1,  # New: Number of layers to offload to GPU (-1 = auto)
+        main_gpu: int = 0  # New: Primary GPU device index
     ):
         """
         Initialize Ollama client.
-        
+
         Args:
             model: Model name to use
             base_url: Ollama server URL
@@ -46,6 +49,9 @@ class OllamaClient:
             use_generate_endpoint: Whether to use /api/generate instead of /api/chat (per need_fix.md)
             num_ctx: Context window size (8192 recommended per need_fix.md)
             keep_alive: How long to keep model loaded ("10m" recommended per need_fix.md)
+            use_gpu: Whether to use GPU acceleration (True = use GPU if available)
+            gpu_layers: Number of model layers to offload to GPU (-1 = auto/all)
+            main_gpu: Primary GPU device index for multi-GPU setups
         """
         self.model = model
         self.base_url = base_url
@@ -59,6 +65,9 @@ class OllamaClient:
         self.use_generate_endpoint = use_generate_endpoint
         self.num_ctx = num_ctx
         self.keep_alive = keep_alive
+        self.use_gpu = use_gpu
+        self.gpu_layers = gpu_layers
+        self.main_gpu = main_gpu
         self._is_connected = False
         
         # Configure ollama client
@@ -139,6 +148,12 @@ class OllamaClient:
                     "top_k": self.top_k,
                     "repeat_penalty": self.repeat_penalty
                 }
+
+                # Add GPU configuration if enabled
+                if self.use_gpu:
+                    if self.gpu_layers >= 0:
+                        options["num_gpu"] = self.gpu_layers
+                    options["main_gpu"] = self.main_gpu
                 
                 # Fixed: Support both /api/chat and /api/generate endpoints (per need_fix.md)
                 if self.use_generate_endpoint:
@@ -230,18 +245,27 @@ class OllamaClient:
         messages.append({"role": "user", "content": prompt})
         
         try:
+            # Build options with GPU configuration
+            stream_options = {
+                "temperature": self.temperature,
+                "num_predict": 2048,
+                "num_ctx": self.num_ctx,      # Configurable context window
+                "top_p": self.top_p,
+                "top_k": self.top_k,
+                "repeat_penalty": self.repeat_penalty
+            }
+
+            # Add GPU configuration if enabled
+            if self.use_gpu:
+                if self.gpu_layers >= 0:
+                    stream_options["num_gpu"] = self.gpu_layers
+                stream_options["main_gpu"] = self.main_gpu
+
             stream = self.client.chat(
                 model=self.model,
                 messages=messages,
                 stream=True,
-                options={
-                    "temperature": self.temperature,
-                    "num_predict": 2048,
-                    "num_ctx": self.num_ctx,      # Configurable context window
-                    "top_p": self.top_p,
-                    "top_k": self.top_k,
-                    "repeat_penalty": self.repeat_penalty
-                },
+                options=stream_options,
                 keep_alive=self.keep_alive  # Configurable keep_alive
             )
             

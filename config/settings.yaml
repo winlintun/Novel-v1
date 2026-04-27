@@ -52,6 +52,10 @@ models:
   refiner: qwen:7b
   timeout: 300
   translator: qwen2.5:14b
+  # GPU Configuration - Set use_gpu: true to enable GPU acceleration
+  use_gpu: true
+  gpu_layers: -1  # -1 = auto (use all available layers), or specify number of layers to offload to GPU
+  main_gpu: 0  # For multi-GPU setups, specify which GPU to use (0 = first GPU)
 myanmar_readability:
   block_on_fail: false
   enabled: true

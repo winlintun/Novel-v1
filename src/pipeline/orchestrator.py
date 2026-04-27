@@ -91,7 +91,10 @@ class TranslationPipeline:
             self._ollama_client = OllamaClient(
                 model=self.config.models.translator,
                 base_url=self.config.models.ollama_base_url,
-                timeout=self.config.models.timeout
+                timeout=self.config.models.timeout,
+                use_gpu=getattr(self.config.models, 'use_gpu', True),
+                gpu_layers=getattr(self.config.models, 'gpu_layers', -1),
+                main_gpu=getattr(self.config.models, 'main_gpu', 0)
             )
         return self._ollama_client
     

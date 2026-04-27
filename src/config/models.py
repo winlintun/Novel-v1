@@ -77,7 +77,7 @@ class ProcessingConfig(BaseModel):
 
 class ModelsConfig(BaseModel):
     """Model configuration for different pipeline stages."""
-    
+
     translator: str = Field(
         default="qwen2.5:14b",
         description="Model for translation stage"
@@ -111,6 +111,23 @@ class ModelsConfig(BaseModel):
         ge=30,
         le=600,
         description="API timeout in seconds"
+    )
+    # GPU Configuration
+    use_gpu: bool = Field(
+        default=True,
+        description="Enable GPU acceleration for model inference"
+    )
+    gpu_layers: int = Field(
+        default=-1,
+        ge=-1,
+        le=1000,
+        description="Number of model layers to offload to GPU (-1 = auto/all)"
+    )
+    main_gpu: int = Field(
+        default=0,
+        ge=0,
+        le=16,
+        description="Primary GPU device index for multi-GPU setups"
     )
 
 

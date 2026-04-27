@@ -10,7 +10,14 @@
 ## Last Updated
 - Date: 2026-04-27
 - Last task completed:
-  1. **CODE REFACTORING - Phase 1 Complete** (per need_fix.md):
+  1. **GPU Support Configuration**:
+     - Added GPU configuration options to `config/settings.yaml` (use_gpu, gpu_layers, main_gpu)
+     - Updated `src/config/models.py` ModelsConfig with GPU settings (use_gpu, gpu_layers, main_gpu)
+     - Updated `src/utils/ollama_client.py` OllamaClient to support GPU parameters
+     - Updated `src/core/container.py` to pass GPU options to OllamaClient
+     - Updated `src/pipeline/orchestrator.py` to pass GPU options to OllamaClient
+     - Created `scripts/verify_gpu.py` for GPU verification before translation
+  2. **CODE REFACTORING - Phase 1 Complete** (per need_fix.md):
      - Created new module structure: `src/cli/`, `src/pipeline/`, `src/web/`, `src/config/`, `src/core/`, `src/types/`
      - Implemented `src/exceptions.py` with structured error hierarchy (NovelTranslationError, ModelError, GlossaryError, etc.)
      - Implemented Pydantic configuration with validation (`src/config/models.py`, `src/config/loader.py`)
