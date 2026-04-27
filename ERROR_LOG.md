@@ -43,7 +43,27 @@
 
 ## Resolved Issues
 
-### ERROR-008: UI does not match basic_template_design
+### ERROR-010: batch_size undefined in main.py
+**Date**: 2026-04-27
+**File**: `src/main.py`
+**Error Message**:
+```
+NameError: name 'batch_size' is not defined
+```
+**Root Cause**: batch_size used but never defined before pipeline mode logic
+**Fix Applied**: Added batch_size = config['processing']... before agent initialization
+**Status**: RESOLVED
+**Verified By**: py_compile check
+**Date**: 2026-04-27
+**File**: `ui/pages/dashboard.py`
+**Error Message**:
+```
+SyntaxError: 'unicodeescape' codec can't decode bytes
+```
+**Root Cause**: Python string literals in `\u1000` format require raw strings or ord() - lowercase doesn't work
+**Fix Applied**: Changed to use ord() function for Unicode code point comparison
+**Status**: RESOLVED
+**Verified By**: py_compile check
 **File**: `ui/components/sidebar.py`, `ui/pages/2_Translate.py`, `ui/pages/3_Progress.py`, `ui/pages/4_Glossary_Editor.py`, `ui/streamlit_app.py`
 **Error Message**:
 ```

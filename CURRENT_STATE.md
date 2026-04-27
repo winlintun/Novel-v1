@@ -9,7 +9,7 @@
 
 ## Last Updated
 - Date: 2026-04-27
-- Last task completed: Updated UI to match basic_template_design; Fixed encoding (utf-8-sig), URL paths, and cwd in main.py
+- Last task completed: Added --mode full/lite/fast pipeline selector per need_fix.md Phase 1.1 (config + CLI)
 - Added GlossaryGenerator agent for pre-translation terminology extraction; Fixed English source support bug in Translator agent by ensuring correct system prompt selection; Updated AGENTS.md and USER_GUIDE.md.
 - Integrated Web UI (Streamlit) into `main.py` via `--ui` flag; Added `--test` flag for easy pipeline validation with `sample.md`.
 - Refactored ContextUpdater and Preprocessor to inherit from BaseAgent for architectural consistency.
