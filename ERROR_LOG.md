@@ -41,6 +41,125 @@
 
 ---
 
+## Issues Fixed in Web UI Update Session
+
+### ERROR-020: Settings Page Model Selection Limited
+**Date**: 2026-04-27
+**File**: `ui/pages/5_Settings.py`, `ui/components/sidebar.py`
+**Error Message**:
+```
+Settings page shows text input instead of dropdown for models
+Sidebar only shows 3 hardcoded models: ["qwen2.5:14b", "padauk-gemma:q8_0", "qwen:7b"]
+```
+**Root Cause**: Model selection was hardcoded to only 3 models and used text_input instead of selectbox
+**Fix Applied**:
+1. Updated `ui/pages/5_Settings.py` to use selectbox with models from config `model_roles.translator`
+2. Updated `ui/components/sidebar.py` to load available models from config
+3. Both now dynamically load model list from `config/settings.yaml`
+**Files Modified**:
+- `ui/pages/5_Settings.py` - Changed text_input to selectbox for model selection
+- `ui/components/sidebar.py` - Load models from config instead of hardcoded list
+**Status**: RESOLVED
+
+### ERROR-021: Glossary Editor ValueError 'person_character' not in list
+**Date**: 2026-04-27
+**File**: `ui/pages/4_Glossary_Editor.py`
+**Error Message**:
+```
+ValueError: 'person_character' is not in list
+```
+**Root Cause**: Category dropdowns had hardcoded list `["character", "place", "item", "level"]` that didn't include 'person_character' and other valid categories
+**Fix Applied**:
+1. Changed category selection to dynamically load from existing terms in glossary
+2. Added fallback list with common categories including 'person_character'
+3. Fixed all three locations: filter dropdown, add term form, and edit term form
+**Files Modified**:
+- `ui/pages/4_Glossary_Editor.py` - Dynamic category loading (lines 48-52, 67-73, 113-121)
+**Status**: RESOLVED
+
+### ERROR-022: Progress Page Chapter Filter Not Working
+**Date**: 2026-04-27
+**File**: `ui/pages/3_Progress.py`
+**Error Message**:
+```
+Chapter 1 is translated but not showing in "Translated" filter
+Output files not found - looking in wrong directory
+```
+**Root Cause**: Code only looked in `data/output/{novel}/` but output files are in `data/output/{novel}/chapters/`
+**Fix Applied**:
+1. Updated file search to check both root output dir and `chapters/` subdirectory
+2. Now correctly finds output files regardless of location
+**Files Modified**:
+- `ui/pages/3_Progress.py` - Added chapters/ subdirectory search (lines 50-58)
+**Status**: RESOLVED
+
+### ERROR-023: Progress Page Session Info Shows Wrong Status
+**Date**: 2026-04-27
+**File**: `ui/pages/3_Progress.py`
+**Error Message**:
+```
+Status shows "IN PROGRESS" after translation is complete
+No status indicator in log statistics
+```
+**Root Cause**: Log viewer didn't parse status from log content
+**Fix Applied**:
+1. Added log content parsing to detect COMPLETE/FAILED status
+2. Added status metric to Log Statistics section
+3. Searches for status markers in log content
+**Files Modified**:
+- `ui/pages/3_Progress.py` - Added status detection (lines 119-135)
+**Status**: RESOLVED
+
+### ERROR-024: Progress Page Clear Old Logs Not Working
+**Date**: 2026-04-27
+**File**: `ui/pages/3_Progress.py`
+**Error Message**:
+```
+"Clear Old Logs" button shows "Feature not implemented yet"
+```
+**Root Cause**: Button was a placeholder without implementation
+**Fix Applied**:
+1. Implemented log cleanup function that keeps 10 most recent logs
+2. Deletes older logs from `logs/progress/` directory
+3. Shows success message with count of deleted files
+**Files Modified**:
+- `ui/pages/3_Progress.py` - Implemented clear old logs functionality (lines 136-152)
+**Status**: RESOLVED
+
+### ERROR-025: Translate Page Output Files Not Showing
+**Date**: 2026-04-27
+**File**: `ui/pages/2_Translate.py`
+**Error Message**:
+```
+Myanmar translation output chapter shows "-- None --"
+Translated files exist but not appearing in dropdown
+```
+**Root Cause**: Output file search only looked in root output dir, not in `chapters/` subdirectory
+**Fix Applied**:
+1. Updated file search to check both locations
+2. Now correctly populates output chapter dropdown
+**Files Modified**:
+- `ui/pages/2_Translate.py` - Added chapters/ subdirectory search (lines 141-152)
+**Status**: RESOLVED
+
+### ERROR-026: Translate Page Model Selection Not Applied
+**Date**: 2026-04-27
+**File**: `ui/pages/2_Translate.py`
+**Error Message**:
+```
+Selected model in sidebar not used for translation
+```
+**Root Cause**: Translation command didn't include model selection
+**Fix Applied**:
+1. Added code to update config/settings.yaml with selected model before running
+2. Both translator and editor models are updated
+3. Two-stage mode flag is now passed to command
+**Files Modified**:
+- `ui/pages/2_Translate.py` - Added model config update and two-stage flag (lines 64-97)
+**Status**: RESOLVED
+
+---
+
 ## Issues Fixed in This Session
 
 ### ERROR-019: Translation Output Contains Model's Thinking Process

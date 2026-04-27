@@ -62,6 +62,22 @@ with col_nav2:
             st.rerun()
     else:
         if st.button("🚀 Start Translation", type="primary"):
+            # Update config with selected model if specified
+            if settings.get("model"):
+                try:
+                    import yaml
+                    config_path = Path("config/settings.yaml")
+                    if config_path.exists():
+                        with open(config_path, 'r') as f:
+                            cfg = yaml.safe_load(f)
+                        if cfg and 'models' in cfg:
+                            cfg['models']['translator'] = settings["model"]
+                            cfg['models']['editor'] = settings["model"]
+                            with open(config_path, 'w') as f:
+                                yaml.dump(cfg, f)
+                except Exception as e:
+                    st.warning(f"Could not update model in config: {e}")
+            
             cmd = ["python3", "-m", "src.main"]
             
             if settings.get("input_file"):
@@ -83,6 +99,13 @@ with col_nav2:
                 cmd.extend(["--lang", "en"])
             else:
                 cmd.extend(["--lang", "zh"])
+            
+            # Add two-stage mode
+            if settings.get("two_stage"):
+                cmd.append("--two-stage")
+            
+            # Note: use_glossary is handled internally by the translation pipeline
+            # based on glossary availability
             
             try:
                 # Use project root as CWD
@@ -130,17 +153,21 @@ with col_src:
 
 with col_tgt:
     st.subheader("🇲🇲 Myanmar Translation")
-    
+
     if settings.get('input_file'):
         # For single file mode, output goes to data/output/sample/
         output_dir = Path("data/output/sample")
         output_dir.mkdir(parents=True, exist_ok=True)
     else:
         output_dir = Path("data/output") / settings["novel"]
-    
+
     out_files = []
     if output_dir.exists():
+        # Check both root output dir and chapters/ subdirectory
         out_files = sorted(list(output_dir.glob("*.md")))
+        chapters_dir = output_dir / "chapters"
+        if chapters_dir.exists():
+            out_files.extend(sorted(list(chapters_dir.glob("*.md"))))
     
     selected_out = st.selectbox("Select Output Chapter", [f.name for f in out_files] if out_files else ["-- None --"], key="out_select")
     

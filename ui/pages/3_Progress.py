@@ -48,7 +48,12 @@ if selected_novel:
         time_taken = "--"
         
         if novel_output.exists():
+            # Check both root output dir and chapters/ subdirectory
             out_files = list(novel_output.glob(f"{ch.stem}*.md"))
+            if not out_files:
+                chapters_dir = novel_output / "chapters"
+                if chapters_dir.exists():
+                    out_files = list(chapters_dir.glob(f"{ch.stem}*.md"))
             if out_files:
                 status = "Translated"
                 try:
@@ -98,7 +103,15 @@ if not log_files:
     st.info("No log files found.")
     st.stop()
 
-selected_log = st.selectbox("Select Log File", [f.name for f in log_files])
+# Get the most recent log file for auto-selection
+default_log_index = 0
+if 'current_log' in st.session_state:
+    try:
+        default_log_index = [f.name for f in log_files].index(st.session_state.current_log)
+    except ValueError:
+        default_log_index = 0
+
+selected_log = st.selectbox("Select Log File", [f.name for f in log_files], index=default_log_index)
 
 if selected_log:
     log_path = log_dir / selected_log
@@ -116,13 +129,22 @@ if selected_log:
             errors = sum(1 for l in lines if 'ERROR' in l)
             warnings = sum(1 for l in lines if 'WARNING' in l)
             
-            col_s1, col_s2, col_s3 = st.columns(3)
+            # Determine status from log content
+            status = "IN PROGRESS"
+            if "**✅ COMPLETE**" in content or "Status: ✅ COMPLETE" in content or "COMPLETE" in content[-500:]:
+                status = "✅ COMPLETE"
+            elif "**❌ FAILED**" in content or "Status: ❌ FAILED" in content:
+                status = "❌ FAILED"
+            
+            col_s1, col_s2, col_s3, col_s4 = st.columns(4)
             with col_s1:
                 st.metric("Total Lines", len(lines))
             with col_s2:
                 st.metric("Errors", errors)
             with col_s3:
                 st.metric("Warnings", warnings)
+            with col_s4:
+                st.metric("Status", status)
 
 st.divider()
 
@@ -134,7 +156,23 @@ with st.expander("📥 Download Logs", expanded=False):
     
     with col_dl2:
         if st.button("🗑️ Clear Old Logs"):
-            st.warning("Feature not implemented yet.")
+            # Clear old log files (keep the 10 most recent)
+            try:
+                all_logs = sorted(list(log_dir.glob("*.md")), key=os.path.getmtime, reverse=True)
+                if len(all_logs) > 10:
+                    logs_to_delete = all_logs[10:]
+                    deleted_count = 0
+                    for log_file in logs_to_delete:
+                        try:
+                            log_file.unlink()
+                            deleted_count += 1
+                        except Exception as e:
+                            st.error(f"Failed to delete {log_file.name}: {e}")
+                    st.success(f"Cleared {deleted_count} old log files. Kept 10 most recent.")
+                else:
+                    st.info("Only 10 or fewer logs exist. Nothing to clear.")
+            except Exception as e:
+                st.error(f"Failed to clear logs: {e}")
 
 if st.button("🔄 Refresh"):
     st.rerun()

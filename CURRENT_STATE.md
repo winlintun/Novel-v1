@@ -16,7 +16,14 @@
   4. Fixed --ui flag to properly launch web UI with subprocess
   5. Created comprehensive test suite (test_novel_v1.py) - 11/11 tests passing
   6. Fixed postprocessor to strip model's "thinking process" from output (ERROR-019)
-  7. All fixes verified with test suite
+  7. Fixed Web UI Settings page - model selection now shows all models from config (ERROR-020)
+  8. Fixed Glossary Editor - ValueError for 'person_character' category (ERROR-021)
+  9. Fixed Progress page - chapter filter now checks chapters/ subdirectory (ERROR-022)
+  10. Fixed Progress page - session status shows COMPLETE/FAILED correctly (ERROR-023)
+  11. Fixed Progress page - clear old logs button now works (ERROR-024)
+  12. Fixed Translate page - output files now found in chapters/ subdirectory (ERROR-025)
+  13. Fixed Translate page - model selection and two-stage mode now applied (ERROR-026)
+  14. All fixes verified with test suite
 - Fixed UI syntax errors (Glossary_Editor, horizontal parameter) per code-reviewer; All UI files working
 - Added GlossaryGenerator agent for pre-translation terminology extraction; Fixed English source support bug in Translator agent by ensuring correct system prompt selection; Updated AGENTS.md and USER_GUIDE.md.
 - Integrated Web UI (Streamlit) into `main.py` via `--ui` flag; Added `--test` flag for easy pipeline validation with `sample.md`.

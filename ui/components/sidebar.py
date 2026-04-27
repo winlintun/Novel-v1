@@ -65,7 +65,20 @@ def render_sidebar():
         st.divider()
         
         with st.expander("⚙️ Translation Settings", expanded=True):
-            model = st.selectbox("🤖 Model", ["qwen2.5:14b", "padauk-gemma:q8_0", "qwen:7b"], index=0)
+            # Load available models from config
+            import yaml
+            config_path = Path("config/settings.yaml")
+            available_models = ["qwen2.5:14b", "qwen2.5:7b", "qwen:7b", "gemma:7b", "padauk-gemma:q8_0"]
+            if config_path.exists():
+                try:
+                    with open(config_path, 'r') as f:
+                        cfg = yaml.safe_load(f)
+                        if cfg and 'model_roles' in cfg and 'translator' in cfg['model_roles']:
+                            available_models = cfg['model_roles']['translator']
+                except:
+                    pass
+            
+            model = st.selectbox("🤖 Model", available_models, index=0)
             
             lang_source = st.radio("🌐 Source Language", ["Chinese", "English"])
             

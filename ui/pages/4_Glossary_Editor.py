@@ -45,7 +45,11 @@ with tab1:
         if search_term:
             terms = [t for t in terms if search_term.lower() in t.get('source', '').lower() or search_term.lower() in t.get('target', '').lower()]
         
-        filter_cat = st.selectbox("Filter by Category", ["All", "character", "place", "item", "level"])
+        # Get all unique categories from terms
+        all_categories = list(set(t.get('category', 'unknown') for t in terms if t.get('category')))
+        all_categories.sort()
+        filter_options = ["All"] + all_categories
+        filter_cat = st.selectbox("Filter by Category", filter_options)
         if filter_cat != "All":
             terms = [t for t in terms if t.get('category') == filter_cat]
         
@@ -64,7 +68,12 @@ with tab1:
                 with col2:
                     target = st.text_input("Target (MM) | ဘာသာပြန်", key="tgt_add")
                 with col3:
-                    category = st.selectbox("Category | အမျိုးအစား", ["character", "place", "item", "level"])
+                    # Get all unique categories for the dropdown
+                    all_categories = list(set(t.get('category', 'character') for t in terms if t.get('category')))
+                    all_categories.sort()
+                    if not all_categories:
+                        all_categories = ["character", "place", "item", "level", "person_character", "organization", "cultivation_concept"]
+                    category = st.selectbox("Category | အမျိုးအစား", all_categories)
                 
                 notes = st.text_area("Notes | မှတ်ချက်များ")
                 
@@ -110,7 +119,17 @@ with tab1:
                     with col_e2:
                         new_target = st.text_input("Target", value=term.get('target', ''), key="edit_tgt")
                     
-                    new_category = st.selectbox("Category", ["character", "place", "item", "level"], index=["character", "place", "item", "level"].index(term.get('category', 'character')))
+                    # Get all unique categories for the dropdown
+                    all_categories = list(set(t.get('category', 'character') for t in terms if t.get('category')))
+                    all_categories.sort()
+                    if not all_categories:
+                        all_categories = ["character", "place", "item", "level", "person_character", "organization", "cultivation_concept"]
+                    current_cat = term.get('category', 'character')
+                    if current_cat not in all_categories:
+                        all_categories.append(current_cat)
+                        all_categories.sort()
+                    cat_index = all_categories.index(current_cat) if current_cat in all_categories else 0
+                    new_category = st.selectbox("Category", all_categories, index=cat_index)
                     
                     if st.button("💾 Save Changes"):
                         terms[term_idx] = {

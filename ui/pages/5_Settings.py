@@ -16,12 +16,22 @@ def load_config():
 
 config = load_config()
 
+# Get available models from config
+available_models = ["qwen2.5:14b", "qwen2.5:7b", "qwen:7b", "gemma:7b", "padauk-gemma:q8_0"]
+if config and 'model_roles' in config and 'translator' in config['model_roles']:
+    available_models = config['model_roles']['translator']
+
 st.header("🤖 Model Configuration")
 col1, col2 = st.columns(2)
 
 with col1:
-    translator_model = st.text_input("Translator Model", config.get('models', {}).get('translator', 'qwen2.5:14b'))
-    editor_model = st.text_input("Editor Model", config.get('models', {}).get('editor', 'qwen2.5:14b'))
+    current_translator = config.get('models', {}).get('translator', 'qwen2.5:14b')
+    translator_index = available_models.index(current_translator) if current_translator in available_models else 0
+    translator_model = st.selectbox("Translator Model", available_models, index=translator_index)
+    
+    current_editor = config.get('models', {}).get('editor', 'qwen2.5:14b')
+    editor_index = available_models.index(current_editor) if current_editor in available_models else 0
+    editor_model = st.selectbox("Editor Model", available_models, index=editor_index)
 
 with col2:
     ollama_url = st.text_input("Ollama Base URL", config.get('models', {}).get('ollama_base_url', 'http://localhost:11434'))
