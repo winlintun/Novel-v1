@@ -114,3 +114,49 @@ class GlossaryGenerator(BaseAgent):
             )
         
         self.log_info(f"Saved {len(terms)} terms to pending glossary.")
+
+    def generate_from_chapter(self, chapter_file: str, chapter_num: int = 0) -> int:
+        """
+        Generate glossary terms from a single chapter file.
+        
+        Args:
+            chapter_file: Path to the chapter file
+            chapter_num: Chapter number for logging
+            
+        Returns:
+            Number of terms extracted
+        """
+        try:
+            logger.info(f"Reading chapter {chapter_num}: {chapter_file}")
+            
+            # Read the chapter file
+            with open(chapter_file, 'r', encoding='utf-8-sig') as f:
+                content = f.read()
+            
+            if not content.strip():
+                logger.warning(f"Chapter {chapter_num} is empty")
+                return 0
+            
+            # Detect source language
+            from src.agents.preprocessor import Preprocessor
+            preprocessor = Preprocessor()
+            detected_lang = preprocessor.detect_language(content)
+            source_lang = "Chinese" if detected_lang == "chinese" else "English"
+            
+            logger.info(f"Processing chapter {chapter_num} ({source_lang}, {len(content)} chars)...")
+            
+            # Process this file
+            terms = self.process_files([chapter_file], source_lang)
+            
+            # Save to pending
+            if terms:
+                self.save_to_pending(terms, chapter_num)
+                logger.info(f"✅ Chapter {chapter_num}: Extracted {len(terms)} terms")
+            else:
+                logger.info(f"⚠️ Chapter {chapter_num}: No terms found")
+            
+            return len(terms)
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to process chapter {chapter_num}: {e}")
+            return 0

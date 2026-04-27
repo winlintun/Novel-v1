@@ -265,9 +265,23 @@ def run_glossary_generation(args: argparse.Namespace) -> int:
         logger.info(f"Generating glossary for {args.novel} from chapters {chapters}")
         
         for chapter_num in chapters:
-            chapter_file = Path(INPUT_DIR) / args.novel / f"{chapter_num:03d}.md"
+            # Try multiple file naming formats
+            # Format 1: {novel_name}_chapter_{XXX}.md (e.g., 古道仙鸿_chapter_001.md)
+            chapter_file = Path(INPUT_DIR) / args.novel / f"{args.novel}_chapter_{chapter_num:03d}.md"
+            
+            # Format 2: {XXX}.md (e.g., 001.md) - legacy format
+            if not chapter_file.exists():
+                chapter_file = Path(INPUT_DIR) / args.novel / f"{chapter_num:03d}.md"
+            
+            # Format 3: chapter_{XXX}.md (e.g., chapter_001.md)
+            if not chapter_file.exists():
+                chapter_file = Path(INPUT_DIR) / args.novel / f"chapter_{chapter_num:03d}.md"
+            
             if chapter_file.exists():
+                logger.info(f"Processing chapter {chapter_num}: {chapter_file}")
                 generator.generate_from_chapter(str(chapter_file), chapter_num)
+            else:
+                logger.warning(f"Chapter file not found: {chapter_file}")
         
         logger.info("Glossary generation completed")
         return 0
