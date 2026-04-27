@@ -74,6 +74,15 @@ class SensitiveDataFilter(logging.Filter):
         return True
 
 
+class StateUpdatingProgressLogger(ProgressLogger):
+    """Progress logger that also updates the global translation state for signal handling."""
+    def log_chunk(self, chunk_index: int, chunk_text: str, source_text: Optional[str] = None) -> None:
+        super().log_chunk(chunk_index, chunk_text, source_text)
+        # Update global state so signal handler can save partial progress
+        if '_current_translation_state' in globals():
+            _current_translation_state['translated_chunks'][chunk_index] = chunk_text
+
+
 def setup_logging(log_file: Optional[str] = None):
     """Configure logging with file and console handlers."""
     os.makedirs(LOG_DIR, exist_ok=True)
@@ -388,7 +397,7 @@ def translate_single_file(
         }
         
         # Initialize progress logger for real-time tracking
-        progress_logger = ProgressLogger(
+        progress_logger = StateUpdatingProgressLogger(
             book_id=book_id,
             chapter_name=chapter_name,
             total_chunks=len(chunks),
@@ -714,8 +723,14 @@ Examples:
         
         # Load config
         config = load_config(args.config)
-        ollama_client = OllamaClient(model=config['models']['translator'])
+        ollama_client = OllamaClient(
+            model=config['models']['translator'],
+            unload_on_cleanup=True
+        )
         memory = MemoryManager()
+        
+        # Register for cleanup
+        register_active_resources(ollama_client=ollama_client, memory_manager=memory)
         
         from src.agents.glossary_generator import GlossaryGenerator
         generator = GlossaryGenerator(ollama_client, memory, config)

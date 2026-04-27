@@ -33,7 +33,7 @@
 | Editor Agent (Stage 2) | `src/agents/refiner.py" | [DONE] | Literary quality refinement |
 | Consistency Checker (Stage 3) | `src/agents/checker.py` | [DONE] | Enhanced with Myanmar Quality checks |
 | Glossary Generator | `src/agents/glossary_generator.py` | [DONE] | Pre-translation terminology extraction |
-| Web UI | `ui/streamlit_app.py` | [DONE] | Initial Streamlit interface for novel translation |
+| Web UI | `ui/streamlit_app.py` | [DONE] | Multi-page Streamlit interface (Home, Translate, Progress, Glossary, Settings) |
 
 | QA Reviewer (Stage 4) | `src/agents/checker.py` | [DONE] | Part of Checker class |
 | Term Extractor | `src/agents/context_updater.py` | [DONE] | Post-chapter term extraction |

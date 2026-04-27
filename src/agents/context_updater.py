@@ -130,7 +130,7 @@ class ContextUpdater(BaseAgent):
                 # In production, this would use proper transliteration
                 myanmar_name = f"[{name}]"  # Placeholder
                 
-                if self.memory.add_term(
+                if self.memory.add_pending_term(
                     source=name,
                     target=myanmar_name,
                     category="character",
@@ -143,7 +143,7 @@ class ContextUpdater(BaseAgent):
             name = item.get('name', '')
             if name:
                 myanmar_name = f"[{name}]"
-                if self.memory.add_term(
+                if self.memory.add_pending_term(
                     source=name,
                     target=myanmar_name,
                     category="item",
