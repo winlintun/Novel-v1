@@ -206,6 +206,24 @@ Updated config to use available models:
 **Status**: ✅ RESOLVED
 **Verified By**: code-reviewer
 
+### ERROR-007: UI Command and Process Execution Issues
+**Date**: 2026-04-27
+**File**: `ui/pages/2_Translate.py`, `ui/pages/4_Glossary_Editor.py`
+**Error Message**:
+```
+- Translation command construction was incomplete (missing chapter ranges)
+- Subprocess execution was commented out
+- Glossary Editor lacked direct persistence to MemoryManager
+```
+**Root Cause**: Initial UI prototype was static and lacked integration logic
+**Fix Applied**: 
+1. Implemented dynamic command builder in `Translate.py`
+2. Enabled background execution via `subprocess.Popen`
+3. Integrated `MemoryManager` in `Glossary_Editor.py` for atomic term saving
+4. Added Myanmar localization for better user experience
+**Status**: RESOLVED
+**Verified By**: code-reviewer (gemini-reviewer, READY_TO_COMMIT)
+
 ---
 
 ## Error Patterns & Prevention

@@ -15,29 +15,29 @@ Chinese-to-Myanmar Wuxia/Xianxia novel translation system with AI-powered multi-
 - [x] Reflection / Self-correction Agent (Integrated)
 - [x] Myanmar Quality Checker (Integrated)
 
-### v1.1 - Documentation & UI (In Progress)
+### v1.1 - Documentation & UI ✅ DONE
 - [x] ROADMAP.md ✅
 - [x] CONTRIBUTING.md ✅
 - [x] GLOSSARY_GUIDE.md ✅
-- [ ] Web UI (Streamlit) - Initial version ✅
-- [ ] Better test coverage
+- [x] Web UI (Streamlit) - Multi-page version ✅
+- [x] Better test coverage (Integrated with Agents)
 
-### v2.0 - Automation & Scale (Planned)
-- [ ] Auto Glossary Generation
+### v2.0 - Automation & Scale (In Progress)
+- [x] Auto Glossary Generation ✅
 - [ ] Batch Processing with Queue System
 - [ ] SQLite Progress Tracking
-- [ ] Resume from Failed Chapter
+- [x] Resume from Failed Chapter (Partial via intermediate EN files)
 
-### v2.1 - UI & Experience (Planned)
-- [ ] Web UI (Streamlit)
-- [ ] Progress Dashboard
-- [ ] Live Log Viewer
-- [ ] Side-by-Side Preview
+### v2.1 - UI & Experience ✅ DONE
+- [x] Web UI (Streamlit) ✅
+- [x] Progress Dashboard ✅
+- [x] Live Log Viewer ✅
+- [x] Side-by-Side Preview (Basic integrated in Translate/Dashboard)
 
 ### v3.0 - Intelligence (Planned)
 - [ ] RAG / Long-term Memory (ChromaDB)
-- [ ] Reflection / Self-correction Agent
-- [ ] Human-in-the-loop Editing
+- [ ] Reflection / Self-correction Agent (Basic integrated)
+- [ ] Human-in-the-loop Editing (Integrated in Glossary Editor)
 - [ ] Model Fine-tuning Dataset Export
 
 ---
