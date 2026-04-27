@@ -205,6 +205,15 @@ with col_tgt:
     else:
         output_dir = Path("data/output") / settings["novel"]
 
+    # Helper function to find output file in root or chapters/ subdirectory
+    def find_output_file(output_dir: Path, filename: str):
+        """Find output file in root or chapters/ subdirectory."""
+        for location in [output_dir, output_dir / "chapters"]:
+            file_path = location / filename
+            if file_path.exists():
+                return file_path
+        return output_dir / filename  # Return default if not found
+
     out_files = []
     if output_dir.exists():
         # Check both root output dir and chapters/ subdirectory
@@ -216,8 +225,14 @@ with col_tgt:
     selected_out = st.selectbox("Select Output Chapter", [f.name for f in out_files] if out_files else ["-- None --"], key="out_select")
     
     if selected_out and selected_out != "-- None --":
-        with open(output_dir / selected_out, 'r', encoding='utf-8-sig') as f:
-            tgt_content = f.read()
+        # Use helper to find file in root or chapters/ subdirectory
+        file_path = find_output_file(output_dir, selected_out)
+        try:
+            with open(file_path, 'r', encoding='utf-8-sig') as f:
+                tgt_content = f.read()
+        except FileNotFoundError:
+            st.error(f"File not found: {file_path}")
+            tgt_content = ""
     else:
         tgt_content = ""
     
@@ -249,9 +264,14 @@ with col_tgt:
     with col_save:
         if st.button("💾 Save Edit"):
             if selected_out and selected_out != "-- None --" and edited != tgt_content:
-                with open(output_dir / selected_out, 'w', encoding='utf-8-sig') as f:
-                    f.write(edited)
-                st.success("Saved! | သိမ်းပါပါသည်။")
+                # Use helper to find correct path for saving
+                file_path = find_output_file(output_dir, selected_out)
+                try:
+                    with open(file_path, 'w', encoding='utf-8-sig') as f:
+                        f.write(edited)
+                    st.success(f"Saved to {file_path.name}! | သိမ်းပါပါသည်။")
+                except Exception as e:
+                    st.error(f"Failed to save: {e}")
     with col_add:
         add_glossary = st.button("📚 Add to Glossary", use_container_width=True)
 

@@ -38,7 +38,11 @@ with col_h1:
             
             out_novel = output_dir / novel.name
             if out_novel.exists():
+                # Check both root and chapters/ subdirectory
                 translated += len(list(out_novel.glob("*.md")))
+                chapters_dir = out_novel / "chapters"
+                if chapters_dir.exists():
+                    translated += len(list(chapters_dir.glob("*.md")))
     
     glossary_terms = 0
     if glossary_path.exists():

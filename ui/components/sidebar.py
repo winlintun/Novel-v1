@@ -2,6 +2,34 @@ import streamlit as st
 import os
 from pathlib import Path
 
+def get_available_models():
+    """Fetch available models from Ollama API or config."""
+    # First try to get from Ollama API
+    try:
+        import requests
+        response = requests.get("http://localhost:11434/api/tags", timeout=2)
+        if response.status_code == 200:
+            models = [m["name"] for m in response.json().get("models", [])]
+            if models:
+                return models
+    except:
+        pass
+    
+    # Fallback to config
+    try:
+        import yaml
+        config_path = Path("config/settings.yaml")
+        if config_path.exists():
+            with open(config_path, 'r') as f:
+                cfg = yaml.safe_load(f)
+            if cfg and 'model_roles' in cfg and 'translator' in cfg['model_roles']:
+                return cfg['model_roles']['translator']
+    except:
+        pass
+    
+    # Final fallback
+    return ["qwen2.5:14b", "qwen2.5:7b", "qwen:7b", "gemma:7b"]
+
 def render_sidebar():
     with st.sidebar:
         st.header("🏯 Novel-v1 | ဝတ္ထုဘာသာပြန်")
@@ -65,18 +93,8 @@ def render_sidebar():
         st.divider()
         
         with st.expander("⚙️ Translation Settings", expanded=True):
-            # Load available models from config
-            import yaml
-            config_path = Path("config/settings.yaml")
-            available_models = ["qwen2.5:14b", "qwen2.5:7b", "qwen:7b", "gemma:7b", "padauk-gemma:q8_0"]
-            if config_path.exists():
-                try:
-                    with open(config_path, 'r') as f:
-                        cfg = yaml.safe_load(f)
-                        if cfg and 'model_roles' in cfg and 'translator' in cfg['model_roles']:
-                            available_models = cfg['model_roles']['translator']
-                except:
-                    pass
+            # Get available models from Ollama API or config
+            available_models = get_available_models()
             
             model = st.selectbox("🤖 Model", available_models, index=0)
             
@@ -151,7 +169,8 @@ def render_sidebar():
                 for t in terms:
                     st.caption(f"{t.get('source', '')} → {t.get('target', '')}")
                 if len(terms) >= 5:
-                    st.link_button("Show all...", "/page/4_Glossary_Editor")
+                    if st.button("Show all...", use_container_width=True):
+                        st.switch_page("pages/4_Glossary_Editor.py")
             else:
                 st.caption("No glossary found")
         

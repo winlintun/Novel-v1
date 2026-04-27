@@ -69,6 +69,77 @@ Glossary Settings: enable_glossary, priority not working
 - `ui/pages/2_Translate.py` - Added config update logic
 **Status**: RESOLVED
 
+### ERROR-028: FileNotFoundError for Output Files in chapters/ Subdirectory
+**Date**: 2026-04-27
+**File**: `ui/pages/2_Translate.py`
+**Error Message**:
+```
+FileNotFoundError: [Errno 2] No such file or directory: 'data/output/reverend-insanity/reverend-insanity_0001_mm.md'
+```
+**Root Cause**: Translation output files are saved to `chapters/` subdirectory but UI was only looking in root output directory
+**Fix Applied**:
+1. Created `find_output_file()` helper function to search both locations
+2. Updated file reading logic to use helper (lines 218-225)
+3. Updated Save Edit button to use helper (lines 265-272)
+4. Added error handling with user-friendly messages
+**Files Modified**:
+- `ui/pages/2_Translate.py` - Added helper function and updated file operations
+**Status**: RESOLVED
+
+### ERROR-029: Model Selection Limited to 3 Models
+**Date**: 2026-04-27
+**File**: `ui/components/sidebar.py`
+**Error Message**:
+```
+Model select showing only: qwen2.5:14b, qwen2.5:7b, qwen:7b
+```
+**Root Cause**: Model list was hardcoded and config only had 3 models in model_roles.translator
+**Fix Applied**:
+1. Added `get_available_models()` function that:
+   - First tries to fetch from Ollama API (http://localhost:11434/api/tags)
+   - Falls back to config model_roles.translator
+   - Final fallback to common models
+2. Updated model selectbox to use this function
+**Files Modified**:
+- `ui/components/sidebar.py` - Added get_available_models() function
+**Status**: RESOLVED
+
+### ERROR-030: Navigation Links Return 404
+**Date**: 2026-04-27
+**File**: `ui/components/sidebar.py`
+**Error Message**:
+```
+http://localhost:8501/page/4_Glossary_Editor (404 Not Found)
+```
+**Root Cause**: Using `st.link_button()` with URL paths instead of Streamlit's navigation methods
+**Fix Applied**:
+1. Changed `st.link_button("Show all...", "/page/4_Glossary_Editor")` to:
+   ```python
+   if st.button("Show all..."):
+       st.switch_page("pages/4_Glossary_Editor.py")
+   ```
+2. This uses Streamlit's proper page navigation
+**Files Modified**:
+- `ui/components/sidebar.py` - Fixed navigation button
+**Status**: RESOLVED
+
+### ERROR-031: Dashboard Progress Count Incorrect
+**Date**: 2026-04-27
+**File**: `ui/streamlit_app.py`
+**Error Message**:
+```
+Dashboard shows incorrect translation progress count
+```
+**Root Cause**: Progress counting only checked root output dir, not chapters/ subdirectory
+**Fix Applied**:
+1. Updated progress counting logic to check both locations:
+   - Root output directory
+   - chapters/ subdirectory
+2. Now correctly counts all translated chapters
+**Files Modified**:
+- `ui/streamlit_app.py` - Updated progress counting (lines 39-46)
+**Status**: RESOLVED
+
 ---
 
 ## Issues Fixed in Web UI Update Session
