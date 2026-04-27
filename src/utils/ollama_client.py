@@ -73,7 +73,10 @@ class OllamaClient:
         # Configure ollama client
         self.client = ollama.Client(host=base_url)
         self._is_connected = True
-        logger.debug(f"OllamaClient initialized for model: {model}, endpoint: {'/api/generate' if use_generate_endpoint else '/api/chat'}, num_ctx: {num_ctx}")
+        
+        # Log GPU configuration
+        gpu_info = f"GPU: enabled (layers={gpu_layers}, main_gpu={main_gpu})" if use_gpu else "GPU: disabled (CPU only)"
+        logger.debug(f"OllamaClient initialized for model: {model}, endpoint: {'/api/generate' if use_generate_endpoint else '/api/chat'}, num_ctx: {num_ctx}, {gpu_info}")
     
     def __enter__(self):
         """Context manager entry."""

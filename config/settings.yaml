@@ -52,10 +52,17 @@ models:
   refiner: qwen:7b
   timeout: 300
   translator: qwen2.5:14b
-  # GPU Configuration - Set use_gpu: true to enable GPU acceleration
+  # GPU Configuration - Supports NVIDIA (CUDA) and AMD (ROCm) GPUs
+  # Set use_gpu: true to enable GPU acceleration
   use_gpu: true
   gpu_layers: -1  # -1 = auto (use all available layers), or specify number of layers to offload to GPU
   main_gpu: 0  # For multi-GPU setups, specify which GPU to use (0 = first GPU)
+  
+  # For AMD GPUs (like RX 580), you may need to set these environment variables:
+  # export HSA_OVERRIDE_GFX_VERSION=10.1.0
+  # export HCC_AMDGPU_TARGET=gfx803  # For RX 580 Polaris
+  # export OLLAMA_GPU_OVERHEAD=1
+  # Run 'python scripts/verify_gpu.py' to check your GPU setup
 myanmar_readability:
   block_on_fail: false
   enabled: true

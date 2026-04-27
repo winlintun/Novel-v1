@@ -17,6 +17,11 @@
      - Updated `src/core/container.py` to pass GPU options to OllamaClient
      - Updated `src/pipeline/orchestrator.py` to pass GPU options to OllamaClient
      - Created `scripts/verify_gpu.py` for GPU verification before translation
+  1. **AMD GPU Support (RX 580 2048SP)**:
+     - Updated `scripts/verify_gpu.py` to detect both NVIDIA and AMD GPUs
+     - Added AMD-specific setup guide for RX 580 with ROCm instructions
+     - Added AMD environment variable guidance to `config/settings.yaml`
+     - Supports Polaris (gfx803) architecture detection
   2. **CODE REFACTORING - Phase 1 Complete** (per need_fix.md):
      - Created new module structure: `src/cli/`, `src/pipeline/`, `src/web/`, `src/config/`, `src/core/`, `src/types/`
      - Implemented `src/exceptions.py` with structured error hierarchy (NovelTranslationError, ModelError, GlossaryError, etc.)
