@@ -1,8 +1,13 @@
 import streamlit as st
 import json
 import os
+import sys
+from pathlib import Path
+
+# Add project root to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 import pandas as pd
-import csv
 from src.utils.file_handler import FileHandler
 from src.memory.memory_manager import MemoryManager
 
@@ -38,7 +43,7 @@ with tab1:
         if search_term:
             terms = [t for t in terms if search_term.lower() in t.get('source', '').lower() or search_term.lower() in t.get('target', '').lower()]
         
-        filter_cat = st.selectbox("Filter by Category", ["All", "character", "place", "item", "level"], horizontal=True)
+        filter_cat = st.selectbox("Filter by Category", ["All", "character", "place", "item", "level"])
         if filter_cat != "All":
             terms = [t for t in terms if t.get('category') == filter_cat]
         
@@ -215,7 +220,7 @@ with tab3:
     
     with col_exp:
         st.subheader("📤 Export")
-        export_format = st.radio("Format", ["JSON", "CSV"], horizontal=True)
+        export_format = st.radio("Format", ["JSON", "CSV"])
         
         glossary_data = load_glossary(glossary_path)
         

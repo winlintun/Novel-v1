@@ -67,7 +67,7 @@ if selected_novel:
     
     df = pd.DataFrame(chapter_data)
     
-    filter_status = st.selectbox("Filter by Status", ["All", "Translated", "Untranslated", "Failed"], horizontal=True)
+    filter_status = st.selectbox("Filter by Status", ["All", "Translated", "Untranslated", "Failed"])
     if filter_status != "All":
         df = df[df["Status"] == filter_status]
     
@@ -98,7 +98,7 @@ if not log_files:
     st.info("No log files found.")
     st.stop()
 
-selected_log = st.selectbox("Select Log File", [f.name for f in log_files], horizontal=True)
+selected_log = st.selectbox("Select Log File", [f.name for f in log_files])
 
 if selected_log:
     log_path = log_dir / selected_log

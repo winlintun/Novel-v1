@@ -1,8 +1,13 @@
 import streamlit as st
 import os
+import sys
 import subprocess
 import time
 from pathlib import Path
+
+# Add project root to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from ui.components.sidebar import render_sidebar
 
 st.set_page_config(page_title="Translate | ဘာသာပြန်", page_icon="📝", layout="wide")
@@ -150,7 +155,7 @@ with st.expander("📋 Live Translation Logs", expanded=True):
         auto_refresh = st.toggle("Auto Refresh", value=True)
     
     with col_log_opts2:
-        log_level = st.selectbox("Log Level", ["All", "Info", "Warning", "Error"], horizontal=True)
+        log_level = st.selectbox("Log Level", ["All", "Info", "Warning", "Error"])
     
     with col_log_opts3:
         log_filter = st.text_input("Filter Logs", placeholder="Search...")
@@ -160,7 +165,7 @@ with st.expander("📋 Live Translation Logs", expanded=True):
         log_files = sorted(list(log_dir.glob("*.md")), key=os.path.getmtime, reverse=True)[:5]
         
         if log_files:
-            selected_log = st.selectbox("Select Log File", [f.name for f in log_files], horizontal=True)
+            selected_log = st.selectbox("Select Log File", [f.name for f in log_files])
             
             if selected_log:
                 log_path = log_dir / selected_log
