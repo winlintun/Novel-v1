@@ -10,25 +10,37 @@
 ## Last Updated
 - Date: 2026-04-28
 - Last task completed:
-  1. **ADDED: Auto-Clean Launchers for Python Cache**:
+  1. **ADDED: Auto-Clean Launchers for Python Cache (All Platforms)**:
      - **Problem**: Users running old cached Python code even after updates (seeing `qwen:7b` instead of `padauk-gemma:q8_0`)
      - **Solution**: Created launcher scripts that automatically clean `__pycache__` and `.pyc` files before running
      - **New Files**:
-       - `translate.bat` (Windows): Main one-click launcher with auto-clean
-       - `run.bat` (Windows): Advanced launcher with detailed output
-       - `run.py` (Cross-platform): Python launcher that cleans cache first
-       - `src/utils/cache_cleaner.py`: Utility module for cache cleaning
-       - `LAUNCHERS.md`: Comprehensive documentation for launchers
-       - `diagnose.py`: Diagnostic tool to verify configuration
+       - **Windows (`.bat`)**:
+         - `translate.bat`: Main one-click launcher with auto-clean
+         - `run.bat`: Advanced launcher with detailed output
+       - **Linux/Mac (`.sh`)**:
+         - `translate.sh`: Main one-click launcher (bash script)
+         - `run.sh`: Advanced launcher with detailed output
+         - `clean_cache.sh`: Standalone cache cleaning utility
+       - **Cross-Platform (Python)**:
+         - `run.py`: Python launcher that cleans cache first
+         - `src/utils/cache_cleaner.py`: Utility module for cache cleaning
+         - `diagnose.py`: Diagnostic tool to verify configuration
+       - **Documentation**:
+         - `LAUNCHERS.md`: Comprehensive documentation for all platforms
      - **Features**:
        - Automatically removes all `__pycache__` directories
        - Removes all `.pyc` and `.pyo` compiled files
        - Shows cleaning report before translation starts
        - Passes all arguments through to main program
+       - Scripts are committed as executable (no chmod needed)
      - **Usage**:
        ```bash
        # Windows (recommended)
        translate.bat --input data\input\novel\chapter.md
+       
+       # Linux/Mac (recommended)
+       chmod +x translate.sh  # First time only
+       ./translate.sh --input data/input/novel/chapter.md
        
        # Cross-platform
        python3 run.py --input data/input/novel/chapter.md
@@ -36,6 +48,7 @@
      - **Also Added**:
        - `--clean` flag to `src/cli/parser.py` for manual cache cleaning
        - Prominent warning in README.md about using launchers
+       - Platform-specific troubleshooting in LAUNCHERS.md
   2. **ENHANCED: Auto-Detection of Source Language with Smart Model Selection**:
      - **Feature**: Enhanced auto-detection to automatically detect if input is English or Chinese
      - **Smart Model Selection**: Based on detected language, automatically selects optimal models:
