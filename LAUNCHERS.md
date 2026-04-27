@@ -83,8 +83,12 @@ chmod +x translate.sh run.sh clean_cache.sh
 ./translate.sh --novel "reverend-insanity" --all
 ```
 
-### Just Clean Cache
+### Just Clean Cache and Logs
 ```bash
+# Run without arguments to clean cache and logs, then show help
+./run.sh
+
+# Or use the standalone cleaner
 ./clean_cache.sh
 ```
 
@@ -149,9 +153,23 @@ find . -name "*.pyc" -delete
 ## 📋 What Gets Cleaned?
 
 Each launcher automatically removes:
+
+### Python Cache
 - ✅ All `__pycache__` directories
-- ✅ All `.pyc` compiled files
+- ✅ All `.pyc` compiled files  
 - ✅ All `.pyo` optimized files
+
+### Log Files
+- ✅ Old translation logs (keeps only the most recent one)
+- ✅ Old progress logs (keeps last 10)
+- ✅ Preserves `web_server.log` (server logs always kept)
+
+### Why Clean Logs?
+Translation logs can accumulate quickly and take up disk space. The launchers automatically:
+- Keep your most recent translation log for reference
+- Keep the last 10 progress logs for debugging
+- Never delete web server logs
+- Free up disk space from old translations
 
 ---
 
@@ -238,6 +256,12 @@ chmod +x translate.sh run.sh clean_cache.sh
    sudo ln -s ~/path/to/translate.sh /usr/local/bin/translate
    ```
 3. **Use tab completion** - After `chmod +x`, bash will tab-complete the script names
+4. **Quick cache clean** - Run `./run.sh` without arguments to just clean cache/logs and exit
+
+### All Platforms
+- **Auto-clean every run** - Each launcher cleans before starting, so you always run fresh code
+- **No arguments = help** - Run `./run.sh` or `run.bat` alone to see usage and clean cache
+- **Logs managed automatically** - Old logs are cleaned, recent ones are kept for debugging
 
 ---
 
