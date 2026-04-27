@@ -43,7 +43,7 @@ with col_h1:
     glossary_terms = 0
     if glossary_path.exists():
         import json
-        with open(glossary_path, 'r', encoding='utf-8') as f:
+        with open(glossary_path, 'r', encoding='utf-8-sig') as f:
             g_data = json.load(f)
             glossary_terms = len(g_data.get("terms", []))
     

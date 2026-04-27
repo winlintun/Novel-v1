@@ -9,12 +9,13 @@
 
 ## Last Updated
 - Date: 2026-04-27
-- Last task completed: Added `GlossaryGenerator` agent for pre-translation terminology extraction; Fixed English source support bug in `Translator` agent by ensuring correct system prompt selection; Updated `AGENTS.md` and `USER_GUIDE.md`.
+- Last task completed: Updated UI to match basic_template_design; Fixed encoding (utf-8-sig), URL paths, and cwd in main.py
+- Added GlossaryGenerator agent for pre-translation terminology extraction; Fixed English source support bug in Translator agent by ensuring correct system prompt selection; Updated AGENTS.md and USER_GUIDE.md.
 - Integrated Web UI (Streamlit) into `main.py` via `--ui` flag; Added `--test` flag for easy pipeline validation with `sample.md`.
 - Refactored ContextUpdater and Preprocessor to inherit from BaseAgent for architectural consistency.
 - Integrated ReflectionAgent, MyanmarQualityChecker, and QATesterAgent into the main pipeline; Updated ROADMAP, CONTRIBUTING, GLOSSARY_GUIDE, and README documentation.
 - BaseAgent refactoring completed for all agents
-- Web UI initial version ready using Streamlit
+- Web UI multi-page structure ready using Streamlit (Home, Translate, Progress, Glossary, Settings)
 - 6-stage translation pipeline documented and implemented
 
 ---
@@ -30,10 +31,10 @@
 | Myanmar Quality Checker | `src/agents/myanmar_quality_checker.py` | [DONE] | Linguistic checks for tone and naturalness |
 | QA Tester Agent | `src/agents/qa_tester.py` | [DONE] | Automated validation of output quality |
 | Pivot Translator | `src/agents/pivot_translator.py` | [DONE] | Native CN→EN→MM translation routing |
-| Editor Agent (Stage 2) | `src/agents/refiner.py" | [DONE] | Literary quality refinement |
+| Editor Agent (Stage 2) | `src/agents/refiner.py` | [DONE] | Literary quality refinement |
 | Consistency Checker (Stage 3) | `src/agents/checker.py` | [DONE] | Enhanced with Myanmar Quality checks |
 | Glossary Generator | `src/agents/glossary_generator.py` | [DONE] | Pre-translation terminology extraction |
-| Web UI | `ui/streamlit_app.py` | [DONE] | Multi-page Streamlit interface (Home, Translate, Progress, Glossary, Settings) |
+| Web UI | `ui/streamlit_app.py` | [DONE] | Multi-page Streamlit interface with Myanmar localization and functional Glossary Editor |
 
 | QA Reviewer (Stage 4) | `src/agents/checker.py` | [DONE] | Part of Checker class |
 | Term Extractor | `src/agents/context_updater.py` | [DONE] | Post-chapter term extraction |
@@ -41,19 +42,19 @@
 | Ollama Client | `src/utils/ollama_client.py` | [DONE] | Ollama API wrapper with retries, cleanup, context manager support. Supports both `/api/chat` and `/api/generate` endpoints. Configurable num_ctx (8192) and keep_alive (10m) per need_fix.md |
 | File Handler | `src/utils/file_handler.py` | [DONE] | UTF-8-SIG, atomic writes |
 | Postprocessor | `src/utils/postprocessor.py` | [DONE] | Strips <think>, <answer>, validates Myanmar output. Now configurable (aggressive vs non-aggressive) to prevent over-processing that could corrupt Myanmar script (per need_fix.md) |
-| JSON Extractor | `src/utils/json_extractor.py" | [DONE] | Safe JSON parsing with fallback for malformed responses |
-| Prompt Patch | `src/agents/prompt_patch.py" | [DONE] | Hardened prompts with LANGUAGE_GUARD |
-| Fast Translator | `src/agents/fast_translator.py" | [DONE] | Optimized with larger chunks (3000), streaming support |
-| Fast Refiner | `src/agents/fast_refiner.py" | [DONE] | Batch processing (5 paragraphs per API call) |
-| Fast Main | `src/main_fast.py" | [DONE] | Fast entry point with optimized pipeline, signal handling |
-| Cleanup Tool | `tools/cleanup.py" | [DONE] | Ollama memory management and cleanup utility |
-| Glossary v3.0 Manager | `src/utils/glossary_v3_manager.py" | [DONE] | Rich metadata support (aliases, exceptions, examples) |
-| Glossary v3.0 Loader | `src/utils/glossary_v3_loader.py" | [DONE] | JSON I/O with validation, caching, and prompt export |
-| Glossary Matcher | `src/utils/glossary_matcher.py" | [DONE] | Dynamic term extraction for relevant glossary injection |
-| Repetition Detector | `src/utils/postprocessor.py" | [DONE] | check_repetition() function for output quality |
-| Progress Logger | `src/utils/progress_logger.py" | [DONE] | Real-time translation progress tracking with live log file |
-| Pivot Test Script | `test_pivot_translation.py" | [DONE] | Standalone test for CN→EN→MM workflow validation |
-| Chapter Translation Test | `src/test_translate/test_ch_en_mm_translation.py" | [DONE] | Full chapter translation with log display, output validation, Gemini reviewer integration |
+| JSON Extractor | `src/utils/json_extractor.py` | [DONE] | Safe JSON parsing with fallback for malformed responses |
+| Prompt Patch | `src/agents/prompt_patch.py` | [DONE] | Hardened prompts with LANGUAGE_GUARD |
+| Fast Translator | `src/agents/fast_translator.py` | [DONE] | Optimized with larger chunks (3000), streaming support |
+| Fast Refiner | `src/agents/fast_refiner.py` | [DONE] | Batch processing (5 paragraphs per API call) |
+| Fast Main | `src/main_fast.py` | [DONE] | Fast entry point with optimized pipeline, signal handling |
+| Cleanup Tool | `tools/cleanup.py` | [DONE] | Ollama memory management and cleanup utility |
+| Glossary v3.0 Manager | `src/utils/glossary_v3_manager.py` | [DONE] | Rich metadata support (aliases, exceptions, examples) |
+| Glossary v3.0 Loader | `src/utils/glossary_v3_loader.py` | [DONE] | JSON I/O with validation, caching, and prompt export |
+| Glossary Matcher | `src/utils/glossary_matcher.py` | [DONE] | Dynamic term extraction for relevant glossary injection |
+| Repetition Detector | `src/utils/postprocessor.py` | [DONE] | check_repetition() function for output quality |
+| Progress Logger | `src/utils/progress_logger.py` | [DONE] | Real-time translation progress tracking with live log file |
+| Pivot Test Script | `test_pivot_translation.py` | [DONE] | Standalone test for CN→EN→MM workflow validation |
+| Chapter Translation Test | `src/test_translate/test_ch_en_mm_translation.py` | [DONE] | Full chapter translation with log display, output validation, Gemini reviewer integration |
 
 ---
 
@@ -83,7 +84,7 @@
 | `MEMORY_MANAGEMENT.md` | [DONE] | Memory cleanup and Ollama management |
 | `FAST_MODE.md` | [DONE] | Fast translation mode documentation |
 | `ERROR_LOG.md` | [DONE] | Error tracking and fix record for AI agents |
-| `README.md" | [DONE] | Project overview |
+| `README.md` | [DONE] | Project overview |
 
 ---
 

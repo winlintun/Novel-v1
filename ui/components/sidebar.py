@@ -115,13 +115,13 @@ def render_sidebar():
             glossary_path = "data/glossary.json"
             if os.path.exists(glossary_path):
                 import json
-                with open(glossary_path, 'r', encoding='utf-8') as f:
+                with open(glossary_path, 'r', encoding='utf-8-sig') as f:
                     g_data = json.load(f)
                 terms = g_data.get("terms", [])[:5]
                 for t in terms:
                     st.caption(f"{t.get('source', '')} → {t.get('target', '')}")
                 if len(terms) >= 5:
-                    st.link_button("Show all...", "/page/4_Glossary_Editor.py")
+                    st.link_button("Show all...", "/page/4_Glossary_Editor")
             else:
                 st.caption("No glossary found")
         

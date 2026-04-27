@@ -43,6 +43,33 @@
 
 ## Resolved Issues
 
+### ERROR-008: UI does not match basic_template_design
+**File**: `ui/components/sidebar.py`, `ui/pages/2_Translate.py`, `ui/pages/3_Progress.py`, `ui/pages/4_Glossary_Editor.py`, `ui/streamlit_app.py`
+**Error Message**:
+```
+Design vs Current mismatch:
+- Sidebar: Basic settings only (missing Chapter Selection, Model Settings, Translation Behavior, Glossary Settings)
+- Translate: Missing side-by-side preview, stage indicators, live logs
+- Glossary: Missing full CRUD, search, import/export
+- Progress: Missing chapter list, status filter
+- Home: Missing dashboard charts
+```
+**Root Cause**: Initial UI prototype was static and lacked integration logic matching the design document
+**Fix Applied**: 
+1. Rewrote sidebar.py with full design sections (Novel/Chapter Selection, Model Settings, Translation Behavior, Glossary Settings)
+2. Updated Translate.py with side-by-side preview, progress bar, stage indicators, live logs
+3. Updated Glossary_Editor.py with full CRUD, search, filter, import/export
+4. Updated Progress.py with chapter list, status filter, detailed logs
+5. Updated streamlit_app.py with dashboard stats, charts, quick actions
+**Files Modified**:
+- `ui/components/sidebar.py` - Full sidebar with all design sections
+- `ui/pages/2_Translate.py` - Side-by-side preview, progress tracking
+- `ui/pages/3_Progress.py` - Chapter list, status filter
+- `ui/pages/4_Glossary_Editor.py` - Full CRUD, search, import/export
+- `ui/streamlit_app.py` - Dashboard with charts
+**Status**: RESOLVED
+**Verified By**: code-reviewer (PASS)
+
 ### ERROR-004: Duplicate detect_language() function
 **Date**: 2026-04-27
 **File**: `src/agents/translator.py`, `src/agents/preprocessor.py`

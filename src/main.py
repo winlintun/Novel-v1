@@ -701,7 +701,9 @@ Examples:
         try:
             # Check if streamlit is installed
             subprocess.run(["streamlit", "--version"], capture_output=True, check=True)
-            subprocess.run(["streamlit", "run", str(ui_script)])
+            # Run from project root directory
+            project_root = Path(__file__).parent.parent
+            subprocess.run(["streamlit", "run", str(ui_script)], cwd=project_root)
             return 0
         except subprocess.CalledProcessError:
             print("✗ Error: Streamlit is not installed. Please run: pip install streamlit")
