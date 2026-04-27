@@ -19,7 +19,7 @@ def render_sidebar():
         st.divider()
         
         with st.expander("📖 အခန်းရွေးချယ်ရန်", expanded=True):
-            scope = st.radio("Translation Scope", ["Single Chapter", "Range", "All Remaining"], horizontal=True)
+            scope = st.radio("Translation Scope", ["Single Chapter", "Range", "All Remaining"])
             
             if scope == "Single Chapter":
                 start_ch = st.number_input("Start Chapter", min_value=1, value=1, key="start_ch_single")
@@ -53,7 +53,7 @@ def render_sidebar():
         with st.expander("⚙️ Translation Settings", expanded=True):
             model = st.selectbox("🤖 Model", ["qwen2.5:14b", "padauk-gemma:q8_0", "qwen:7b"], index=0)
             
-            lang_source = st.radio("🌐 Source Language", ["Chinese", "English"], horizontal=True)
+            lang_source = st.radio("🌐 Source Language", ["Chinese", "English"])
             
             col_q1, col_q2 = st.columns(2)
             with col_q1:
@@ -103,7 +103,7 @@ def render_sidebar():
         with st.expander("📚 Glossary Settings"):
             enable_glossary = st.checkbox("Enable Glossary for Translation", value=True)
             
-            priority = st.radio("Glossary Priority", ["Strict", "Flexible"], horizontal=True)
+            priority = st.radio("Glossary Priority", ["Strict", "Flexible"])
             
             col_n1, col_n2 = st.columns(2)
             with col_n1:

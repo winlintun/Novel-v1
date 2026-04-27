@@ -43,6 +43,35 @@
 
 ## Resolved Issues
 
+### ERROR-011: Glossary_Editor.py syntax error
+**Date**: 2026-04-27
+**File**: `ui/pages/4_Glossary_Editor.py`
+**Error Message**:
+```
+SyntaxError: closing parenthesis '}' does not match opening parenthesis '('
+```
+**Root Cause**: Missing closing parenthesis in f-string at line 155
+**Fix Applied**: Added missing `)` to close term.get()
+**Files Modified**:
+- `ui/pages/4_Glossary_Editor.py` - fixed line 155
+**Status**: RESOLVED
+**Verified By**: py_compile check
+
+### ERROR-012: Streamlit horizontal parameter not supported
+**Date**: 2026-04-27
+**File**: `ui/pages/3_Progress.py`, `ui/components/sidebar.py`
+**Error Message**:
+```
+TypeError: SelectboxMixin.selectbox() got an unexpected keyword argument 'horizontal'
+```
+**Root Cause**: Streamlit 1.56.0 doesn't support horizontal parameter for selectbox/radio
+**Fix Applied**: Removed horizontal=True from all selectbox/radio calls
+**Files Modified**:
+- `ui/pages/3_Progress.py` - removed horizontal from 3 locations
+- `ui/components/sidebar.py` - removed horizontal from 3 locations
+**Status**: RESOLVED
+**Verified By**: py_compile check
+
 ### ERROR-010: batch_size undefined in main.py
 **Date**: 2026-04-27
 **File**: `src/main.py`

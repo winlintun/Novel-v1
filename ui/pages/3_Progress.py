@@ -32,7 +32,7 @@ if not novels:
     st.info("No novels found in data/input/")
     st.stop()
 
-selected_novel = st.selectbox("Select Novel", [d.name for d in novels], horizontal=True)
+selected_novel = st.selectbox("Select Novel", [d.name for d in novels])
 
 if selected_novel:
     novel_input = input_dir / selected_novel

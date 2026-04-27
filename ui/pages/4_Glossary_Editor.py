@@ -152,7 +152,7 @@ with tab2:
                     st.write(f"**Category:** {term.get('category', '')}")
                 
                 st.write(f"**Proposed Target:** {term.get('target', '')}")
-                st.write(f"**Chapter:** {term.get('extracted_from_chapter', 'N/A'}")
+                st.write(f"**Chapter:** {term.get('extracted_from_chapter', 'N/A')}")
                 
                 col_ap1, col_ap2 = st.columns(2)
                 with col_ap1:
