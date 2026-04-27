@@ -1,0 +1,69 @@
+# Error Recovery Configuration
+# Per need_fix.md Cross-Cutting Concerns
+# =====================================================
+
+error_recovery:
+  # Maximum retry attempts for failed operations
+  max_retries: 3
+  
+  # Retry delay strategy: "linear" | "exponential" | "fixed"
+  retry_delay_strategy: "exponential"
+  
+  # Base delay in seconds (for exponential: 1s, 2s, 4s, 8s...)
+  retry_delay_base: 1
+  
+  # Maximum delay between retries (seconds)
+  retry_delay_max: 30
+  
+  # Fallback action when all retries fail: "save_partial_and_continue" | "skip_and_log" | "stop"
+  fallback_action: "save_partial_and_continue"
+  
+  # Alert channels for failure notifications
+  alert_channels:
+    - type: "log"  # Always log to file
+      enabled: true
+    
+    # Uncomment for Slack/Email alerts:
+    # - type: "slack"
+    #   enabled: false
+    #   webhook_url: ""  # Set SLACK_WEBHOOK_URL env var
+    # - type: "email"
+    #   enabled: false
+    #   smtp_host: ""
+    #   smtp_port: 587
+    #   from_addr: ""
+    #   to_addrs: []
+
+# =====================================================
+# PERFORMANCE THRESHOLDS
+# =====================================================
+
+performance:
+  # Timeout for single API call (seconds)
+  api_timeout: 300
+  
+  # Maximum memory usage (MB) before warning
+  max_memory_mb: 8000
+  
+  # Maximum chapter translation time (minutes)
+  max_chapter_time: 30
+  
+  # Log performance metrics
+  log_metrics: true
+  metrics_dir: "logs/performance"
+
+# =====================================================
+# DATA SAFETY
+# =====================================================
+
+data_safety:
+  # Auto-backup before glossary updates
+  auto_backup: true
+  backup_dir: "data/backups"
+  max_backups: 10
+  
+  # Atomic writes (write to temp then rename)
+  atomic_writes: true
+  
+  # Validate JSON before saving
+  validate_json: true

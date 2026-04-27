@@ -57,6 +57,28 @@ with col_tgt:
     else:
         tgt_content = ""
     
+    # Highlight glossary terms (per need_fix.md 3.3)
+    highlight_terms = st.checkbox("🔍 Highlight Glossary Terms", value=False)
+    if highlight_terms:
+        glossary_path = Path("data/glossary.json")
+        if glossary_path.exists():
+            import json
+            with open(glossary_path, 'r', encoding='utf-8-sig') as f:
+                g_data = json.load(f)
+            terms = g_data.get("terms", [])
+            highlighted = tgt_content
+            for term in terms[:20]:
+                target = term.get('target', '')
+                if target and target in tgt_content:
+                    highlighted = highlighted.replace(target, f"**{target}**")
+            if highlighted != tgt_content:
+                st.markdown("### 📚 Highlighted Terms")
+                st.markdown(highlighted, unsafe_allow_html=True)
+            else:
+                st.info("No glossary terms found in this chapter.")
+        else:
+            st.info("No glossary found.")
+    
     edited = st.text_area("Translation", tgt_content, height=500, key="tgt_area")
     
     col_save, col_add = st.columns(2)
