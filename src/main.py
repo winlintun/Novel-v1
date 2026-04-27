@@ -366,14 +366,33 @@ def translate_single_file(
         else:
             translator = Translator(ollama_client, memory, config)
         
-        # Use batch processing for refiner (5x speedup)
+        # Get batch size from config for refiner
         batch_size = config['processing'].get('batch_processing', {}).get('batch_size', 5)
-        refiner = Refiner(ollama_client, batch_size=batch_size) if not skip_refinement else None
         
-        # New specialized agents
-        reflection_agent = ReflectionAgent(ollama_client, config) if config.get('translation_pipeline', {}).get('use_reflection', False) else None
-        myanmar_checker = MyanmarQualityChecker(config)
-        qa_tester = QATesterAgent(memory)
+        # Process pipeline mode (full/lite/fast per need_fix.md Phase 1.1)
+        # Use config mode by default, CLI args.mode can override but not yet supported in function
+        config_pipeline_mode = config.get('translation_pipeline', {}).get('mode', 'full')
+        actual_mode = config_pipeline_mode
+        
+        # Initialize agents based on pipeline mode
+        refiner = None
+        reflection_agent = None
+        myanmar_checker = None
+        qa_tester = None
+        
+        if actual_mode == 'full':
+            # Full 6-stage pipeline
+            refiner = Refiner(ollama_client, batch_size=batch_size) if not skip_refinement else None
+            reflection_agent = ReflectionAgent(ollama_client, config) if config.get('translation_pipeline', {}).get('use_reflection', False) else None
+            myanmar_checker = MyanmarQualityChecker(config)
+            qa_tester = QATesterAgent(memory)
+        elif actual_mode == 'lite':
+            # Lite 3-stage: Translate → Refine → Quality (skip reflection)
+            refiner = Refiner(ollama_client, batch_size=batch_size) if not skip_refinement else None
+            myanmar_checker = MyanmarQualityChecker(config)
+        elif actual_mode == 'fast':
+            # Fast 2-stage: Translate → Quality only (skip refinement)
+            myanmar_checker = MyanmarQualityChecker(config)
         
         checker = Checker(memory)
         context_updater = ContextUpdater(ollama_client, memory)
@@ -460,29 +479,31 @@ def translate_single_file(
         progress_logger.finalize(success=True)
         logger.info(f"Progress log finalized: {progress_logger.get_log_path()}")
         
-        # Refine (optional)
-        if refiner and not skip_refinement:
+        # Refine (depending on mode: full/lite - fast skips)
+        if refiner is not None and not skip_refinement:
             logger.info("Refining translation...")
             translated_text = refiner.refine_full_text(translated_text)
         
-        # Reflection & Self-Correction (optional)
-        if reflection_agent and not skip_refinement:
+        # Reflection & Self-Correction (full mode only)
+        if reflection_agent is not None and not skip_refinement:
             logger.info("Running reflection and self-correction...")
             translated_text = reflection_agent.reflect_and_improve(translated_text, original_text)
         
-        # Check quality
+        # Check quality (all modes have checker)
         logger.info("Checking translation quality...")
         check_result = checker.check_chapter(original_text, translated_text)
         
-        # Enhanced Myanmar Quality Check
-        myanmar_quality = myanmar_checker.check_quality(translated_text)
-        check_result['myanmar_quality_score'] = myanmar_quality['score']
-        check_result['myanmar_issues'] = myanmar_quality['issues']
+        # Myanmar Quality Check (full/lite modes)
+        if myanmar_checker is not None:
+            myanmar_quality = myanmar_checker.check_quality(translated_text)
+            check_result['myanmar_quality_score'] = myanmar_quality['score']
+            check_result['myanmar_issues'] = myanmar_quality['issues']
         
-        # QA Validation
-        qa_report = qa_tester.validate_output(translated_text, chapter_num)
-        check_result['qa_passed'] = qa_report['passed']
-        check_result['qa_issues'] = qa_report['issues']
+        # QA Validation (full mode only)
+        if qa_tester is not None:
+            qa_report = qa_tester.validate_output(translated_text, chapter_num)
+            check_result['qa_passed'] = qa_report['passed']
+            check_result['qa_issues'] = qa_report['issues']
         
         print("\n" + checker.generate_report(chapter_num, check_result))
         
@@ -666,6 +687,8 @@ Examples:
     parser.add_argument("--single-stage", action="store_true", help="Force single-stage translation")
     parser.add_argument("--unload-after-chapter", action="store_true", 
                        help="Unload model from GPU after each chapter to save VRAM")
+    parser.add_argument("--mode", choices=["full", "lite", "fast"], default="full",
+                       help="Pipeline mode: full (6-stage), lite (3-stage), fast (2-stage)")
     
     # Source language (auto-selects config)
     parser.add_argument("--lang", "-l", choices=["en", "zh", "english", "chinese"], 

@@ -55,7 +55,11 @@ models:
 #   Direct translation in one pass
 # =====================================================
 translation_pipeline:
-  mode: "two_stage"  # Options: "two_stage" or "single_stage"
+  mode: "full"  # Options: "full" (6-stage), "lite" (3-stage), "fast" (2-stage)
+  mode_description:
+    full: "6-stage pipeline: Translate → Refine → Reflect → Quality → Consistency → QA"
+    lite: "3-stage pipeline: Translate → Refine → Quality"
+    fast: "2-stage pipeline: Translate → Quality (skip refinement)"
   stage1_model: "qwen2.5:14b"  # Fixed: yxchia/seallms produces THAI instead of Myanmar
   stage2_model: "qwen:7b"
   use_reflection: false       # Set to true to enable self-correction (slower but better quality)
