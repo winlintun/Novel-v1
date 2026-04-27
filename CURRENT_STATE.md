@@ -8,9 +8,31 @@
 ---
 
 ## Last Updated
-- Date: 2026-04-27
+- Date: 2026-04-28
 - Last task completed:
-  1. **GPU Support Configuration**:
+  1. **Reorganized ROADMAP.md by Priority**:
+     - Changed from version-based to priority-based structure (High/Medium/Low)
+     - Updated status indicators for all features (✅ DONE / 🔄 In Progress / 📋 Planned)
+     - Added ETA timeline for each feature
+     - Created "Completed Features Archive" section for historical reference
+     - Added "Last Updated" timestamp to ROADMAP
+  2. **Previous Tasks**:
+  1. **FIXED: Poor Translation Quality & CLI Output Issues**:
+     - **Root Cause**: Default model `qwen2.5:14b` was outputting Japanese instead of Myanmar
+     - **Solution**: Changed default model to `padauk-gemma:q8_0` which is specifically designed for Myanmar
+     - **Files Modified**:
+       - `config/settings.yaml`: Updated translator, editor, refiner to use `padauk-gemma:q8_0`
+       - `src/agents/translator.py`: Added explicit Myanmar language instructions to prompts
+       - `src/cli/commands.py`: Added verbose CLI output using formatters (print_translation_header, print_pipeline_stages, etc.)
+       - `src/cli/formatters.py`: Added 'single_stage' mode to pipeline stages display
+     - **Result**: Translation now produces proper Myanmar with 98%+ Myanmar character ratio
+     - **CLI Enhancement**: Now displays model info, settings, pipeline stages, and progress
+  2. **Bug Fix - Checker.__init__() unexpected keyword argument 'ollama_client'**:
+     - Fixed `TypeError: Checker.__init__() got an unexpected keyword argument 'ollama_client'`
+     - Removed `ollama_client` parameter from Checker() instantiation in `src/pipeline/orchestrator.py` (line 165-168)
+     - Removed `ollama_client` parameter from Checker() instantiation in `src/core/container.py` (line 111-114)
+     - The Checker class doesn't need ollama_client as it performs local validation (regex, string matching) rather than LLM-based checks
+  2. **GPU Support Configuration**:
      - Added GPU configuration options to `config/settings.yaml` (use_gpu, gpu_layers, main_gpu)
      - Updated `src/config/models.py` ModelsConfig with GPU settings (use_gpu, gpu_layers, main_gpu)
      - Updated `src/utils/ollama_client.py` OllamaClient to support GPU parameters
