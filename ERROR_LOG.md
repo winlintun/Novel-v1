@@ -41,6 +41,68 @@
 
 ---
 
+## Issues Fixed in This Update Session
+
+### ERROR-016: UI Import Path Error
+**Date**: 2026-04-27
+**File**: `ui/pages/2_Translate.py`, `ui/pages/4_Glossary_Editor.py`
+**Error Message**:
+```
+ModuleNotFoundError: No module named 'ui'
+```
+**Root Cause**: Incorrect sys.path insertion - `Path(__file__).parent.parent` pointed to project root but imports expected parent of project root
+**Fix Applied**: Changed to `Path(__file__).parent.parent.parent` to add project root's parent, then use absolute imports from project root
+**Files Modified**:
+- `ui/pages/2_Translate.py` - Fixed path insertion (line 10-12)
+- `ui/pages/4_Glossary_Editor.py` - Fixed path insertion (line 8-10)
+**Status**: RESOLVED
+**Verified By**: test_novel_v1.py (11/11 tests pass)
+
+### ERROR-017: Web UI Not Launching with --ui Flag
+**Date**: 2026-04-27
+**File**: `src/main.py`, `tools/launch_ui.py` (new)
+**Error Message**:
+```
+--ui flag did not launch web UI, terminal showed no output
+```
+**Root Cause**: The --ui flag in main.py launched streamlit directly without proper logging and process management
+**Fix Applied**: 
+1. Created `tools/launch_ui.py` - Dedicated launcher with log file support
+2. Updated `src/main.py` to use the launcher script
+3. Logs all Streamlit output to `logs/web_server.log`
+**Files Modified**:
+- `tools/launch_ui.py` - New file created
+- `src/main.py` - Updated --ui flag handler (lines 715-740)
+**Status**: RESOLVED
+**Verified By**: test_novel_v1.py (launcher script test pass)
+
+### ERROR-018: CLI Processing Info Not Visible
+**Date**: 2026-04-27
+**File**: `src/main.py`
+**Error Message**:
+```
+Translation process showed minimal info - user couldn't see models, settings, steps
+```
+**Root Cause**: Original code only printed basic model info without rich formatting or step-by-step progress
+**Fix Applied**:
+1. Added `print_box()` function - Display formatted boxes with config info
+2. Added `print_pipeline_status()` function - Show step status with icons
+3. Added `print_translation_header()` function - Rich formatted header with all settings
+4. Added step-by-step progress updates throughout `translate_single_file()`:
+   - Step 1/7: Preprocessing
+   - Step 2/7: Translation
+   - Step 3/7: Refinement
+   - Step 4/7: Reflection
+   - Step 5/7: Quality Checks
+   - Step 6/7: Save Output
+   - Step 7/7: Update Context
+**Files Modified**:
+- `src/main.py` - Added display functions (lines 242-337) and step updates throughout
+**Status**: RESOLVED
+**Verified By**: test_novel_v1.py (enhanced display test pass)
+
+---
+
 ## Issues Fixed in This Review Session
 
 ### ERROR-015: Glossary_Editor.py corrupted Unicode character

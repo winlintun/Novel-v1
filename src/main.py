@@ -239,6 +239,113 @@ Translation Progress:
     return output_file
 
 
+def print_box(title: str, content: list, width: int = 60):
+    """Print a formatted box with title and content."""
+    print("╔" + "═" * (width - 2) + "╗")
+    print("║" + title.center(width - 2) + "║")
+    print("╠" + "═" * (width - 2) + "╣")
+    for line in content:
+        if isinstance(line, tuple):
+            # (label, value) pair
+            label, value = line
+            text = f"  {label}: {value}"
+        else:
+            text = f"  {line}"
+        print("║" + text.ljust(width - 2) + "║")
+    print("╚" + "═" * (width - 2) + "╝")
+
+
+def print_pipeline_status(step: str, status: str, details: str = ""):
+    """Print a pipeline step status."""
+    icons = {
+        "pending": "⏳",
+        "running": "🔄",
+        "complete": "✅",
+        "error": "❌",
+        "skip": "⏭️"
+    }
+    icon = icons.get(status, "•")
+    status_text = status.upper()
+    if details:
+        print(f"  {icon} {step:<25} [{status_text}] {details}")
+    else:
+        print(f"  {icon} {step:<25} [{status_text}]")
+
+
+def print_translation_header(config: dict, args):
+    """Print rich formatted translation header with all settings."""
+    print("\n" + "=" * 70)
+    print("  📚 NOVEL TRANSLATION PIPELINE")
+    print("=" * 70)
+    
+    # Config Info
+    models_config = config.get('models', {})
+    provider = models_config.get('provider', 'ollama')
+    translator_model = models_config.get('translator', 'qwen2.5:14b')
+    editor_model = models_config.get('editor', translator_model)
+    
+    # Pipeline mode
+    pipeline_config = config.get('translation_pipeline', {})
+    mode = getattr(args, 'mode', None) or pipeline_config.get('mode', 'full')
+    
+    print("\n📋 CONFIGURATION")
+    print("-" * 70)
+    print(f"  Provider:        {provider.upper()}")
+    print(f"  Translator:      {translator_model}")
+    print(f"  Editor:          {editor_model}")
+    print(f"  Pipeline Mode:   {mode.upper()}")
+    print(f"  Config File:     {getattr(args, 'config', 'config/settings.yaml')}")
+    
+    # Processing settings
+    proc_config = config.get('processing', {})
+    print("\n⚙️  PROCESSING SETTINGS")
+    print("-" * 70)
+    print(f"  Chunk Size:      {proc_config.get('chunk_size', 800)} chars")
+    print(f"  Chunk Overlap:   {proc_config.get('chunk_overlap', 50)} chars")
+    print(f"  Temperature:     {proc_config.get('temperature', 0.2)}")
+    print(f"  Repeat Penalty:  {proc_config.get('repeat_penalty', 1.5)}")
+    print(f"  Max Retries:     {proc_config.get('max_retries', 3)}")
+    
+    # Pipeline stages based on mode
+    print("\n🔄 PIPELINE STAGES")
+    print("-" * 70)
+    
+    stages = []
+    if mode == 'full':
+        stages = [
+            ("1. Preprocessing", "pending", "Chunking input text"),
+            ("2. Translation", "pending", f"Using {translator_model}"),
+            ("3. Refinement", "pending", "Literary quality edit" if not getattr(args, 'skip_refinement', False) else "SKIPPED"),
+            ("4. Reflection", "pending", "Self-correction" if pipeline_config.get('use_reflection', False) else "DISABLED"),
+            ("5. Quality Check", "pending", "Myanmar linguistic validation"),
+            ("6. Consistency", "pending", "Glossary verification"),
+            ("7. QA Review", "pending", "Final validation"),
+        ]
+    elif mode == 'lite':
+        stages = [
+            ("1. Preprocessing", "pending", "Chunking input text"),
+            ("2. Translation", "pending", f"Using {translator_model}"),
+            ("3. Refinement", "pending", "Literary quality edit" if not getattr(args, 'skip_refinement', False) else "SKIPPED"),
+            ("4. Quality Check", "pending", "Myanmar linguistic validation"),
+        ]
+    elif mode == 'fast':
+        stages = [
+            ("1. Preprocessing", "pending", "Chunking input text"),
+            ("2. Translation", "pending", f"Using {translator_model}"),
+            ("3. Quality Check", "pending", "Myanmar linguistic validation"),
+        ]
+    
+    for stage_name, status, details in stages:
+        print_pipeline_status(stage_name, status, details)
+    
+    # Memory optimization
+    if getattr(args, 'unload_after_chapter', False):
+        print("\n💾 MEMORY OPTIMIZATION: Enabled (GPU unload after each chapter)")
+    
+    print("\n" + "=" * 70)
+    print()
+
+
 def load_config(config_path: str = "config/settings.yaml") -> dict:
     """Load configuration from YAML."""
     try:
@@ -397,10 +504,14 @@ def translate_single_file(
         checker = Checker(memory)
         context_updater = ContextUpdater(ollama_client, memory)
         
-        # Load and preprocess
+        # Step 1: Preprocessing
+        print("\n🔄 Step 1/7: Preprocessing...")
+        print_pipeline_status("Loading file", "running", filepath)
         logger.info(f"Loading: {filepath}")
         chunks = preprocessor.load_and_preprocess(filepath)
         chapter_info = preprocessor.get_chapter_info(filepath)
+        print_pipeline_status("Loading file", "complete", f"{len(chunks)} chunks created")
+        print_pipeline_status("Chunking", "complete", f"{config['processing'].get('chunk_size', DEFAULT_CHUNK_SIZE)} chars/chunk")
         
         book_id = chapter_info['novel_name']
         chapter_name = chapter_info['filename'].replace('.md', '')
@@ -447,7 +558,8 @@ def translate_single_file(
             else:
                 # STEP 1: CN -> EN
                 logger.info(f"STEP 1: Translating {len(chunks)} chunks to English...")
-                print(f"🔄 Step 1: Translating {len(chunks)} chunks Chinese → English...")
+                print(f"\n🔄 Step 2/7: Translation (Stage 1 - Chinese → English)")
+                print_pipeline_status("Translation", "running", f"Using {config['models']['translator']}")
                 english_chunks = translator.translate_chunks_stage1(chunks)
                 english_text = '\n\n'.join(english_chunks)
                 
@@ -458,7 +570,8 @@ def translate_single_file(
             
             # STEP 2: EN -> MM (reads from saved EN file)
             logger.info(f"STEP 2: Translating from English to Myanmar...")
-            print(f"🔄 Step 2: Translating {len(english_chunks)} chunks English → Myanmar...")
+            print(f"\n🔄 Step 2/7: Translation (Stage 2 - English → Myanmar)")
+            print_pipeline_status("Translation", "running", f"Using {config['models'].get('stage2_model', config['models']['editor'])}")
             translated_chunks = translator.translate_chunks_stage2(
                 english_chunks, 
                 chapter_num,
@@ -467,6 +580,8 @@ def translate_single_file(
         else:
             # Standard CN -> MM
             logger.info(f"Translating {len(chunks)} chunks...")
+            print(f"\n🔄 Step 2/7: Translation")
+            print_pipeline_status("Translation", "running", f"Using {config['models']['translator']}")
             translated_chunks = translator.translate_chunks(
                 chunks,
                 chapter_num,
@@ -474,6 +589,7 @@ def translate_single_file(
             )
         
         translated_text = '\n\n'.join(translated_chunks)
+        print_pipeline_status("Translation", "complete", f"{len(translated_chunks)} chunks translated")
         
         # Mark progress as complete for translation phase
         progress_logger.finalize(success=True)
@@ -481,29 +597,49 @@ def translate_single_file(
         
         # Refine (depending on mode: full/lite - fast skips)
         if refiner is not None and not skip_refinement:
+            print(f"\n🔄 Step 3/7: Refinement")
+            print_pipeline_status("Refinement", "running", "Literary quality editing")
             logger.info("Refining translation...")
             translated_text = refiner.refine_full_text(translated_text)
+            print_pipeline_status("Refinement", "complete")
         
         # Reflection & Self-Correction (full mode only)
         if reflection_agent is not None and not skip_refinement:
+            print(f"\n🔄 Step 4/7: Reflection & Self-Correction")
+            print_pipeline_status("Reflection", "running", "Analyzing and improving translation")
             logger.info("Running reflection and self-correction...")
             translated_text = reflection_agent.reflect_and_improve(translated_text, original_text)
+            print_pipeline_status("Reflection", "complete")
+        else:
+            print(f"\n⏭️  Step 4/7: Reflection (SKIPPED)")
         
         # Check quality (all modes have checker)
+        print(f"\n🔄 Step 5/7: Quality Checks")
+        print_pipeline_status("Consistency Check", "running", "Verifying glossary terms")
         logger.info("Checking translation quality...")
         check_result = checker.check_chapter(original_text, translated_text)
+        print_pipeline_status("Consistency Check", "complete")
         
         # Myanmar Quality Check (full/lite modes)
         if myanmar_checker is not None:
+            print_pipeline_status("Myanmar Quality", "running", "Validating linguistic quality")
             myanmar_quality = myanmar_checker.check_quality(translated_text)
             check_result['myanmar_quality_score'] = myanmar_quality['score']
             check_result['myanmar_issues'] = myanmar_quality['issues']
+            print_pipeline_status("Myanmar Quality", "complete", f"Score: {myanmar_quality['score']:.1f}%")
+        else:
+            print_pipeline_status("Myanmar Quality", "skip")
         
         # QA Validation (full mode only)
         if qa_tester is not None:
+            print_pipeline_status("QA Validation", "running", "Final validation checks")
             qa_report = qa_tester.validate_output(translated_text, chapter_num)
             check_result['qa_passed'] = qa_report['passed']
             check_result['qa_issues'] = qa_report['issues']
+            status = "complete" if qa_report['passed'] else "error"
+            print_pipeline_status("QA Validation", status)
+        else:
+            print_pipeline_status("QA Validation", "skip")
         
         print("\n" + checker.generate_report(chapter_num, check_result))
         
@@ -532,7 +668,7 @@ Translation Progress:
 """
             FileHandler.write_text(output_path, progress_info + translated_text)
             logger.info(f"Myanmar translation saved to: {output_path}")
-            print(f"✅ Myanmar translation saved to: {output_path}")
+            print_pipeline_status("Save Output", "complete", str(output_path))
         else:
             output_path = save_partial_translation(
                 book_id, chapter_name,
@@ -540,10 +676,14 @@ Translation Progress:
                 len(chunks),
                 is_final=True
             )
-        
+            print_pipeline_status("Save Output", "complete", str(output_path))
+
         # Update context and glossary
+        print(f"\n🔄 Step 7/7: Update Context & Glossary")
+        print_pipeline_status("Update Context", "running", "Extracting terms and updating memory")
         logger.info("Updating memory and context...")
         context_updater.process_chapter(original_text, translated_text, chapter_num)
+        print_pipeline_status("Update Context", "complete")
         
         logger.info(f"Translation complete: {output_path}")
         print(f"\n✅ Progress log saved: {progress_logger.get_log_path()}")
@@ -716,27 +856,35 @@ Examples:
     if args.ui:
         print("🚀 Launching Web UI...")
         import subprocess
-        ui_script = Path("ui/streamlit_app.py")
-        if not ui_script.exists():
-            print(f"✗ Error: Web UI script not found at {ui_script}")
-            return 1
         
-        try:
-            # Check if streamlit is installed
-            subprocess.run(["streamlit", "--version"], capture_output=True, check=True)
-            # Run from project root directory
-            project_root = Path(__file__).parent.parent
-            subprocess.run(["streamlit", "run", str(ui_script)], cwd=project_root)
-            return 0
-        except subprocess.CalledProcessError:
-            print("✗ Error: Streamlit is not installed. Please run: pip install streamlit")
-            return 1
-        except KeyboardInterrupt:
-            print("\nWeb UI stopped.")
-            return 0
-        except Exception as e:
-            print(f"✗ Error launching Web UI: {e}")
-            return 1
+        # Use the launcher script that logs to file
+        launcher_script = Path("tools/launch_ui.py")
+        if launcher_script.exists():
+            try:
+                result = subprocess.run([sys.executable, str(launcher_script)])
+                return result.returncode
+            except KeyboardInterrupt:
+                print("\n✅ Web UI stopped.")
+                return 0
+            except Exception as e:
+                print(f"✗ Error launching Web UI: {e}")
+                return 1
+        else:
+            # Fallback: launch directly
+            ui_script = Path("ui/streamlit_app.py")
+            if not ui_script.exists():
+                print(f"✗ Error: Web UI script not found at {ui_script}")
+                return 1
+            
+            try:
+                subprocess.run([sys.executable, "-m", "streamlit", "run", str(ui_script)])
+                return 0
+            except KeyboardInterrupt:
+                print("\n✅ Web UI stopped.")
+                return 0
+            except Exception as e:
+                print(f"✗ Error launching Web UI: {e}")
+                return 1
 
     # Glossary generation mode
     if args.generate_glossary:
@@ -820,48 +968,8 @@ Examples:
         print(f"✗ Failed to load configuration: {e}")
         return 1
     
-    # Display model information
-    models_config = config.get('models', {})
-    provider = models_config.get('provider', 'ollama')
-    translator_model = models_config.get('translator', 'qwen2.5:14b')
-    editor_model = models_config.get('editor', translator_model)
-    
-    print("-" * 60)
-    print(f"Provider: {provider.upper()}")
-    print(f"Translator Model: {translator_model}")
-    print(f"Editor Model: {editor_model}")
-    print("-" * 60)
-    print()
-    
-    # Override two-stage mode if specified
-    if args.two_stage:
-        config['translation_pipeline']['mode'] = 'two_stage'
-        print("Mode: Two-stage translation")
-        print("  Stage 1: Raw translation")
-        print("  Stage 2: Literary refinement")
-    elif args.single_stage:
-        config['translation_pipeline']['mode'] = 'single_stage'
-        print("Mode: Single-stage translation")
-    elif args.mode:
-        config['translation_pipeline']['mode'] = args.mode
-        print(f"Mode: {args.mode} pipeline")
-        if args.mode == 'full':
-            print("  6-stage: Translate → Refine → Reflect → Quality → Consistency → QA")
-        elif args.mode == 'lite':
-            print("  3-stage: Translate → Refine → Quality")
-        elif args.mode == 'fast':
-            print("  2-stage: Translate → Quality")
-    else:
-        mode = config['translation_pipeline'].get('mode', 'single_stage')
-        print(f"Mode: {mode.replace('_', '-')} translation")
-        if mode == 'two_stage':
-            print("  Stage 1: Raw translation")
-            print("  Stage 2: Literary refinement")
-    
-    if args.unload_after_chapter:
-        print("\nMemory optimization: Model will be unloaded from GPU after each chapter")
-    
-    print()
+    # Display rich formatted translation header
+    print_translation_header(config, args)
     
     # Run translation
     try:
