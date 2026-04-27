@@ -144,28 +144,102 @@ with col_stage4:
 st.divider()
 
 with st.expander("📋 Live Translation Logs", expanded=True):
-    auto_refresh = st.toggle("Auto Refresh", value=True)
-    log_level = st.selectbox("Log Level", ["All", "Info", "Warning", "Error"], horizontal=True)
+    col_log_opts1, col_log_opts2, col_log_opts3 = st.columns(3)
+    
+    with col_log_opts1:
+        auto_refresh = st.toggle("Auto Refresh", value=True)
+    
+    with col_log_opts2:
+        log_level = st.selectbox("Log Level", ["All", "Info", "Warning", "Error"], horizontal=True)
+    
+    with col_log_opts3:
+        log_filter = st.text_input("Filter Logs", placeholder="Search...")
     
     log_dir = Path("logs/progress")
     if log_dir.exists():
-        log_files = sorted(list(log_dir.glob("*.md")), key=os.path.getmtime, reverse=True)[:1]
+        log_files = sorted(list(log_dir.glob("*.md")), key=os.path.getmtime, reverse=True)[:5]
+        
         if log_files:
-            with open(log_files[0], 'r', encoding='utf-8') as f:
-                log_content = f.read()
+            selected_log = st.selectbox("Select Log File", [f.name for f in log_files], horizontal=True)
             
-            st.text_area("Logs", log_content, height=300, key="log_view")
-            
-            col_log1, col_log2 = st.columns(2)
-            with col_log1:
-                if st.button("🔄 Refresh Logs"):
-                    st.rerun()
-            with col_log2:
-                st.download_button("📥 Download Logs", log_content, file_name="translation.log", mime="text/markdown")
+            if selected_log:
+                log_path = log_dir / selected_log
+                with open(log_path, 'r', encoding='utf-8-sig') as f:
+                    log_content = f.read()
+                
+                # Filter by level
+                if log_level == "Error":
+                    log_content = "\n".join([l for l in log_content.split('\n') if 'ERROR' in l or 'Error' in l])
+                elif log_level == "Warning":
+                    log_content = "\n".join([l for l in log_content.split('\n') if 'WARNING' in l or 'Warning' in l])
+                
+                # Filter by search
+                if log_filter:
+                    log_content = "\n".join([l for l in log_content.split('\n') if log_filter.lower() in l.lower()])
+                
+                # Show line count
+                line_count = len(log_content.split('\n'))
+                error_count = log_content.count('ERROR')
+                warning_count = log_content.count('WARNING')
+                
+                col_stats1, col_stats2, col_stats3 = st.columns(3)
+                with col_stats1:
+                    st.metric("Lines", line_count)
+                with col_stats2:
+                    st.metric("Errors", error_count)
+                with col_stats3:
+                    st.metric("Warnings", warning_count)
+                
+                st.text_area("Logs", log_content, height=300, key="log_view")
+                
+                col_log1, col_log2 = st.columns(2)
+                with col_log1:
+                    if st.button("🔄 Refresh Logs"):
+                        st.rerun()
+                with col_log2:
+                    st.download_button("📥 Download Logs", log_content, file_name=f"translation_{selected_log}", mime="text/markdown")
         else:
             st.info("No logs yet.")
     else:
-        st.info("No logs directory found.")
+        st.info("No logs directory found. Start translation to create logs.")
+
+st.divider()
+
+with st.expander("💾 RAM Monitor & System Status", expanded=False):
+    from src.utils.ram_monitor import RAMMonitor, ModelUnloader
+    
+    monitor = RAMMonitor()
+    
+    col_ram1, col_ram2, col_ram3 = st.columns(3)
+    
+    with col_ram1:
+        usage = monitor.get_memory_usage()
+        st.metric("RAM Used", f"{usage['ram_used_mb']} MB", f"{usage['ram_percent']}%")
+    
+    with col_ram2:
+        if usage.get('vram_total_mb', 0) > 0:
+            st.metric("VRAM Used", f"{usage['vram_used_mb']} MB", f"{usage['vram_percent']}%")
+        else:
+            st.metric("VRAM", "No GPU detected")
+    
+    with col_ram3:
+        running_models = ModelUnloader.list_models()
+        st.metric("Running Models", len(running_models))
+    
+    if running_models:
+        st.write("**Running Ollama Models:**")
+        for model in running_models:
+            col_m1, col_m2 = st.columns([3, 1])
+            with col_m1:
+                st.code(model)
+            with col_m2:
+                if st.button(f"🗑️ Unload", key=f"unload_{model}"):
+                    if ModelUnloader.unload_model(model):
+                        st.success(f"Unloaded {model}")
+                        st.rerun()
+    
+    if st.button("🔄 Refresh Memory"):
+        st.rerun()
 
 st.divider()
 
