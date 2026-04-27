@@ -29,6 +29,30 @@ _HEADER_ARTIFACTS: List[re.Pattern] = [
     re.compile(r"^Translation Progress:.*$", re.MULTILINE),
 ]
 
+# Model reasoning/thinking process patterns (NOT actual translation output)
+_REASONING_PATTERNS: List[re.Pattern] = [
+    # Match "Here's a thinking process..." sections (common in Qwen outputs)
+    re.compile(r"Here's a thinking process.*?(?=^\d+\s+\*\*Analyze|$)", re.DOTALL | re.MULTILINE),
+    re.compile(r"Here's a thinking process.*?^(?=\d+\.|Here is|\*\*Burmese Draft|\*\*Myanmar Draft|# |\[|^[^\*a-zA-Z])", re.DOTALL | re.MULTILINE),
+    # Match "Analyze the Request and Constraints" sections
+    re.compile(r"^\d+\.\s+\*\*Analyze the Request and Constraints:\*\*.*?^(?=\d+\.|\*\*|$)", re.DOTALL | re.MULTILINE),
+    # Match "Analyze the Glossary" sections
+    re.compile(r"^\d+\.\s+\*\*Analyze the Glossary:\*\*.*?^(?=\d+\.|\*\*|$)", re.DOTALL | re.MULTILINE),
+    # Match "Analyze the Source Text" sections
+    re.compile(r"^\d+\.\s+\*\*Analyze the Source Text.*?\*\*.*?^(?=\d+\.|\*\*|$)", re.DOTALL | re.MULTILINE),
+    # Match "Segment and Translate" sections (the analysis part, not the draft)
+    re.compile(r"^\d+\.\s+\*\*Segment and Translate.*?\*\*.*?^(?=\*\*Burmese Draft|\*\*Myanmar Draft|\d+\.|Here is|$)", re.DOTALL | re.MULTILINE),
+    # Match "Refinement" and "Drafting" analysis sections
+    re.compile(r"^\s*\*\*(Refinement|Drafting|Drafting Focus|Focus):\*\*.*?^(?=\*\*Burmese|\*\*Myanmar|\d+\.|Here is|$)", re.DOTALL | re.MULTILINE),
+    # Remove all lines starting with analysis markup
+    re.compile(r"^\s*\*\s*\*Original:\*.*?$", re.MULTILINE),
+    re.compile(r"^\s*\*\s*\*Key.*?\*.*?$", re.MULTILINE),
+    re.compile(r"^\s*\*\s*\*Tone.*?\*.*?$", re.MULTILINE),
+    re.compile(r"^\s*\*\s*\*Key elements.*?\*.*?$", re.MULTILINE),
+    # Remove glossary checkboxes like "[○] Luo Qing = ..."
+    re.compile(r"^\s*\[.\]\s+\w+\s+=.*?$", re.MULTILINE),
+]
+
 # Thai Unicode range — should never appear in Myanmar output
 _THAI_PATTERN = re.compile(r"[\u0E00-\u0E7F]+")
 
@@ -58,6 +82,54 @@ def strip_header_artifacts(text: str) -> str:
     for pattern in _HEADER_ARTIFACTS:
         text = pattern.sub("", text)
     return text
+
+
+def strip_reasoning_process(text: str) -> str:
+    """
+    Remove 'thinking process' sections that models output before the actual translation.
+    These are NOT part of the translation - they're the model's internal analysis.
+    """
+    # First pass: remove large reasoning blocks
+    for pattern in _REASONING_PATTERNS:
+        text = pattern.sub("", text)
+    
+    # Second pass: clean up remaining analysis lines and markers
+    lines = text.split('\n')
+    cleaned_lines = []
+    
+    for line in lines:
+        original_line = line
+        
+        # Remove "**Burmese Draft:**" or "**Myanmar Draft:**" markers with optional leading bullet
+        # Pattern: optional whitespace, optional bullet (* or -), optional whitespace, **Label:**, whitespace
+        line = re.sub(r'^\s*[\*\-]?\s*\*\*Burmese Draft:\*\*\s*', '', line, flags=re.IGNORECASE)
+        line = re.sub(r'^\s*[\*\-]?\s*\*\*Myanmar Draft:\*\*\s*', '', line, flags=re.IGNORECASE)
+        # Also handle single-asterisk variant: *   *Burmese Draft:* 
+        line = re.sub(r'^\s*\*\s*\*Burmese Draft:\*\s*', '', line, flags=re.IGNORECASE)
+        line = re.sub(r'^\s*\*\s*\*Myanmar Draft:\*\s*', '', line, flags=re.IGNORECASE)
+        
+        # Skip lines that are just analysis markers (no actual Myanmar content)
+        if re.match(r'^\s*[\*\-]?\s*\*+[^\u1000-\u109F]*\*+\s*$', original_line):
+            continue
+        # Skip lines with only "Refinement:", "Drafting:", etc. labels
+        if re.match(r'^\s*[\*\-]?\s*\*+(Refinement|Drafting|Drafting Focus|Focus):\*+\s*$', original_line, re.IGNORECASE):
+            continue
+        # Skip analysis lines like "*   *Refinement:* Needs high literary tone." (no Myanmar text)
+        if re.match(r'^\s*\*\s*\*(Refinement|Drafting|Focus|Key Concepts|Key elements|Tone):\*.*$', original_line, re.IGNORECASE):
+            # Check if line has Myanmar text
+            if not re.search(r'[\u1000-\u109F]', original_line):
+                continue
+        # Skip "Here's the actual Myanmar translation:" preamble
+        if re.match(r'^Here.*?Myanmar translation[:;]', line, re.IGNORECASE):
+            continue
+        # Skip "Here's the actual translation:" preamble  
+        if re.match(r'^Here.*?actual translation[:;]', line, re.IGNORECASE):
+            continue
+        
+        # Keep the line (now cleaned of markers)
+        cleaned_lines.append(line)
+    
+    return '\n'.join(cleaned_lines)
 
 
 def detect_language_leakage(text: str) -> dict[str, int]:
@@ -106,12 +178,13 @@ def remove_latin_words(text: str) -> str:
 def clean_output(raw: str, aggressive: bool = False) -> str:
     """
     Full postprocessing pipeline. Apply in order:
-    1. Strip reasoning tags
-    2. Strip header artifacts
-    3. Remove Chinese characters (model leakage) - only if aggressive=True
-    4. Remove Latin words (English/German leakage) - only if aggressive=True
-    5. Collapse 3+ blank lines → 2
-    6. Strip leading/trailing whitespace
+    1. Strip reasoning tags (<think>, etc.)
+    2. Strip reasoning process (model's analysis sections)
+    3. Strip header artifacts
+    4. Remove Chinese characters (model leakage) - only if aggressive=True
+    5. Remove Latin words (English/German leakage) - only if aggressive=True
+    6. Collapse 3+ blank lines → 2
+    7. Strip leading/trailing whitespace
     
     Args:
         raw: Raw LLM output
@@ -123,6 +196,7 @@ def clean_output(raw: str, aggressive: bool = False) -> str:
         Cleaned text
     """
     text = strip_reasoning_tags(raw)
+    text = strip_reasoning_process(text)
     text = strip_header_artifacts(text)
     
     # Fixed: Only aggressively remove Chinese/Latin if explicitly requested

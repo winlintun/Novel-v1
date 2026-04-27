@@ -41,6 +41,37 @@
 
 ---
 
+## Issues Fixed in This Session
+
+### ERROR-019: Translation Output Contains Model's Thinking Process
+**Date**: 2026-04-27
+**File**: `src/utils/postprocessor.py`
+**Error Message**:
+```
+Output file contains:
+- "Here's a thinking process that leads to the suggested translation:"
+- "1. **Analyze the Request and Constraints:**"
+- "**Burmese Draft:**" markers
+- Model's internal analysis instead of pure translation
+```
+**Root Cause**: The postprocessor only stripped `<think>` tags but not the plain-text thinking process that Qwen outputs before the actual translation
+**Fix Applied**:
+1. Added `_REASONING_PATTERNS` list to match thinking process sections
+2. Added `strip_reasoning_process()` function to remove:
+   - "Here's a thinking process..." sections
+   - "Analyze the Request and Constraints" sections
+   - "Analyze the Glossary" sections
+   - "Segment and Translate" analysis (keeping only the draft)
+   - "**Burmese Draft:**" and "**Myanmar Draft:**" markers
+   - Analysis lines without Myanmar text
+3. Updated `clean_output()` to call `strip_reasoning_process()`
+**Files Modified**:
+- `src/utils/postprocessor.py` - Added reasoning pattern removal
+**Status**: RESOLVED
+**Verified By**: test_novel_v1.py (11/11 tests pass), manual test with 100% Myanmar char ratio
+
+---
+
 ## Issues Fixed in This Update Session
 
 ### ERROR-016: UI Import Path Error

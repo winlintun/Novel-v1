@@ -13,9 +13,10 @@
   1. Fixed UI import path issues - corrected sys.path in 2_Translate.py and 4_Glossary_Editor.py
   2. Created tools/launch_ui.py for web server logging - all output goes to logs/web_server.log
   3. Enhanced CLI processing info display - rich formatted header, step-by-step progress (7 steps), model info, settings display
-  4. Fixed --ui flag to properly launch web UI with subprocess and logging
+  4. Fixed --ui flag to properly launch web UI with subprocess
   5. Created comprehensive test suite (test_novel_v1.py) - 11/11 tests passing
-  6. All fixes verified with test suite
+  6. Fixed postprocessor to strip model's "thinking process" from output (ERROR-019)
+  7. All fixes verified with test suite
 - Fixed UI syntax errors (Glossary_Editor, horizontal parameter) per code-reviewer; All UI files working
 - Added GlossaryGenerator agent for pre-translation terminology extraction; Fixed English source support bug in Translator agent by ensuring correct system prompt selection; Updated AGENTS.md and USER_GUIDE.md.
 - Integrated Web UI (Streamlit) into `main.py` via `--ui` flag; Added `--test` flag for easy pipeline validation with `sample.md`.
