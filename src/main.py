@@ -842,6 +842,15 @@ Examples:
     elif args.single_stage:
         config['translation_pipeline']['mode'] = 'single_stage'
         print("Mode: Single-stage translation")
+    elif args.mode:
+        config['translation_pipeline']['mode'] = args.mode
+        print(f"Mode: {args.mode} pipeline")
+        if args.mode == 'full':
+            print("  6-stage: Translate → Refine → Reflect → Quality → Consistency → QA")
+        elif args.mode == 'lite':
+            print("  3-stage: Translate → Refine → Quality")
+        elif args.mode == 'fast':
+            print("  2-stage: Translate → Quality")
     else:
         mode = config['translation_pipeline'].get('mode', 'single_stage')
         print(f"Mode: {mode.replace('_', '-')} translation")
