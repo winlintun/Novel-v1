@@ -99,21 +99,64 @@ def run_translation_pipeline(args: argparse.Namespace) -> int:
         if args.no_metadata:
             config.output.add_metadata = False
         
-        # Handle workflow resolution
+        # Handle workflow resolution with auto-detection
         workflow = _resolve_workflow(args)
+        detected_lang = None
+        
+        # Detect source language for display
+        if hasattr(args, 'input_file') and args.input_file:
+            try:
+                from src.utils.file_handler import FileHandler
+                from src.agents.preprocessor import Preprocessor
+                text = FileHandler.read_text(args.input_file)
+                preprocessor = Preprocessor()
+                detected_lang = preprocessor.detect_language(text)
+            except Exception:
+                detected_lang = "unknown"
+        
         if workflow:
-            config = _apply_workflow_config(config, workflow)
+            config = _apply_workflow_config(config, workflow, logger)
         
         # Get chapters to translate
         chapters = get_chapter_list(args)
+        
+        # Import formatters for verbose output
+        from src.cli.formatters import (
+            print_translation_header,
+            print_pipeline_stages,
+            print_pipeline_status,
+            print_success,
+            print_error,
+            print_warning,
+            print_info,
+            print_section_header,
+            print_auto_detection_result,
+        )
+        
+        # Print auto-detection results if workflow was auto-detected
+        if workflow and detected_lang:
+            models_info = {
+                "translator": config.models.translator,
+                "editor": config.models.editor,
+                "refiner": config.models.refiner,
+            }
+            print_auto_detection_result(detected_lang, workflow, models_info)
+        
+        # Print detailed header information
+        novel_name = args.novel if args.novel else (args.input_file if args.input_file else "Unknown")
+        print_translation_header(config, novel_name)
+        print_pipeline_stages(config)
         
         # Import and run pipeline
         from src.pipeline.orchestrator import TranslationPipeline
         
         pipeline = TranslationPipeline(config)
         
+        print_section_header("Starting Translation")
+        
         if args.input_file:
             # Single file translation
+            print_info(f"Input file: {args.input_file}")
             result = pipeline.translate_file(args.input_file)
         elif args.novel:
             # Novel translation
@@ -145,12 +188,26 @@ def run_translation_pipeline(args: argparse.Namespace) -> int:
         # Handle single result (for input_file or single chapter)
         if isinstance(result, dict):
             if result.get("success"):
-                logger.info(f"Translation completed successfully: {result.get('output_path')}")
+                output_path = result.get('output_path')
+                duration = result.get('duration_seconds', 0)
+                metrics = result.get('metrics', {})
+                
+                print_success(f"Translation completed successfully!")
+                print_info(f"Output file: {output_path}")
+                if duration:
+                    print_info(f"Duration: {duration:.1f} seconds")
+                if metrics:
+                    print_info(f"Metrics: {metrics}")
+                
+                logger.info(f"Translation completed successfully: {output_path}")
                 return 0
             else:
-                logger.error(f"Translation failed: {result.get('errors', ['Unknown error'])}")
+                errors = result.get('errors', ['Unknown error'])
+                print_error("Translation failed", str(errors))
+                logger.error(f"Translation failed: {errors}")
                 return 1
         else:
+            print_error(f"Unexpected result type: {type(result)}")
             logger.error(f"Unexpected result type: {type(result)}")
             return 1
             
@@ -281,19 +338,21 @@ def _resolve_workflow(args) -> Optional[str]:
         elif lang_lower in ('zh', 'chinese'):
             return 'way2'
     
-    # Try to infer from input file
+    # Try to infer from input file using Preprocessor's detect_language
     if hasattr(args, 'input_file') and args.input_file:
         try:
             from src.utils.file_handler import FileHandler
+            from src.agents.preprocessor import Preprocessor
+            
             text = FileHandler.read_text(args.input_file)
             
-            # Simple heuristic detection
-            chinese_chars = sum(1 for c in text[:5000] if '\u4e00' <= c <= '\u9fff')
-            latin_chars = sum(1 for c in text[:5000] if c.isascii() and c.isalpha())
+            # Use Preprocessor's detect_language for accuracy
+            preprocessor = Preprocessor()
+            detected_lang = preprocessor.detect_language(text)
             
-            if chinese_chars >= 5 and chinese_chars >= latin_chars:
+            if detected_lang == "chinese":
                 return 'way2'
-            elif latin_chars >= 20:
+            elif detected_lang == "english":
                 return 'way1'
         except Exception:
             pass
@@ -301,12 +360,13 @@ def _resolve_workflow(args) -> Optional[str]:
     return None
 
 
-def _apply_workflow_config(config: AppConfig, workflow: str) -> AppConfig:
-    """Apply workflow-specific configuration overrides.
+def _apply_workflow_config(config: AppConfig, workflow: str, logger: Optional[logging.Logger] = None) -> AppConfig:
+    """Apply workflow-specific configuration overrides with automatic model selection.
     
     Args:
         config: Base configuration
         workflow: Workflow name (way1 or way2)
+        logger: Optional logger for reporting auto-detected settings
         
     Returns:
         Modified configuration
@@ -315,24 +375,49 @@ def _apply_workflow_config(config: AppConfig, workflow: str) -> AppConfig:
     
     if workflow == 'way1':
         # way1: English -> Myanmar direct
+        # Use padauk-gemma:q8_0 for best Myanmar output
         overrides = {
             "project": {
                 "source_language": "en-US"
             },
             "translation_pipeline": {
-                "mode": "single_stage"
+                "mode": "single_stage",
+                "stage1_model": "padauk-gemma:q8_0",
+                "stage2_model": "padauk-gemma:q8_0"
+            },
+            "models": {
+                "translator": "padauk-gemma:q8_0",
+                "editor": "padauk-gemma:q8_0",
+                "refiner": "padauk-gemma:q8_0"
             }
         }
+        if logger:
+            logger.info("🔄 Auto-detected ENGLISH source → Using way1 (EN→MM direct)")
+            logger.info("🤖 Auto-selected models: padauk-gemma:q8_0 (best for Myanmar)")
+    
     elif workflow == 'way2':
         # way2: Chinese -> English -> Myanmar pivot
+        # Use alibayram/hunyuan:7b for CN→EN, padauk-gemma:q8_0 for EN→MM
         overrides = {
             "project": {
                 "source_language": "zh-CN"
             },
             "translation_pipeline": {
-                "mode": "two_stage"
+                "mode": "two_stage",
+                "stage1_model": "alibayram/hunyuan:7b",
+                "stage2_model": "padauk-gemma:q8_0"
+            },
+            "models": {
+                "translator": "alibayram/hunyuan:7b",
+                "editor": "padauk-gemma:q8_0",
+                "refiner": "padauk-gemma:q8_0"
             }
         }
+        if logger:
+            logger.info("🔄 Auto-detected CHINESE source → Using way2 (CN→EN→MM pivot)")
+            logger.info("🤖 Auto-selected models:")
+            logger.info("   - Stage 1 (CN→EN): alibayram/hunyuan:7b")
+            logger.info("   - Stage 2 (EN→MM): padauk-gemma:q8_0")
     else:
         return config
     

@@ -133,11 +133,22 @@ def print_pipeline_stages(config: AppConfig, skip_refinement: bool = False) -> N
             ("2. Translation", "pending", f"Using {config.models.translator}"),
             ("3. Quality Check", "pending", "Myanmar linguistic validation"),
         ]
+    elif mode == "single_stage":
+        stages = [
+            ("1. Preprocessing", "pending", "Chunking input text"),
+            ("2. Translation", "pending", f"Using {config.models.translator}"),
+            ("3. Quality Check", "pending", "Myanmar linguistic validation"),
+            ("4. Consistency", "pending", "Glossary verification"),
+            ("5. QA Review", "pending", "Final validation"),
+        ]
     else:
         stages = [
             ("1. Preprocessing", "pending", "Chunking input text"),
             ("2. Translation", "pending", f"Using {config.models.translator}"),
             ("3. Refinement", "pending", "Literary quality edit" if not skip_refinement else "SKIPPED"),
+            ("4. Quality Check", "pending", "Myanmar linguistic validation"),
+            ("5. Consistency", "pending", "Glossary verification"),
+            ("6. QA Review", "pending", "Final validation"),
         ]
     
     for stage_name, status, details in stages:
@@ -216,3 +227,41 @@ def print_section_header(title: str) -> None:
     print(f"\n{'─' * 70}")
     print(f"  {title}")
     print(f"{'─' * 70}")
+
+
+def print_auto_detection_result(source_lang: str, workflow: str, models: dict) -> None:
+    """Print auto-detection results in a formatted banner.
+    
+    Args:
+        source_lang: Detected source language ('chinese', 'english', or 'unknown')
+        workflow: Selected workflow ('way1' or 'way2')
+        models: Dictionary of selected models with keys like 'translator', 'editor', etc.
+    """
+    print("\n" + "=" * 70)
+    print("  🔍 AUTO-DETECTION RESULTS")
+    print("=" * 70)
+    
+    # Language emoji
+    lang_emoji = {"chinese": "🇨🇳", "english": "🇬🇧", "unknown": "❓"}
+    lang_display = source_lang.upper() if source_lang != "unknown" else "UNKNOWN"
+    
+    print(f"\n  Source Language: {lang_emoji.get(source_lang, '❓')} {lang_display}")
+    
+    # Workflow info
+    if workflow == "way1":
+        print(f"  Workflow:        🔄 way1 (EN → MM direct)")
+        print(f"  Description:     English to Myanmar direct translation")
+    elif workflow == "way2":
+        print(f"  Workflow:        🔄 way2 (CN → EN → MM pivot)")
+        print(f"  Description:     Chinese to English to Myanmar pivot translation")
+    else:
+        print(f"  Workflow:        ⚠️  Using config default")
+    
+    # Model info
+    if models:
+        print(f"\n  🤖 Auto-Selected Models:")
+        for role, model in models.items():
+            print(f"     • {role.capitalize():12} {model}")
+    
+    print("\n" + "=" * 70)
+    print()
