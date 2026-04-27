@@ -9,7 +9,7 @@
 
 ## Last Updated
 - Date: 2026-04-27
-- Last task completed: Connected --mode CLI to pipeline config per AGENTS.md review; Added pipeline mode (full/lite/fast) per need_fix.md Phase 1.1
+- Last task completed: Consolidated config files per need_fix.md Phase 1.2 - merged fast_config into settings.yaml, deleted duplicate settings.padauk.yaml
 - Added GlossaryGenerator agent for pre-translation terminology extraction; Fixed English source support bug in Translator agent by ensuring correct system prompt selection; Updated AGENTS.md and USER_GUIDE.md.
 - Integrated Web UI (Streamlit) into `main.py` via `--ui` flag; Added `--test` flag for easy pipeline validation with `sample.md`.
 - Refactored ContextUpdater and Preprocessor to inherit from BaseAgent for architectural consistency.
