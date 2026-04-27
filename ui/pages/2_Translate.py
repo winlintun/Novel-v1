@@ -139,14 +139,11 @@ with col_nav2:
             if settings["fast_mode"]:
                 cmd.append("--skip-refinement")
             
+            # Optional source hint. Auto mode sends no language flag and lets CLI detect workflow.
             if settings["lang_source"] == "English":
                 cmd.extend(["--lang", "en"])
-            else:
+            elif settings["lang_source"] == "Chinese":
                 cmd.extend(["--lang", "zh"])
-            
-            # Add two-stage mode
-            if settings.get("two_stage"):
-                cmd.append("--two-stage")
             
             # Note: use_glossary is handled internally based on config
             # Note: enable_reflection is saved to config above

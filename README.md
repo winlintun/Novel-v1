@@ -118,17 +118,36 @@ novel_translation_project/
 │   │   ├── translator.py    # Stage 1
 │   │   ├── refiner.py       # Stage 2
 │   │   ├── checker.py       # QA validation
+│   │   ├── reflection_agent.py   # Self-correction
+│   │   ├── myanmar_quality_checker.py  # Linguistic validation
+│   │   ├── qa_tester.py     # QA validation agent
 │   │   └── context_updater.py  # Term extraction
-│   ├── memory/             # 3-tier memory system
+│   ├── cli/                 # CLI module (refactored)
+│   │   ├── parser.py        # Argument parsing
+│   │   ├── formatters.py    # Output formatting
+│   │   └── commands.py      # Command handlers
+│   ├── config/              # Configuration management
+│   │   ├── models.py        # Pydantic config models
+│   │   └── loader.py        # Config loading with validation
+│   ├── core/                # Core functionality
+│   │   └── container.py     # Dependency injection container
+│   ├── memory/              # 3-tier memory system
 │   │   └── memory_manager.py
+│   ├── pipeline/            # Pipeline orchestration
+│   │   └── orchestrator.py  # TranslationPipeline coordinator
+│   ├── types/               # Type definitions
+│   │   └── definitions.py   # TypedDict for data structures
 │   ├── utils/               # Utilities
 │   │   ├── ollama_client.py  # Ollama API wrapper
 │   │   ├── file_handler.py   # File I/O
 │   │   └── postprocessor.py # Output cleaning
-│   └── main.py              # Entry point
-├── tests/                   # Unit tests (221 tests)
-└── tools/                  # Maintenance tools
-    └── cleanup.py          # Ollama memory cleanup
+│   ├── web/                 # Web UI launcher
+│   │   └── launcher.py      # Streamlit launcher
+│   ├── exceptions.py        # Exception hierarchy
+│   └── main.py              # Entry point (thin dispatcher)
+├── tests/                   # Unit tests (229+ tests)
+└── tools/                   # Maintenance tools
+    └── cleanup.py           # Ollama memory cleanup
 ```
 
 ## Translation Workflow
@@ -226,6 +245,30 @@ pytest tests/test_pivot_translator.py -v
 pytest tests/ -v --cov=src --cov-report=term-missing
 ```
 
+## Architecture Overview
+
+### Refactored Codebase (v2.0)
+
+The codebase has been refactored for better maintainability and testability:
+
+| Module | Purpose |
+|--------|---------|
+| `src/cli/` | CLI argument parsing, formatting, and command handlers |
+| `src/config/` | Pydantic-based configuration with validation |
+| `src/pipeline/` | Pipeline orchestration with lazy agent loading |
+| `src/core/` | Dependency injection container |
+| `src/types/` | TypedDict definitions for type safety |
+| `src/web/` | Web UI launcher |
+| `src/exceptions.py` | Structured exception hierarchy |
+
+### Key Improvements
+
+- **Type Safety**: Pydantic models for configuration validation
+- **Error Handling**: Structured exception hierarchy (NovelTranslationError, ModelError, etc.)
+- **Testability**: Dependency injection container for easy mocking
+- **Modularity**: Clean separation between CLI, pipeline, and agents
+- **Lazy Loading**: Agents loaded only when needed
+
 ## Development
 
 ### Adding New Agents
@@ -234,6 +277,7 @@ Follow the modular boundaries defined in `AGENTS.md`:
 - Agents must not import other agents directly
 - Use `MemoryManager` as the single data gateway
 - All public methods require type hints
+- Add types to `src/types/definitions.py`
 
 ### Running CI Locally
 

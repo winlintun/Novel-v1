@@ -52,24 +52,29 @@ This project is an advanced, AI-powered **Chinese-to-Myanmar (Burmese) novel tra
 
 ## 🏗 System Architecture & Pipeline
 
-The translation process follows a strict 6-stage pipeline orchestrated by `src/main.py`:
+The translation process follows a strict 6-stage pipeline orchestrated by `src/pipeline/orchestrator.py`:
 
 ```
-main.py
-  → Load config/settings.yaml
-  → Initialize MemoryManager (load glossary.json, context_memory.json)
-  → Preprocessor.load_and_preprocess()  → Chunks
-  → Translator.translate_chunks()        → Stage 1: Raw translation
-  → Refiner.refine_full_text()           → Stage 2: Literary editing
-  → ReflectionAgent.reflect_and_improve() → Stage 3: Self-correction
-  → MyanmarQualityChecker.check_quality() → Stage 4: Linguistic validation
-  → Checker.check_chapter()             → Stage 5: Consistency check
-  → QA Review                           → Stage 6: Final QA
-  → TermExtractor (post-chapter)        → Extract new terms → glossary_pending.json
-  → GlossaryGenerator (optional/pre)    → Auto-extract terms from novel source
-  → FileHandler.write_text()            → Save to data/output/
-  → ContextUpdater.process_chapter()    → Update glossary.json, context_memory.json
+src/main.py (thin dispatcher)
+  → src/cli/parser.py (parse arguments)
+  → src/cli/commands.py (route to command)
+  → src/pipeline/orchestrator.py (TranslationPipeline)
+    → Load config/settings.yaml (via src/config/loader.py)
+    → Initialize MemoryManager (load glossary.json, context_memory.json)
+    → Preprocessor.load_and_preprocess()  → Chunks
+    → Translator.translate_chunks()        → Stage 1: Raw translation
+    → Refiner.refine_full_text()           → Stage 2: Literary editing
+    → ReflectionAgent.reflect_and_improve() → Stage 3: Self-correction
+    → MyanmarQualityChecker.check_quality() → Stage 4: Linguistic validation
+    → Checker.check_chapter()             → Stage 5: Consistency check
+    → QA Review                           → Stage 6: Final QA
+    → TermExtractor (post-chapter)        → Extract new terms → glossary_pending.json
+    → GlossaryGenerator (optional/pre)    → Auto-extract terms from novel source
+    → FileHandler.write_text()            → Save to data/output/
+    → ContextUpdater.process_chapter()    → Update glossary.json, context_memory.json
 ```
+
+**Note:** As of v2.0, the monolithic `main.py` has been refactored into modular components under `src/cli/`, `src/pipeline/`, `src/config/`, `src/core/`, and `src/types/`.
 
 1. **Preprocess:** Clean and normalize input text, split into paragraph-safe chunks with sliding window overlap.
 2. **Context & Glossary Loading:**
@@ -375,15 +380,36 @@ novel_translation_project/
 │   │   ├── translator.py         # Stage 1: CN→MM translation
 │   │   ├── refiner.py            # Stage 2: Literary editing
 │   │   ├── checker.py            # Stage 3 & 4: QA validation
+│   │   ├── reflection_agent.py   # Self-correction agent
+│   │   ├── myanmar_quality_checker.py  # Linguistic validation
+│   │   ├── qa_tester.py          # QA validation agent
 │   │   └── context_updater.py    # Term extraction and memory updates
+│   ├── cli/                      # NEW: CLI module (refactored from main.py)
+│   │   ├── parser.py             # Argument parsing
+│   │   ├── formatters.py         # Output formatting
+│   │   └── commands.py           # Command handlers
+│   ├── config/                   # NEW: Configuration module
+│   │   ├── models.py             # Pydantic config models
+│   │   └── loader.py             # Config loading with validation
+│   ├── core/                     # NEW: Core functionality
+│   │   └── container.py          # Dependency injection container
 │   ├── memory/
 │   │   └── memory_manager.py     # 3-tier memory system
+│   ├── pipeline/                 # NEW: Pipeline orchestration
+│   │   └── orchestrator.py       # TranslationPipeline coordinator
+│   ├── types/                    # NEW: Type definitions
+│   │   └── definitions.py        # TypedDict for data structures
 │   ├── utils/
 │   │   ├── ollama_client.py      # Ollama API wrapper
-│   │   └── file_handler.py       # File I/O (UTF-8-SIG, atomic writes)
-│   └── main.py                   # Entry point and pipeline orchestration
+│   │   ├── file_handler.py       # File I/O (UTF-8-SIG, atomic writes)
+│   │   └── postprocessor.py      # Output cleaning
+│   ├── web/                      # NEW: Web UI launcher
+│   │   └── launcher.py           # Streamlit launcher
+│   ├── exceptions.py             # NEW: Exception hierarchy
+│   └── main.py                   # Entry point (thin dispatcher)
 ├── tests/
 │   ├── test_translator.py
+│   ├── test_workflow_routing.py
 │   └── test_integration.py
 ├── requirements.txt
 └── README.md
@@ -454,6 +480,9 @@ tests/
 ├── test_memory_manager.py   # add_term(), get_term(), FIFO buffer
 ├── test_context_updater.py  # extract_entities(), pending glossary routing
 ├── test_file_handler.py     # atomic write, UTF-8-SIG, .bak backup
+├── test_workflow_routing.py # way1/way2 workflow resolution
+├── test_config.py           # Config loading and validation (add me)
+├── test_pipeline.py         # Pipeline orchestration (add me)
 └── test_integration.py      # End-to-end: input → output file
 ```
  

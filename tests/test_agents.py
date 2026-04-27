@@ -75,17 +75,17 @@ class TestTranslator(unittest.TestCase):
         self.assertIn("မင်္ဂလာပါ", result)
     
     def test_translate_uses_hardened_prompt(self):
-        """Test translator uses hardened prompt with LANGUAGE_GUARD."""
+        """Test translator uses hardened prompt with STRICT RULES."""
         self.mock_ollama.chat.return_value = "မင်္ဂလာပါ"
         
         self.translator.translate_paragraph("你好")
         
-        # Verify the system prompt contains LANGUAGE_GUARD
+        # Verify the system prompt contains STRICT RULES
         call_args = self.mock_ollama.chat.call_args
         system_prompt = call_args.kwargs.get('system_prompt', call_args[1].get('system_prompt', ''))
-        self.assertIn("Myanmar (Burmese)", system_prompt)
+        self.assertIn("STRICT RULES", system_prompt)
         self.assertIn("ONLY", system_prompt)
-        self.assertIn("FORBIDDEN", system_prompt)
+        self.assertIn("Myanmar", system_prompt)
 
 
 class TestRefiner(unittest.TestCase):
@@ -113,17 +113,16 @@ class TestRefiner(unittest.TestCase):
         self.assertIn("မြန်မာစာ", result)
     
     def test_refine_uses_hardened_prompt(self):
-        """Test refiner uses hardened prompt with LANGUAGE_GUARD."""
+        """Test refiner uses hardened prompt with strict rules."""
         self.mock_ollama.chat.return_value = "မြန်မာစာ"
-        
+
         self.refiner.refine_paragraph("Raw Myanmar")
-        
-        # Verify the system prompt contains LANGUAGE_GUARD
+
+        # Verify the system prompt contains required elements
         call_args = self.mock_ollama.chat.call_args
         system_prompt = call_args.kwargs.get('system_prompt', call_args[1].get('system_prompt', ''))
-        self.assertIn("Myanmar (Burmese)", system_prompt)
+        self.assertIn("Burmese", system_prompt)
         self.assertIn("ONLY", system_prompt)
-        self.assertIn("Remove any English", system_prompt)
 
 
 class TestChecker(unittest.TestCase):

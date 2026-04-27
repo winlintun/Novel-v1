@@ -1,34 +1,7 @@
 import streamlit as st
 import os
-from pathlib import Path
 
-def get_available_models():
-    """Fetch available models from Ollama API or config."""
-    # First try to get from Ollama API
-    try:
-        import requests
-        response = requests.get("http://localhost:11434/api/tags", timeout=2)
-        if response.status_code == 200:
-            models = [m["name"] for m in response.json().get("models", [])]
-            if models:
-                return models
-    except:
-        pass
-    
-    # Fallback to config
-    try:
-        import yaml
-        config_path = Path("config/settings.yaml")
-        if config_path.exists():
-            with open(config_path, 'r') as f:
-                cfg = yaml.safe_load(f)
-            if cfg and 'model_roles' in cfg and 'translator' in cfg['model_roles']:
-                return cfg['model_roles']['translator']
-    except:
-        pass
-    
-    # Final fallback
-    return ["qwen2.5:14b", "qwen2.5:7b", "qwen:7b", "gemma:7b"]
+from ui.utils.model_loader import get_available_models
 
 def render_sidebar():
     with st.sidebar:
@@ -98,7 +71,7 @@ def render_sidebar():
             
             model = st.selectbox("🤖 Model", available_models, index=0)
             
-            lang_source = st.radio("🌐 Source Language", ["Chinese", "English"])
+            lang_source = st.radio("🌐 Source Language", ["Auto", "Chinese", "English"], index=0)
             
             col_q1, col_q2 = st.columns(2)
             with col_q1:

@@ -1,0 +1,287 @@
+#!/usr/bin/env python3
+"""
+CLI argument parser for the novel translation pipeline.
+
+Provides centralized argument parsing with support for:
+- Translation commands (single chapter, all chapters, range)
+- Configuration overrides
+- Workflow selection (way1, way2)
+- UI launching
+- Glossary generation
+"""
+
+import argparse
+from pathlib import Path
+from typing import Optional, List
+
+
+def create_parser() -> argparse.ArgumentParser:
+    """Create and configure the argument parser.
+    
+    Returns:
+        Configured ArgumentParser instance
+    """
+    parser = argparse.ArgumentParser(
+        prog="novel-translate",
+        description="AI-powered Chinese-to-Myanmar novel translation pipeline",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+    # Translate a single chapter
+    python -m src.main --novel "古道仙鸿" --chapter 1
+    
+    # Translate all chapters
+    python -m src.main --novel "古道仙鸿" --all
+    
+    # Translate from specific chapter onwards
+    python -m src.main --novel "古道仙鸿" --all --start 10
+    
+    # Translate a single file
+    python -m src.main --input data/input/chapter_001.md
+    
+    # Use specific workflow
+    python -m src.main --novel "古道仙鸿" --chapter 1 --workflow way2
+    
+    # Launch web UI
+    python -m src.main --ui
+    
+    # Generate glossary from first 5 chapters
+    python -m src.main --novel "古道仙鸿" --generate-glossary --chapter-range 1-5
+        """
+    )
+    
+    # Input options
+    input_group = parser.add_argument_group("Input Options")
+    input_group.add_argument(
+        "--novel",
+        type=str,
+        help="Name of the novel to translate"
+    )
+    input_group.add_argument(
+        "--chapter",
+        type=int,
+        help="Chapter number to translate"
+    )
+    input_group.add_argument(
+        "--input",
+        type=str,
+        dest="input_file",
+        help="Path to single input file to translate"
+    )
+    input_group.add_argument(
+        "--all",
+        action="store_true",
+        help="Translate all chapters"
+    )
+    input_group.add_argument(
+        "--start",
+        type=int,
+        default=1,
+        help="Start chapter for range translation (default: 1)"
+    )
+    input_group.add_argument(
+        "--end",
+        type=int,
+        help="End chapter for range translation"
+    )
+    input_group.add_argument(
+        "--chapter-range",
+        type=str,
+        help="Chapter range (e.g., '1-10')"
+    )
+    
+    # Configuration options
+    config_group = parser.add_argument_group("Configuration Options")
+    config_group.add_argument(
+        "--config",
+        type=str,
+        default="config/settings.yaml",
+        help="Path to configuration file (default: config/settings.yaml)"
+    )
+    config_group.add_argument(
+        "--model",
+        type=str,
+        help="Override translator model"
+    )
+    config_group.add_argument(
+        "--provider",
+        type=str,
+        choices=["ollama", "gemini", "openrouter"],
+        help="Override model provider"
+    )
+    
+    # Workflow options
+    workflow_group = parser.add_argument_group("Workflow Options")
+    workflow_group.add_argument(
+        "--workflow",
+        type=str,
+        choices=["way1", "way2"],
+        help="Translation workflow: way1 (EN->MM direct), way2 (CN->EN->MM pivot)"
+    )
+    workflow_group.add_argument(
+        "--lang",
+        type=str,
+        choices=["zh", "chinese", "en", "english"],
+        help="Source language (alias for workflow selection)"
+    )
+    workflow_group.add_argument(
+        "--two-stage",
+        action="store_true",
+        help="Enable two-stage translation mode"
+    )
+    workflow_group.add_argument(
+        "--skip-refinement",
+        action="store_true",
+        help="Skip the refinement stage (faster, lower quality)"
+    )
+    
+    # Pipeline options
+    pipeline_group = parser.add_argument_group("Pipeline Options")
+    pipeline_group.add_argument(
+        "--mode",
+        type=str,
+        choices=["full", "lite", "fast"],
+        help="Pipeline mode: full (6-stage), lite (3-stage), fast (2-stage)"
+    )
+    pipeline_group.add_argument(
+        "--use-reflection",
+        action="store_true",
+        help="Enable reflection agent for self-correction"
+    )
+    pipeline_group.add_argument(
+        "--no-quality-check",
+        action="store_true",
+        help="Disable Myanmar quality checking"
+    )
+    
+    # Output options
+    output_group = parser.add_argument_group("Output Options")
+    output_group.add_argument(
+        "--output-dir",
+        type=str,
+        help="Override output directory"
+    )
+    output_group.add_argument(
+        "--no-metadata",
+        action="store_true",
+        help="Don't add metadata headers to output"
+    )
+    
+    # Memory optimization
+    memory_group = parser.add_argument_group("Memory Optimization")
+    memory_group.add_argument(
+        "--unload-after-chapter",
+        action="store_true",
+        help="Unload model from GPU after each chapter"
+    )
+    
+    # Utility commands
+    utility_group = parser.add_argument_group("Utility Commands")
+    utility_group.add_argument(
+        "--ui",
+        action="store_true",
+        help="Launch web UI"
+    )
+    utility_group.add_argument(
+        "--generate-glossary",
+        action="store_true",
+        help="Generate glossary from novel chapters"
+    )
+    utility_group.add_argument(
+        "--test",
+        action="store_true",
+        help="Run test translation with sample file"
+    )
+    utility_group.add_argument(
+        "--version",
+        action="version",
+        version="%(prog)s 2.0.0",
+        help="Show version information"
+    )
+    
+    return parser
+
+
+def parse_arguments(args: Optional[List[str]] = None) -> argparse.Namespace:
+    """Parse command line arguments.
+    
+    Args:
+        args: Command line arguments (defaults to sys.argv)
+        
+    Returns:
+        Parsed arguments namespace
+    """
+    parser = create_parser()
+    return parser.parse_args(args)
+
+
+def validate_arguments(args: argparse.Namespace) -> None:
+    """Validate parsed arguments.
+    
+    Args:
+        args: Parsed arguments
+        
+    Raises:
+        SystemExit: If validation fails
+    """
+    # Check for required arguments when not running utility commands
+    utility_commands = [args.ui, args.test, args.generate_glossary and not args.novel]
+    
+    if not any(utility_commands):
+        if not args.novel and not args.input_file:
+            raise SystemExit(
+                "Error: Either --novel, --input, or a utility command (--ui, --test) is required.\n"
+                "Use --help for usage information."
+            )
+        
+        if args.novel and not (args.chapter or args.all or args.chapter_range):
+            raise SystemExit(
+                "Error: When using --novel, specify --chapter, --all, or --chapter-range.\n"
+                "Use --help for usage information."
+            )
+    
+    # Validate chapter range format
+    if args.chapter_range:
+        try:
+            parts = args.chapter_range.split('-')
+            if len(parts) != 2:
+                raise ValueError()
+            start, end = int(parts[0]), int(parts[1])
+            if start < 1 or end < start:
+                raise ValueError()
+        except ValueError:
+            raise SystemExit(
+                f"Error: Invalid chapter range format: {args.chapter_range}\n"
+                "Expected format: 'start-end' (e.g., '1-10')"
+            )
+    
+    # Validate input file exists
+    if args.input_file and not Path(args.input_file).exists():
+        raise SystemExit(f"Error: Input file not found: {args.input_file}")
+    
+    # Validate config file exists
+    if args.config and not Path(args.config).exists():
+        raise SystemExit(f"Error: Config file not found: {args.config}")
+
+
+def get_chapter_list(args: argparse.Namespace) -> List[int]:
+    """Get list of chapters to translate from arguments.
+    
+    Args:
+        args: Parsed arguments
+        
+    Returns:
+        List of chapter numbers
+    """
+    if args.chapter:
+        return [args.chapter]
+    
+    if args.chapter_range:
+        start, end = map(int, args.chapter_range.split('-'))
+        return list(range(start, end + 1))
+    
+    if args.all:
+        # Return empty list to indicate "all chapters"
+        return []
+    
+    return []

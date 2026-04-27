@@ -39,6 +39,150 @@
 
 *No active issues currently.*
 
+### ERROR-036: Documentation Update for Refactored Codebase
+**Date**: 2026-04-27
+**File**: `AGENTS.md`, `GEMINI.md`, `README.md`
+**Error Message**:
+```
+Documentation did not reflect the new modular codebase structure after refactoring
+```
+**Root Cause**: After extracting main.py into modular components (cli/, pipeline/, web/, config/, core/, types/), the documentation files still showed the old monolithic structure
+**Fix Applied**:
+1. Updated `AGENTS.md`:
+   - Updated Directory Structure section with new modules
+   - Updated System Architecture diagram to show new flow
+   - Updated test structure to include new test files
+2. Updated `GEMINI.md`:
+   - Added new "New Refactored Modules (v2.0)" table with all new file paths
+   - Preserved original file paths for backward compatibility reference
+3. Updated `README.md`:
+   - Updated Directory Structure with new modules
+   - Added "Architecture Overview" section explaining the refactoring
+   - Added table explaining each new module's purpose
+   - Updated test count from 221 to 229+
+**Files Modified**:
+- `AGENTS.md` - Updated directory structure, architecture diagram, test structure
+- `GEMINI.md` - Added new file paths table
+- `README.md` - Updated structure, added architecture section
+**Status**: RESOLVED
+**Verified By**: manual review
+
+### ERROR-038: Type Hint Missing on Function Parameters
+**Date**: 2026-04-27
+**File**: `src/cli/commands.py`, `src/web/launcher.py`
+**Error Message**:
+```
+Code review found missing type hints on function parameters:
+- run_translation_pipeline(args) missing type hint
+- run_glossary_generation(args) missing type hint
+- run_ui_launch(args) missing type hint
+- run_test(args) missing type hint
+- launch_web_ui(args) missing type hint
+```
+**Root Cause**: The AGENTS.md requires "Type Hints (Every function, no exceptions)" but the refactored code had missing type hints on `args` parameters
+**Fix Applied**:
+1. Added `import argparse` to src/cli/commands.py
+2. Added type hint `args: argparse.Namespace` to:
+   - `run_translation_pipeline()`
+   - `run_glossary_generation()`
+   - `run_ui_launch()`
+   - `run_test()`
+3. Added `import argparse` to src/web/launcher.py
+4. Added type hint `args: Optional[argparse.Namespace]` to `launch_web_ui()`
+**Files Modified**:
+- `src/cli/commands.py` - Added argparse import and type hints
+- `src/web/launcher.py` - Added argparse import and type hint
+**Status**: RESOLVED
+**Verified By**: pytest (229 tests passed), code-reviewer
+
+### ERROR-037: Pipeline Integration Issues
+**Date**: 2026-04-27
+**File**: `src/pipeline/orchestrator.py`, `src/cli/commands.py`
+**Error Message**:
+```
+1. TypeError: Preprocessor.__init__() got an unexpected keyword argument 'chunk_overlap'
+2. AttributeError: 'Preprocessor' object has no attribute 'clean_text'
+3. AttributeError: 'Translator' object has no attribute 'translate'
+4. TypeError: list indices must be integers or slices, not str (in commands.py line 127)
+```
+**Root Cause**: The refactored pipeline code had method name mismatches and incorrect parameter names that didn't match the actual agent class implementations
+**Fix Applied**:
+1. Fixed `src/pipeline/orchestrator.py` line 105: Changed `chunk_overlap` to `overlap_size` to match Preprocessor signature
+2. Fixed `src/pipeline/orchestrator.py` lines 316-326: Changed `clean_text` to `clean_markdown`, fixed `create_chunks` call to pass text directly and extract text from returned dicts
+3. Fixed `src/pipeline/orchestrator.py` lines 345-363: Corrected method names:
+   - `translate` → `translate_paragraph`
+   - `refine` → `refine_paragraph`
+   - `improve` → `reflect_and_improve`
+   - `check` → `check_quality`
+   - `check_consistency` → `check_glossary_consistency`
+4. Fixed `src/cli/commands.py` lines 119-145: Added proper handling for list results from `translate_novel()` vs single results from `translate_file()`/`translate_chapter()`
+**Files Modified**:
+- `src/pipeline/orchestrator.py` - Fixed method calls and parameter names
+- `src/cli/commands.py` - Fixed result handling for batch vs single translation
+**Status**: RESOLVED
+**Verified By**: pytest (229 tests passed)
+
+### ERROR-035: Code Refactoring - main.py Monolith Extraction
+**Date**: 2026-04-27
+**File**: `src/main.py`
+**Error Message**:
+```
+main.py contained 1136 lines mixing:
+- CLI argument parsing
+- Pipeline orchestration logic
+- UI launch logic
+- Progress display functions
+- File I/O operations
+- No structured error handling
+- No type safety for configuration
+```
+**Root Cause**: main.py grew into a monolith violating single responsibility principle, making it difficult to test and maintain
+**Fix Applied**:
+1. Extracted CLI functionality to `src/cli/` module:
+   - `parser.py`: Argument parsing with argparse
+   - `formatters.py`: Output formatting functions
+   - `commands.py`: Command handlers for translate, glossary, ui, test
+2. Extracted pipeline to `src/pipeline/orchestrator.py`:
+   - TranslationPipeline class with lazy agent loading
+   - Stage coordination (preprocess → translate → refine → check → save)
+3. Extracted web UI to `src/web/launcher.py`:
+   - Streamlit launch functionality
+4. Created configuration module `src/config/`:
+   - `models.py`: Pydantic models with validation
+   - `loader.py`: Config loading with error handling
+5. Created exception hierarchy `src/exceptions.py`:
+   - NovelTranslationError base class
+   - ModelError, GlossaryError, ValidationError, ResourceError, PipelineError
+6. Created type definitions `src/types/definitions.py`:
+   - TypedDict for GlossaryTerm, TranslationChunk, PipelineResult, etc.
+7. Created DI container `src/core/container.py`:
+   - Dependency injection for testability
+8. Simplified `src/main.py` to <50 lines as thin dispatcher
+9. Updated `tests/test_workflow_routing.py` to use new module paths
+10. Updated `tests/test_agents.py` to match new prompt format
+**Files Modified**:
+- `src/main.py` - Refactored to thin dispatcher
+- `src/cli/parser.py` - NEW: Argument parsing
+- `src/cli/formatters.py` - NEW: Output formatting
+- `src/cli/commands.py` - NEW: Command handlers
+- `src/cli/__init__.py` - NEW: CLI module exports
+- `src/pipeline/orchestrator.py` - NEW: Pipeline coordination
+- `src/pipeline/__init__.py` - NEW: Pipeline module exports
+- `src/web/launcher.py` - NEW: UI launcher
+- `src/web/__init__.py` - NEW: Web module exports
+- `src/config/models.py` - NEW: Pydantic config models
+- `src/config/loader.py` - NEW: Config loader
+- `src/config/__init__.py` - NEW: Config module exports
+- `src/exceptions.py` - NEW: Exception hierarchy
+- `src/types/definitions.py` - NEW: Type definitions (moved from src/types.py)
+- `src/types/__init__.py` - NEW: Types module exports
+- `src/core/container.py` - NEW: DI container
+- `src/core/__init__.py` - NEW: Core module exports
+- `tests/test_workflow_routing.py` - Updated imports
+- `tests/test_agents.py` - Updated test assertions for new prompts
+**Status**: RESOLVED
+**Verified By**: pytest (229 tests passed)
+
 ### ERROR-027: Web UI Sidebar Settings Not Applied
 **Date**: 2026-04-27
 **File**: `ui/components/sidebar.py`, `ui/pages/2_Translate.py`
@@ -139,6 +283,93 @@ Dashboard shows incorrect translation progress count
 **Files Modified**:
 - `ui/streamlit_app.py` - Updated progress counting (lines 39-46)
 **Status**: RESOLVED
+
+### ERROR-032: Settings Model Selector Still Limited to Config List
+**Date**: 2026-04-27
+**File**: `ui/pages/5_Settings.py`, `ui/components/sidebar.py`, `ui/utils/model_loader.py`
+**Error Message**:
+```
+Model Configuration and Translation Settings only show:
+qwen2.5:14b, qwen2.5:7b, qwen:7b
+```
+**Root Cause**: Settings page used a static/hardcoded model list path, and sidebar fallback could still collapse to config-only models.
+**Fix Applied**:
+1. Added shared model loader `ui/utils/model_loader.py`:
+   - First tries Ollama API `/api/tags`
+   - Falls back to `ollama list` CLI parsing
+   - Falls back to config (`model_roles` + `models`)
+   - Uses default list only as last fallback
+2. Updated `ui/components/sidebar.py` to import and use shared loader.
+3. Updated `ui/pages/5_Settings.py` to use shared loader with configured Ollama base URL.
+**Files Modified**:
+- `ui/utils/model_loader.py` - New shared model discovery utility
+- `ui/components/sidebar.py` - Replaced local model fetch logic with shared loader
+- `ui/pages/5_Settings.py` - Replaced hardcoded/config-limited model list with shared loader
+**Status**: RESOLVED
+**Verified By**: manual smoke test (`MODEL_COUNT 10`)
+
+### ERROR-033: Workflow Routing Not Explicit for Required Way1/Way2
+**Date**: 2026-04-27
+**File**: `src/main.py`, `ui/pages/2_Translate.py`, `tests/test_workflow_routing.py`
+**Error Message**:
+```
+Required workflows were implicit and mixed with lang/two-stage flags:
+- way1: English -> Myanmar direct
+- way2: Chinese -> English -> Myanmar (step1 + step2 using way1)
+```
+**Root Cause**: Pipeline selection depended on config + language heuristics, without a first-class workflow selector.
+**Fix Applied**:
+1. Added explicit CLI flag: `--workflow {way1,way2}` in `src/main.py`
+2. Added workflow resolvers:
+   - `resolve_workflow(args)`
+   - `apply_workflow_overrides(config, workflow)`
+3. Enforced routing behavior:
+   - `way1` => direct EN→MM (non-pivot)
+   - `way2` => CN→EN→MM (pivot)
+4. Updated web UI command builder (`ui/pages/2_Translate.py`) to pass:
+   - English source -> `--workflow way1`
+   - Chinese source -> `--workflow way2`
+5. Added tests in `tests/test_workflow_routing.py` (5 tests, all pass)
+**Files Modified**:
+- `src/main.py` - workflow flag, routing helpers, and runtime routing enforcement
+- `ui/pages/2_Translate.py` - workflow argument mapping for UI launches
+- `tests/test_workflow_routing.py` - unit tests for way1/way2 resolution and config overrides
+**Status**: RESOLVED
+**Verified By**: `python3 -m unittest tests.test_workflow_routing -v` (5/5 passed), CLI help smoke test
+
+### ERROR-034: Pivot Stage2 Output Rejected Due English Leakage
+**Date**: 2026-04-27
+**File**: `src/agents/pivot_translator.py`, `src/main.py`, `ui/components/sidebar.py`, `ui/pages/2_Translate.py`, `tests/test_workflow_routing.py`, `tests/test_pivot_stage2_guard.py`
+**Error Message**:
+```
+CRITICAL: Translation REJECTED in chapter 2:
+{'chapter': 2, 'myanmar_ratio': 0.0, 'latin_words_found': 64, 'status': 'REJECTED'}
+```
+**Root Cause**:
+1. Stage2 (EN→MM) in pivot flow could return mostly English and fail hard without strong language-leak retry.
+2. Workflow selection depended on explicit flags; user wanted automatic routing without adding parameters.
+**Fix Applied**:
+1. Added automatic workflow detection in `src/main.py`:
+   - explicit `--workflow` (optional) -> highest priority
+   - `--lang` hint -> next priority
+   - source text heuristic detection (English vs Chinese) -> auto route
+2. Updated Web UI source selector to include `Auto` (default) and stop forcing workflow param.
+3. Added Stage2 leakage guard in `PivotTranslator.translate_stage2()`:
+   - detect severe non-Myanmar output
+   - retry with stronger Myanmar-only constraints
+   - keep best candidate by Myanmar ratio before validation
+4. Added regression tests:
+   - `tests/test_workflow_routing.py` (auto detection cases)
+   - `tests/test_pivot_stage2_guard.py` (stage2 retry on English leakage)
+**Files Modified**:
+- `src/main.py`
+- `src/agents/pivot_translator.py`
+- `ui/components/sidebar.py`
+- `ui/pages/2_Translate.py`
+- `tests/test_workflow_routing.py`
+- `tests/test_pivot_stage2_guard.py`
+**Status**: RESOLVED
+**Verified By**: `python3 -m unittest tests.test_workflow_routing tests.test_pivot_stage2_guard -v` (8/8 passed)
 
 ---
 

@@ -9,26 +9,55 @@
 
 ## Last Updated
 - Date: 2026-04-27
-- Last task completed: 
-  1. Fixed UI import path issues - corrected sys.path in 2_Translate.py and 4_Glossary_Editor.py
-  2. Created tools/launch_ui.py for web server logging - all output goes to logs/web_server.log
-  3. Enhanced CLI processing info display - rich formatted header, step-by-step progress (7 steps), model info, settings display
-  4. Fixed --ui flag to properly launch web UI with subprocess
-  5. Created comprehensive test suite (test_novel_v1.py) - 11/11 tests passing
-  6. Fixed postprocessor to strip model's "thinking process" from output (ERROR-019)
-  7. Fixed Web UI Settings page - model selection now shows all models from config (ERROR-020)
-  8. Fixed Glossary Editor - ValueError for 'person_character' category (ERROR-021)
-  9. Fixed Progress page - chapter filter now checks chapters/ subdirectory (ERROR-022)
-  10. Fixed Progress page - session status shows COMPLETE/FAILED correctly (ERROR-023)
-  11. Fixed Progress page - clear old logs button now works (ERROR-024)
-  12. Fixed Translate page - output files now found in chapters/ subdirectory (ERROR-025)
-  13. Fixed Translate page - model selection and two-stage mode now applied (ERROR-026)
-  14. Fixed Web UI Sidebar - ALL settings now applied (ERROR-027)
-  15. Fixed FileNotFoundError for output files in chapters/ subdirectory (ERROR-028)
-  16. Fixed Model Selection - Now discovers all Ollama models via API (ERROR-029)
-  17. Fixed Navigation Links - Changed from link_button to switch_page (ERROR-030)
-  18. Fixed Dashboard Progress Count - Now checks chapters/ subdirectory (ERROR-031)
-  19. All fixes verified with test suite
+- Last task completed:
+  1. **CODE REFACTORING - Phase 1 Complete** (per need_fix.md):
+     - Created new module structure: `src/cli/`, `src/pipeline/`, `src/web/`, `src/config/`, `src/core/`, `src/types/`
+     - Implemented `src/exceptions.py` with structured error hierarchy (NovelTranslationError, ModelError, GlossaryError, etc.)
+     - Implemented Pydantic configuration with validation (`src/config/models.py`, `src/config/loader.py`)
+     - Extracted `main.py` monolith (1136 lines) into specialized modules:
+       - `src/cli/parser.py` - Argument parsing
+       - `src/cli/formatters.py` - Output formatting
+       - `src/cli/commands.py` - Command handlers
+       - `src/pipeline/orchestrator.py` - Pipeline coordination
+       - `src/web/launcher.py` - UI launching
+     - Created thin `src/main.py` dispatcher (<50 lines)
+     - Added TypedDict definitions for key data structures (`src/types/definitions.py`)
+     - Implemented dependency injection container (`src/core/container.py`)
+  2. Fixed UI import path issues - corrected sys.path in 2_Translate.py and 4_Glossary_Editor.py
+  3. Created tools/launch_ui.py for web server logging - all output goes to logs/web_server.log
+  4. Enhanced CLI processing info display - rich formatted header, step-by-step progress (7 steps), model info, settings display
+  5. Fixed --ui flag to properly launch web UI with subprocess
+  6. Created comprehensive test suite (test_novel_v1.py) - 11/11 tests passing
+  7. Fixed postprocessor to strip model's "thinking process" from output (ERROR-019)
+  8. Fixed Web UI Settings page - model selection now shows all models from config (ERROR-020)
+  9. Fixed Glossary Editor - ValueError for 'person_character' category (ERROR-021)
+  10. Fixed Progress page - chapter filter now checks chapters/ subdirectory (ERROR-022)
+  11. Fixed Progress page - session status shows COMPLETE/FAILED correctly (ERROR-023)
+  12. Fixed Progress page - clear old logs button now works (ERROR-024)
+  13. Fixed Translate page - output files now found in chapters/ subdirectory (ERROR-025)
+  14. Fixed Translate page - model selection and two-stage mode now applied (ERROR-026)
+  15. Fixed Web UI Sidebar - ALL settings now applied (ERROR-027)
+  16. Fixed FileNotFoundError for output files in chapters/ subdirectory (ERROR-028)
+  17. Fixed Model Selection - Now discovers all Ollama models via API (ERROR-029)
+  18. Fixed Navigation Links - Changed from link_button to switch_page (ERROR-030)
+  19. Fixed Dashboard Progress Count - Now checks chapters/ subdirectory (ERROR-031)
+  20. Fixed model discovery in Sidebar + Settings - now loads live installed models from Ollama API/CLI with config fallback (ERROR-032)
+  21. All fixes verified with test suite
+  22. Added explicit workflow routing: way1 (English→Myanmar direct) and way2 (Chinese→English→Myanmar pivot) in CLI + UI command builder with tests (ERROR-033)
+  23. Added auto workflow detection (no required flags) + pivot Stage2 anti-English-leak retry guard to prevent REJECTED outputs (ERROR-034)
+  24. **Updated documentation** for new codebase structure:
+      - Updated `AGENTS.md` with new directory structure
+      - Updated `GEMINI.md` with new file paths
+      - Updated `README.md` with new modules and architecture overview
+  25. **Fixed pipeline integration issues** (ERROR-037):
+      - Fixed method name mismatches in orchestrator (clean_text→clean_markdown, translate→translate_paragraph, etc.)
+      - Fixed parameter name mismatch (chunk_overlap→overlap_size)
+      - Fixed result handling for batch vs single translation in commands.py
+      - All 229 tests pass, CLI working correctly
+  26. **Fixed type hints** (ERROR-038):
+      - Added missing type hints to all `args` parameters per AGENTS.md requirements
+      - Fixed src/cli/commands.py and src/web/launcher.py
+      - All 229 tests pass
 - Fixed UI syntax errors (Glossary_Editor, horizontal parameter) per code-reviewer; All UI files working
 - Added GlossaryGenerator agent for pre-translation terminology extraction; Fixed English source support bug in Translator agent by ensuring correct system prompt selection; Updated AGENTS.md and USER_GUIDE.md.
 - Integrated Web UI (Streamlit) into `main.py` via `--ui` flag; Added `--test` flag for easy pipeline validation with `sample.md`.
@@ -61,6 +90,13 @@
 | Memory Manager | `src/memory/memory_manager.py` | [DONE] | 3-tier memory system |
 | Ollama Client | `src/utils/ollama_client.py` | [DONE] | Ollama API wrapper with retries, cleanup, context manager support. Supports both `/api/chat` and `/api/generate` endpoints. Configurable num_ctx (8192) and keep_alive (10m) per need_fix.md |
 | File Handler | `src/utils/file_handler.py` | [DONE] | UTF-8-SIG, atomic writes |
+| **NEW: Exception Hierarchy** | `src/exceptions.py` | [DONE] | Structured error handling with NovelTranslationError base class |
+| **NEW: Type Definitions** | `src/types/` | [DONE] | TypedDict definitions for GlossaryTerm, TranslationChunk, PipelineResult, etc. |
+| **NEW: Configuration** | `src/config/` | [DONE] | Pydantic-based config with validation (AppConfig, load_config, etc.) |
+| **NEW: CLI Module** | `src/cli/` | [DONE] | Argument parsing, formatters, command handlers |
+| **NEW: Pipeline** | `src/pipeline/` | [DONE] | TranslationPipeline orchestrator with lazy loading |
+| **NEW: Web Launcher** | `src/web/` | [DONE] | Streamlit UI launcher |
+| **NEW: DI Container** | `src/core/` | [DONE] | Dependency injection container for testability |
 | Postprocessor | `src/utils/postprocessor.py` | [DONE] | Strips <think>, <answer>, validates Myanmar output. Now configurable (aggressive vs non-aggressive) to prevent over-processing that could corrupt Myanmar script (per need_fix.md) |
 | JSON Extractor | `src/utils/json_extractor.py` | [DONE] | Safe JSON parsing with fallback for malformed responses |
 | Prompt Patch | `src/agents/prompt_patch.py` | [DONE] | Hardened prompts with LANGUAGE_GUARD |

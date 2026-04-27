@@ -4,36 +4,15 @@
   "source_language": "English",
   "target_language": "Myanmar",
   "last_updated": "2026-04-27T01:27:14.155611",
-  "total_terms": 51,
+  "total_terms": 50,
   "terms": [
     {
-      "id": "term_gdxh_001",
-      "source_term": "Luo Qing",
-      "target_term": "လော်ချင်း",
-      "aliases_cn": [
-        "罗青"
-      ],
-      "category": "person_character",
-      "translation_rule": "transliterate",
-      "priority": 1,
-      "usage_frequency": "high",
-      "source": "Luo Qing",
-      "target": "လော်ချင်း"
-    },
-    {
       "id": "term_gdxh_002",
-      "source_term": "Huang Niu",
-      "target_term": "နွားကြီး",
-      "aliases_cn": [
-        "黄牛",
-        "牛哥"
-      ],
+      "source": "Luo Qing",
+      "target": "လော်ချင်း",
       "category": "person_character",
-      "translation_rule": "transliterate",
-      "priority": 1,
-      "usage_frequency": "high",
-      "source": "Huang Niu",
-      "target": "နွားကြီး"
+      "chapter_first_seen": 1,
+      "verified": true
     },
     {
       "id": "term_gdxh_003",

@@ -2,6 +2,8 @@ import streamlit as st
 import yaml
 import os
 
+from ui.utils.model_loader import get_available_models
+
 st.set_page_config(page_title="Settings", page_icon="⚙️", layout="wide")
 
 st.title("⚙️ System Settings")
@@ -16,10 +18,11 @@ def load_config():
 
 config = load_config()
 
-# Get available models from config
-available_models = ["qwen2.5:14b", "qwen2.5:7b", "qwen:7b", "gemma:7b", "padauk-gemma:q8_0"]
-if config and 'model_roles' in config and 'translator' in config['model_roles']:
-    available_models = config['model_roles']['translator']
+ollama_url_from_cfg = config.get('models', {}).get('ollama_base_url', 'http://localhost:11434')
+available_models = get_available_models(
+    config_path=config_path,
+    ollama_base_url=ollama_url_from_cfg,
+)
 
 st.header("🤖 Model Configuration")
 col1, col2 = st.columns(2)

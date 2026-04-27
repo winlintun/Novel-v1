@@ -52,6 +52,7 @@ You are a **code assistant** for this pipeline. You do NOT design architecture â
 
 ## File Path Reference (Do not deviate)
 
+### Core Agents (Unchanged)
 | Purpose | Path |
 |--------|------|
 | Main entry | `src/main.py` |
@@ -66,6 +67,20 @@ You are a **code assistant** for this pipeline. You do NOT design architecture â
 | Pending glossary | `data/glossary_pending.json` |
 | Chapter context | `data/context_memory.json` |
 | Config | `config/settings.yaml` |
+
+### New Refactored Modules (v2.0)
+| Purpose | Path |
+|--------|------|
+| Exception hierarchy | `src/exceptions.py` |
+| Type definitions | `src/types/definitions.py` |
+| Config models | `src/config/models.py` |
+| Config loader | `src/config/loader.py` |
+| CLI parser | `src/cli/parser.py` |
+| CLI formatters | `src/cli/formatters.py` |
+| CLI commands | `src/cli/commands.py` |
+| Pipeline orchestrator | `src/pipeline/orchestrator.py` |
+| Web launcher | `src/web/launcher.py` |
+| DI container | `src/core/container.py` |
 
 ## Key Classes (Do not change names)
 
