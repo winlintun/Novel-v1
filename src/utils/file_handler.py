@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import List, Optional, Dict, Any
 
 logger = logging.getLogger(__name__)
-import yaml
 
 
 def _extract_chapter_num(filename: str) -> int:

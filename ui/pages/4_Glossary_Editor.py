@@ -161,7 +161,7 @@ with tab2:
                 
                 col_ap1, col_ap2 = st.columns(2)
                 with col_ap1:
-                    if st.button(f"✅ Approve (အတည်ပါ�ပါသည်)", key=f"appr_{i}"):
+                    if st.button(f"✅ Approve (အတည်ပြုပါသည်)", key=f"appr_{i}"):
                         mm.add_term(term.get('source', ''), term.get('target', ''), term.get('category', ''))
                         pending.pop(i)
                         glossary_data = load_glossary(glossary_path)

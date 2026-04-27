@@ -143,7 +143,7 @@ def render_sidebar():
 
         st.caption("Developed by Gemini CLI Agent | Novel-v1 Translation System")
 
-        return {
+    return {
         "novel": novel,
         "input_file": input_file,
         "start_ch": start_ch,
@@ -158,4 +158,4 @@ def render_sidebar():
         "temperature": temperature,
         "max_tokens": max_tokens,
         "context_window": context_window,
-        }
+    }

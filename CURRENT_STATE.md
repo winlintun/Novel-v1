@@ -9,7 +9,7 @@
 
 ## Last Updated
 - Date: 2026-04-27
-- Last task completed: Enhanced Web UI with individual file selection support, redesigned Translate page with background process management, and dual-log live view (Progress & Technical).
+- Last task completed: Fixed critical errors from codex-reviewer analysis - corrected Unicode corruption in Glossary_Editor.py, fixed undefined variable in main.py, fixed indentation in sidebar.py, removed duplicate import in file_handler.py, fixed link_button usage in streamlit_app.py. All Python files now compile successfully.
 - Fixed UI syntax errors (Glossary_Editor, horizontal parameter) per code-reviewer; All UI files working
 - Added GlossaryGenerator agent for pre-translation terminology extraction; Fixed English source support bug in Translator agent by ensuring correct system prompt selection; Updated AGENTS.md and USER_GUIDE.md.
 - Integrated Web UI (Streamlit) into `main.py` via `--ui` flag; Added `--test` flag for easy pipeline validation with `sample.md`.

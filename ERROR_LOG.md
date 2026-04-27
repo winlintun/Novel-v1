@@ -41,6 +41,80 @@
 
 ---
 
+## Issues Fixed in This Review Session
+
+### ERROR-015: Glossary_Editor.py corrupted Unicode character
+**Date**: 2026-04-27
+**File**: `ui/pages/4_Glossary_Editor.py`
+**Error Message**:
+```
+Corrupted Unicode string: "အတည်ပါ�ပါသည်" (contained invalid character)
+```
+**Root Cause**: Unicode corruption in the Myanmar text for "Approve"
+**Fix Applied**: Changed to correct text "အတည်ပြုပါသည်"
+**Files Modified**:
+- `ui/pages/4_Glossary_Editor.py` - Line 164
+**Status**: RESOLVED
+**Verified By**: py_compile check
+
+### ERROR-014: main.py undefined variable myanmar_quality
+**Date**: 2026-04-27
+**File**: `src/main.py`
+**Error Message**:
+```
+NameError: name 'myanmar_quality' is not defined
+```
+**Root Cause**: Variable `myanmar_quality` was used outside its defining block (only defined inside `if myanmar_checker is not None:`)
+**Fix Applied**: Added `myanmar_checker is not None` check before accessing myanmar_quality dictionary
+**Files Modified**:
+- `src/main.py` - Lines 511-514
+**Status**: RESOLVED
+**Verified By**: py_compile check
+
+### ERROR-013: sidebar.py indentation issue
+**Date**: 2026-04-27
+**File**: `ui/components/sidebar.py`
+**Error Message**:
+```
+Indentation error: return statement inside with block instead of function level
+```
+**Root Cause**: The return statement was indented inside the `with st.sidebar:` block instead of at function level
+**Fix Applied**: Moved return statement outside the with block, fixed dictionary indentation
+**Files Modified**:
+- `ui/components/sidebar.py` - Lines 144-161
+**Status**: RESOLVED
+**Verified By**: py_compile check
+
+### ERROR-012: file_handler.py duplicate import
+**Date**: 2026-04-27
+**File**: `src/utils/file_handler.py`
+**Error Message**:
+```
+Duplicate import: yaml imported twice (lines 8 and 14)
+```
+**Root Cause**: yaml module was imported at both module level and later in the file
+**Fix Applied**: Removed duplicate import at line 14
+**Files Modified**:
+- `src/utils/file_handler.py` - Removed line 14
+**Status**: RESOLVED
+**Verified By**: py_compile check
+
+### ERROR-011: streamlit_app.py incorrect link_button usage
+**Date**: 2026-04-27
+**File**: `ui/streamlit_app.py`
+**Error Message**:
+```
+Incorrect st.link_button URL format - should use st.switch_page or st.page_link
+```
+**Root Cause**: st.link_button was used with incorrect URL paths for internal page navigation
+**Fix Applied**: Changed to st.button with st.switch_page() for proper Streamlit multi-page navigation
+**Files Modified**:
+- `ui/streamlit_app.py` - Lines 137-144
+**Status**: RESOLVED
+**Verified By**: py_compile check
+
+---
+
 ## Resolved Issues
 
 ### ERROR-011: Glossary_Editor.py syntax error

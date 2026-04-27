@@ -135,13 +135,17 @@ st.divider()
 col_link1, col_link2, col_link3, col_link4 = st.columns(4)
 
 with col_link1:
-    st.link_button("⚙️ Settings | ပြင်ဆင်ရန်", "/page/5_Settings")
+    if st.button("⚙️ Settings | ပြင်ဆင်ရန်"):
+        st.switch_page("pages/5_Settings.py")
 with col_link2:
-    st.link_button("📝 Translate | ဘာသာပြန်", "/page/2_Translate")
+    if st.button("📝 Translate | ဘာသာပြန်"):
+        st.switch_page("pages/2_Translate.py")
 with col_link3:
-    st.link_button("📚 Glossary | အဘိဓာန်", "/page/4_Glossary_Editor")
+    if st.button("📚 Glossary | အဘိဓာန်"):
+        st.switch_page("pages/4_Glossary_Editor.py")
 with col_link4:
-    st.link_button("📊 Progress | အောက်ငါး", "/page/3_Progress")
+    if st.button("📊 Progress | ကြိုးစားမှု"):
+        st.switch_page("pages/3_Progress.py")
 
 st.markdown("---")
 st.caption(f"Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | Novel-v1 Translation System")

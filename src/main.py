@@ -508,7 +508,7 @@ def translate_single_file(
         print("\n" + checker.generate_report(chapter_num, check_result))
         
         # Add Myanmar quality report if issues found
-        if myanmar_quality['issues']:
+        if myanmar_checker is not None and myanmar_quality.get('issues'):
             print(f"🇲🇲 Myanmar Quality Issues: {len(myanmar_quality['issues'])}")
             for issue in myanmar_quality['issues'][:5]:
                 print(f"  - {issue}")
