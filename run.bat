@@ -1,6 +1,6 @@
 @echo off
 REM Auto-clean and run translation for Windows
-REM This script clears Python cache before running to ensure fresh code
+REM This script clears Python cache and old logs before running to ensure fresh code
 
 cls
 echo ======================================================================  
@@ -45,13 +45,50 @@ echo  Files removed: %FILES_REMOVED%
 echo  ✅ Cache cleaned!
 echo.
 
+echo Step 2: Cleaning old log files...
+echo ----------------------------------------------------------------------
+
+set "LOGS_REMOVED=0"
+
+REM Keep only the last 5 translation log files (sorted by date)
+if exist "logs\translation_*.log" (
+    REM Count total translation logs
+    for /f %%a in ('dir /b /o-d logs\translation_*.log 2^>nul ^| find /c /v ""') do set "TOTAL_LOGS=%%a"
+    
+    REM Remove all but the 5 most recent
+    if %TOTAL_LOGS% gtr 5 (
+        for /f "skip=5 eol=: delims=" %%F in ('dir /b /o-d logs\translation_*.log 2^>nul') do (
+            del /q "logs\%%F" 2>nul
+            set /a LOGS_REMOVED+=1
+        )
+    )
+)
+
+REM Keep only the last 10 progress log files
+if exist "logs\progress\progress_*.md" (
+    for /f %%a in ('dir /b /o-d logs\progress\progress_*.md 2^>nul ^| find /c /v ""') do set "TOTAL_PROGRESS=%%a"
+    
+    if %TOTAL_PROGRESS% gtr 10 (
+        for /f "skip=10 eol=: delims=" %%F in ('dir /b /o-d logs\progress\progress_*.md 2^>nul') do (
+            del /q "logs\progress\%%F" 2>nul
+            set /a LOGS_REMOVED+=1
+        )
+    )
+)
+
+REM Note: web_server.log is preserved (not touched)
+
+echo  Old log files removed: %LOGS_REMOVED%
+echo  ✅ Logs cleaned (kept: recent translation logs, web_server.log)
+echo.
+
 echo ======================================================================  
 echo  🚀 Starting Translation
 echo ======================================================================  
 echo.
 
 REM Run the actual command with all arguments passed through
-py run.py %*
+py -m src.main --no-clean %*
 
 REM Get the exit code
 set "EXIT_CODE=%errorlevel%"
