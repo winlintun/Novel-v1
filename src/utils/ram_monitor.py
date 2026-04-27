@@ -1,7 +1,6 @@
 """
 Auto RAM Monitor & Model Unloader
 Monitors system/GPU memory and auto-unloads models when memory is low.
-Per need_fix.md - Memory Management
 """
 
 import os
@@ -35,10 +34,10 @@ class RAMMonitor:
         usage = {
             "ram_total_mb": 0,
             "ram_used_mb": 0,
-            "ram_percent": 0,
+            "ram_percent": 0.0,
             "vram_total_mb": 0,
             "vram_used_mb": 0,
-            "vram_percent": 0,
+            "vram_percent": 0.0,
         }
         
         # Get RAM usage (Linux)
@@ -50,7 +49,10 @@ class RAMMonitor:
                     elif line.startswith('MemAvailable:'):
                         available = int(line.split()[1]) // 1024
                         usage["ram_used_mb"] = usage["ram_total_mb"] - available
-                        usage["ram_percent"] = round((usage["ram_used_mb"] / usage["ram_total_mb"]) * 100, 1
+                        pct = 0.0
+                        if usage["ram_total_mb"] > 0:
+                            pct = float(usage["ram_used_mb"]) / float(usage["ram_total_mb"]) * 100.0
+                        usage["ram_percent"] = round(pct, 1)
         except Exception as e:
             logger.warning(f"Could not read RAM: {e}")
         
@@ -68,7 +70,10 @@ class RAMMonitor:
                     used, total = map(int, lines[0].split(','))
                     usage["vram_used_mb"] = used
                     usage["vram_total_mb"] = total
-                    usage["vram_percent"] = round((used / total) * 100, 1) if total > 0 else 0
+                    pct = 0.0
+                    if total > 0:
+                        pct = float(used) / float(total) * 100.0
+                    usage["vram_percent"] = round(pct, 1)
         except FileNotFoundError:
             logger.debug("nvidia-smi not found (no GPU)")
         except Exception as e:
@@ -93,8 +98,9 @@ class RAMMonitor:
             return False
         
         # Check VRAM
-        if usage.get("vram_percent", 0) > 90:
-            logger.warning(f"VRAM critical: {usage['vram_percent']}% used")
+        vram_pct = usage.get("vram_percent", 0)
+        if vram_pct > 90:
+            logger.warning(f"VRAM critical: {vram_pct}% used")
             if self.auto_unload:
                 self.unload_models()
             return False
@@ -106,7 +112,6 @@ class RAMMonitor:
         logger.info("Auto-unloading Ollama models...")
         
         try:
-            # Get running models
             result = subprocess.run(
                 ['ollama', 'list'],
                 capture_output=True,
@@ -115,7 +120,7 @@ class RAMMonitor:
             )
             
             if result.returncode == 0:
-                lines = result.stdout.strip().split('\n')[1:]  # Skip header
+                lines = result.stdout.strip().split('\n')[1:]
                 for line in lines:
                     if line.strip():
                         model_name = line.split()[0]
@@ -144,12 +149,12 @@ class RAMMonitor:
         
         status = f"RAM: {ram}%"
         if vram > 0:
-            status += f" | VRAM: {vram}%"
+            status = f"RAM: {ram}% | VRAM: {vram}%"
         
         if ram > 80 or vram > 80:
-            status += " ⚠️"
+            status = status + " ⚠️"
         elif ram > 90 or vram > 90:
-            status += " 🔴 CRITICAL"
+            status = status + " 🔴 CRITICAL"
         
         return status
 

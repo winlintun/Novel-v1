@@ -154,3 +154,4 @@ data/output/*/*.md
 Novel-Step.md
 design
 design/*
+err_log.log
