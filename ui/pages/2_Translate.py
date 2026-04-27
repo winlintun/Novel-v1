@@ -3,6 +3,7 @@ import os
 import sys
 import subprocess
 import time
+from datetime import datetime
 from pathlib import Path
 
 # Add project root to path for imports
@@ -14,19 +15,91 @@ st.set_page_config(page_title="Translate | ဘာသာပြန်", page_icon=
 
 settings = render_sidebar()
 
-if settings["novel"] == "No novels found":
-    st.warning("Please add novel folders to data/input/ | ကျေးဇူးပြု၍ data/input/ တွင် ဝတ္ထုဖိုင်တွဲများ ထည့်သွင်းပါ။")
+if not settings.get("novel") and not settings.get("input_file"):
+    st.warning("Please add novel folders or .md files to data/input/ | ကျေးဇူးပြု၍ data/input/ တွင် ဝတ္ထုဖိုင်တွဲများ သို့မဟုတ် .md ဖိုင်များ ထည့်သွင်းပါ။")
     st.stop()
 
-st.header(f"📚 {settings['novel']} | {settings['lang_source']} → Myanmar")
+title_name = settings['novel'] if settings['novel'] else settings['input_file']
+st.header(f"📚 {title_name} | {settings['lang_source']} → Myanmar")
 
-col_nav1, col_nav2 = st.columns([1, 3])
-with col_nav1:
-    st.metric("Current Chapter", f"{settings['start_ch']}")
-with col_nav2:
-    if st.button("⏹️ Stop Translation"):
-        st.warning("Stop signal sent. | ရပ်တ်ဆိုင်းပါပါသည်။")
+# Initialize session state for process management
+if 'running' not in st.session_state:
+    st.session_state.running = False
+if 'pid' not in st.session_state:
+    st.session_state.pid = None
+if 'start_time' not in st.session_state:
+    st.session_state.start_time = None
+
+# Check if process is still running
+if st.session_state.running and st.session_state.pid:
+    try:
+        # Check if PID exists
+        os.kill(st.session_state.pid, 0)
+    except OSError:
         st.session_state.running = False
+        st.session_state.pid = None
+        st.success("Translation process completed. | ဘာသာပြန်ဆိုမှု ပြီးဆုံးပါပြီ။")
+
+col_nav1, col_nav2, col_nav3 = st.columns([1, 1, 2])
+with col_nav1:
+    if settings.get('input_file'):
+        st.metric("Mode", "Single File")
+    else:
+        st.metric("Current Chapter", f"{settings['start_ch']}")
+with col_nav2:
+    if st.session_state.running:
+        if st.button("⏹️ Stop Translation", type="secondary"):
+            import signal
+            try:
+                os.kill(st.session_state.pid, signal.SIGTERM)
+                st.warning(f"Stop signal sent to PID {st.session_state.pid}.")
+            except Exception as e:
+                st.error(f"Failed to stop process: {e}")
+            st.session_state.running = False
+            st.session_state.pid = None
+            st.rerun()
+    else:
+        if st.button("🚀 Start Translation", type="primary"):
+            cmd = ["python3", "-m", "src.main"]
+            
+            if settings.get("input_file"):
+                cmd.extend(["--input", f"data/input/{settings['input_file']}"])
+            else:
+                cmd.extend(["--novel", settings["novel"]])
+                if settings["end_ch"] == 0:
+                    cmd.extend(["--all", "--start", str(settings["start_ch"])])
+                else:
+                    if settings["start_ch"] == settings["end_ch"]:
+                        cmd.extend(["--chapter", str(settings["start_ch"])])
+                    else:
+                        cmd.extend(["--all", "--start", str(settings["start_ch"])])
+            
+            if settings["fast_mode"]:
+                cmd.append("--skip-refinement")
+            
+            if settings["lang_source"] == "English":
+                cmd.extend(["--lang", "en"])
+            else:
+                cmd.extend(["--lang", "zh"])
+            
+            try:
+                # Use project root as CWD
+                project_root = Path(__file__).parent.parent.parent
+                process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=str(project_root))
+                st.session_state.running = True
+                st.session_state.pid = process.pid
+                st.session_state.start_time = datetime.now()
+                st.success(f"Translation started (PID: {process.pid})")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Failed to start: {e}")
+
+with col_nav3:
+    if st.session_state.running:
+        elapsed = datetime.now() - st.session_state.start_time
+        st.info(f"Running for: {str(elapsed).split('.')[0]} | PID: {st.session_state.pid}")
+    else:
+        st.info("Status: Ready | အသင်းသင်း အသုံးရန် အသင့်ပါ။")
 
 st.divider()
 
@@ -34,22 +107,35 @@ col_src, col_tgt = st.columns(2)
 
 with col_src:
     st.subheader("📄 Original Text | မူရင်း")
-    novel_dir = Path("data/input") / settings["novel"]
-    if novel_dir.exists():
-        files = sorted(list(novel_dir.glob("*.md")))
-        if files:
-            selected_file = st.selectbox("Select Chapter", [f.name for f in files], key="src_select")
-            if selected_file:
-                with open(novel_dir / selected_file, 'r', encoding='utf-8-sig') as f:
-                    src_content = f.read()
-                st.text_area("Source", src_content, height=500, key="src_area", disabled=True)
+    if settings.get('input_file'):
+        src_file = Path("data/input") / settings['input_file']
+        if src_file.exists():
+            with open(src_file, 'r', encoding='utf-8-sig') as f:
+                src_content = f.read()
+            st.text_area("Source", src_content, height=500, key="src_area", disabled=True)
     else:
-        st.info("No source files found.")
+        novel_dir = Path("data/input") / settings["novel"]
+        if novel_dir.exists():
+            files = sorted(list(novel_dir.glob("*.md")))
+            if files:
+                selected_file = st.selectbox("Select Chapter", [f.name for f in files], key="src_select")
+                if selected_file:
+                    with open(novel_dir / selected_file, 'r', encoding='utf-8-sig') as f:
+                        src_content = f.read()
+                    st.text_area("Source", src_content, height=500, key="src_area", disabled=True)
+        else:
+            st.info("No source files found.")
 
 with col_tgt:
     st.subheader("🇲🇲 Myanmar Translation")
     
-    output_dir = Path("data/output") / settings["novel"]
+    if settings.get('input_file'):
+        # For single file mode, output goes to data/output/sample/
+        output_dir = Path("data/output/sample")
+        output_dir.mkdir(parents=True, exist_ok=True)
+    else:
+        output_dir = Path("data/output") / settings["novel"]
+    
     out_files = []
     if output_dir.exists():
         out_files = sorted(list(output_dir.glob("*.md")))
@@ -149,6 +235,8 @@ with col_stage4:
 st.divider()
 
 with st.expander("📋 Live Translation Logs", expanded=True):
+    log_type = st.radio("Log Type", ["Progress (Markdown)", "Technical (Full Log)"], horizontal=True)
+    
     col_log_opts1, col_log_opts2, col_log_opts3 = st.columns(3)
     
     with col_log_opts1:
@@ -160,23 +248,30 @@ with st.expander("📋 Live Translation Logs", expanded=True):
     with col_log_opts3:
         log_filter = st.text_input("Filter Logs", placeholder="Search...")
     
-    log_dir = Path("logs/progress")
+    if log_type == "Progress (Markdown)":
+        log_dir = Path("logs/progress")
+        pattern = "*.md"
+    else:
+        log_dir = Path("logs")
+        pattern = "*.log"
+
     if log_dir.exists():
-        log_files = sorted(list(log_dir.glob("*.md")), key=os.path.getmtime, reverse=True)[:5]
+        log_files = sorted(list(log_dir.glob(pattern)), key=os.path.getmtime, reverse=True)[:5]
         
         if log_files:
-            selected_log = st.selectbox("Select Log File", [f.name for f in log_files])
+            selected_log = st.selectbox(f"Select {log_type}", [f.name for f in log_files])
             
             if selected_log:
                 log_path = log_dir / selected_log
                 with open(log_path, 'r', encoding='utf-8-sig') as f:
                     log_content = f.read()
                 
-                # Filter by level
-                if log_level == "Error":
-                    log_content = "\n".join([l for l in log_content.split('\n') if 'ERROR' in l or 'Error' in l])
-                elif log_level == "Warning":
-                    log_content = "\n".join([l for l in log_content.split('\n') if 'WARNING' in l or 'Warning' in l])
+                # Filter by level (only for Technical logs)
+                if log_type == "Technical (Full Log)":
+                    if log_level == "Error":
+                        log_content = "\n".join([l for l in log_content.split('\n') if 'ERROR' in l or 'Error' in l])
+                    elif log_level == "Warning":
+                        log_content = "\n".join([l for l in log_content.split('\n') if 'WARNING' in l or 'Warning' in l])
                 
                 # Filter by search
                 if log_filter:
@@ -184,8 +279,8 @@ with st.expander("📋 Live Translation Logs", expanded=True):
                 
                 # Show line count
                 line_count = len(log_content.split('\n'))
-                error_count = log_content.count('ERROR')
-                warning_count = log_content.count('WARNING')
+                error_count = log_content.count('ERROR') + log_content.count('Error')
+                warning_count = log_content.count('WARNING') + log_content.count('Warning')
                 
                 col_stats1, col_stats2, col_stats3 = st.columns(3)
                 with col_stats1:
@@ -195,16 +290,21 @@ with st.expander("📋 Live Translation Logs", expanded=True):
                 with col_stats3:
                     st.metric("Warnings", warning_count)
                 
-                st.text_area("Logs", log_content, height=300, key="log_view")
+                if log_type == "Progress (Markdown)":
+                    st.markdown(log_content)
+                else:
+                    st.text_area("Logs", log_content, height=300, key="log_view")
                 
-                col_log1, col_log2 = st.columns(2)
+                col_log1, col_log2, col_log3 = st.columns([1, 1, 1])
                 with col_log1:
                     if st.button("🔄 Refresh Logs"):
                         st.rerun()
                 with col_log2:
-                    st.download_button("📥 Download Logs", log_content, file_name=f"translation_{selected_log}", mime="text/markdown")
+                    st.download_button("📥 Download Logs", log_content, file_name=f"{selected_log}", mime="text/plain")
+                with col_log3:
+                    st.caption(f"Last updated: {datetime.now().strftime('%H:%M:%S')}")
         else:
-            st.info("No logs yet.")
+            st.info(f"No {log_type.lower()}s yet.")
     else:
         st.info("No logs directory found. Start translation to create logs.")
 
@@ -248,31 +348,7 @@ with st.expander("💾 RAM Monitor & System Status", expanded=False):
 
 st.divider()
 
-if settings["translate_btn"]:
-    cmd = ["python3", "-m", "src.main", "--novel", settings["novel"]]
-    
-    if settings["end_ch"] == 0:
-        cmd.extend(["--all", "--start", str(settings["start_ch"])])
-    else:
-        if settings["start_ch"] == settings["end_ch"]:
-            cmd.extend(["--chapter", str(settings["start_ch"])])
-        else:
-            cmd.extend(["--all", "--start", str(settings["start_ch"])])
-    
-    if settings["fast_mode"]:
-        cmd.append("--skip-refinement")
-    
-    if settings["lang_source"] == "English":
-        cmd.extend(["--lang", "en"])
-    else:
-        cmd.extend(["--lang", "zh"])
-    
-    st.write(f"Running: `{' '.join(cmd)}`")
-    
-    try:
-        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        st.session_state.running = True
-        st.session_state.pid = process.pid
-        st.success(f"Translation started (PID: {process.pid})")
-    except Exception as e:
-        st.error(f"Failed to start: {e}")
+if st.session_state.running:
+    # Auto-refresh logic for live log view
+    time.sleep(2)
+    st.rerun()

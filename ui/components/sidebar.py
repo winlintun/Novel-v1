@@ -8,31 +8,45 @@ def render_sidebar():
 
         input_dir = "data/input"
         if os.path.exists(input_dir):
-            novels = [d for d in os.listdir(input_dir) if os.path.isdir(os.path.join(input_dir, d))]
+            # Include both directories and individual .md files
+            items = os.listdir(input_dir)
+            novels = [d for d in items if os.path.isdir(os.path.join(input_dir, d))]
+            files = [f for f in items if os.path.isfile(os.path.join(input_dir, f)) and f.endswith(".md")]
+            
+            options = novels + files
         else:
-            novels = []
+            options = []
         
-        novel = st.selectbox("📚 ဝတ္ထုအမည်", novels if novels else ["No novels found"])
+        selected_item = st.selectbox("📚 ဝတ္ထု သို့မဟုတ် ဖိုင် ရွေးချယ်ရန်", options if options else ["No items found"])
+        
+        is_file = selected_item.endswith(".md") if selected_item and selected_item != "No items found" else False
+        novel = selected_item if not is_file else None
+        input_file = selected_item if is_file else None
         
         st.markdown(f"**Source → Target:** Chinese → Myanmar")
         
         st.divider()
         
-        with st.expander("📖 အခန်းရွေးချယ်ရန်", expanded=True):
-            scope = st.radio("Translation Scope", ["Single Chapter", "Range", "All Remaining"])
-            
-            if scope == "Single Chapter":
-                start_ch = st.number_input("Start Chapter", min_value=1, value=1, key="start_ch_single")
-                end_ch = start_ch
-            elif scope == "Range":
-                col_c1, col_c2 = st.columns(2)
-                with col_c1:
-                    start_ch = st.number_input("From Chapter", min_value=1, value=1, key="start_ch_range")
-                with col_c2:
-                    end_ch = st.number_input("To Chapter", min_value=1, value=start_ch, key="end_ch_range")
+        with st.expander("📖 အခန်းရွေးချယ်ရန်", expanded=not is_file):
+            if is_file:
+                st.info(f"Individual file selected: {selected_item}")
+                start_ch = 1
+                end_ch = 1
             else:
-                start_ch = st.number_input("Start from Chapter", min_value=1, value=1, key="start_ch_all")
-                end_ch = 0
+                scope = st.radio("Translation Scope", ["Single Chapter", "Range", "All Remaining"])
+                
+                if scope == "Single Chapter":
+                    start_ch = st.number_input("Start Chapter", min_value=1, value=1, key="start_ch_single")
+                    end_ch = start_ch
+                elif scope == "Range":
+                    col_c1, col_c2 = st.columns(2)
+                    with col_c1:
+                        start_ch = st.number_input("From Chapter", min_value=1, value=1, key="start_ch_range")
+                    with col_c2:
+                        end_ch = st.number_input("To Chapter", min_value=1, value=start_ch, key="end_ch_range")
+                else:
+                    start_ch = st.number_input("Start from Chapter", min_value=1, value=1, key="start_ch_all")
+                    end_ch = 0
             
             st.markdown("**Quick Buttons:**")
             col_q1, col_q2, col_q3 = st.columns(3)
@@ -126,18 +140,12 @@ def render_sidebar():
                 st.caption("No glossary found")
         
         st.divider()
-        
-        col_btn1, col_btn2 = st.columns(2)
-        with col_btn1:
-            translate_btn = st.button("🚀 Start Translation", type="primary", use_container_width=True)
-        with col_btn2:
-            stop_btn = st.button("⏹️ Stop", use_container_width=True)
-        
-        st.divider()
+
         st.caption("Developed by Gemini CLI Agent | Novel-v1 Translation System")
-    
-    return {
+
+        return {
         "novel": novel,
+        "input_file": input_file,
         "start_ch": start_ch,
         "end_ch": end_ch,
         "model": model,
@@ -147,9 +155,7 @@ def render_sidebar():
         "fast_mode": fast_mode,
         "enable_reflection": enable_reflection,
         "resume_failed": resume_failed,
-        "translate_btn": translate_btn,
-        "stop_btn": stop_btn,
         "temperature": temperature,
         "max_tokens": max_tokens,
         "context_window": context_window,
-    }
+        }

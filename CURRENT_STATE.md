@@ -9,7 +9,8 @@
 
 ## Last Updated
 - Date: 2026-04-27
-- Last task completed: Fixed UI syntax errors (Glossary_Editor, horizontal parameter) per code-reviewer; All UI files working
+- Last task completed: Enhanced Web UI with individual file selection support, redesigned Translate page with background process management, and dual-log live view (Progress & Technical).
+- Fixed UI syntax errors (Glossary_Editor, horizontal parameter) per code-reviewer; All UI files working
 - Added GlossaryGenerator agent for pre-translation terminology extraction; Fixed English source support bug in Translator agent by ensuring correct system prompt selection; Updated AGENTS.md and USER_GUIDE.md.
 - Integrated Web UI (Streamlit) into `main.py` via `--ui` flag; Added `--test` flag for easy pipeline validation with `sample.md`.
 - Refactored ContextUpdater and Preprocessor to inherit from BaseAgent for architectural consistency.
@@ -34,7 +35,7 @@
 | Editor Agent (Stage 2) | `src/agents/refiner.py` | [DONE] | Literary quality refinement |
 | Consistency Checker (Stage 3) | `src/agents/checker.py` | [DONE] | Enhanced with Myanmar Quality checks |
 | Glossary Generator | `src/agents/glossary_generator.py` | [DONE] | Pre-translation terminology extraction |
-| Web UI | `ui/streamlit_app.py` | [DONE] | Multi-page Streamlit interface with Myanmar localization and functional Glossary Editor |
+| Web UI | `ui/streamlit_app.py` | [DONE] | Multi-page Streamlit interface with Myanmar localization, individual file support, and live log viewing |
 
 | QA Reviewer (Stage 4) | `src/agents/checker.py` | [DONE] | Part of Checker class |
 | Term Extractor | `src/agents/context_updater.py` | [DONE] | Post-chapter term extraction |

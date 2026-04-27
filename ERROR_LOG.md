@@ -300,6 +300,23 @@ Updated config to use available models:
 **Status**: RESOLVED
 **Verified By**: code-reviewer (gemini-reviewer, READY_TO_COMMIT)
 
+### ERROR-013: UI selection limited to folders
+**Date**: 2026-04-27
+**File**: `ui/components/sidebar.py`, `ui/pages/2_Translate.py`
+**Error Message**:
+```
+- User unable to select loose .md files in data/input (only folders supported)
+- Live log view was biased towards progress markdown, lacked technical log access
+- Start Translation button logic was static
+```
+**Root Cause**: Initial implementation assumed structured novel folders; UI design prioritized producing text over technical monitoring.
+**Fix Applied**: 
+1. Updated `sidebar.py` to list both folders and individual files in `data/input`.
+2. Updated `2_Translate.py` to use `--input` flag for single files and `--novel` for folders.
+3. Enhanced log viewer with "Log Type" selector (Progress vs Technical) and auto-refresh state management.
+**Status**: RESOLVED
+**Verified By**: code-reviewer (PASS)
+
 ---
 
 ## Error Patterns & Prevention
