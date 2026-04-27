@@ -60,11 +60,30 @@ translation_pipeline:
     full: "6-stage pipeline: Translate → Refine → Reflect → Quality → Consistency → QA"
     lite: "3-stage pipeline: Translate → Refine → Quality"
     fast: "2-stage pipeline: Translate → Quality (skip refinement)"
+    # Fast mode (per need_fix.md Phase 1.2 - merged from settings.fast.yaml)
+    fast_desc: "Fast optimized: CN→EN→MM pivot with quantized models (16GB RAM)"
   stage1_model: "qwen2.5:14b"  # Fixed: yxchia/seallms produces THAI instead of Myanmar
   stage2_model: "qwen:7b"
   use_reflection: false       # Set to true to enable self-correction (slower but better quality)
   reflection_model: "qwen:7b"
   description: "Two-stage uses raw translation + rewrite for better quality"
+
+# =====================================================
+# FAST MODE OVERRIDE (per need_fix.md Phase 1.2)
+# Merged from settings.fast.yaml - for CPU-only / 16GB RAM
+# NOTE: Uses qwen models to avoid Thai language issues
+# =====================================================
+fast_config:
+  enabled: false  # Set to true or use --mode fast CLI
+  # Fast model settings
+  translator: "qwen2.5:14b"
+  editor: "qwen:7b"
+  refiner: "qwen:7b"
+  checker: "qwen:7b"
+  chunk_size: 1200
+  num_ctx: 4096
+  temperature: 0.45
+  repeat_penalty: 1.3
 
 # =====================================================
 # PROCESSING SETTINGS
