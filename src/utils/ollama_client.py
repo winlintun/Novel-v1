@@ -25,7 +25,7 @@ class OllamaClient:
         repeat_penalty: float = 1.3,
         max_retries: int = 3,
         timeout: int = 300,
-        unload_on_cleanup: bool = False,
+        unload_on_cleanup: bool = True,  # Default to True to free RAM after translation
         use_generate_endpoint: bool = False,  # New: Option to use /api/generate instead of /api/chat
         num_ctx: int = 8192,  # New: Configurable context window (default 8192 per need_fix.md)
         keep_alive: str = "10m",  # New: Configurable keep_alive (default 10m per need_fix.md)
@@ -99,16 +99,31 @@ class OllamaClient:
         
         try:
             if self.unload_on_cleanup:
-                # Unload model from GPU to free VRAM
-                logger.info(f"Unloading model {self.model} from GPU...")
+                # Unload model from GPU/CPU to free RAM/VRAM
+                logger.info(f"Unloading model {self.model} from memory to free RAM...")
                 try:
-                    # Generate with keep_alive=0 to unload immediately
-                    self.client.generate(
-                        model=self.model,
-                        prompt="",
-                        keep_alive=0
-                    )
-                    logger.info(f"Model {self.model} unloaded from GPU")
+                    # Method 1: Use API to unload this specific model
+                    self._unload_model(self.model)
+                    
+                    # Method 2: Also try to unload via direct API call with keep_alive=0
+                    try:
+                        import requests
+                        response = requests.post(
+                            f"{self.base_url}/api/generate",
+                            json={
+                                "model": self.model,
+                                "prompt": "",
+                                "keep_alive": 0,
+                                "options": {"num_predict": 1}
+                            },
+                            timeout=10
+                        )
+                        if response.status_code == 200:
+                            logger.info(f"Successfully sent unload request for {self.model}")
+                    except Exception as api_err:
+                        logger.debug(f"Direct API unload attempt: {api_err}")
+                    
+                    logger.info(f"Model {self.model} unloaded from memory")
                 except Exception as e:
                     logger.warning(f"Could not unload model: {e}")
             
@@ -117,6 +132,59 @@ class OllamaClient:
             
         except Exception as e:
             logger.error(f"Error during OllamaClient cleanup: {e}")
+    
+    def _unload_model(self, model_name: str) -> None:
+        """
+        Explicitly unload a model from Ollama memory.
+        
+        Args:
+            model_name: Name of the model to unload
+        """
+        try:
+            # Use the Ollama API to unload by setting keep_alive to 0
+            self.client.generate(
+                model=model_name,
+                prompt="",
+                keep_alive=0,  # 0 means unload immediately
+                options={"num_predict": 1}
+            )
+            logger.info(f"Model {model_name} scheduled for unload")
+        except Exception as e:
+            logger.warning(f"Model unload API call failed: {e}")
+    
+    def unload_all_models(self) -> None:
+        """
+        Force unload all loaded models from Ollama to free all RAM.
+        This is useful after batch translations or when memory is critical.
+        """
+        logger.info("Unloading all models from Ollama to free RAM...")
+        try:
+            import requests
+            
+            # Get list of loaded models
+            try:
+                response = requests.get(f"{self.base_url}/api/ps", timeout=5)
+                if response.status_code == 200:
+                    data = response.json()
+                    models = data.get('models', [])
+                    
+                    for model_info in models:
+                        model_name = model_info.get('name', '')
+                        if model_name:
+                            logger.info(f"Unloading model: {model_name}")
+                            self._unload_model(model_name)
+                else:
+                    logger.warning(f"Could not get running models list: HTTP {response.status_code}")
+            except Exception as e:
+                logger.warning(f"Could not query running models: {e}")
+            
+            # Also try to unload the current model
+            self._unload_model(self.model)
+            
+            logger.info("All models unload requests sent")
+            
+        except Exception as e:
+            logger.error(f"Error unloading all models: {e}")
     
     def chat(
         self,

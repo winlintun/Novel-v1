@@ -1,13 +1,13 @@
 fast_config:
   checker: qwen:7b
   chunk_size: 1200
-  editor: qwen:7b
+  editor: padauk-gemma:q8_0
   enabled: false
   num_ctx: 4096
-  refiner: qwen:7b
+  refiner: padauk-gemma:q8_0
   repeat_penalty: 1.3
   temperature: 0.45
-  translator: qwen2.5:14b
+  translator: padauk-gemma:q8_0
 glossary_v3:
   alias_matching: true
   cache_ttl_minutes: 30
@@ -32,9 +32,11 @@ model_roles:
   - qwen:7b
   - gemma:7b
   refiner:
+  - padauk-gemma:q8_0
   - qwen2.5:14b
   - qwen:7b
   translator:
+  - padauk-gemma:q8_0
   - qwen2.5:14b
   - qwen2.5:7b
   - qwen:7b
@@ -46,12 +48,12 @@ model_router:
 models:
   checker: qwen:7b
   cloud_model: gemini-2.5-flash
-  editor: qwen2.5:14b
+  editor: padauk-gemma:q8_0
   ollama_base_url: http://localhost:11434
   provider: ollama
-  refiner: qwen:7b
+  refiner: padauk-gemma:q8_0
   timeout: 300
-  translator: qwen2.5:14b
+  translator: padauk-gemma:q8_0
   # GPU Configuration - Supports NVIDIA (CUDA) and AMD (ROCm) GPUs
   # Set use_gpu: true to enable GPU acceleration
   use_gpu: true
@@ -83,18 +85,18 @@ paths:
   templates_dir: templates
 processing:
   chunk_overlap: 50
-  chunk_size: 800
-  max_retries: 3
-  repeat_penalty: 1.5
-  request_timeout: 900
+  chunk_size: 2000
+  max_retries: 2
+  repeat_penalty: 1.3
+  request_timeout: 300
   stream: true
-  temperature: 0.2
+  temperature: 0.3
   top_k: 50
   top_p: 0.92
 project:
   name: novel_translation
   novel_genre: Xianxia/Cultivation
-  source_language: zh-CN
+  source_language: en-US
   target_language: my-MM
 qa_testing:
   auto_retry: false
@@ -103,8 +105,8 @@ qa_testing:
   markdown_strict: true
   min_myanmar_ratio: 0.7
 translation_pipeline:
-  description: Two-stage uses raw translation + rewrite for better quality
-  mode: full
+  description: Lite pipeline for faster translation
+  mode: lite
   mode_description:
     fast: "2-stage pipeline: Translate \u2192 Quality (skip refinement)"
     fast_desc: "Fast optimized: CN\u2192EN\u2192MM pivot with quantized models (16GB\
@@ -112,7 +114,8 @@ translation_pipeline:
     full: "6-stage pipeline: Translate \u2192 Refine \u2192 Reflect \u2192 Quality\
       \ \u2192 Consistency \u2192 QA"
     lite: "3-stage pipeline: Translate \u2192 Refine \u2192 Quality"
-  reflection_model: qwen:7b
-  stage1_model: qwen2.5:14b
-  stage2_model: qwen:7b
+    single_stage: "1-stage pipeline: Direct translation only"
+  reflection_model: padauk-gemma:q8_0
+  stage1_model: padauk-gemma:q8_0
+  stage2_model: padauk-gemma:q8_0
   use_reflection: false

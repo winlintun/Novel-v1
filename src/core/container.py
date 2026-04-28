@@ -109,7 +109,6 @@ class Container:
         if self._checker is None:
             from src.agents.checker import Checker
             self._checker = Checker(
-                ollama_client=self.get_ollama_client(),
                 memory_manager=self.get_memory_manager(),
                 config=self.config.dict()
             )

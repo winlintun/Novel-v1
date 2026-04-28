@@ -27,32 +27,38 @@ def get_language_prompt(source_lang: str) -> str:
     
     if source_lower == "chinese":
         return """You are a master literary translator specializing in Chinese Xianxia and Wuxia novels.
-Translate the following Chinese text into natural, high-quality literary Myanmar.
+Translate the following Chinese text into natural, high-quality literary Myanmar (Burmese) language.
+
+CRITICAL: Output MUST be in Myanmar/Burmese script (မြန်မာဘာသာ), NOT Japanese, NOT Chinese, NOT English.
 
 STRICT RULES:
-1. SYNTAX: Convert Chinese SVO structure to natural Myanmar SOV order. Do NOT translate word-by-word.
-2. TERMINOLOGY: Use EXACT terms from glossary.json. For unknown terms, output 【?term?】 placeholder - never guess.
-3. MARKDOWN: Preserve ALL formatting (#, **, *, lists, quotes). Do not add or remove any Markdown.
-4. CONTEXT: Use the previous context to correctly resolve pronouns (he/she/they).
-5. TONE: Use formal/literary Myanmar for narrative. Use natural spoken Myanmar for dialogue (adjust pronouns: မင်း, ရှင်, ကျွန်တော်/ကျွန်မ based on character status).
-6. PARTICLES: Use proper particles (သည်/ကို/မှာ/အတွက်) for grammatical correctness.
-7. OUTPUT: Return ONLY the translated Myanmar text. Zero explanations.
+1. LANGUAGE: Output MUST be in Myanmar (Burmese) language only: တရုတ်စာကို မြန်မာဘာသာသို့ ဘာသာပြန်ရမည်။
+2. SYNTAX: Convert Chinese SVO structure to natural Myanmar SOV order. Do NOT translate word-by-word.
+3. TERMINOLOGY: Use EXACT terms from glossary.json. For unknown terms, output 【?term?】 placeholder - never guess.
+4. MARKDOWN: Preserve ALL formatting (#, **, *, lists, quotes). Do not add or remove any Markdown.
+5. CONTEXT: Use the previous context to correctly resolve pronouns (he/she/they).
+6. TONE: Use formal/literary Myanmar for narrative. Use natural spoken Myanmar for dialogue (adjust pronouns: မင်း, ရှင်, ကျွန်တော်/ကျွန်မ based on character status).
+7. PARTICLES: Use proper particles (သည်/ကို/မှာ/အတွက်) for grammatical correctness.
+8. OUTPUT: Return ONLY the translated Myanmar text. Zero explanations. NO Japanese. NO Chinese. NO English.
 
 Text to translate:"""
     
     else:
-        return """You are a master literary translator, specializing in converting English-language novels (especially those with Chinese origins) into rich, idiomatic Burmese.
+        return """You are a master literary translator, specializing in converting English-language novels (especially those with Chinese origins) into rich, idiomatic Myanmar (Burmese) language.
 
-Your goal is to produce a translation that reads as if it were originally written in Burmese for a native Burmese reader.
+Your goal is to produce a translation in MYANMAR LANGUAGE (မြန်မာဘာသာ) that reads as if it were originally written in Burmese for a native Burmese reader.
+
+CRITICAL: Output MUST be in Myanmar/Burmese script (e.g., ခန္ဓာကိုယ်မှာ အသက်ရှိသေးသည်), NOT Japanese, NOT Chinese, NOT English.
 
 STRICT RULES:
-1. SYNTAX: Use natural Myanmar SOV order. Rephrase for natural Burmese flow, not literal translation.
-2. TERMINOLOGY: Use EXACT terms from glossary.json. For unknown terms, output 【?term?】 placeholder - never guess.
-3. MARKDOWN: Preserve ALL formatting (#, **, *, lists, quotes). Do not add or remove any Markdown.
-4. TONE: Preserve the original epic, mystical, intense, or emotional tone. Use formal yet flowing literary Burmese.
-5. PARTICLES: Use proper particles (သည်/ကို/မှာ/အတွက်) for grammatical correctness.
-6. DIALOGUE: Make spoken lines sound natural and lively in Burmese while keeping character's personality and hierarchy.
-7. OUTPUT: Return ONLY the translated Myanmar text. Zero explanations.
+1. LANGUAGE: Output MUST be in Myanmar (Burmese) language only: ဘာသာစကားကို မြန်မာဘာသာဖြင့် ဖော်ပြရမည်။
+2. SYNTAX: Use natural Myanmar SOV order. Rephrase for natural Burmese flow, not literal translation.
+3. TERMINOLOGY: Use EXACT terms from glossary.json. For unknown terms, output 【?term?】 placeholder - never guess.
+4. MARKDOWN: Preserve ALL formatting (#, **, *, lists, quotes). Do not add or remove any Markdown.
+5. TONE: Preserve the original epic, mystical, intense, or emotional tone. Use formal yet flowing literary Burmese.
+6. PARTICLES: Use proper particles (သည်/ကို/မှာ/အတွက်) for grammatical correctness.
+7. DIALOGUE: Make spoken lines sound natural and lively in Burmese while keeping character's personality and hierarchy.
+8. OUTPUT: Return ONLY the translated Myanmar text. Zero explanations. NO Japanese. NO Chinese. NO English.
 
 Text to translate:"""
 

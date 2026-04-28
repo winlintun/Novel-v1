@@ -163,7 +163,6 @@ class TranslationPipeline:
         if self._checker is None:
             from src.agents.checker import Checker
             self._checker = Checker(
-                ollama_client=self.ollama_client,
                 memory_manager=self.memory_manager,
                 config=self.config.dict()
             )
@@ -192,35 +191,35 @@ class TranslationPipeline:
     
     def translate_file(self, filepath: str) -> Dict[str, Any]:
         """Translate a single file.
-        
+
         Args:
             filepath: Path to input file
-            
+
         Returns:
             Pipeline result dictionary
         """
         self.logger.info(f"Starting translation of file: {filepath}")
         start_time = time.time()
-        
+
         try:
             # Read file
             from src.utils.file_handler import FileHandler
             text = FileHandler.read_text(filepath)
-            
+
             # Preprocess
             chunks = self._preprocess(text)
-            
+
             # Translate
             translated_chunks = self._translate_chunks(chunks)
-            
+
             # Postprocess
             result_text = self._postprocess(translated_chunks)
-            
+
             # Save output
             output_path = self._save_output(filepath, result_text)
-            
+
             duration = time.time() - start_time
-            
+
             return {
                 "success": True,
                 "output_path": str(output_path),
@@ -230,7 +229,7 @@ class TranslationPipeline:
                 "chapter": Path(filepath).stem,
                 "duration_seconds": duration
             }
-            
+
         except Exception as e:
             self.logger.error(f"Translation failed: {e}", exc_info=True)
             return {
@@ -241,6 +240,9 @@ class TranslationPipeline:
                 "metrics": {},
                 "chapter": Path(filepath).stem
             }
+        finally:
+            # Always cleanup to free RAM after translation
+            self._cleanup_resources()
     
     def translate_chapter(self, novel: str, chapter: int) -> Dict[str, Any]:
         """Translate a single chapter of a novel.
@@ -382,7 +384,8 @@ class TranslationPipeline:
         """
         from src.utils.postprocessor import Postprocessor
         
-        processor = Postprocessor()
+        # Use aggressive mode to strip all reasoning/analysis content
+        processor = Postprocessor(aggressive=True)
         
         # Join chunks
         text = '\n\n'.join(chunks)
@@ -431,18 +434,27 @@ Pipeline: {self.config.translation_pipeline.mode}
         
         return output_path
     
-    def cleanup(self) -> None:
-        """Clean up resources."""
-        self.logger.info("Cleaning up pipeline resources...")
-        
+    def _cleanup_resources(self) -> None:
+        """Internal method to clean up resources and free RAM after translation."""
+        self.logger.info("Cleaning up resources and freeing RAM...")
+
+        # Unload all models from Ollama to free RAM
         if self._ollama_client:
             try:
+                self.logger.info("Unloading models from Ollama to free system RAM...")
+                self._ollama_client.unload_all_models()
                 self._ollama_client.cleanup()
+                self.logger.info("Models unloaded successfully - RAM freed")
             except Exception as e:
                 self.logger.error(f"Error cleaning up Ollama client: {e}")
-        
+
+        # Save memory manager state
         if self._memory_manager:
             try:
                 self._memory_manager.save_memory()
             except Exception as e:
                 self.logger.error(f"Error saving memory: {e}")
+
+    def cleanup(self) -> None:
+        """Public cleanup method for manual resource cleanup."""
+        self._cleanup_resources()

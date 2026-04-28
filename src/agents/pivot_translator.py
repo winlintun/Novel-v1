@@ -10,7 +10,12 @@ from typing import Dict, List, Optional, Any
 from src.utils.ollama_client import OllamaClient
 from src.memory.memory_manager import MemoryManager
 from src.utils.progress_logger import ProgressLogger
-from src.utils.postprocessor import clean_output, validate_output
+from src.utils.postprocessor import (
+    clean_output,
+    validate_output,
+    detect_language_leakage,
+    myanmar_char_ratio,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +56,16 @@ class PivotTranslator:
         # System prompts
         self.stage1_system_prompt = pipeline.get('stage1_system_prompt', "You are an expert Chinese-to-English literary translator. Output ONLY English translation.")
         self.stage2_system_prompt = pipeline.get('stage2_system_prompt', "CRITICAL: Output ONLY Myanmar (Burmese) language using Myanmar Unicode script. NO English words or Chinese characters.")
+
+    def _is_severe_non_myanmar_output(self, text: str) -> bool:
+        """Detect severe EN/CN leakage in stage2 output."""
+        leakage = detect_language_leakage(text)
+        ratio = myanmar_char_ratio(text)
+        return (
+            leakage.get("thai_chars", 0) > 0
+            or leakage.get("chinese_chars", 0) > 0
+            or (ratio < 0.30 and leakage.get("latin_words", 0) > 5)
+        )
 
     def translate_stage1(self, paragraph: str, client: Optional[OllamaClient] = None) -> str:
         """Stage 1: Translate Chinese to English."""
@@ -131,16 +146,56 @@ class PivotTranslator:
         
         try:
             raw_mm = client2.chat(prompt=prompt2, system_prompt=self.stage2_system_prompt)
-            
+
             # Handle empty response (model collapse)
             if not raw_mm or not raw_mm.strip():
                 logger.warning(f"Empty Stage 2 response from model {self.stage2_model}. Retrying...")
-                raw_mm = client2.chat(prompt=prompt2, system_prompt=self.stage2_system_prompt + "\n\nIMPORTANT: You must provide a translation. Do not return an empty response.")
-                
+                raw_mm = client2.chat(
+                    prompt=prompt2,
+                    system_prompt=self.stage2_system_prompt + "\n\nIMPORTANT: You must provide a translation. Do not return an empty response.",
+                )
+
             myanmar_result = clean_output(raw_mm.strip())
-            
+
             if not myanmar_result:
-                raise RuntimeError(f"Stage 2 (EN->MM) returned empty result after retry")
+                raise RuntimeError("Stage 2 (EN->MM) returned empty result after retry")
+
+            # Retry if output is still heavily non-Myanmar (e.g., mostly English leakage).
+            best_result = myanmar_result
+            best_ratio = myanmar_char_ratio(best_result)
+            retry_prompt = prompt2
+            retry_system = self.stage2_system_prompt
+            for attempt in range(1, 3):
+                if not self._is_severe_non_myanmar_output(best_result):
+                    break
+
+                leakage = detect_language_leakage(best_result)
+                logger.warning(
+                    f"Stage 2 severe language leakage detected (attempt {attempt}): "
+                    f"latin_words={leakage.get('latin_words', 0)}, "
+                    f"chinese_chars={leakage.get('chinese_chars', 0)}, "
+                    f"ratio={best_ratio:.2f}. Retrying with stronger guard."
+                )
+                retry_prompt = (
+                    prompt2
+                    + "\n\nCRITICAL RETRY: Your previous output included non-Myanmar text. "
+                    + "Return ONLY Myanmar Unicode script. Replace unknown terms with 【?term?】."
+                )
+                retry_system = (
+                    self.stage2_system_prompt
+                    + "\n\nRETRY MODE: Output must be 100% Myanmar Unicode. "
+                    + "NO English words. NO Chinese characters. NO explanation."
+                )
+                raw_retry = client2.chat(prompt=retry_prompt, system_prompt=retry_system)
+                retry_result = clean_output(raw_retry.strip()) if raw_retry else ""
+                if not retry_result:
+                    continue
+                retry_ratio = myanmar_char_ratio(retry_result)
+                if retry_ratio >= best_ratio:
+                    best_result = retry_result
+                    best_ratio = retry_ratio
+
+            myanmar_result = best_result
                 
             # Validate and log quality report
             report = validate_output(myanmar_result, chapter_num)

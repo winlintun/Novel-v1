@@ -45,12 +45,24 @@ _REASONING_PATTERNS: List[re.Pattern] = [
     # Match "Refinement" and "Drafting" analysis sections
     re.compile(r"^\s*\*\*(Refinement|Drafting|Drafting Focus|Focus):\*\*.*?^(?=\*\*Burmese|\*\*Myanmar|\d+\.|Here is|$)", re.DOTALL | re.MULTILINE),
     # Remove all lines starting with analysis markup
-    re.compile(r"^\s*\*\s*\*Original:\*.*?$", re.MULTILINE),
-    re.compile(r"^\s*\*\s*\*Key.*?\*.*?$", re.MULTILINE),
-    re.compile(r"^\s*\*\s*\*Tone.*?\*.*?$", re.MULTILINE),
-    re.compile(r"^\s*\*\s*\*Key elements.*?\*.*?$", re.MULTILINE),
+    re.compile(r"^\s*\*\s+\*Original:\*.*?$", re.MULTILINE),
+    re.compile(r"^\s*\*\s+\*Key.*?\*.*?$", re.MULTILINE),
+    re.compile(r"^\s*\*\s+\*Tone.*?\*.*?$", re.MULTILINE),
+    re.compile(r"^\s*\*\s+\*Key elements.*?\*.*?$", re.MULTILINE),
     # Remove glossary checkboxes like "[○] Luo Qing = ..."
     re.compile(r"^\s*\[.\]\s+\w+\s+=.*?$", re.MULTILINE),
+    # NEW: Remove "Glossary Check & Term Mapping" sections (padauk-gemma format)
+    re.compile(r"^\d+\.\s+\*\*Glossary Check & Term Mapping:\*\*.*?^(?=\d+\.|\*\*|$)", re.DOTALL | re.MULTILINE),
+    # NEW: Remove "Translation Strategy" sections
+    re.compile(r"^\d+\.\s+\*\*Translation Strategy.*?\*\*.*?^(?=\d+\.|\*\*|$)", re.DOTALL | re.MULTILINE),
+    # NEW: Remove bullet points with term mappings like "*   Fang Yuan = ..."
+    re.compile(r"^\s*\*\s+\w+\s+=\s+.*?(?:\(.*?\))*$", re.MULTILINE),
+    # NEW: Remove "Drafting:" and "Refinement:" inline markers
+    re.compile(r"\*Drafting:\*|\*Refinement:\*", re.MULTILINE),
+    # NEW: Remove parenthetical notes like "(This is already provided...)"
+    re.compile(r"\(This is.*?\)", re.MULTILINE | re.IGNORECASE),
+    # NEW: Remove lines with only bullet markers and no Myanmar
+    re.compile(r"^\s*\*\s*$", re.MULTILINE),
 ]
 
 # Thai Unicode range — should never appear in Myanmar output
@@ -96,36 +108,74 @@ def strip_reasoning_process(text: str) -> str:
     # Second pass: clean up remaining analysis lines and markers
     lines = text.split('\n')
     cleaned_lines = []
+    skip_section = False
     
     for line in lines:
         original_line = line
+        stripped = line.strip()
         
+        # Detect section headers to skip (numbered sections with **)
+        if re.match(r'^\s*\d+\.\s+\*\*.*?:\*\*', original_line):
+            skip_section = True
+            continue
+        
+        # If we were skipping a section and hit a blank line or new section, stop skipping
+        if skip_section and (not stripped or re.match(r'^\s*\d+\.\s+', line)):
+            skip_section = False
+            if not stripped:
+                continue
+            
+        # Skip lines within analysis sections
+        if skip_section:
+            continue
+        
+        # Skip lines that are just bullet points without Myanmar content
+        if re.match(r'^\s*\*\s*\w+\s*=', original_line):
+            continue
+            
+        # Skip lines with only analysis markers (no actual Myanmar content)
+        if re.match(r'^\s*[\*\-]?\s*\*+[^\u1000-\u109F]*\*+\s*$', original_line):
+            continue
+            
+        # Skip lines with only "Refinement:", "Drafting:", etc. labels
+        if re.match(r'^\s*[\*\-]?\s*\*+(Refinement|Drafting|Drafting Focus|Focus):\*+\s*$', original_line, re.IGNORECASE):
+            continue
+            
+        # Skip analysis lines like "*   *Refinement:* Needs high literary tone." (no Myanmar text)
+        if re.match(r'^\s*\*\s*\*(Refinement|Drafting|Focus|Key Concepts|Key elements|Tone):\*.*$', original_line, re.IGNORECASE):
+            # Check if line has Myanmar text
+            if not re.search(r'[\u1000-\u109F]', original_line):
+                continue
+                
+        # Skip "Here's the actual Myanmar translation:" preamble
+        if re.match(r'^Here.*?Myanmar translation[:;]', line, re.IGNORECASE):
+            continue
+            
+        # Skip "Here's the actual translation:" preamble  
+        if re.match(r'^Here.*?actual translation[:;]', line, re.IGNORECASE):
+            continue
+            
         # Remove "**Burmese Draft:**" or "**Myanmar Draft:**" markers with optional leading bullet
-        # Pattern: optional whitespace, optional bullet (* or -), optional whitespace, **Label:**, whitespace
         line = re.sub(r'^\s*[\*\-]?\s*\*\*Burmese Draft:\*\*\s*', '', line, flags=re.IGNORECASE)
         line = re.sub(r'^\s*[\*\-]?\s*\*\*Myanmar Draft:\*\*\s*', '', line, flags=re.IGNORECASE)
         # Also handle single-asterisk variant: *   *Burmese Draft:* 
         line = re.sub(r'^\s*\*\s*\*Burmese Draft:\*\s*', '', line, flags=re.IGNORECASE)
         line = re.sub(r'^\s*\*\s*\*Myanmar Draft:\*\s*', '', line, flags=re.IGNORECASE)
         
-        # Skip lines that are just analysis markers (no actual Myanmar content)
-        if re.match(r'^\s*[\*\-]?\s*\*+[^\u1000-\u109F]*\*+\s*$', original_line):
-            continue
-        # Skip lines with only "Refinement:", "Drafting:", etc. labels
-        if re.match(r'^\s*[\*\-]?\s*\*+(Refinement|Drafting|Drafting Focus|Focus):\*+\s*$', original_line, re.IGNORECASE):
-            continue
-        # Skip analysis lines like "*   *Refinement:* Needs high literary tone." (no Myanmar text)
-        if re.match(r'^\s*\*\s*\*(Refinement|Drafting|Focus|Key Concepts|Key elements|Tone):\*.*$', original_line, re.IGNORECASE):
-            # Check if line has Myanmar text
-            if not re.search(r'[\u1000-\u109F]', original_line):
-                continue
-        # Skip "Here's the actual Myanmar translation:" preamble
-        if re.match(r'^Here.*?Myanmar translation[:;]', line, re.IGNORECASE):
-            continue
-        # Skip "Here's the actual translation:" preamble  
-        if re.match(r'^Here.*?actual translation[:;]', line, re.IGNORECASE):
-            continue
+        # Remove standalone bullet points at start of line (keeping Myanmar content)
+        line = re.sub(r'^\s*\*\s+', '', line)
         
+        # Remove inline *Drafting:* and *Refinement:* markers
+        line = re.sub(r'\*Drafting:\*|\*Refinement:\*', '', line, flags=re.IGNORECASE)
+        
+        # Remove parenthetical English explanations
+        line = re.sub(r'\(This is.*?\)', '', line, flags=re.IGNORECASE)
+        line = re.sub(r'\(.*?\)', '', line)  # Remove all parenthetical content
+        
+        # Skip empty lines or lines with only whitespace
+        if not line.strip():
+            continue
+            
         # Keep the line (now cleaned of markers)
         cleaned_lines.append(line)
     
@@ -349,3 +399,31 @@ def check_repetition(text: str, threshold: float = 0.35) -> bool:
 
     repetition_ratio = repeated / len(sentences)
     return repetition_ratio > threshold
+
+
+class Postprocessor:
+    """
+    Postprocessor class wrapper for the postprocessing functions.
+    Provides a clean() method for compatibility with the pipeline orchestrator.
+    """
+
+    def __init__(self, aggressive: bool = False):
+        """
+        Initialize the postprocessor.
+
+        Args:
+            aggressive: If True, aggressively remove all Chinese/Latin characters.
+        """
+        self.aggressive = aggressive
+
+    def clean(self, text: str) -> str:
+        """
+        Clean the raw LLM output.
+
+        Args:
+            text: Raw text from LLM
+
+        Returns:
+            Cleaned text
+        """
+        return clean_output(text, aggressive=self.aggressive)
