@@ -34,6 +34,7 @@ from src.cli.commands import (
     run_glossary_generation,
     run_ui_launch,
     run_test,
+    run_view_file,
 )
 
 __all__ = [
@@ -59,4 +60,5 @@ __all__ = [
     "run_glossary_generation",
     "run_ui_launch",
     "run_test",
+    "run_view_file",
 ]

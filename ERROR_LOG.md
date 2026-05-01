@@ -39,6 +39,35 @@
 
 *No active issues currently.*
 
+### ERROR-046: Postprocessor Destroys Paragraph Structure + 8 Duplicate Chapter Headings
+**Date**: 2026-05-01
+**File**: `src/utils/postprocessor.py`
+**Error Description**:
+1. Output file `reverend-insanity_0012.mm.md` was a single line (0 newlines, 12904 chars) — all paragraph breaks destroyed
+2. Chapter heading `# အခန်း ၁၂ ## Title` appeared on same line (no `\n\n` between H1 and H2)
+3. Chapter heading repeated 8 times (once per translation chunk) throughout the body
+
+**Root Cause**:
+1. `remove_latin_words()` line 234: `re.sub(r'\s+', ' ', text)` collapsed ALL whitespace including `\n` to spaces, destroying all paragraph structure
+2. Model outputs `# အခန်း N ## Title` as a single concatenated line instead of proper markdown
+3. The context buffer feeds the previous chunk's heading to the translator, causing it to repeat the heading at the start of each new chunk. `_deduplicate_chunks()` couldn't catch it because the text had no newlines to split on.
+
+**Fix Applied**:
+1. Changed `remove_latin_words` regex from `r'\s+'` to `r'[^\S\n]+'` — only collapses horizontal whitespace
+2. Added `fix_chapter_heading_format()` — splits `# H1 ## H2` into `# H1\n\n## H2`
+3. Added `remove_duplicate_headings()` — keeps only first `# အခန်း N`, removes subsequent duplicates and their `##` subtitles
+4. Added `_split_into_lines_if_needed()` — recovery path for already-corrupted single-line files (splits at heading boundaries + `။` sentence markers)
+5. All heading regexes now support both Myanmar (`\u1040-\u1049`) and Western (`\d`) digits
+
+**Files Modified**:
+- `src/utils/postprocessor.py` — 3 bug fixes + 1 recovery function + digit support (91 insertions, 3 deletions)
+
+**Output File Fixed**:
+- `data/output/reverend-insanity/reverend-insanity_0012.mm.md` — restored proper formatting (backup at `.mm.md.bak`)
+
+**Status**: RESOLVED
+**Verified By**: pytest (229/229 pass), manual fix verification (headings: 8→1, newlines: 0→203, double-newlines: 0→99)
+
 ### ERROR-045: Workflow Auto-Detect Returns None (Tests Failing)
 **Date**: 2026-05-01
 **File**: `tests/test_workflow_routing.py`, `src/agents/preprocessor.py`
@@ -1193,3 +1222,18 @@ Updated config to use available models:
 ---
 
 *This file is maintained automatically by AI agents. Do not edit manually unless instructed.*
+
+### CODE REVIEW SESSION (2026-05-01): Postprocessor Bug Fix Review
+**Scope**: `src/utils/postprocessor.py` — review of 3 bug fixes + recovery function
+**Reviewers**: REVIEWER A (Architecture & Logic) + REVIEWER B (Myanmar Translation & Quality)
+**Status**: READY_TO_COMMIT (both reviewers PASS)
+**Test Results**: 229/229 pass, no regressions
+**Findings**:
+- Bug 1 fix (`remove_latin_words` regex) — correctly preserves newlines. VERIFIED.
+- Bug 2 fix (`fix_chapter_heading_format`) — correctly splits H1/H2. VERIFIED. Minor: only matches Myanmar digits, not Latin.
+- Bug 3 fix (`remove_duplicate_headings`) — correctly removes duplicates. VERIFIED. Minor: TOC edge case noted.
+- Recovery (`_split_into_lines_if_needed`) — safe guard condition, activates only on single-line text. VERIFIED.
+- No breaking API changes to `clean_output`, `Postprocessor`, `remove_latin_words`. CONFIRMED.
+- No cross-agent imports (modular boundaries intact). CONFIRMED.
+- Type hints present on all new functions. CONFIRMED.
+- Minor pre-existing issues noted: `is_valid_myanmar_syllable` type hint mismatch, no targeted unit tests for new functions.

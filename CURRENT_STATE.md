@@ -10,6 +10,18 @@
 ## Last Updated
 - Date: 2026-05-01
 - Last task completed:
+  - **FIXED: Postprocessor destroying paragraph structure + 8 duplicate headings** (STATUS: READY_TO_COMMIT, commit 98dbe5a):
+    - **Root Cause 1**: `remove_latin_words` had `re.sub(r'\s+', ' ', text)` which collapsed ALL whitespace (including `\n`) to spaces, making output a single line
+    - **Root Cause 2**: Model outputs `# အခန်း ၁၂ ## Title` on single line instead of proper `# H1\n\n## H2`
+    - **Root Cause 3**: Heading repeated 8 times (once per chunk) due to context buffer leaking heading to subsequent chunk translations
+    - **Fixes**:
+      1. Changed `remove_latin_words` regex to `[^\S\n]+` — only collapses horizontal whitespace, preserves newlines
+      2. Added `fix_chapter_heading_format()` — splits `# X ## Y` into `# X\n\n## Y`
+      3. Added `remove_duplicate_headings()` — keeps only first `# အခန်း N` heading, strips duplicates
+      4. Added `_split_into_lines_if_needed()` — recovery path for already-corrupted files (splits at heading boundaries + `။` sentence-enders)
+    - **Files Modified**: `src/utils/postprocessor.py`
+    - **Output file fixed**: `data/output/reverend-insanity/reverend-insanity_0012.mm.md` (backup at `.mm.md.bak`)
+    - **Tests**: 229/229 pass
   - **Prompt System Upgrade & Per-Novel Glossary + DRY Refactor** (STATUS: READY_TO_COMMIT):
     - **Prompt Integration**: `get_language_prompt()` in translator.py now dynamically builds CN/EN prompts from `cn_mm_rules.build_linguistic_context()` and `en_mm_rules.build_linguistic_context()`
     - **EDITOR_SYSTEM_PROMPT upgraded**: Replaced with comprehensive 10-section prompt from `eng-mm-prompt.md` + `en_mm_rules.py` (Persona, Principles, Dialogue Rules, Confrontation Speech, Vocabulary Precision, Narration Register, Sentence Rhythm, Formatting, Unicode Safety, Output)
@@ -379,3 +391,15 @@
 - [x] Cloud API support (Gemini, OpenRouter)
 - [x] Single-stage and two-stage translation modes
 - [x] Glossary consistency checking
+
+- **CODE REVIEW: Postprocessor Bug Fix Verification** (STATUS: READY_TO_COMMIT):
+  - **Review Scope**: `src/utils/postprocessor.py` — 3 bug fixes verified
+  - **Bug 1 (Critical)**: `remove_latin_words` regex `\s+` → `[^\S\n]+` — correctly preserves paragraph breaks while collapsing horizontal whitespace. PASS.
+  - **Bug 2**: `fix_chapter_heading_format()` — correctly splits `# X ## Y` into proper H1/H2 on separate lines. PASS.
+  - **Bug 3**: `remove_duplicate_headings()` — keeps only first `# အခန်း N`, strips duplicates and their subtitles. PASS.
+  - **Recovery**: `_split_into_lines_if_needed()` — restores newlines from previously-corrupted single-line files at heading/sentence boundaries. PASS (only activates when no newlines exist).
+  - **No breaking API changes**: `clean_output`, `Postprocessor`, `remove_latin_words` signatures unchanged.
+  - **No cross-agent imports**: Modular boundary compliance confirmed.
+  - **All 229 tests pass**.
+  - **Minor issues noted** (non-blocking): `is_valid_myanmar_syllable` type hint mismatch (`-> bool` but returns `float`); no targeted tests for the 3 new functions; `fix_chapter_heading_format` only matches Myanmar digits not Latin digits.
+  - **Files Reviewed**: `src/utils/postprocessor.py`

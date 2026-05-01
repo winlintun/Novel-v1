@@ -30,6 +30,7 @@ from src.cli.commands import (
     run_glossary_generation,
     run_ui_launch,
     run_test,
+    run_view_file,
 )
 
 
@@ -48,6 +49,9 @@ def main() -> int:
     
     if args.test:
         return run_test(args)
+    
+    if args.view_file:
+        return run_view_file(args)
     
     # Validate arguments for translation commands
     validate_arguments(args)

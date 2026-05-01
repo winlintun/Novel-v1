@@ -382,6 +382,65 @@ def _resolve_workflow(args) -> Optional[str]:
     return None
 
 
+def run_view_file(args: argparse.Namespace) -> int:
+    """View a translated .mm.md file with formatted terminal output.
+    
+    Args:
+        args: Parsed command line arguments (must have view_file)
+        
+    Returns:
+        Exit code (0 for success, 1 for failure)
+    """
+    filepath = args.view_file
+    p = Path(filepath)
+    
+    if not p.exists():
+        print(f"Error: File not found: {filepath}")
+        return 1
+    
+    print(f"\n{'='*70}")
+    print(f"  📖  {p.name}")
+    print(f"{'='*70}\n")
+    
+    try:
+        with open(p, 'r', encoding='utf-8-sig') as f:
+            content = f.read()
+    except UnicodeDecodeError:
+        print(f"Warning: BOM decode failed, trying utf-8 fallback for {p.name}")
+        with open(p, 'r', encoding='utf-8') as f:
+            content = f.read()
+    
+    # Apply postprocessing (single source of truth)
+    from src.utils.postprocessor import (
+        _split_into_lines_if_needed,
+        fix_chapter_heading_format,
+        remove_duplicate_headings,
+    )
+    content = _split_into_lines_if_needed(content)
+    content = fix_chapter_heading_format(content)
+    content = remove_duplicate_headings(content)
+    
+    # Print with formatting
+    import re
+    for line in content.split('\n'):
+        stripped = line.strip()
+        if not stripped:
+            print()
+        elif stripped.startswith('# '):
+            print(f"\n\033[1;33m{stripped}\033[0m")
+        elif stripped.startswith('## '):
+            print(f"\033[1;36m{stripped}\033[0m")
+        elif stripped.startswith('### '):
+            print(f"\n\033[1;32m{stripped}\033[0m")
+        else:
+            print(stripped)
+    
+    print(f"\n{'='*70}")
+    print(f"  {len(content):,} chars | {content.count(chr(10)) + 1} lines")
+    print(f"{'='*70}\n")
+    return 0
+
+
 def _apply_workflow_config(config: AppConfig, workflow: str, logger: Optional[logging.Logger] = None) -> AppConfig:
     """Apply workflow-specific configuration overrides with automatic model selection.
     

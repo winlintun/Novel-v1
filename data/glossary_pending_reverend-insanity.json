@@ -1,0 +1,12 @@
+﻿{
+  "pending_terms": [
+    {
+      "source": "TestTerm",
+      "target": "စမ်းသပ်စကားလုံး",
+      "category": "test",
+      "extracted_from_chapter": 1,
+      "status": "pending",
+      "added_at": "2026-05-01T19:56:44.386889"
+    }
+  ]
+}

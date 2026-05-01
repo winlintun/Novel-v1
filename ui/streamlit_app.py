@@ -103,7 +103,7 @@ with col_h2:
         if log_files:
             for log_file in log_files:
                 with st.expander(f"📄 {log_file.name}"):
-                    with open(log_file, 'r', encoding='utf-8') as f:
+                    with open(log_file, 'r', encoding='utf-8-sig') as f:
                         content = f.read()[:300]
                     st.text(content)
         else:
@@ -118,7 +118,7 @@ st.subheader("📈 Translation Stats | စာရင်းအားပြမ်�
 stats_file = Path("data/stats.json")
 if stats_file.exists():
     import json
-    with open(stats_file, 'r', encoding='utf-8') as f:
+    with open(stats_file, 'r', encoding='utf-8-sig') as f:
         stats = json.load(f)
     
     if stats:
@@ -136,19 +136,22 @@ else:
 
 st.divider()
 
-col_link1, col_link2, col_link3, col_link4 = st.columns(4)
+col_link1, col_link2, col_link3, col_link4, col_link5 = st.columns(5)
 
 with col_link1:
-    if st.button("⚙️ Settings | ပြင်ဆင်ရန်"):
+    if st.button("⚙️ Settings", use_container_width=True):
         st.switch_page("pages/5_Settings.py")
 with col_link2:
-    if st.button("📝 Translate | ဘာသာပြန်"):
+    if st.button("📝 Translate", use_container_width=True):
         st.switch_page("pages/2_Translate.py")
 with col_link3:
-    if st.button("📚 Glossary | အဘိဓာန်"):
-        st.switch_page("pages/4_Glossary_Editor.py")
+    if st.button("📖 Read", use_container_width=True):
+        st.switch_page("pages/6_Reader.py")
 with col_link4:
-    if st.button("📊 Progress | ကြိုးစားမှု"):
+    if st.button("📚 Glossary", use_container_width=True):
+        st.switch_page("pages/4_Glossary_Editor.py")
+with col_link5:
+    if st.button("📊 Progress", use_container_width=True):
         st.switch_page("pages/3_Progress.py")
 
 st.markdown("---")
