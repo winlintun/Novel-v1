@@ -88,8 +88,7 @@ paths:
   output_dir: data/output
   templates_dir: templates
 processing:
-  chunk_overlap: 0
-  chunk_size: 800
+  chunk_size: 1500
   max_retries: 2
   repeat_penalty: 1.15
   request_timeout: 300

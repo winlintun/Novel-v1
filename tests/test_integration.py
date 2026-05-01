@@ -105,23 +105,25 @@ class TestChunking(unittest.TestCase):
         
         self.assertGreater(len(chunks), 1)
     
-    def test_chunk_overlap(self):
-        """Test that chunks have overlap."""
-        preprocessor = Preprocessor(chunk_size=100, overlap_size=2)
+    def test_smart_chunk_paragraph_only(self):
+        """Test that chunks never split inside paragraphs (per need_to_fix.md spec)."""
+        from src.utils.chunker import smart_chunk
         
-        # Create text with distinct paragraphs
         paragraphs = [f"第{i}段内容在这里。" for i in range(10)]
         text = "\n\n".join(paragraphs)
+
+        chunks = smart_chunk(text, max_tokens=100)
         
-        chunks = preprocessor.create_chunks(text)
+        # Verify: no paragraph appears in more than one chunk
+        all_paragraphs = set()
+        for chunk_text in chunks:
+            for para in chunk_text.split('\n\n'):
+                self.assertNotIn(para, all_paragraphs,
+                    f"Paragraph '{para[:20]}...' appears in multiple chunks!")
+                all_paragraphs.add(para)
         
-        if len(chunks) > 1:
-            # Check for overlap (last para of chunk 0 should be in chunk 1)
-            last_para_chunk0 = chunks[0]['text'].split('\n\n')[-1]
-            first_paras_chunk1 = '\n\n'.join(chunks[1]['text'].split('\n\n')[:2])
-            
-            # Should have some overlap
-            self.assertIn(last_para_chunk0, first_paras_chunk1)
+        # Verify: all original paragraphs are present
+        self.assertEqual(len(all_paragraphs), len(paragraphs))
 
 
 class TestConfigLoading(unittest.TestCase):

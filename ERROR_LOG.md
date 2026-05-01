@@ -7,6 +7,34 @@
 ---
 
 
+### ERROR-052: Smart Paragraph Chunking Implementation — Replaced Fixed-Size Splitting
+**Date**: 2026-05-02
+**Files**: `src/utils/chunker.py` (new), `src/agents/preprocessor.py`, `src/pipeline/orchestrator.py`, `src/agents/translator.py`, `src/config/models.py`, `config/settings.yaml`
+**Issue Summary**:
+Per `need_to_fix.md` v1.0 specification, the previous chunking approach had multiple issues:
+1. overlap_size > 0 caused ERR-005 (ParagraphDuplication)
+2. No token budget check before LLM send (could exceed 3000 token limit)
+3. No rolling context between chunks (pronouns lost their referent)
+4. chunk_size was only 800 chars — too small for efficient paragraph grouping
+5. No checkpoint logging per chunk (no resumability)
+**Root Cause**:
+1. Preprocessor had overlap logic that duplicated paragraphs across chunk boundaries
+2. Orchestrator didn't verify token budget before sending to LLM
+3. Translator used accumulated memory context instead of token-limited tail-of-previous-chunk
+4. Config had `chunk_overlap: 0` but the field still existed in config model
+5. No per-chunk progress checkpoint
+**Fix Applied**:
+1. Created `src/utils/chunker.py` with `smart_chunk()` (paragraph-only, token-aware, overlap=0) and `get_rolling_context()` (tail of previous chunk, ≤400 tokens)
+2. Updated Preprocessor.create_chunks() to delegate to smart_chunk(); overlap_size hardcoded to 0
+3. Updated _translate_chunks() to compute rolling_context per spec, check token budget before send
+4. Updated translator.build_prompt() to accept rolling_context parameter
+5. Removed chunk_overlap from config/models.py, types/definitions.py, container.py, formatters.py
+6. Increased chunk_size to 1500 (safe with paragraph-only splitting)
+7. Added per-chunk checkpoint logging with duration, quality, ratio
+**Tests**: Created tests/test_chunker.py with 11 tests (all pass), 280/280 total
+**Status**: RESOLVED
+**Verified By**: pytest (280/280 pass), all 6 required tests from need_to_fix.md pass
+
 ### ERROR-051: Pipeline Mode Regression — full Pipeline Destroys Paragraph Breaks + 3x Slower
 **Date**: 2026-05-02
 **Files**: `src/cli/commands.py`, `src/utils/postprocessor.py`, `src/pipeline/orchestrator.py`

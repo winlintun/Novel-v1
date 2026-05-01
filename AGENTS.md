@@ -468,7 +468,7 @@ models:
 
 processing:
   chunk_size: 1500
-  overlap_size: 100
+  overlap_size: 0
   max_retries: 3
   temperature: 0.45           # Creativity for natural Myanmar phrasing
   top_p: 0.92
@@ -706,8 +706,8 @@ Known errors and their proven solutions. Agent checks this BEFORE retrying anyth
     {
       "id": "ERR-005",
       "error_type": "ParagraphDuplication",
-      "trigger": "chunk_overlap > 0 causes the same sentence at end of chunk N and start of chunk N+1",
-      "solution": "Set chunk_overlap=0 in Chunker. Add boundary deduplication in postprocessor before saving.",
+      "trigger": "chunk_overlap > 0 causes the same sentence at end of chunk N and start of chunk N+1 (overlap is now permanently disabled — ERR-005 is legacy)",
+      "solution": "chunk_overlap is always 0. Use smart_chunk() from src/utils/chunker.py which never overlaps paragraphs. Boundary deduplication in postprocessor is defense-in-depth.",
       "prevention": "Chunker must split on paragraph boundaries only, never mid-paragraph by character count",
       "times_seen": 0,
       "last_seen": null

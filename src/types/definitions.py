@@ -143,9 +143,8 @@ class ModelConfig(TypedDict):
 class ProcessingConfig(TypedDict):
     """Schema for processing configuration.
     
-    Attributes:
-        chunk_size: Size of text chunks in characters
-        chunk_overlap: Overlap between chunks in characters
+     Attributes:
+        chunk_size: Size of text chunks in tokens (paragraph-only, never split mid-paragraph)
         temperature: Sampling temperature (0.0-2.0)
         top_p: Nucleus sampling parameter (0.0-1.0)
         top_k: Top-k sampling parameter
@@ -154,7 +153,6 @@ class ProcessingConfig(TypedDict):
         request_timeout: Request timeout in seconds
     """
     chunk_size: int
-    chunk_overlap: int
     temperature: float
     top_p: float
     top_k: int

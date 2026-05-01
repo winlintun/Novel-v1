@@ -10,6 +10,30 @@
 ## Last Updated
 - Date: 2026-05-02
 - Last task completed:
+  - **IMPLEMENTED: Smart Paragraph Chunking (per need_to_fix.md) — Token-Aware, No Split, No Overlap** (STATUS: READY_TO_COMMIT):
+    - **Spec Source**: `need_to_fix.md` — exact chunking algorithm from v1.0 specification
+    - **What was wrong**: Preprocessor used per-paragraph token accumulation with overlap support (overlap_size), chunk boundaries could split mid-sentence, no token budget check before LLM send, no rolling context between chunks
+    - **New Module**: `src/utils/chunker.py` — canonical location per spec:
+      - `smart_chunk(text, max_tokens=1500)` — ONLY splits at paragraph boundaries (`\n\n`), never inside a paragraph, oversized paragraphs become their own chunk, overlap is always 0
+      - `get_rolling_context(prev_chunk, max_context_tokens=400)` — extracts tail of previous translated chunk as context (token-limited, paragraph-complete, never mid-paragraph)
+      - `estimate_tokens(text)` — `len(text) * 1.5` for Myanmar/Chinese
+    - **Preprocessor updated**: `create_chunks()` now delegates to `smart_chunk()`, overlap_size hardcoded to 0 internally
+    - **Orchestrator `_preprocess()`**: Uses `smart_chunk()` directly, logs token estimates
+    - **Orchestrator `_translate_chunks()`**: 
+      - Rolling context now uses `get_rolling_context()` per spec — tail of previous translated chunk, ≤400 tokens, never mid-paragraph
+      - Token budget check before LLM send: verifies `system(800) + context + chunk ≤ 2600` tokens, truncates context if exceeded
+      - Per-chunk checkpoint logging: logs chunk duration, quality, ratio after each chunk
+      - `rolling_context=""` for chunk index 0 (first chunk)
+    - **Translator updated**: `translate_paragraph()` accepts `rolling_context` parameter, `build_prompt()` uses rolling context as PREVIOUS CONTEXT section (fallback to accumulated memory context if empty)
+    - **Config cleanup**: Removed `chunk_overlap` from settings.yaml, config/models.py (field + validator), types/definitions.py, CLI formatters, container.py, test_integration.py
+    - **chunk_size**: Increased to 1500 (was 800) — token-aware paragraph grouping handles this safely
+    - **Tests**: Created `tests/test_chunker.py` with 11 tests (6 required by spec + 5 additional):
+      - `test_never_splits_inside_paragraph`, `test_oversized_single_paragraph_becomes_own_chunk`, `test_overlap_is_zero`, `test_short_text_single_chunk`, `test_empty_text`, `test_max_tokens_respected`
+      - `test_rolling_context_respects_token_budget`, `test_empty_chunk_returns_empty_context`, `test_first_chunk_gets_empty_context`, `test_context_preserves_paragraph_order`, `test_never_splits_mid_paragraph`
+    - **Files Created**: `src/utils/chunker.py`, `tests/test_chunker.py`
+    - **Files Modified**: `src/agents/preprocessor.py`, `src/agents/translator.py`, `src/pipeline/orchestrator.py`, `src/cli/formatters.py`, `src/config/models.py`, `src/core/container.py`, `src/types/definitions.py`, `config/settings.yaml`, `tests/test_integration.py`
+    - **Tests**: 280/280 pass
+  - Previous tasks:
   - **ADDED: Translation Quality Review System + Auto-Review Pipeline + Pending Glossary Workflow** (STATUS: READY_TO_COMMIT):
     - **Translation Rules File**: Created `working_data/translation_rules.md` — comprehensive quality rules with 10 linguistic checks (L1-L10) and 6 quantitative checks (Q1-Q6), scoring matrix, and report format spec
     - **Review Module**: Created `src/utils/translation_reviewer.py` — runs all quality checks against output files:

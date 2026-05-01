@@ -123,7 +123,6 @@ class Container:
         from src.agents.preprocessor import Preprocessor
         return Preprocessor(
             chunk_size=self.config.processing.chunk_size,
-            chunk_overlap=self.config.processing.chunk_overlap
         )
     
     def create_pipeline(self) -> Any:

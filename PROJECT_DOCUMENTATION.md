@@ -253,7 +253,8 @@ python -m src.main_fast --novel "古道仙鸿" --all --unload-after-chapter
 
 **Key Classes**:
 - `ProcessingConfig` - Processing and chunking configuration
-  - `chunk_size`, `chunk_overlap`, `temperature`, `top_p`, `top_k`, `repeat_penalty`, `max_retries`, `request_timeout`, `stream`
+  - `chunk_size`, `temperature`, `top_p`, `top_k`, `repeat_penalty`, `max_retries`, `request_timeout`, `stream`
+  - chunk_size: 1500 (token-aware paragraph grouping, never split mid-paragraph)
 
 - `ModelsConfig` - Model configuration for pipeline stages
   - `translator`, `editor`, `checker`, `refiner`, `cloud_model`, `provider`, `ollama_base_url`, `timeout`, `use_gpu`, `gpu_layers`, `main_gpu`
@@ -387,7 +388,7 @@ python -m src.main_fast --novel "古道仙鸿" --all --unload-after-chapter
 **Class**: `Preprocessor(BaseAgent)`
 
 **Key Methods**:
-- `__init__(chunk_size, overlap_size, ollama_client, memory_manager, config)` - Initialize preprocessor
+- `__init__(chunk_size, ollama_client, memory_manager, config)` - Initialize preprocessor (overlap is always 0)
 - `detect_language(text)` - Detect language (chinese, english, unknown)
 - `_llm_detect_language(client, text)` - LLM-based language detection
 - `estimate_tokens(text)` - Estimate token count for Chinese text

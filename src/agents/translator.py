@@ -173,8 +173,13 @@ class Translator(BaseAgent):
             return self._custom_system_prompt
         return get_language_prompt(source_lang)
     
-    def build_prompt(self, text: str) -> str:
-        """Build translation prompt with memory context."""
+    def build_prompt(self, text: str, rolling_context: str = "") -> str:
+        """Build translation prompt with memory context and rolling translation context.
+        
+        Args:
+            text: Source text to translate
+            rolling_context: Tail of previous translated chunk (Myanmar, ≤400 tokens)
+        """
         # Get all memory context
         mem = self.memory.get_all_memory_for_prompt()
         glossary_text = mem['glossary'] if mem['glossary'] else ""
@@ -194,8 +199,13 @@ class Translator(BaseAgent):
             prompt_parts.append(mem['glossary'])
             prompt_parts.append("")
         
-        # Add context
-        if mem['context'] and mem['context'] != "No previous context.":
+        # Add rolling context (tail of previous translated chunk)
+        if rolling_context:
+            prompt_parts.append("PREVIOUS CONTEXT (translated Myanmar, for continuity):")
+            prompt_parts.append(rolling_context)
+            prompt_parts.append("")
+        elif mem['context'] and mem['context'] != "No previous context.":
+            # Fallback to accumulated context buffer
             prompt_parts.append(mem['context'])
             prompt_parts.append("")
         
@@ -212,19 +222,25 @@ class Translator(BaseAgent):
         
         return "\n".join(prompt_parts)
     
-    def translate_paragraph(self, paragraph: str, chapter_num: int = 0) -> str:
+    def translate_paragraph(
+        self,
+        paragraph: str,
+        chapter_num: int = 0,
+        rolling_context: str = "",
+    ) -> str:
         """
         Translate a single paragraph with English detection and retry.
         
         Args:
             paragraph: Source text paragraph (Chinese or English)
             chapter_num: Current chapter number for logging
+            rolling_context: Tail of previous translated chunk (≤400 tokens)
             
         Returns:
             Myanmar translation
         """
         # Build prompt with context
-        prompt = self.build_prompt(paragraph)
+        prompt = self.build_prompt(paragraph, rolling_context=rolling_context)
         
         # Select correct system prompt based on source language
         source_lang = self.config.get('project', {}).get('source_language', 'chinese')

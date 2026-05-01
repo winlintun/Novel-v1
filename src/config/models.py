@@ -17,13 +17,7 @@ class ProcessingConfig(BaseModel):
         default=800,
         ge=100,
         le=4000,
-        description="Size of text chunks in characters"
-    )
-    chunk_overlap: int = Field(
-        default=50,
-        ge=0,
-        le=500,
-        description="Overlap between chunks in characters"
+        description="Size of text chunks in characters (token-aware, never splits paragraphs)"
     )
     temperature: float = Field(
         default=0.2,
@@ -65,14 +59,6 @@ class ProcessingConfig(BaseModel):
         default=True,
         description="Whether to use streaming responses"
     )
-    
-    @validator('chunk_overlap')
-    def validate_overlap(cls, v: int, values: Dict[str, Any]) -> int:
-        """Ensure chunk_overlap is less than chunk_size."""
-        chunk_size = values.get('chunk_size', 800)
-        if v >= chunk_size:
-            raise ValueError(f'chunk_overlap ({v}) must be less than chunk_size ({chunk_size})')
-        return v
 
 
 class ModelsConfig(BaseModel):

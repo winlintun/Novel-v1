@@ -26,14 +26,16 @@ class Preprocessor(BaseAgent):
     def __init__(
         self,
         chunk_size: int = 1500,
-        overlap_size: int = 100,
+        overlap_size: int = 0,
         ollama_client: Optional[Any] = None,
         memory_manager: Optional[Any] = None,
         config: Optional[Dict[str, Any]] = None
     ):
         super().__init__(ollama_client, memory_manager, config)
         self.chunk_size = chunk_size
-        self.overlap_size = overlap_size
+        # overlap_size is kept for backward compatibility but always 0
+        # per need_to_fix.md: overlap must never be used (causes ERR-005)
+        self.overlap_size = 0
     
     def detect_language(self, text: str) -> str:
         """Detect language of input text (chinese, english, or unknown).
@@ -96,72 +98,34 @@ Language:"""
     
     def create_chunks(self, text: str) -> List[Dict[str, Any]]:
         """
-        Create chunks from text with configurable overlap.
-        When overlap_size > 0, last N paragraphs are prepended to the next chunk.
-        When overlap_size == 0, chunks are non-overlapping paragraph groups.
+        Create chunks from text using token-aware paragraph grouping.
+        
+        Delegates to smart_chunk() from src/utils/chunker.py per need_to_fix.md.
+        NEVER splits inside a paragraph. Overlap is always 0.
         
         Returns list of dicts with:
         - chunk_id: int
         - text: str
         - size: int (estimated tokens)
-        - overlap_count: int (number of overlap paragraphs from previous chunk)
+        - overlap_count: 0 (always — overlap forbidden per ERR-005)
         """
-        paragraphs = self.split_into_paragraphs(text)
+        from src.utils.chunker import smart_chunk
         
-        if not paragraphs:
+        if not text or not text.strip():
             return []
         
         chunks = []
-        current_chunk = []
-        current_size = 0
-        # overlap_counts[i] = how many overlap paragraphs chunk i+1 will receive
-        overlap_counts = []
+        chunk_texts = smart_chunk(text, max_tokens=self.chunk_size)
         
-        for para in paragraphs:
-            para_size = self.estimate_tokens(para)
-            
-            # Check if adding this paragraph exceeds chunk size
-            if current_size + para_size > self.chunk_size and current_chunk:
-                # Look up overlap count for THIS chunk (set after previous chunk save)
-                chunk_overlap = overlap_counts[len(chunks) - 1] if len(overlap_counts) == len(chunks) > 0 else 0
-                
-                # Save current chunk
-                chunk_text = '\n\n'.join(current_chunk)
-                chunks.append({
-                    'chunk_id': len(chunks) + 1,
-                    'text': chunk_text,
-                    'size': current_size,
-                    'overlap_count': chunk_overlap
-                })
-                
-                # Create overlap for next chunk if overlap_size > 0
-                overlap_paras = []
-                if self.overlap_size > 0:
-                    count = min(self.overlap_size, len(current_chunk))
-                    overlap_paras = current_chunk[-count:] if count > 0 else []
-                
-                overlap_counts.append(len(overlap_paras))
-                
-                current_chunk = overlap_paras + [para]
-                current_size = sum(self.estimate_tokens(p) for p in current_chunk)
-            else:
-                current_chunk.append(para)
-                current_size += para_size
-        
-        # Don't forget the last chunk
-        if current_chunk:
-            # Look up overlap count for the final chunk
-            chunk_overlap = overlap_counts[len(chunks) - 1] if len(overlap_counts) == len(chunks) > 0 else 0
-            
-            chunk_text = '\n\n'.join(current_chunk)
+        for i, chunk_text in enumerate(chunk_texts):
             chunks.append({
-                'chunk_id': len(chunks) + 1,
+                'chunk_id': i + 1,
                 'text': chunk_text,
-                'size': current_size,
-                'overlap_count': chunk_overlap
+                'size': int(len(chunk_text) * 1.5),
+                'overlap_count': 0,
             })
         
-        logger.info(f"Created {len(chunks)} chunks from {len(paragraphs)} paragraphs")
+        logger.info(f"Created {len(chunks)} chunks from text ({len(text)} chars)")
         return chunks
     
     def clean_markdown(self, text: str) -> str:

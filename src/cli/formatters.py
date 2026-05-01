@@ -93,8 +93,7 @@ def print_translation_header(config: AppConfig, novel: Optional[str] = None) -> 
     # Processing settings
     print("\n⚙️  PROCESSING SETTINGS")
     print("-" * 70)
-    print(f"  Chunk Size:      {config.processing.chunk_size} chars")
-    print(f"  Chunk Overlap:   {config.processing.chunk_overlap} chars")
+    print(f"  Chunk Size:      {config.processing.chunk_size} tokens (paragraph-only)")
     print(f"  Temperature:     {config.processing.temperature}")
     print(f"  Repeat Penalty:  {config.processing.repeat_penalty}")
     print(f"  Max Retries:     {config.processing.max_retries}")

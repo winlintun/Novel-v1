@@ -407,8 +407,8 @@ echo "GEMINI_API_KEY=your_key_here" > .env
 **Solutions:**
 1. Use single-stage mode: `--single-stage`
 2. Use smaller model: `qwen:7b` instead of `qwen2.5:14b`
-3. Increase chunk size: `chunk_size: 2000`
-4. Reduce overlap: `chunk_overlap: 50`
+ 3. Increase chunk size: `chunk_size: 2000` (token-aware paragraph grouping, never splits mid-paragraph)
+ 4. Chunk overlap is permanently disabled (causes paragraph duplication)
 
 ### Issue: Output has Chinese characters
 **Solutions:**

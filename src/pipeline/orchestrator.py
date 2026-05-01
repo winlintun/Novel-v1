@@ -135,7 +135,6 @@ class TranslationPipeline:
             from src.agents.preprocessor import Preprocessor
             self._preprocessor = Preprocessor(
                 chunk_size=self.config.processing.chunk_size,
-                overlap_size=self.config.processing.chunk_overlap
             )
         return self._preprocessor
     
@@ -469,14 +468,14 @@ class TranslationPipeline:
         return results
     
     def _preprocess(self, text: str, chapter_label: str = "") -> List[str]:
-        """Preprocess text into chunks.
+        """Preprocess text into chunks using token-aware paragraph grouping.
         
         Args:
             text: Input text
             chapter_label: Label for progress display
             
         Returns:
-            List of text chunks
+            List of text chunks (complete paragraphs, never split mid-paragraph)
         """
         self.logger.info("Step 1/7: Preprocessing text...")
         t0 = time.time()
@@ -487,16 +486,18 @@ class TranslationPipeline:
             "chapter": chapter_label,
         })
 
+        # Use smart_chunk directly per need_to_fix.md spec
+        from src.utils.chunker import smart_chunk, estimate_tokens
+        
         # Clean and normalize
         text = self.preprocessor.clean_markdown(text)
-
-        # Create chunks with overlap (returns list of dicts)
-        chunk_dicts = self.preprocessor.create_chunks(text)
-
-        # Extract text from chunk dictionaries
-        chunks = [chunk['text'] for chunk in chunk_dicts]
+        
+        # Create chunks: paragraph-only, no splitting, overlap=0
+        chunks = smart_chunk(text, max_tokens=self.config.processing.chunk_size)
 
         self.logger.info(f"Created {len(chunks)} chunks")
+        total_tokens = sum(estimate_tokens(c) for c in chunks)
+        self.logger.info(f"Estimated total tokens: {total_tokens}, avg: {total_tokens // max(len(chunks), 1)}")
 
         self._report({
             "type": "preprocess_done",
@@ -508,16 +509,23 @@ class TranslationPipeline:
         return chunks
     
     def _translate_chunks(self, chunks: List[str]) -> Tuple[List[str], List[Dict[str, Any]]]:
-        """Translate chunks through the pipeline.
+        """Translate chunks through the pipeline with rolling context.
+        
+        Per need_to_fix.md: uses get_rolling_context() to pass tail of
+        previous translated chunk as context. Token-limited to ≤400 tokens.
+        Checkpoint logged after each chunk.
         
         Args:
-            chunks: List of text chunks
+            chunks: List of text chunks (complete paragraphs, never split)
             
         Returns:
             Tuple of (translated chunks list, list of per-chunk quality metrics)
         """
+        from src.utils.chunker import get_rolling_context, estimate_tokens
+        
         translated = []
         chunk_metrics = []
+        rolling_context = ""  # first chunk: empty
         
         for i, chunk in enumerate(chunks):
             if self._shutdown_requested:
@@ -533,11 +541,29 @@ class TranslationPipeline:
                 "char_count": len(chunk),
             })
             
-            self.logger.info(f"Step 2/7: Translating chunk {i+1}/{total}...")
+            # Token budget check before sending (per spec: ≤2600 tokens total)
+            est_chunk = estimate_tokens(chunk)
+            est_context = estimate_tokens(rolling_context)
+            est_total = 800 + est_context + est_chunk  # 400 system + 300 glossary + 100 rules ≈ 800
+            if est_total > 2600:
+                self.logger.warning(
+                    f"Chunk {i+1}: estimated {est_total} tokens exceeds 2600 budget. "
+                    f"Rolling context truncated to fit."
+                )
+                # Reduce rolling context to fit
+                if rolling_context:
+                    rolling_context = get_rolling_context(rolling_context, max_context_tokens=200)
+                    est_context = estimate_tokens(rolling_context)
+
+            self.logger.info(f"Step 2/7: Translating chunk {i+1}/{total}... "
+                           f"[{len(chunk)} chars, est {est_chunk} tokens, "
+                           f"ctx: {len(rolling_context)} chars]")
             
-            # Stage 1: Translation
+            # Stage 1: Translation with rolling context
             t1 = time.time()
-            translated_chunk = self.translator.translate_paragraph(chunk)
+            translated_chunk = self.translator.translate_paragraph(
+                chunk, rolling_context=rolling_context
+            )
             self._report({
                 "type": "chunk_translated",
                 "chunk_index": i + 1,
@@ -603,11 +629,12 @@ class TranslationPipeline:
             })
             
             total_issues = quality_issues + cons_count
+            chunk_duration = time.time() - chunk_t0
             self._report({
                 "type": "chunk_complete",
                 "chunk_index": i + 1,
                 "total_chunks": total,
-                "duration": time.time() - chunk_t0,
+                "duration": chunk_duration,
             })
 
             chunk_metrics.append({
@@ -619,6 +646,15 @@ class TranslationPipeline:
             })
 
             translated.append(translated_chunk)
+            
+            # Checkpoint: log progress after each chunk (resumability)
+            self.logger.info(
+                f"✓ Chunk {i+1}/{total} complete in {chunk_duration:.0f}s. "
+                f"Quality: {quality_score}, Ratio: {mm_ratio:.1%}, Issues: {total_issues}"
+            )
+            
+            # Advance rolling context: tail of this chunk for next iteration
+            rolling_context = get_rolling_context(translated_chunk, max_context_tokens=400)
         
         return translated, chunk_metrics
 
