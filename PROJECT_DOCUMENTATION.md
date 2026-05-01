@@ -211,8 +211,10 @@ python -m src.main_fast --novel "古道仙鸿" --all --unload-after-chapter
 - `__init__(config)` - Initialize pipeline with configuration
 - `_signal_handler()` - Handle shutdown signals gracefully
 - `translate_file(filepath)` - Translate a single file
-- `translate_chapter(novel, chapter)` - Translate a single chapter
+- `translate_chapter(novel, chapter)` - Translate a single chapter (uses multi-pattern file discovery)
 - `translate_novel(novel, chapters)` - Translate multiple chapters
+- `_find_chapter_file(novel, chapter)` - [static] Find chapter file using 5 naming conventions
+- `_discover_chapters(novel_dir)` - [static] Auto-discover chapter numbers from directory with regex fallback
 - `_preprocess(text)` - Preprocess text into chunks
 - `_translate_chunks(chunks)` - Translate chunks through all stages
 - `_postprocess(chunks)` - Postprocess translated chunks

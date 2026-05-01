@@ -106,4 +106,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for how to contribute to this project.
 
 ---
 
-*Last Updated: 2026-04-28*
+*Last Updated: 2026-05-01*
+
+## Recently Completed
+- ✅ **Multi-Pattern Chapter File Discovery** (2026-05-01): `_find_chapter_file()` and `_discover_chapters()` support 5 naming conventions, fixing `--chapter-range` failures
+- ✅ **EN→MM Translation Quality Fix** (2026-04-30): Sampling params passthrough, LANGUAGE_GUARD, tuned chunk_size/temperature

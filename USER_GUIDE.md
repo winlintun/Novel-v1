@@ -28,11 +28,17 @@ data/input/
 # Translate single chapter
 python -m src.main --novel 古道仙鸿 --chapter 1
 
+# Translate chapter range (new)
+python -m src.main --novel 古道仙鸿 --chapter-range 9-15
+
 # Translate all chapters
 python -m src.main --novel 古道仙鸿 --all
 
 # Translate from chapter 10 onwards
 python -m src.main --novel 古道仙鸿 --all --start 10
+
+# Translate with specific workflow
+python -m src.main --novel 古道仙鸿 --chapter 1 --workflow way2
 
 # NEW: Run a quick test translation with sample data
 python -m src.main --test
@@ -42,6 +48,20 @@ python -m src.main --ui
 
 # NEW: Automatically generate glossary from novel chapters
 python -m src.main --novel 古道仙鸿 --generate-glossary
+```
+
+---
+
+## 📖 Supported Input File Naming Conventions
+
+Chapter files can be named using any of these patterns:
+```
+data/input/古道仙鸿/
+    ├── 古道仙鸿_chapter_001.md     ← Recommended format
+    ├── 古道仙鸿_001.md             ← Short format
+    ├── 001.md                       ← Pure number format
+    ├── 0001.md                      ← 4-digit format (e.g., reverend-insanity_0001.md)
+    └── chapter_001.md              ← Chapter prefix format
 ```
 
 ---
@@ -402,11 +422,11 @@ echo "GEMINI_API_KEY=your_key_here" > .env
 
 | Model | Speed | Quality | Size | Best For |
 |-------|-------|---------|------|----------|
-| qwen2.5:14b | Medium | Excellent | 9GB | Production novels, Pivot Stage 1 (CN→EN) |
-| qwen2.5:7b | Fast | Good | 4GB | Quick drafts |
-| qwen:7b | Very Fast | Okay | 4GB | Testing, Pivot Stage 2 (EN→MM) |
-| Gemini Flash | Fast | Excellent | Cloud | High quality, no local GPU |
-| OpenRouter | Fast | Good | Cloud | Free tier available |
+| padauk-gemma:q8_0 | Fast | Excellent | 5GB | Primary: EN→MM direct, low hallucination |
+| aya:8b | Fast | Good | 5GB | Fallback multilingual model |
+| alibayram/hunyuan:7b | Medium | Good | 4GB | way2 Stage 1 (CN→EN) |
+| qwen:7b | Fast | Okay | 4GB | QA checks, lightweight tasks |
+| qwen2.5:14b | Medium | Excellent | 9GB | Alternative CN→EN (heavy) |
 
 ---
 

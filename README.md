@@ -1,21 +1,8 @@
 # Novel Translation Pipeline
 
-Automated Chinese-to-Myanmar (Burmese) novel translation system specializing in Wuxia/Xianxia cultivation novels.
+AI-powered Chinese/English-to-Myanmar (Burmese) novel translation system specializing in Wuxia/Xianxia cultivation novels. Supports both direct EN→MM translation and CN→EN→MM pivot workflows.
 
-> ⚠️ **IMPORTANT: Use the Launchers!** ⚠️
-> 
-> **Windows users**: Use `translate.bat` instead of `py -m src.main`
-> **Linux/Mac users**: Use `python3 run.py` instead of `python3 -m src.main`
-> 
-> These launchers **automatically clean Python cache** before running, ensuring you always execute the latest code. See [LAUNCHERS.md](LAUNCHERS.md) for details.
-> 
-> ```bash
-> # ❌ Old way (may run cached/outdated code)
-> py -m src.main --input file.md
-> 
-> # ✅ New way (always runs fresh code)
-> translate.bat --input file.md
-> ```
+> 💡 **Tip**: Use `--clean` flag to clear Python cache before running: `python3 -m src.main --chapter 1 --novel "古道仙鸿" --clean`
 
 ## Overview
 
@@ -49,13 +36,15 @@ streamlit run ui/streamlit_app.py
 
 ## Supported Models
 
-| Model | Quality | Speed | VRAM | Notes |
-|-------|---------|-------|------|-------|
-| `qwen2.5:14b` | ⭐⭐⭐⭐⭐ | Medium | 9GB | Best Chinese comprehension |
-| `qwen2.5:7b` | ⭐⭐⭐⭐ | Fast | 4GB | Good balance |
-| `qwen:7b` | ⭐⭐⭐ | Fastest | 4GB | Lightweight |
+| Model | Quality | Speed | VRAM | Best For |
+|-------|---------|-------|------|----------|
+| `padauk-gemma:q8_0` | ⭐⭐⭐⭐⭐ | Fast | 5GB | **Primary**: Best EN→MM output, low hallucination |
+| `aya:8b` | ⭐⭐⭐⭐ | Fast | 5GB | Fallback multilingual model |
+| `alibayram/hunyuan:7b` | ⭐⭐⭐⭐ | Medium | 4GB | CN→EN pivot (Stage 1 of way2) |
+| `qwen:7b` | ⭐⭐⭐ | Fast | 4GB | QA checks, lightweight tasks |
+| `qwen2.5:14b` | ⭐⭐⭐⭐⭐ | Medium | 9GB | CN→EN (alternative for way2 Stage 1) |
 
-**NOT recommended**: `alibayram/hunyuan:7b`, `yxchia/seallms-v3-7b` (produce Thai instead of Myanmar)
+**NOT recommended**: `yxchia/seallms-v3-7b` (produces Thai instead of Myanmar)
 
 ## Quick Start
 
@@ -70,11 +59,14 @@ pip install -r requirements.txt
 ```bash
 # Install Ollama from https://ollama.ai
 
-# Pull recommended model
-ollama pull qwen2.5:14b
+# Pull primary model (Myanmar-optimized)
+ollama pull padauk-gemma:q8_0
 
-# Or use lighter model for testing
-ollama pull qwen2.5:7b
+# Pull pivot model (Chinese→English, for way2 workflow)
+ollama pull alibayram/hunyuan:7b
+
+# Pull fallback models
+ollama pull aya:8b
 ```
 
 ### 3. Configure Settings
@@ -98,17 +90,26 @@ config: config/settings.fast.yaml
 # Single chapter
 python -m src.main --novel 古道仙鸿 --chapter 1
 
+# Multiple chapters (range)
+python -m src.main --novel 古道仙鸿 --chapter-range 9-15
+
 # All chapters
 python -m src.main --novel 古道仙鸿 --all
 
-# From specific chapter
+# From specific chapter onwards
 python -m src.main --novel 古道仙鸿 --all --start 10
 
-# Skip refinement (faster)
+# Use specific workflow (auto-detected if omitted)
+python -m src.main --novel 古道仙鸿 --chapter 1 --workflow way2
+
+# Skip refinement (faster, lower quality)
 python -m src.main --novel 古道仙鸿 --chapter 1 --skip-refinement
 
 # Unload model after each chapter (saves VRAM)
 python -m src.main --novel 古道仙鸿 --all --unload-after-chapter
+
+# Multiple chapters with specific start/end
+python -m src.main --novel 古道仙鸿 --start 9 --end 15
 ```
 
 ## Directory Structure
@@ -209,7 +210,10 @@ Approve terms by changing `"status": "pending"` to `"status": "approved"`.
 ```yaml
 models:
   provider: "ollama"
-  translator: "qwen2.5:14b"
+  translator: "padauk-gemma:q8_0"
+  editor: "padauk-gemma:q8_0"
+  refiner: "padauk-gemma:q8_0"
+  checker: "qwen:7b"
   ollama_base_url: "http://localhost:11434"
 ```
 
@@ -217,19 +221,22 @@ models:
 
 ```yaml
 processing:
-  chunk_size: 800        # Characters per chunk
-  temperature: 0.2      # Lower = more deterministic
-  repeat_penalty: 1.5    # Prevents repetition loops
-  max_retries: 3        # Retry failed requests
+  chunk_size: 800        # Characters per chunk (800 optimal for padauk-gemma)
+  temperature: 0.2       # Lower = more deterministic (0.2 recommended)
+  repeat_penalty: 1.15   # Prevents repetition loops (1.15 recommended)
+  top_p: 0.95
+  top_k: 40
+  max_retries: 2
 ```
 
 ## Troubleshooting
 
-### Model produces Thai instead of Myanmar
+### Model produces Thai/English instead of Myanmar
 
-- Verify using `qwen2.5:14b` not `hunyuan` or `seallms`
+- Use `padauk-gemma:q8_0` as primary model (Myanmar-optimized)
+- Verify `LANGUAGE_GUARD` is active in translator prompts
 - Lower temperature to 0.2
-- Check `LANGUAGE_GUARD` in prompts
+- Reduce `chunk_size` to 800
 
 ### Out of VRAM
 
@@ -243,9 +250,9 @@ python -m src.main --novel 古道仙鸿 --all --config config/settings.fast.yaml
 
 ### Slow inference
 
-- Use `qwen2.5:7b` instead of `14b`
-- Enable batch processing in config
-- Reduce `chunk_size`
+- Use `padauk-gemma:q8_0` (smaller, faster than qwen2.5:14b)
+- Reduce `chunk_size` from 800 to 400
+- Disable reflection: set `use_reflection: false`
 
 ## Testing
 
