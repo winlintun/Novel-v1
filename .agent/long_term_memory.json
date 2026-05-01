@@ -1,0 +1,50 @@
+{
+  "last_updated": "2026-05-01T00:00:00Z",
+  "lessons": [
+    {
+      "date": "2026-05-01",
+      "context": "Project infrastructure initialization",
+      "lesson": ".agent/ directory is the agent brain — must be created before any other operation. All files follow strict schemas defined in AGENTS.md.",
+      "action": "Always create .agent/ files with correct schemas on first session"
+    }
+  ],
+  "known_patterns": [
+    {
+      "pattern": "Missing .agent/ files on fresh checkout",
+      "cause": ".agent/ directory is not committed to version control (contains session state)",
+      "fix": "Auto-create .agent/ files from AGENTS.md schema on first run"
+    }
+  ],
+  "model_performance": {
+    "padauk-gemma:q8_0": {
+      "avg_myanmar_ratio": 0.98,
+      "chapters_tested": 12,
+      "notes": "Primary EN→MM model. 98%+ Myanmar ratio. Best results with temp=0.2, repeat_penalty=1.15.",
+      "last_used": "2026-05-01"
+    },
+    "alibayram/hunyuan:7b": {
+      "avg_quality_score": 72.0,
+      "chapters_tested": 5,
+      "notes": "CN→EN pivot Stage 1 model. Good Chinese comprehension.",
+      "last_used": "2026-04-30"
+    },
+    "qwen:7b": {
+      "avg_quality_score": 68.5,
+      "chapters_tested": 15,
+      "notes": "Fast checker model. Produces English not Myanmar — do NOT use as translator. Only suitable for validation tasks.",
+      "last_used": "2026-04-28"
+    },
+    "qwen2.5:14b": {
+      "avg_quality_score": 76.0,
+      "chapters_tested": 20,
+      "notes": "Good Chinese comprehension but outputs Japanese/Chinese instead of Myanmar. Use only for CN→EN pivot, not for Myanmar output.",
+      "last_used": "2026-04-27"
+    },
+    "burmese-gpt:7b": {
+      "avg_quality_score": null,
+      "chapters_tested": 0,
+      "notes": "Registered GGUF model via Modelfile.burmese-gpt. Not yet production tested.",
+      "last_used": null
+    }
+  }
+}

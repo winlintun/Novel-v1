@@ -7,6 +7,27 @@
 ---
 
 
+### ERROR-048: Missing .agent/ Infrastructure
+**Date**: 2026-05-01
+**Files**: `.agent/phase_gate.json`, `.agent/session_memory.json`, `.agent/long_term_memory.json`, `.agent/error_library.json`, `CHANGELOG.md`
+**Error Message**: `.agent/` directory and all its files were completely absent. CHANGELOG.md missing. These are required by AGENTS.md Session Protocol.
+**Root Cause**: Infrastructure files were never committed — `.agent/` contains session state that shouldn't be in version control, but must exist for agents to operate.
+**Fix Applied**:
+1. Created `.agent/` directory
+2. Created `phase_gate.json` with full phase gate schema (current: DOC phase)
+3. Created `session_memory.json` with session tracking schema
+4. Created `long_term_memory.json` with lessons learned and known patterns
+5. Created `error_library.json` with all known error types (ERR-001 through ERR-047)
+6. Created `CHANGELOG.md` with complete project history
+**Files Created**:
+- `.agent/phase_gate.json`
+- `.agent/session_memory.json`
+- `.agent/long_term_memory.json`
+- `.agent/error_library.json`
+- `CHANGELOG.md`
+**Status**: RESOLVED
+**Verified By**: JSON validation (all 4 files valid), pytest (229/229 pass)
+
 ### ERROR-047: Code Review — 10 Reviewer A Issues Verified Resolved
 **Date**: 2026-05-01
 **Files**: `ui/pages/6_Reader.py`, `src/cli/commands.py`, `src/cli/__init__.py`, `src/cli/parser.py`, `src/main.py`, `ui/streamlit_app.py`

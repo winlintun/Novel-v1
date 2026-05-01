@@ -1,0 +1,150 @@
+{
+  "last_updated": "2026-05-01T00:00:00Z",
+  "notes": "ERR-007 through ERR-042 are reserved for future Myanmar-specific translation errors (ArchaicWordUsage, ParticleRepetition, PlaceholderResolved, etc.). Do not reuse these IDs.",
+  "errors": [
+    {
+      "id": "ERR-001",
+      "error_type": "OllamaTimeout",
+      "trigger": "Ollama response exceeds 300s timeout",
+      "solution": "Reduce chunk size by 20% (e.g., 1500→1200 chars) and retry",
+      "prevention": "Set chunk_size ≤ 1200 for models ≤ 7B parameters",
+      "times_seen": 0,
+      "last_seen": null
+    },
+    {
+      "id": "ERR-002",
+      "error_type": "LowMyanmarRatio",
+      "trigger": "Myanmar char ratio < 70% after 3 retries — model translates idioms to English explanation instead",
+      "solution": "Add to retry prompt: 'Do NOT explain. Translate the FEELING into Myanmar metaphor.'",
+      "prevention": "Include this instruction in base system prompt for Stage 1",
+      "times_seen": 1,
+      "last_seen": "2026-04-28"
+    },
+    {
+      "id": "ERR-003",
+      "error_type": "GlossaryNameMismatch",
+      "trigger": "Model uses phonetic variant not in glossary",
+      "solution": "Add variant as alias in glossary.json. Re-run postprocessor on saved file.",
+      "prevention": "Inject glossary with strict instruction: 'Use EXACTLY these spellings. No variants.'",
+      "times_seen": 0,
+      "last_seen": null
+    },
+    {
+      "id": "ERR-004",
+      "error_type": "BengaliScriptLeak",
+      "trigger": "Model outputs Bengali Unicode characters (U+0980–U+09FF) inside Myanmar text",
+      "solution": "Run postprocessor regex to strip U+0980–U+09FF range. Flag chunk for re-translation.",
+      "prevention": "Add to system prompt: 'Bengali script (U+0980–U+09FF) is STRICTLY FORBIDDEN. Myanmar Unicode only.'",
+      "times_seen": 1,
+      "last_seen": "2026-05-01"
+    },
+    {
+      "id": "ERR-005",
+      "error_type": "ParagraphDuplication",
+      "trigger": "chunk_overlap > 0 causes the same sentence at end of chunk N and start of chunk N+1",
+      "solution": "Set chunk_overlap=0 in Chunker. Add boundary deduplication in postprocessor before saving.",
+      "prevention": "Chunker must split on paragraph boundaries only, never mid-paragraph by character count",
+      "times_seen": 1,
+      "last_seen": "2026-05-01"
+    },
+    {
+      "id": "ERR-006",
+      "error_type": "OllamaOOM",
+      "trigger": "Ollama crashes with out-of-memory on large chapters (> 2000 chars per chunk)",
+      "solution": "Switch to smaller model (qwen:7b) for this chapter. Reduce chunk_size to 800.",
+      "prevention": "Monitor GPU VRAM — if < 2GB free before chapter start, use qwen:7b automatically",
+      "times_seen": 0,
+      "last_seen": null
+    },
+    {
+      "id": "ERR-007",
+      "error_type": "ArchaicWordUsage",
+      "trigger": "Archaic words သင်သည် / ဤ / ထို appear in Myanmar output instead of modern equivalents",
+      "solution": "Add to retry prompt: 'Use modern storytelling words: မင်း / ဒီ / အဲဒီ. Never use သင်သည်, ဤ, ထို.'",
+      "prevention": "Add STRICT RULE to Editor (Stage 2) system prompt: avoid archaic words",
+      "times_seen": 0,
+      "last_seen": null
+    },
+    {
+      "id": "ERR-008",
+      "error_type": "ParticleRepetition",
+      "trigger": "Same Myanmar particle (သည်/ကို/မှာ/၏) appears > 2× per paragraph — hallucination loop",
+      "solution": "Run postprocessor particle repetition detector. Re-translate chunk with repeat_penalty increased by 0.1.",
+      "prevention": "Use repeat_penalty ≥ 1.15 in sampling params. Add particle diversity rule to Editor prompt.",
+      "times_seen": 0,
+      "last_seen": null
+    },
+    {
+      "id": "ERR-009",
+      "error_type": "PlaceholderResolved",
+      "trigger": "【?term?】 placeholder tokens are guessed/resolved by model instead of preserved",
+      "solution": "Run postprocessor to detect missing placeholders. Re-translate with stronger instruction: 'Never guess 【?term?】 — preserve exactly.'",
+      "prevention": "Add to ALL agent system prompts: '【?term?】 tokens must be preserved verbatim. Never resolve or guess.'",
+      "times_seen": 0,
+      "last_seen": null
+    },
+    {
+      "id": "ERR-010",
+      "error_type": "DialogueRegisterMismatch",
+      "trigger": "Pronoun hierarchy violation — မင်း/ရှင်/ကျွန်တော် used incorrectly for character status",
+      "solution": "Re-translate dialogue sections with explicit character status context (senior/junior/equal).",
+      "prevention": "Pass active_characters from context_memory.json with status hierarchy to prompt.",
+      "times_seen": 0,
+      "last_seen": null
+    },
+    {
+      "id": "ERR-011",
+      "error_type": "SVOStructureNotFixed",
+      "trigger": "Chinese SVO word order survives into Myanmar SOV output (verb before object)",
+      "solution": "Re-translate with explicit SVO→SOV instruction. Flag sentences where object appears after verb.",
+      "prevention": "Add SVO→SOV conversion rule as first instruction in all translator prompts.",
+      "times_seen": 0,
+      "last_seen": null
+    },
+    {
+      "id": "ERR-043",
+      "error_type": "ChapterFileNotFound",
+      "trigger": "Chapter file naming convention mismatch — code only looks for {chapter:03d}.md but files use varied naming",
+      "solution": "Add _find_chapter_file() with 5 naming patterns and _discover_chapters() with regex fallback",
+      "prevention": "Support multiple file naming conventions in chapter discovery",
+      "times_seen": 1,
+      "last_seen": "2026-05-01"
+    },
+    {
+      "id": "ERR-044",
+      "error_type": "MultiBugTranslationQuality",
+      "trigger": "Multiple quality issues: Bengali leak, duplication, metadata in body, register mix, heading format, emotional intensity",
+      "solution": "Comprehensive fix across 6 files: postprocessor, preprocessor, translator, quality_checker, orchestrator, settings",
+      "prevention": "Run full quality audit on output before marking chapter done",
+      "times_seen": 1,
+      "last_seen": "2026-05-01"
+    },
+    {
+      "id": "ERR-045",
+      "error_type": "LanguageDetectionShortText",
+      "trigger": "Preprocessor.detect_language() returns 'unknown' for text < 50 chars",
+      "solution": "Ensure test inputs exceed 50-char minimum length",
+      "prevention": "Document minimum input length requirement for auto-detection",
+      "times_seen": 1,
+      "last_seen": "2026-05-01"
+    },
+    {
+      "id": "ERR-046",
+      "error_type": "PostprocessorWhitespaceCollapse",
+      "trigger": "remove_latin_words regex r'\\s+' collapses all whitespace including newlines",
+      "solution": "Change regex to r'[^\\S\\n]+' to only collapse horizontal whitespace",
+      "prevention": "Always test postprocessor with multi-paragraph input",
+      "times_seen": 1,
+      "last_seen": "2026-05-01"
+    },
+    {
+      "id": "ERR-047",
+      "error_type": "AgentInitParamMismatch",
+      "trigger": "Orchestrator passes wrong parameters to agent constructors",
+      "solution": "Match constructor signatures exactly — check agent __init__ before passing params from orchestrator",
+      "prevention": "All agents should have consistent constructor patterns. Test full pipeline initialization.",
+      "times_seen": 1,
+      "last_seen": "2026-05-01"
+    }
+  ]
+}

@@ -10,6 +10,13 @@
 ## Last Updated
 - Date: 2026-05-01
 - Last task completed:
+  - **Infrastructure: Created .agent/ and CHANGELOG.md** (STATUS: READY_TO_COMMIT):
+    - Created `.agent/` directory with 4 JSON files (phase_gate.json, session_memory.json, long_term_memory.json, error_library.json) matching AGENTS.md schemas
+    - Created `CHANGELOG.md` documenting project history from v0.1.0 to v2.1.0
+    - Error library pre-populated with ERR-001 through ERR-006 (preventive) + ERR-047 through ERR-043 (historical, observed)
+    - All JSON files validated, 229/229 tests pass
+    - **Files Created**: `.agent/phase_gate.json`, `.agent/session_memory.json`, `.agent/long_term_memory.json`, `.agent/error_library.json`, `CHANGELOG.md`
+  - Previous tasks:
   - **FIXED: Pipeline Agent Initialization Bugs — 4 agents had parameter mismatches** (STATUS: READY_TO_COMMIT, commit 3617b23):
     - **Root Cause**: orchestrator.py passed wrong parameters to 4 agents — Refiner, ReflectionAgent got unexpected `memory_manager`; QATesterAgent, ContextUpdater were missing required params
     - **Impact**: Refinement, Reflection, QA, and Context Update stages silently failed on every translation
