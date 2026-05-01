@@ -10,6 +10,17 @@
 ## Last Updated
 - Date: 2026-05-01
 - Last task completed:
+  - **FIXED: Pipeline Agent Initialization Bugs — 4 agents had parameter mismatches** (STATUS: READY_TO_COMMIT, commit 3617b23):
+    - **Root Cause**: orchestrator.py passed wrong parameters to 4 agents — Refiner, ReflectionAgent got unexpected `memory_manager`; QATesterAgent, ContextUpdater were missing required params
+    - **Impact**: Refinement, Reflection, QA, and Context Update stages silently failed on every translation
+    - **Fixes**: 
+      1. Refiner: `memory_manager` → `batch_size` (matches constructor signature)
+      2. ReflectionAgent: removed invalid `memory_manager` param
+      3. QATesterAgent: added missing `memory_manager` param  
+      4. ContextUpdater: added missing `ollama_client` param
+    - **All 8 pipeline agents now initialize correctly**
+    - **Files Modified**: `src/pipeline/orchestrator.py`
+    - **Tests**: 229/229 pass
   - **FIXED: Quality Audit Issues — Full Pipeline + Anti-Hallucination + Footnote Preservation** (STATUS: READY_TO_COMMIT, commit bdff6f0):
     - **Root Cause 1**: way1 (EN→MM) ran in `single_stage` mode — Reflection Agent and QA Tester never executed, skipping all quality checks
     - **Root Cause 2**: No anti-hallucination rule in translator prompt — model invented "ဖန်ကျန်း" (Fang Zheng) when source said "Brother Zhang" 

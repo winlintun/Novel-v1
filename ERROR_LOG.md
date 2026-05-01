@@ -59,6 +59,32 @@
 
 *No active issues currently.*
 
+### ERROR-047: Pipeline Agent Initialization — 4 Agents Failed to Construct
+**Date**: 2026-05-01
+**File**: `src/pipeline/orchestrator.py`
+**Error Messages**:
+```
+TypeError: Refiner.__init__() got an unexpected keyword argument 'memory_manager'
+TypeError: ReflectionAgent.__init__() got an unexpected keyword argument 'memory_manager'
+TypeError: QATesterAgent.__init__() missing 1 required positional argument: 'memory_manager'
+TypeError: ContextUpdater.__init__() missing 1 required positional argument: 'ollama_client'
+```
+
+**Root Cause**: The orchestrator's lazy-load properties for 4 agents passed incorrect parameters that didn't match their constructor signatures. These errors went undetected because the agents are loaded lazily on first access, and the test suite doesn't exercise the full pipeline with all agents active.
+
+**Fix Applied**:
+1. Refiner (line 135-139): Removed `memory_manager`, added `batch_size` param
+2. ReflectionAgent (line 147-151): Removed `memory_manager` param
+3. QATesterAgent (line 181-184): Added `memory_manager` param
+4. ContextUpdater (line 192-195): Added `ollama_client` param
+
+**Files Modified**:
+- `src/pipeline/orchestrator.py` — 4 lines changed (3 insertions, 2 deletions)
+
+**Status**: RESOLVED
+**Verified By**: Manual pipeline initialization test (all 8 agents construct correctly), pytest 229/229 pass
+**Commit**: 3617b23
+
 ### ERROR-046: Postprocessor Destroys Paragraph Structure + 8 Duplicate Chapter Headings
 **Date**: 2026-05-01
 **File**: `src/utils/postprocessor.py`
