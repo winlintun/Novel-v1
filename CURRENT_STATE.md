@@ -10,6 +10,20 @@
 ## Last Updated
 - Date: 2026-05-01
 - Last task completed:
+  - **FIXED: Quality Audit Issues — Full Pipeline + Anti-Hallucination + Footnote Preservation** (STATUS: READY_TO_COMMIT, commit bdff6f0):
+    - **Root Cause 1**: way1 (EN→MM) ran in `single_stage` mode — Reflection Agent and QA Tester never executed, skipping all quality checks
+    - **Root Cause 2**: No anti-hallucination rule in translator prompt — model invented "ဖန်ကျန်း" (Fang Zheng) when source said "Brother Zhang" 
+    - **Root Cause 3**: No footnote preservation rule — source markers (1) were dropped
+    - **Root Cause 4**: Place names translated differently from glossary (Gu Yue Village)
+    - **Fixes**:
+      1. Changed way1 config from `mode: single_stage` to `mode: full` with `use_reflection: True` — enables Translation → Refinement → Reflection → Quality Check full pipeline
+      2. Added STRICT RULES 8-10 to translator EN prompt:
+         - Rule 8: ANTI-HALLUCINATION — never invent names, never substitute glossary characters
+         - Rule 9: FOOTNOTES — preserve inline markers (1), (2), [1], [2]
+         - Rule 10: PLACE NAMES — use exact glossary terms
+      3. Added `detect_potential_hallucinations()` to postprocessor for post-hoc detection
+    - **Files Modified**: `src/cli/commands.py`, `src/agents/translator.py`, `src/utils/postprocessor.py`, `tests/test_workflow_routing.py`
+    - **Tests**: 229/229 pass
   - **English Source Pipeline Verification + Markdown Reader Feature** (STATUS: READY_TO_COMMIT):
     - **Pipeline Verification**: English source uses `en_mm_rules.py`, per-novel glossary/context isolated (`glossary_{novel}.json`, etc.), no cross-contamination
     - **Markdown Reader**: New `ui/pages/6_Reader.py` (Streamlit), `--view` CLI command, DRY imports from postprocessor
