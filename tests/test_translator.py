@@ -314,6 +314,50 @@ class TestOllamaClient(unittest.TestCase):
         self.assertTrue(available)
 
 
+class TestMyanmarRatio(unittest.TestCase):
+    """Tests for _calc_myanmar_ratio() utility in orchestrator."""
+    
+    def test_empty_string(self):
+        """Empty string should return 0.0."""
+        from src.pipeline.orchestrator import TranslationPipeline
+        result = TranslationPipeline._calc_myanmar_ratio("")
+        self.assertEqual(result, 0.0)
+    
+    def test_pure_latin(self):
+        """Pure Latin/ASCII text should return 0.0."""
+        from src.pipeline.orchestrator import TranslationPipeline
+        result = TranslationPipeline._calc_myanmar_ratio("Hello world. This is English.")
+        self.assertEqual(result, 0.0)
+    
+    def test_pure_myanmar(self):
+        """Pure Myanmar text should return 1.0."""
+        from src.pipeline.orchestrator import TranslationPipeline
+        result = TranslationPipeline._calc_myanmar_ratio("မြန်မာစာသားသည် ဤကဲ့သို့ဖြစ်သည်။")
+        self.assertAlmostEqual(result, 1.0, delta=0.05)
+    
+    def test_mixed_content(self):
+        """Mixed Myanmar + Latin should return correct ratio."""
+        from src.pipeline.orchestrator import TranslationPipeline
+        text = "မြန်မာ text နှင့် English ရောထားသည်။"
+        result = TranslationPipeline._calc_myanmar_ratio(text)
+        # Myanmar chars: မြန်မာ + နှင့် + ရောထားသည်။ = ~12 of ~18 non-space
+        self.assertGreater(result, 0.5)
+        self.assertLess(result, 1.0)
+    
+    def test_whitespace_only(self):
+        """Whitespace-only text should return 0.0."""
+        from src.pipeline.orchestrator import TranslationPipeline
+        result = TranslationPipeline._calc_myanmar_ratio("   \n\t  ")
+        self.assertEqual(result, 0.0)
+    
+    def test_myanmar_extended_blocks(self):
+        """Characters in Myanmar Extended-A/B should be counted."""
+        from src.pipeline.orchestrator import TranslationPipeline
+        # Myanmar Extended-A: ꩦ (U+AA66)
+        result = TranslationPipeline._calc_myanmar_ratio("မြန်မာꩦ")
+        self.assertAlmostEqual(result, 1.0, delta=0.05)
+
+
 if __name__ == '__main__':
     # Run tests
     unittest.main(verbosity=2)

@@ -7,6 +7,30 @@
 ---
 
 
+### ERROR-049: Live CLI Progress Display — Code Review Fixes
+**Date**: 2026-05-01
+**Files**: `src/cli/formatters.py`, `src/pipeline/orchestrator.py`, `src/cli/commands.py`, `tests/test_translator.py`
+**Issue Summary**:
+Reviewer A flagged 5 issues with initial progress display implementation:
+1. Dead code in `_postprocess()` — expression always evaluated to 0
+2. `import sys` placed mid-file in formatters.py (PEP 8 violation)
+3. Bare `dict` type annotations in `_report()` and `_translate_chunks()` return
+4. `_progress_reporter` closure captured `novel_name` before definition
+5. No unit tests for `_calc_myanmar_ratio()`
+**Fix Applied**:
+1. Replaced dead code with `max(0, before_count - after_count)` using actual char counts
+2. Moved `import sys` to top of formatters.py
+3. Added `Dict[str, Any]` type hints to `_report()`, `set_progress_callback()`, `_translate_chunks()` return
+4. Moved `_progress_reporter` definition after `novel_name` assignment
+5. Added `TestMyanmarRatio` class with 6 tests (empty, Latin, Myanmar, mixed, whitespace, extended Unicode)
+**Files Modified**:
+- `src/cli/formatters.py` — import fix + dedup display text
+- `src/pipeline/orchestrator.py` — type hints + dead code fix
+- `src/cli/commands.py` — closure ordering
+- `tests/test_translator.py` — 6 new tests
+**Status**: RESOLVED
+**Verified By**: pytest (235/235 pass), Reviewer A+B both PASS
+
 ### ERROR-048: Missing .agent/ Infrastructure
 **Date**: 2026-05-01
 **Files**: `.agent/phase_gate.json`, `.agent/session_memory.json`, `.agent/long_term_memory.json`, `.agent/error_library.json`, `CHANGELOG.md`

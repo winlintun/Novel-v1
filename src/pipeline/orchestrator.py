@@ -17,7 +17,7 @@ import time
 import signal
 import logging
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional, Tuple, Callable
 from datetime import datetime
 
 from src.config import AppConfig
@@ -66,6 +66,7 @@ class TranslationPipeline:
         # State
         self._shutdown_requested = False
         self._current_novel: Optional[str] = None
+        self._progress_callback: Optional[Callable] = None
         
         # Register signal handlers
         signal.signal(signal.SIGINT, self._signal_handler)
@@ -75,6 +76,22 @@ class TranslationPipeline:
         """Handle shutdown signals gracefully."""
         self.logger.warning("Shutdown requested. Finishing current chunk...")
         self._shutdown_requested = True
+    
+    def set_progress_callback(self, callback: Optional[Callable[[Dict[str, Any]], None]]) -> None:
+        """Set a progress callback for live CLI output.
+        
+        Args:
+            callback: Function that accepts a dict event, or None to disable
+        """
+        self._progress_callback = callback
+    
+    def _report(self, event: Dict[str, Any]) -> None:
+        """Send a progress event to the callback if configured."""
+        if self._progress_callback:
+            try:
+                self._progress_callback(event)
+            except Exception:
+                pass  # Never let progress reporting break the pipeline
     
     @property
     def memory_manager(self):
@@ -220,11 +237,14 @@ class TranslationPipeline:
             from src.utils.file_handler import FileHandler
             text = FileHandler.read_text(filepath)
 
-            # Preprocess
-            chunks = self._preprocess(text)
+            # Chapter label for progress display
+            chapter_label = Path(filepath).name
 
-            # Translate
-            translated_chunks = self._translate_chunks(chunks)
+            # Preprocess
+            chunks = self._preprocess(text, chapter_label)
+
+            # Translate (now returns chunks + per-chunk metrics)
+            translated_chunks, chunk_metrics = self._translate_chunks(chunks)
 
             # Postprocess
             result_text = self._postprocess(translated_chunks)
@@ -234,12 +254,35 @@ class TranslationPipeline:
 
             duration = time.time() - start_time
 
+            # Compute summary metrics
+            avg_score = 0
+            total_issues = 0
+            if chunk_metrics:
+                avg_score = sum(m["quality_score"] for m in chunk_metrics) / len(chunk_metrics)
+                total_issues = sum(m["issues"] for m in chunk_metrics)
+
+            # Emit summary
+            self._report({
+                "type": "summary",
+                "total_chunks": len(chunk_metrics),
+                "avg_score": avg_score,
+                "total_time": duration,
+                "output_path": str(output_path),
+                "file_size": len(result_text.encode('utf-8')),
+                "issues_total": total_issues,
+            })
+
             return {
                 "success": True,
                 "output_path": str(output_path),
                 "glossary_updates": [],
                 "errors": [],
-                "metrics": {"duration_seconds": duration},
+                "metrics": {
+                    "duration_seconds": duration,
+                    "avg_quality_score": avg_score,
+                    "total_chunks": len(chunk_metrics),
+                    "chunk_metrics": chunk_metrics,
+                },
                 "chapter": Path(filepath).stem,
                 "duration_seconds": duration
             }
@@ -401,16 +444,24 @@ class TranslationPipeline:
         
         return results
     
-    def _preprocess(self, text: str) -> List[str]:
+    def _preprocess(self, text: str, chapter_label: str = "") -> List[str]:
         """Preprocess text into chunks.
         
         Args:
             text: Input text
+            chapter_label: Label for progress display
             
         Returns:
             List of text chunks
         """
         self.logger.info("Step 1/7: Preprocessing text...")
+        t0 = time.time()
+
+        self._report({
+            "type": "preprocess_start",
+            "char_count": len(text),
+            "chapter": chapter_label,
+        })
 
         # Clean and normalize
         text = self.preprocessor.clean_markdown(text)
@@ -422,51 +473,153 @@ class TranslationPipeline:
         chunks = [chunk['text'] for chunk in chunk_dicts]
 
         self.logger.info(f"Created {len(chunks)} chunks")
+
+        self._report({
+            "type": "preprocess_done",
+            "chunk_count": len(chunks),
+            "chunk_size": self.config.processing.chunk_size,
+            "duration": time.time() - t0,
+        })
+
         return chunks
     
-    def _translate_chunks(self, chunks: List[str]) -> List[str]:
+    def _translate_chunks(self, chunks: List[str]) -> Tuple[List[str], List[Dict[str, Any]]]:
         """Translate chunks through the pipeline.
         
         Args:
             chunks: List of text chunks
             
         Returns:
-            List of translated chunks
+            Tuple of (translated chunks list, list of per-chunk quality metrics)
         """
         translated = []
+        chunk_metrics = []
         
         for i, chunk in enumerate(chunks):
             if self._shutdown_requested:
                 break
+
+            chunk_t0 = time.time()
+            total = len(chunks)
+
+            self._report({
+                "type": "chunk_start",
+                "chunk_index": i + 1,
+                "total_chunks": total,
+                "char_count": len(chunk),
+            })
             
-            self.logger.info(f"Step 2/7: Translating chunk {i+1}/{len(chunks)}...")
+            self.logger.info(f"Step 2/7: Translating chunk {i+1}/{total}...")
             
             # Stage 1: Translation
+            t1 = time.time()
             translated_chunk = self.translator.translate_paragraph(chunk)
+            self._report({
+                "type": "chunk_translated",
+                "chunk_index": i + 1,
+                "total_chunks": total,
+                "duration": time.time() - t1,
+            })
 
             # Stage 2: Refinement (if enabled and not skipped)
             if self.config.translation_pipeline.mode in ('full', 'lite'):
-                self.logger.info(f"Step 3/7: Refining chunk {i+1}/{len(chunks)}...")
+                self.logger.info(f"Step 3/7: Refining chunk {i+1}/{total}...")
+                t2 = time.time()
                 translated_chunk = self.refiner.refine_paragraph(translated_chunk)
+                self._report({
+                    "type": "chunk_refined",
+                    "chunk_index": i + 1,
+                    "total_chunks": total,
+                    "duration": time.time() - t2,
+                })
 
             # Stage 3: Reflection (if enabled)
             if self.config.translation_pipeline.use_reflection:
-                self.logger.info(f"Step 4/7: Reflecting on chunk {i+1}/{len(chunks)}...")
+                self.logger.info(f"Step 4/7: Reflecting on chunk {i+1}/{total}...")
+                t3 = time.time()
                 translated_chunk = self.reflection_agent.reflect_and_improve(translated_chunk, chunk)
+                self._report({
+                    "type": "chunk_reflected",
+                    "chunk_index": i + 1,
+                    "total_chunks": total,
+                    "duration": time.time() - t3,
+                })
 
             # Stage 4: Quality Check
-            self.logger.info(f"Step 5/7: Checking quality for chunk {i+1}/{len(chunks)}...")
+            self.logger.info(f"Step 5/7: Checking quality for chunk {i+1}/{total}...")
             quality_result = self.myanmar_checker.check_quality(translated_chunk)
+            quality_score = quality_result.get("score", 0)
+            quality_passed = quality_result.get("passed", False)
+            quality_issues = len(quality_result.get("issues", []))
+
+            # Calculate Myanmar ratio for display
+            mm_ratio = self._calc_myanmar_ratio(translated_chunk)
+
+            self._report({
+                "type": "chunk_quality",
+                "chunk_index": i + 1,
+                "total_chunks": total,
+                "score": quality_score,
+                "passed": quality_passed,
+                "issue_count": quality_issues,
+                "myanmar_ratio": mm_ratio,
+            })
 
             # Stage 5: Consistency Check
-            self.logger.info(f"Step 6/7: Checking consistency for chunk {i+1}/{len(chunks)}...")
+            self.logger.info(f"Step 6/7: Checking consistency for chunk {i+1}/{total}...")
             consistency_issues = self.checker.check_glossary_consistency(translated_chunk)
-            if consistency_issues:
-                self.logger.warning(f"Found {len(consistency_issues)} consistency issues")
+            cons_count = len(consistency_issues) if consistency_issues else 0
+            if cons_count:
+                self.logger.warning(f"Found {cons_count} consistency issues")
+            self._report({
+                "type": "chunk_consistency",
+                "chunk_index": i + 1,
+                "total_chunks": total,
+                "issue_count": cons_count,
+            })
             
+            total_issues = quality_issues + cons_count
+            self._report({
+                "type": "chunk_complete",
+                "chunk_index": i + 1,
+                "total_chunks": total,
+                "duration": time.time() - chunk_t0,
+            })
+
+            chunk_metrics.append({
+                "chunk": i + 1,
+                "quality_score": quality_score,
+                "quality_passed": quality_passed,
+                "myanmar_ratio": mm_ratio,
+                "issues": total_issues,
+            })
+
             translated.append(translated_chunk)
         
-        return translated
+        return translated, chunk_metrics
+
+    @staticmethod
+    def _calc_myanmar_ratio(text: str) -> float:
+        """Calculate ratio of Myanmar Unicode characters in text.
+
+        Args:
+            text: Text to analyze
+
+        Returns:
+            Ratio 0.0–1.0
+        """
+        if not text:
+            return 0.0
+        myanmar_ranges = [(0x1000, 0x109F), (0xAA60, 0xAA7F), (0xA9E0, 0xA9FF)]
+        mm = 0
+        total = 0
+        for ch in text:
+            code = ord(ch)
+            if not ch.isspace():
+                total += 1
+                if any(lo <= code <= hi for lo, hi in myanmar_ranges):
+                    mm += 1
+        return mm / total if total > 0 else 0.0
     
     def _postprocess(self, chunks: List[str]) -> str:
         """Postprocess translated chunks.
@@ -483,13 +636,21 @@ class TranslationPipeline:
         processor = Postprocessor(aggressive=True)
         
         # Deduplicate overlapping paragraphs between adjacent chunks
+        before_count = sum(len(c) for c in chunks)
         chunks = self._deduplicate_chunks(chunks)
+        after_count = sum(len(c) for c in chunks)
         
         # Join chunks
         text = '\n\n'.join(chunks)
         
         # Clean up
         text = processor.clean(text)
+
+        self._report({
+            "type": "postprocess",
+            "dedup_removed": max(0, before_count - after_count),
+            "final_chars": len(text),
+        })
         
         return text
     

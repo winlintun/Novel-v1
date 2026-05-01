@@ -136,6 +136,7 @@ def run_translation_pipeline(args: argparse.Namespace) -> int:
             print_info,
             print_section_header,
             print_auto_detection_result,
+            print_progress_event,
         )
         
         # Print auto-detection results if workflow was auto-detected
@@ -152,10 +153,15 @@ def run_translation_pipeline(args: argparse.Namespace) -> int:
         print_translation_header(config, novel_name)
         print_pipeline_stages(config)
         
+        # Build progress reporter for live CLI output (after novel_name is set)
+        def _progress_reporter(event: dict) -> None:
+            print_progress_event(event, novel_name=novel_name)
+        
         # Import and run pipeline
         from src.pipeline.orchestrator import TranslationPipeline
         
         pipeline = TranslationPipeline(config)
+        pipeline.set_progress_callback(_progress_reporter)
         
         print_section_header("Starting Translation")
         

@@ -10,6 +10,8 @@ Provides formatted output functions for displaying:
 """
 
 from typing import List, Tuple, Union, Optional
+import sys
+
 from src.config.models import AppConfig
 
 
@@ -257,7 +259,7 @@ def print_auto_detection_result(source_lang: str, workflow: str, models: dict) -
     else:
         print(f"  Workflow:        ⚠️  Using config default")
     
-    # Model info
+     # Model info
     if models:
         print(f"\n  🤖 Auto-Selected Models:")
         for role, model in models.items():
@@ -265,3 +267,159 @@ def print_auto_detection_result(source_lang: str, workflow: str, models: dict) -
     
     print("\n" + "=" * 70)
     print()
+
+
+# ---------------------------------------------------------------------------
+#  Live Progress Display — per-chunk translation status
+# ---------------------------------------------------------------------------
+
+# ANSI color codes for terminal output
+class _Color:
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
+    CYAN = '\033[96m'
+    MAGENTA = '\033[95m'
+    BLUE = '\033[94m'
+    BOLD = '\033[1m'
+    DIM = '\033[2m'
+    RESET = '\033[0m'
+
+
+def _color_status(score: float, passed: bool) -> str:
+    """Return color-coded score string."""
+    if passed and score >= 85:
+        return f"{_Color.GREEN}{score:.0f} ✓{_Color.RESET}"
+    elif passed:
+        return f"{_Color.CYAN}{score:.0f} ✓{_Color.RESET}"
+    elif score >= 50:
+        return f"{_Color.YELLOW}{score:.0f} ⚠{_Color.RESET}"
+    else:
+        return f"{_Color.RED}{score:.0f} ✗{_Color.RESET}"
+
+
+def print_progress_event(event: dict, novel_name: str = "") -> None:
+    """Handle a progress event from the pipeline and display it.
+
+    Args:
+        event: Progress event dict with 'type' key
+        novel_name: Novel name for context (optional)
+    """
+    etype = event.get("type", "")
+
+    if etype == "preprocess_start":
+        char_count = event.get("char_count", 0)
+        chapter = event.get("chapter", "")
+        print()
+        print(f"{_Color.CYAN}{'─' * 70}{_Color.RESET}")
+        print(f"  {_Color.BOLD}📄 Input{_Color.RESET}  {chapter}")
+        print(f"  {_Color.DIM}Characters:{_Color.RESET} {char_count:,}")
+
+    elif etype == "preprocess_done":
+        chunk_count = event.get("chunk_count", 0)
+        chunk_size = event.get("chunk_size", 0)
+        duration = event.get("duration", 0)
+        print(f"  {_Color.DIM}Chunks:{_Color.RESET}     {chunk_count} ({chunk_size} chars each)")
+        print(f"  {_Color.DIM}Preprocess:{_Color.RESET} {duration:.2f}s")
+        print(f"{_Color.CYAN}{'─' * 70}{_Color.RESET}")
+
+    elif etype == "chunk_start":
+        idx = event.get("chunk_index", 0)
+        total = event.get("total_chunks", 0)
+        chars = event.get("char_count", 0)
+        pct = f"[{idx}/{total}]"
+        print(f"\n  {_Color.BOLD}{_Color.MAGENTA}🔄 Chunk {pct}{_Color.RESET} ({chars:,} chars)", end="")
+        sys.stdout.flush()
+
+    elif etype == "chunk_translated":
+        duration = event.get("duration", 0)
+        print(f" {_Color.DIM}→ Trans ({duration:.1f}s){_Color.RESET}", end="")
+        sys.stdout.flush()
+
+    elif etype == "chunk_refined":
+        duration = event.get("duration", 0)
+        print(f" {_Color.DIM}→ Refined ({duration:.1f}s){_Color.RESET}", end="")
+        sys.stdout.flush()
+
+    elif etype == "chunk_reflected":
+        duration = event.get("duration", 0)
+        print(f" {_Color.DIM}→ Reflect ({duration:.1f}s){_Color.RESET}", end="")
+        sys.stdout.flush()
+
+    elif etype == "chunk_quality":
+        score = event.get("score", 0)
+        passed = event.get("passed", False)
+        issues = event.get("issue_count", 0)
+        mm_ratio = event.get("myanmar_ratio")
+
+        status_str = _color_status(score, passed)
+        print(f" {_Color.DIM}→ Quality:{_Color.RESET} {status_str}", end="")
+        if mm_ratio is not None:
+            ratio_color = _Color.GREEN if mm_ratio >= 0.70 else _Color.RED
+            print(f" {_Color.DIM}MM:{_Color.RESET} {ratio_color}{mm_ratio:.0%}{_Color.RESET}", end="")
+        if issues > 0:
+            print(f" {_Color.YELLOW}({issues} issues){_Color.RESET}", end="")
+        sys.stdout.flush()
+
+    elif etype == "chunk_consistency":
+        issue_count = event.get("issue_count", 0)
+        if issue_count > 0:
+            print(f" {_Color.DIM}→ Glossary:{_Color.RESET} {_Color.YELLOW}{issue_count} mismatches{_Color.RESET}", end="")
+            sys.stdout.flush()
+
+    elif etype == "chunk_complete":
+        duration = event.get("duration", 0)
+        print(f" {_Color.DIM}[{duration:.1f}s total]{_Color.RESET}")
+
+    elif etype == "chunk_qa":
+        score = event.get("score", 0)
+        passed = event.get("passed", False)
+        issues = event.get("issue_count", 0)
+        status_str = _color_status(score, passed)
+        print(f" {_Color.DIM}→ QA:{_Color.RESET} {status_str}", end="")
+        if issues > 0:
+            print(f" {_Color.YELLOW}({issues} issues){_Color.RESET}", end="")
+        sys.stdout.flush()
+
+    elif etype == "chunk_error":
+        idx = event.get("chunk_index", 0)
+        total = event.get("total_chunks", 0)
+        error = event.get("error", "")
+        print(f"\n  {_Color.RED}❌ Chunk [{idx}/{total}] FAILED:{_Color.RESET} {error[:80]}")
+
+    elif etype == "postprocess":
+        dedup = event.get("dedup_removed", 0)
+        final_chars = event.get("final_chars", 0)
+        if dedup > 0:
+            print(f"\n  {_Color.DIM}Postprocess:{_Color.RESET} removed {dedup:,} duplicate char(s), {final_chars:,} chars final")
+
+    elif etype == "save_start":
+        path = event.get("output_path", "")
+        print(f"\n  {_Color.DIM}💾 Saving to:{_Color.RESET} {path}")
+
+    elif etype == "save_done":
+        path = event.get("output_path", "")
+        size = event.get("file_size", 0)
+        print(f"  {_Color.GREEN}✅ Saved:{_Color.RESET} {path} ({size:,} bytes)")
+
+    elif etype == "summary":
+        total_chunks = event.get("total_chunks", 0)
+        avg_score = event.get("avg_score", 0)
+        total_time = event.get("total_time", 0)
+        output_path = event.get("output_path", "")
+        file_size = event.get("file_size", 0)
+        issues_total = event.get("issues_total", 0)
+
+        score_color = _Color.GREEN if avg_score >= 70 else _Color.YELLOW
+        print(f"\n{_Color.CYAN}{'═' * 70}{_Color.RESET}")
+        print(f"  {_Color.BOLD}📊 TRANSLATION SUMMARY{_Color.RESET}")
+        print(f"{_Color.CYAN}{'─' * 70}{_Color.RESET}")
+        print(f"  {_Color.DIM}Chunks:{_Color.RESET}       {total_chunks}")
+        print(f"  {_Color.DIM}Avg Quality:{_Color.RESET}  {score_color}{avg_score:.0f}/100{_Color.RESET}")
+        print(f"  {_Color.DIM}Total Time:{_Color.RESET}   {total_time:.1f}s")
+        if issues_total > 0:
+            print(f"  {_Color.DIM}Issues:{_Color.RESET}       {_Color.YELLOW}{issues_total}{_Color.RESET}")
+        else:
+            print(f"  {_Color.DIM}Issues:{_Color.RESET}       None")
+        print(f"  {_Color.DIM}Output:{_Color.RESET}       {output_path} ({file_size:,} bytes)")
+        print(f"{_Color.CYAN}{'═' * 70}{_Color.RESET}\n")

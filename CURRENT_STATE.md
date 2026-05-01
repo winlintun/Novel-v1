@@ -10,6 +10,17 @@
 ## Last Updated
 - Date: 2026-05-01
 - Last task completed:
+  - **ADDED: Live CLI Progress Display for Translation Pipeline** (STATUS: READY_TO_COMMIT):
+    - Added `print_progress_event()` to `src/cli/formatters.py` — color-coded per-chunk translation progress with timing, quality scores, Myanmar ratio, and summary
+    - Added `set_progress_callback()` / `_report()` to `TranslationPipeline` in `src/pipeline/orchestrator.py` — non-intrusive callback pattern
+    - Enhanced `_translate_chunks()` to emit per-stage events (translation, refinement, reflection, quality, consistency) with per-chunk metrics; returns `Tuple[List[str], List[Dict[str, Any]]]`
+    - Added `_calc_myanmar_ratio()` static method for chunk-level Myanmar ratio
+    - Wire-up in `src/cli/commands.py`: progress reporter passed to pipeline
+    - Added 6 unit tests for `_calc_myanmar_ratio()` covering empty, Latin, Myanmar, mixed, whitespace, extended Unicode blocks
+    - All 235/235 tests pass, zero breaking API changes
+    - **Files Modified**: `src/cli/formatters.py` (+135 lines), `src/pipeline/orchestrator.py` (+90 lines), `src/cli/commands.py` (+12 lines), `tests/test_translator.py` (+46 lines)
+  - Previous tasks:
+  - Previous tasks:
   - **Infrastructure: Created .agent/ and CHANGELOG.md** (STATUS: READY_TO_COMMIT):
     - Created `.agent/` directory with 4 JSON files (phase_gate.json, session_memory.json, long_term_memory.json, error_library.json) matching AGENTS.md schemas
     - Created `CHANGELOG.md` documenting project history from v0.1.0 to v2.1.0
