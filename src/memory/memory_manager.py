@@ -7,11 +7,32 @@ import logging
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 from collections import deque
-from pathlib import Path
-
 from src.utils.file_handler import FileHandler
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_glossary_path(novel_name: Optional[str] = None) -> tuple[str, str, str]:
+    """Resolve glossary, context, and pending file paths for a given novel.
+    
+    Per-novel mode (novel_name provided):
+      data/glossary_{novel_name}.json
+      data/context_memory_{novel_name}.json
+      data/glossary_pending_{novel_name}.json
+    
+    Shared fallback (novel_name is None):
+      data/glossary.json
+      data/context_memory.json
+      data/glossary_pending.json
+    """
+    if novel_name:
+        safe_name = novel_name.replace('/', '_').replace('\\', '_').replace(' ', '_')
+        return (
+            f"data/glossary_{safe_name}.json",
+            f"data/context_memory_{safe_name}.json",
+            f"data/glossary_pending_{safe_name}.json",
+        )
+    return ("data/glossary.json", "data/context_memory.json", "data/glossary_pending.json")
 
 
 class MemoryManager:
@@ -25,10 +46,18 @@ class MemoryManager:
     def __init__(
         self,
         glossary_path: str = "data/glossary.json",
-        context_path: str = "data/context_memory.json"
+        context_path: str = "data/context_memory.json",
+        novel_name: Optional[str] = None
     ):
+        # Resolve novel-specific paths when novel_name is provided
+        if novel_name:
+            glossary_path, context_path, self.pending_path = _resolve_glossary_path(novel_name)
+        else:
+            self.pending_path = "data/glossary_pending.json"
+        
         self.glossary_path = glossary_path
         self.context_path = context_path
+        self.novel_name = novel_name
         
         # Tier 1: Global Glossary
         self.glossary: Dict[str, Any] = {}
@@ -275,11 +304,9 @@ class MemoryManager:
         category: str = "general",
         chapter: int = 0
     ) -> bool:
-        """Add a term to the pending glossary for review."""
-        pending_path = Path("data/glossary_pending.json")
-        
+        """Add a term to the novel-specific pending glossary for review."""
         # Load existing pending terms
-        pending_data = FileHandler.read_json(str(pending_path))
+        pending_data = FileHandler.read_json(self.pending_path)
         if not pending_data:
             pending_data = {"pending_terms": []}
         
@@ -305,8 +332,96 @@ class MemoryManager:
         pending_terms.append(new_pending)
         pending_data["pending_terms"] = pending_terms
         
-        FileHandler.write_json(str(pending_path), pending_data)
+        FileHandler.write_json(self.pending_path, pending_data)
         logger.info(f"Added pending glossary term: {source} -> {target}")
+        return True
+
+    def get_pending_terms(self) -> List[Dict[str, Any]]:
+        """Get all pending terms for review."""
+        pending_data = FileHandler.read_json(self.pending_path)
+        if not pending_data:
+            return []
+        return pending_data.get("pending_terms", [])
+
+    def promote_pending_to_glossary(
+        self,
+        source: str,
+        chapter: int = 0,
+        verified: bool = True
+    ) -> bool:
+        """Promote a pending term to the approved glossary.
+
+        Args:
+            source: The source term to promote
+            chapter: Current chapter number
+            verified: Mark term as verified
+
+        Returns:
+            True if promoted successfully, False if not found
+        """
+        pending_data = FileHandler.read_json(self.pending_path)
+        if not pending_data:
+            return False
+
+        pending_terms = pending_data.get("pending_terms", [])
+        target = None
+        category = "general"
+
+        # Find the term
+        for t in pending_terms:
+            if t.get("source") == source:
+                target = t.get("target", "")
+                category = t.get("category", "general")
+                break
+
+        if not target:
+            return False
+
+        # Add to approved glossary
+        terms = self.glossary.get("terms", [])
+        existing = {t.get("source") or t.get("source_term", "") for t in terms}
+        if source in existing:
+            # Already exists — update it
+            self.update_term(source, target, chapter)
+        else:
+            self.add_term(source, target, category, chapter)
+
+        # Remove from pending
+        pending_data["pending_terms"] = [t for t in pending_terms if t.get("source") != source]
+        FileHandler.write_json(self.pending_path, pending_data)
+
+        # Mark as verified in glossary
+        for t in self.glossary.get("terms", []):
+            if (t.get("source") or t.get("source_term", "")) == source:
+                t["verified"] = verified
+                break
+
+        self.save_memory()
+        logger.info(f"Promoted pending term to glossary: {source} -> {target}")
+        return True
+
+    def reject_pending_term(self, source: str) -> bool:
+        """Remove a pending term without promoting to glossary.
+
+        Args:
+            source: The source term to reject
+
+        Returns:
+            True if removed, False if not found
+        """
+        pending_data = FileHandler.read_json(self.pending_path)
+        if not pending_data:
+            return False
+
+        pending_terms = pending_data.get("pending_terms", [])
+        before = len(pending_terms)
+        pending_data["pending_terms"] = [t for t in pending_terms if t.get("source") != source]
+
+        if len(pending_data["pending_terms"]) == before:
+            return False
+
+        FileHandler.write_json(self.pending_path, pending_data)
+        logger.info(f"Rejected pending term: {source}")
         return True
 
     def get_all_memory_for_prompt(self) -> Dict[str, str]:

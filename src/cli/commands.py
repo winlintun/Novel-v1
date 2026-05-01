@@ -261,7 +261,7 @@ def run_glossary_generation(args: argparse.Namespace) -> int:
             model=config.models.translator,
             base_url=config.models.ollama_base_url
         )
-        memory = MemoryManager()
+        memory = MemoryManager(novel_name=args.novel)
         
         generator = GlossaryGenerator(client, memory, config.dict())
         

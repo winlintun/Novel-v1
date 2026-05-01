@@ -114,7 +114,7 @@ Language:"""
         chunks = []
         current_chunk = []
         current_size = 0
-        # Track how many overlap paragraphs each chunk includes from previous chunk
+        # overlap_counts[i] = how many overlap paragraphs chunk i+1 will receive
         overlap_counts = []
         
         for para in paragraphs:
@@ -122,20 +122,23 @@ Language:"""
             
             # Check if adding this paragraph exceeds chunk size
             if current_size + para_size > self.chunk_size and current_chunk:
+                # Look up overlap count for THIS chunk (set after previous chunk save)
+                chunk_overlap = overlap_counts[len(chunks) - 1] if len(overlap_counts) == len(chunks) > 0 else 0
+                
                 # Save current chunk
                 chunk_text = '\n\n'.join(current_chunk)
                 chunks.append({
                     'chunk_id': len(chunks) + 1,
                     'text': chunk_text,
                     'size': current_size,
-                    'overlap_count': overlap_counts[len(chunks) - 1] if overlap_counts else 0
+                    'overlap_count': chunk_overlap
                 })
                 
                 # Create overlap for next chunk if overlap_size > 0
                 overlap_paras = []
                 if self.overlap_size > 0:
-                    overlap_count = min(self.overlap_size, len(current_chunk))
-                    overlap_paras = current_chunk[-overlap_count:] if overlap_count > 0 else []
+                    count = min(self.overlap_size, len(current_chunk))
+                    overlap_paras = current_chunk[-count:] if count > 0 else []
                 
                 overlap_counts.append(len(overlap_paras))
                 
@@ -147,12 +150,15 @@ Language:"""
         
         # Don't forget the last chunk
         if current_chunk:
+            # Look up overlap count for the final chunk
+            chunk_overlap = overlap_counts[len(chunks) - 1] if len(overlap_counts) == len(chunks) > 0 else 0
+            
             chunk_text = '\n\n'.join(current_chunk)
             chunks.append({
                 'chunk_id': len(chunks) + 1,
                 'text': chunk_text,
                 'size': current_size,
-                'overlap_count': overlap_counts[len(chunks) - 1] if len(overlap_counts) == len(chunks) else 0
+                'overlap_count': chunk_overlap
             })
         
         logger.info(f"Created {len(chunks)} chunks from {len(paragraphs)} paragraphs")

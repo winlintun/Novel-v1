@@ -10,9 +10,18 @@
 ## Last Updated
 - Date: 2026-05-01
 - Last task completed:
-  - **FIXED: need_fix_bug.md — 7 Translation Quality Bugs**:
-    - **Bug 1 (Bengali script leak)**: Added Bengali Unicode range (U+0980–U+09FF) to `detect_language_leakage()` and `validate_output()` in postprocessor.py; added Bengali removal function; added Bengali check in `myanmar_quality_checker.py`
-    - **Bug 2 (Duplicate paragraphs)**: Added `_deduplicate_chunks()` method in orchestrator.py to detect and remove overlapping paragraphs at chunk boundaries during assembly
+  - **Prompt System Upgrade & Per-Novel Glossary + DRY Refactor** (STATUS: READY_TO_COMMIT):
+    - **Prompt Integration**: `get_language_prompt()` in translator.py now dynamically builds CN/EN prompts from `cn_mm_rules.build_linguistic_context()` and `en_mm_rules.build_linguistic_context()`
+    - **EDITOR_SYSTEM_PROMPT upgraded**: Replaced with comprehensive 10-section prompt from `eng-mm-prompt.md` + `en_mm_rules.py` (Persona, Principles, Dialogue Rules, Confrontation Speech, Vocabulary Precision, Narration Register, Sentence Rhythm, Formatting, Unicode Safety, Output)
+    - **TRANSLATOR_SYSTEM_PROMPT enhanced**: Added CN→MM linguistic rules from `cn_mm_rules.py` (SV→SOV, particles, pronouns, cultural adaptation, aspect markers)
+    - **Per-Novel Glossary**: `_resolve_glossary_path()` now returns per-novel glossary/context/pending paths. Each novel gets isolated data files: `glossary_{novel}.json`, `context_memory_{novel}.json`, `glossary_pending_{novel}.json`
+    - **Glossary Pending Workflow**: Added `promote_pending_to_glossary()`, `reject_pending_term()`, `get_pending_terms()` to MemoryManager. Terms go to pending → user reviews → approve/reject
+    - **DRY Refactor**: `refiner.py` BATCH_REFINER_PROMPT derived from EDITOR_SYSTEM_PROMPT. `context_updater.py` uses EXTRACTOR_SYSTEM_PROMPT from prompt_patch. `translator.py` fallback prompts unified with LANGUAGE_GUARD
+    - **glossary_v3 disabled**: `enabled: false` since file missing
+    - **Test fix**: `test_workflow_routing.py` auto-detect tests — increased input length past 50-char minimum
+    - **Files Modified**: `src/agents/translator.py`, `src/agents/prompt_patch.py`, `src/agents/refiner.py`, `src/agents/context_updater.py`, `src/memory/memory_manager.py`, `config/settings.yaml`, `tests/test_workflow_routing.py`, `tests/test_cn_mm_rules.py`, `tests/test_prompt_patch.py`
+    - **Files Created**: `src/agents/prompts/__init__.py`
+    - **Tests**: 229/229 pass
     - **Bug 3 (Translator credit in body)**: Added `strip_metadata()` to preprocessor.py to remove Translator/Editor/Proofreader metadata lines before chunking
     - **Bug 4 (HTML metadata in .md)**: Changed `_save_output()` to write metadata to sidecar `.meta.json` file instead of embedding HTML comments in the .md body
     - **Bug 5 (Register inconsistency)**: Added rule 9 (REGISTER CONSISTENCY) to translator prompts in translator.py — pick formal (သည်/၏/၌) OR colloquial (တယ်/ရဲ့/မှာ), not both

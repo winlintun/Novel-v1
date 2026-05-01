@@ -14,20 +14,12 @@ from src.utils.postprocessor import clean_output
 
 logger = logging.getLogger(__name__)
 
-
-BATCH_REFINER_PROMPT = """You are a senior Myanmar literary editor. 
-Refine multiple Myanmar text paragraphs for natural flow and literary quality.
-
-RULES:
-1. Fix awkward phrasing from direct translation
-2. Ensure correct SOV structure and proper particle usage
-3. Use modern storytelling words (မင်း, ဒီ) not archaic (သင်သည်, ဤ)
-4. Keep all Wuxia/Xianxia terms intact
-5. Preserve Markdown formatting
-
-OUTPUT FORMAT:
-Return paragraphs separated by "---PARA---"
-DO NOT add explanations, only the refined text."""
+# Derived from EDITOR_SYSTEM_PROMPT for batch mode — adds separator output format
+BATCH_REFINER_PROMPT = EDITOR_SYSTEM_PROMPT + """
+BATCH MODE: Refine multiple paragraphs at once.
+OUTPUT: Return paragraphs separated by "---PARA---"
+DO NOT add explanations. DO NOT renumber paragraphs.
+"""
 
 
 class Refiner(BaseAgent):

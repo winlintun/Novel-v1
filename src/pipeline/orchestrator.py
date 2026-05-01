@@ -65,6 +65,7 @@ class TranslationPipeline:
         
         # State
         self._shutdown_requested = False
+        self._current_novel: Optional[str] = None
         
         # Register signal handlers
         signal.signal(signal.SIGINT, self._signal_handler)
@@ -77,10 +78,10 @@ class TranslationPipeline:
     
     @property
     def memory_manager(self):
-        """Lazy load memory manager."""
+        """Lazy load memory manager with novel-specific glossary."""
         if self._memory_manager is None:
             from src.memory.memory_manager import MemoryManager
-            self._memory_manager = MemoryManager()
+            self._memory_manager = MemoryManager(novel_name=self._current_novel)
         return self._memory_manager
     
     @property
@@ -194,17 +195,24 @@ class TranslationPipeline:
             )
         return self._context_updater
     
-    def translate_file(self, filepath: str) -> Dict[str, Any]:
+    def translate_file(self, filepath: str, novel_name: Optional[str] = None) -> Dict[str, Any]:
         """Translate a single file.
 
         Args:
             filepath: Path to input file
+            novel_name: Novel name for glossary resolution
 
         Returns:
             Pipeline result dictionary
         """
         self.logger.info(f"Starting translation of file: {filepath}")
         start_time = time.time()
+        
+        # Resolve novel name from filepath if not provided
+        if novel_name:
+            self._current_novel = novel_name
+        else:
+            self._current_novel = self._extract_novel_from_path(filepath)
 
         try:
             # Read file
@@ -279,7 +287,21 @@ class TranslationPipeline:
                 "chapter": str(chapter)
             }
         
-        return self.translate_file(str(chapter_file))
+        self._current_novel = novel
+        return self.translate_file(str(chapter_file), novel_name=novel)
+    
+    @staticmethod
+    def _extract_novel_from_path(filepath: str) -> Optional[str]:
+        """Extract novel name from a filepath like data/input/{novel}/chapter.md."""
+        path = Path(filepath)
+        try:
+            relative = path.relative_to(INPUT_DIR)
+            parts = relative.parts
+            if len(parts) >= 1:
+                return parts[0]  # First component is novel name
+        except ValueError:
+            pass
+        return None
     
     @staticmethod
     def _discover_chapters(novel_dir: Path) -> List[int]:

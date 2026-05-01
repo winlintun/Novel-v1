@@ -11,7 +11,7 @@ fast_config:
 glossary_v3:
   alias_matching: true
   cache_ttl_minutes: 30
-  enabled: true
+  enabled: false
   exception_rules: true
   include_examples: false
   lazy_load: true

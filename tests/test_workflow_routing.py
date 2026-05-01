@@ -24,7 +24,7 @@ class TestWorkflowRouting(unittest.TestCase):
 
     def test_resolve_workflow_auto_detect_english_input(self):
         with tempfile.NamedTemporaryFile("w", suffix=".md", delete=False, encoding="utf-8") as f:
-            f.write("This is an English chapter. The hero walked into the valley.")
+            f.write("This is an English chapter. The hero walked into the valley. The wind blew through the trees as he looked around at the ancient ruins before him.")
             path = f.name
         try:
             args = argparse.Namespace(workflow=None, lang=None, input_file=path, novel=None)
@@ -34,7 +34,7 @@ class TestWorkflowRouting(unittest.TestCase):
 
     def test_resolve_workflow_auto_detect_chinese_input(self):
         with tempfile.NamedTemporaryFile("w", suffix=".md", delete=False, encoding="utf-8") as f:
-            f.write("这是一个中文章节。主角走进了山谷，灵气翻涌。")
+            f.write("这是一个中文章节。主角走进了山谷，灵气翻涌，天地间灵气弥漫。他在这个修仙世界里不断修炼，从筑基到金丹，一路披荆斩棘，终成一代仙尊。")
             path = f.name
         try:
             args = argparse.Namespace(workflow=None, lang=None, input_file=path, novel=None)

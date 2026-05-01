@@ -12,23 +12,9 @@ from src.utils.ollama_client import OllamaClient
 from src.memory.memory_manager import MemoryManager
 from src.utils.json_extractor import safe_parse_terms
 from src.agents.base_agent import BaseAgent
+from src.agents.prompt_patch import EXTRACTOR_SYSTEM_PROMPT
 
 logger = logging.getLogger(__name__)
-
-
-EXTRACTION_PROMPT = """You are a terminology extraction specialist.
-Extract NEW proper nouns from the Chinese Xianxia text that are NOT in the existing glossary.
-
-RULES:
-1. Output ONLY valid JSON. No prose. No markdown fences. No explanation.
-2. Format EXACTLY: {"new_terms": [{"source": "Chinese", "target": "Myanmar", "category": "character|place|level|item"}]}
-3. Do NOT include terms already in the glossary.
-4. If no new terms found, return exactly: {"new_terms": []}
-
-EXAMPLE OUTPUT:
-{"new_terms": [{"source": "林渊", "target": "လင်ယွန်း", "category": "character"}]}
-
-EXTRACT TERMS FROM THIS TEXT:"""
 
 
 class ContextUpdater(BaseAgent):
@@ -53,7 +39,7 @@ class ContextUpdater(BaseAgent):
         Uses safe_parse_terms to handle malformed JSON gracefully.
         
         Args:
-            text: Chinese text to analyze
+            text: Source text to analyze
             
         Returns:
             Dict with extracted entities by category
@@ -61,7 +47,16 @@ class ContextUpdater(BaseAgent):
         # Limit text length for extraction
         sample_text = text[:3000]  # First 3000 chars
         
-        prompt = f"{EXTRACTION_PROMPT}\n\n{sample_text}\n\nENTITIES (JSON):"
+        # Build prompt with glossary context using EXTRACTOR_SYSTEM_PROMPT
+        glossary_str = ""
+        if self.memory:
+            try:
+                glossary_str = self.memory.get_glossary_for_prompt(limit=30) or ""
+                if not isinstance(glossary_str, str):
+                    glossary_str = ""
+            except Exception:
+                pass
+        prompt = EXTRACTOR_SYSTEM_PROMPT.replace("{glossary}", glossary_str).replace("{translated_text}", sample_text)
         
         try:
             raw_response = self.client.chat(prompt=prompt)
@@ -111,47 +106,43 @@ class ContextUpdater(BaseAgent):
     
     def update_glossary(self, entities: Dict[str, List], chapter_num: int) -> int:
         """
-        Add extracted entities to glossary.
+        Add extracted entities to pending glossary for review.
+        Uses the target translation provided by the extraction LLM.
         
         Args:
-            entities: Extracted entities dict
+            entities: Extracted entities dict with 'name' and 'description' (translation)
             chapter_num: Current chapter number
             
         Returns:
-            Number of new terms added
+            Number of new terms added to pending
         """
         added = 0
         
-        # Process characters
-        for char in entities.get('characters', []):
-            name = char.get('name', '')
-            if name and len(name) <= 4:  # Likely a name
-                # Generate simple Myanmar transliteration
-                # In production, this would use proper transliteration
-                myanmar_name = f"[{name}]"  # Placeholder
+        for category_key, category_name in [
+            ('characters', 'character'),
+            ('items_artifacts', 'item'),
+            ('sects_organizations', 'organization'),
+            ('cultivation_realms', 'level'),
+        ]:
+            for entity in entities.get(category_key, []):
+                name = entity.get('name', '').strip()
+                translation = entity.get('description', '').strip()
+                
+                if not name or len(name) > 20:
+                    continue
+                    
+                # Use the LLM-provided translation if it looks valid, else placeholder
+                target = translation if translation and translation != f"[{name}]" else f"【?{name}?】"
                 
                 if self.memory.add_pending_term(
                     source=name,
-                    target=myanmar_name,
-                    category="character",
+                    target=target,
+                    category=category_name,
                     chapter=chapter_num
                 ):
                     added += 1
         
-        # Process other entity types similarly
-        for item in entities.get('items_artifacts', []):
-            name = item.get('name', '')
-            if name:
-                myanmar_name = f"[{name}]"
-                if self.memory.add_pending_term(
-                    source=name,
-                    target=myanmar_name,
-                    category="item",
-                    chapter=chapter_num
-                ):
-                    added += 1
-        
-        logger.info(f"Added {added} new terms to glossary")
+        logger.info(f"Added {added} new terms to pending glossary")
         return added
     
     def update_chapter_context(self, chapter_num: int, translated_text: str):

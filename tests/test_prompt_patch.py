@@ -100,8 +100,9 @@ class TestEditorSystemPrompt(unittest.TestCase):
         self.assertIn("မင်း", EDITOR_SYSTEM_PROMPT)
 
     def test_removes_english(self):
-        """Test prompt requires removing English words."""
-        self.assertIn("Remove any English", EDITOR_SYSTEM_PROMPT)
+        """Test prompt forbids English words."""
+        self.assertIn("English words in narration", EDITOR_SYSTEM_PROMPT)
+        self.assertIn("FORBIDDEN", EDITOR_SYSTEM_PROMPT)
 
 
 class TestExtractorSystemPrompt(unittest.TestCase):
@@ -137,8 +138,8 @@ class TestPromptFormatting(unittest.TestCase):
 
     def test_editor_prompt_contains_examples(self):
         """Test editor prompt contains example input/output."""
-        self.assertIn("He was very sad", EDITOR_SYSTEM_PROMPT)
-        self.assertIn("စိတ်မချမ်းသာမှု", EDITOR_SYSTEM_PROMPT)
+        self.assertIn("ဖန်ယွမ်", EDITOR_SYSTEM_PROMPT)
+        self.assertIn("မြန်မာဘာသာ", EDITOR_SYSTEM_PROMPT)
     
     def test_extractor_prompt_formatting(self):
         """Test extractor prompt accepts format parameters."""

@@ -39,6 +39,24 @@
 
 *No active issues currently.*
 
+### ERROR-045: Workflow Auto-Detect Returns None (Tests Failing)
+**Date**: 2026-05-01
+**File**: `tests/test_workflow_routing.py`, `src/agents/preprocessor.py`
+**Error Message**:
+```
+FAILED: test_resolve_workflow_auto_detect_chinese_input — AssertionError: None != 'way2'
+FAILED: test_resolve_workflow_auto_detect_english_input — AssertionError: None != 'way1'
+```
+**Root Cause**: `Preprocessor.detect_language()` at line 46 returns `"unknown"` when `len(text.strip()) < 50`. Test inputs were too short — Chinese: 21 chars, English: 60 chars (borderline).
+
+**Fix Applied**: Increased test input lengths to exceed 50-char minimum. Chinese text: 65 chars, English text: 130 chars.
+
+**Files Modified**:
+- `tests/test_workflow_routing.py` - Extended auto-detect test inputs
+
+**Status**: RESOLVED
+**Verified By**: pytest (229/229 pass)
+
 ### ERROR-044: Translation Quality Bugs from need_fix_bug.md
 **Date**: 2026-05-01
 **File**: Multiple (postprocessor.py, preprocessor.py, translator.py, myanmar_quality_checker.py, orchestrator.py, settings.yaml)
