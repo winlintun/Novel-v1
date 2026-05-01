@@ -8,9 +8,9 @@
 ---
 
 ## Last Updated
-- Date: 2026-05-01
-- Last task completed:
-  - **FIXED: Postprocessor destroying paragraph structure + 8 duplicate headings** (STATUS: READY_TO_COMMIT, commit 98dbe5a):
+- Date: 2026-05-01 15:30 UTC
+    - **Files Reviewed**: ui/pages/6_Reader.py, src/cli/commands.py, src/cli/__init__.py, src/cli/parser.py, src/main.py, ui/streamlit_app.py
+    - Previous:
     - **Root Cause 1**: `remove_latin_words` had `re.sub(r'\s+', ' ', text)` which collapsed ALL whitespace (including `\n`) to spaces, making output a single line
     - **Root Cause 2**: Model outputs `# အခန်း ၁၂ ## Title` on single line instead of proper `# H1\n\n## H2`
     - **Root Cause 3**: Heading repeated 8 times (once per chunk) due to context buffer leaking heading to subsequent chunk translations

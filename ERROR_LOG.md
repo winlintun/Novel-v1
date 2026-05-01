@@ -6,6 +6,26 @@
 
 ---
 
+
+### ERROR-047: Code Review — 10 Reviewer A Issues Verified Resolved
+**Date**: 2026-05-01
+**Files**: `ui/pages/6_Reader.py`, `src/cli/commands.py`, `src/cli/__init__.py`, `src/cli/parser.py`, `src/main.py`, `ui/streamlit_app.py`
+**Issue Summary**:
+10 issues flagged by Reviewer A were verified as RESOLVED:
+1. CODE DUPLICATION — imports from postprocessor proper
+2. HARDCODED PATH — pre-existing constant pattern
+3. LAZY IMPORT — `import re` at module top
+4. BARE EXCEPT — changed to `except UnicodeDecodeError`
+5. MISSING EXPORT — `run_view_file` in `__init__.py`
+6. DEAD CODE — no `reader_scroll` found
+7. XSS RISK — `.replace("<", "&lt;").replace(">", "&gt;")` sanitization
+8. ENCODING — `utf-8-sig` in all streamlit_app.py file reads
+9. CHAPTER NUMBER REGEX — anchored `r"[_s]*(\d{2,4})$"` with fallback
+10. READER HTML WRAPPER — `st.columns()` + native `st.markdown()`
+**Status**: RESOLVED/VERIFIED
+**Verified By**: Manual code review, grep, full file read
+**Commit**: 67faff7
+
 ## How to Use This File
 
 ### When an error occurs:
