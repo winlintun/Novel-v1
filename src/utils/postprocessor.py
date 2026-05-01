@@ -230,9 +230,92 @@ def remove_latin_words(text: str) -> str:
     """Remove Latin/English word leakage from Myanmar output."""
     # Remove 3+ letter Latin words (but preserve markdown syntax like **, *)
     text = _LATIN_WORD_PATTERN.sub("", text)
-    # Clean up extra whitespace
-    text = re.sub(r'\s+', ' ', text)
+    # Clean up extra horizontal whitespace (spaces/tabs) but preserve newlines
+    # Using [^\S\n]+ collapses runs of horizontal whitespace only,
+    # leaving paragraph breaks (\\n\\n) intact
+    text = re.sub(r'[^\S\n]+', ' ', text)
     return text.strip()
+
+
+def fix_chapter_heading_format(text: str) -> str:
+    """Fix chapter headings that are concatenated on a single line.
+    
+    The model may output '# အခန်း ၁၂ ## Title text' (H1 + H2 + body
+    all on one line). Split into proper markdown:
+        # အခန်း ၁၂
+        ## Title
+        body text...
+    
+    Works on both multi-line and single-line (collapsed) text.
+    """
+    # Pattern: "# အခန်း N ## subtitle body..." — anywhere on a line
+    # Split H1 to its own line, put H2 on next line with blank line between
+    text = re.sub(
+        r'(#\s+အခန်း\s+[\u1040-\u1049\d]+.*?)\s*##\s+',
+        r'\1\n\n## ',
+        text
+    )
+    return text
+
+
+def _split_into_lines_if_needed(text: str) -> str:
+    """Recover paragraph structure from single-line collapsed text.
+    
+    If remove_latin_words collapsed all whitespace to spaces (old bug),
+    this function restores newlines by splitting at chapter heading
+    boundaries and Myanmar sentence-enders (။).
+    """
+    if '\n' in text:
+        return text  # Already has line breaks
+    
+    # Split at each '# အခန်း N' to restore heading boundaries
+    text = re.sub(
+        r'(#\s+အခန်း\s+[\u1040-\u1049\d]+\s*)',
+        r'\n\1',
+        text
+    )
+    
+    # Split after Myanmar sentence-ending marker ။ followed by space
+    # to restore paragraph/sentence boundaries
+    text = re.sub(r'(။)\s+', r'\1\n\n', text)
+    
+    return text.strip()
+
+
+def remove_duplicate_headings(text: str) -> str:
+    """Remove duplicate chapter headings within the body.
+    
+    The translator may repeat '# အခန်း N ## Title' at the start of
+    every chunk. Keep only the first occurrence and skip its associated
+    subtitle line and blank spacer lines.
+    """
+    seen_headings: set = set()
+    lines = text.split('\n')
+    result: list = []
+    in_duplicate_block = False
+    
+    for line in lines:
+        stripped = line.strip()
+        
+        # Detect chapter heading (# အခန်း N)
+        if re.match(r'^#\s+အခန်း\s+[\u1040-\u1049\d]', stripped):
+            if stripped in seen_headings:
+                # Enter skip mode for this heading block
+                in_duplicate_block = True
+                continue
+            seen_headings.add(stripped)
+            result.append(line)
+        elif in_duplicate_block:
+            # Skip subtitle (## ...) and blank spacer lines in the heading block
+            if stripped.startswith('## ') or not stripped:
+                continue
+            # Reached body text — exit skip mode and keep this line
+            in_duplicate_block = False
+            result.append(line)
+        else:
+            result.append(line)
+    
+    return '\n'.join(result)
 
 
 def clean_output(raw: str, aggressive: bool = False) -> str:
@@ -244,7 +327,9 @@ def clean_output(raw: str, aggressive: bool = False) -> str:
     4. Remove Chinese characters (model leakage) - only if aggressive=True
     5. Remove Latin words (English/German leakage) - only if aggressive=True
     6. Collapse 3+ blank lines → 2
-    7. Strip leading/trailing whitespace
+    7. Fix chapter heading format (# X ## Y → proper markdown)
+    8. Remove duplicate chapter headings
+    9. Strip leading/trailing whitespace
     
     Args:
         raw: Raw LLM output
@@ -271,6 +356,9 @@ def clean_output(raw: str, aggressive: bool = False) -> str:
         pass
     
     text = re.sub(r"\n{3,}", "\n\n", text)  # collapse excess blank lines
+    text = _split_into_lines_if_needed(text)  # recover structure from collapsed text
+    text = fix_chapter_heading_format(text)
+    text = remove_duplicate_headings(text)
     text = text.strip()
     return text
 
