@@ -134,7 +134,7 @@ class TranslationPipeline:
             from src.agents.refiner import Refiner
             self._refiner = Refiner(
                 ollama_client=self.ollama_client,
-                memory_manager=self.memory_manager,
+                batch_size=getattr(self.config.processing, 'batch_size', 1),
                 config=self.config.dict()
             )
         return self._refiner
@@ -146,7 +146,6 @@ class TranslationPipeline:
             from src.agents.reflection_agent import ReflectionAgent
             self._reflection_agent = ReflectionAgent(
                 ollama_client=self.ollama_client,
-                memory_manager=self.memory_manager,
                 config=self.config.dict()
             )
         return self._reflection_agent
@@ -180,6 +179,7 @@ class TranslationPipeline:
         if self._qa_tester is None:
             from src.agents.qa_tester import QATesterAgent
             self._qa_tester = QATesterAgent(
+                memory_manager=self.memory_manager,
                 config=self.config.dict()
             )
         return self._qa_tester
@@ -190,6 +190,7 @@ class TranslationPipeline:
         if self._context_updater is None:
             from src.agents.context_updater import ContextUpdater
             self._context_updater = ContextUpdater(
+                ollama_client=self.ollama_client,
                 memory_manager=self.memory_manager,
                 config=self.config.dict()
             )
