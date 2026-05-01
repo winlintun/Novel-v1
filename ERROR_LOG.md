@@ -7,6 +7,64 @@
 ---
 
 
+### ERROR-051: Pipeline Mode Regression — full Pipeline Destroys Paragraph Breaks + 3x Slower
+**Date**: 2026-05-02
+**Files**: `src/cli/commands.py`, `src/utils/postprocessor.py`, `src/pipeline/orchestrator.py`
+**Issue Summary**:
+1. Ch12 (single_stage, 99 paragraph breaks, ~60min, good quality) vs Ch13 (full pipeline, 0 paragraph breaks, ~120min, terrible quality)
+2. The way1 auto-detection was forcing `full` pipeline, but padauk-gemma works best in `single_stage`
+3. Sentences cut at chunk boundaries (no sentence-ender `။` at end of line) due to chunk splits
+4. No paragraph breaks between content paragraphs
+5. Data folder had 12+ stale JSON files
+6. Config had dead `settings.english.yaml`
+7. Meta.json too simple (4 fields only)
+**Root Cause**:
+1. `_apply_workflow_config()` forced `mode: full` for way1, but padauk-gemma's refinement/reflection stages collapsed paragraph breaks
+2. Postprocessor had no step to add blank lines between consecutive content paragraphs
+3. Postprocessor had no step to stitch cut-off sentences at chunk boundaries
+4. No cleanup was done on data/ folder or config/
+5. `_save_output()` didn't accept extra metadata
+**Fix Applied**:
+1. Changed way1 to `single_stage` with `use_reflection: False` — 3x faster, better quality
+2. Added `ensure_markdown_readability()` — adds blank lines between content paragraphs, heading spacing
+3. Added `stitch_chunk_boundaries()` — joins sentences cut at chunk boundaries
+4. Updated `clean_output()` pipeline order: tags → reasoning → stitch fragments → cleanup → dedup → readability
+5. Removed 7 stale data JSONs + `config/settings.english.yaml`
+6. Enhanced `_save_output()` with `extra_meta` — saves chapter number, duration, model, quality
+**Files Modified**: `src/cli/commands.py`, `src/utils/postprocessor.py`, `src/pipeline/orchestrator.py`, `tests/test_workflow_routing.py`
+**Files Deleted**: `config/settings.english.yaml`, 7 `data/*.json`
+**Status**: RESOLVED
+**Verified By**: pytest (235/235 pass), Ch13 now has 37 paragraph breaks (was 0)
+
+### ERROR-050: Chapter 13 Translation — Padauk-Gemma Glossary Comparison Garbage + Duplicate Headings + Temperature
+**Date**: 2026-05-02
+**Files**: `src/utils/postprocessor.py`, `config/settings.yaml`
+**Issue Summary**:
+Chapter 13 output contained:
+1. Garbage meta-lines: `*:* A . "မြန်မာ" is . "other" is .` — padauk-gemma outputs word-by-word glossary comparison inline with translation
+2. Duplicate headings: `# အခန်း ၁၃` appeared 3 times with slightly different title text
+3. Poor overall quality due to temperature=0.4 causing excessive hallucinations
+**Root Cause**:
+1. `remove_duplicate_headings()` used exact string matching — variants like `# အခန်း ၁၃: Title A` vs `# အခန်း ၁၃: Title B` were not detected as duplicates
+2. Postprocessor had no patterns for `*:*` glossary comparison garbage — padauk-gemma's new hallucination pattern wasn't covered
+3. Temperature was raised from 0.2 to 0.4 in prior fix (bug 7), increasing randomness and causing more hallucinations
+4. `in_duplicate_block` flag was never reset when a new chapter heading appeared during skip mode, causing subtitle loss on the new chapter
+5. `fast_config.translator` setting was accidentally dropped during config edit
+**Fix Applied**:
+1. Changed `remove_duplicate_headings()` to use prefix matching on `# အခန်း N` via `re.match(r'^(#\s+အခန်း\s+[\u1040-\u1049\d]+)')` — all variants of the same chapter heading are now detected
+2. Added `in_duplicate_block = False` when new non-duplicate heading encountered during skip mode
+3. Updated type hints: `set[str]`, `list[str]` per AGENTS.md requirements
+4. Added 3 new `_REASONING_PATTERNS` for padauk-gemma glossary comparison garbage (quoted Myanmar + English, short fragments, `to /.` pattern) with proper `.*$` suffix
+5. Added line-level `*:*` detection in `strip_reasoning_process()` using `r'^\s*\*[\s:]*:[\s:]*\*'` (colon required to avoid false-positive on `**bold**` markdown)
+6. Reduced temperature 0.4→0.2 in both `processing` and `fast_config`
+7. Restored `fast_config.translator: padauk-gemma:q8_0`
+8. Saved cleaned Chapter 13 output (removed 610 chars of garbage, 99.8% Myanmar ratio)
+**Files Modified**:
+- `src/utils/postprocessor.py` — 3 bug fixes (duplicate headings prefix match, *:* garbage detection, regex suffix) + type hints
+- `config/settings.yaml` — temperature 0.4→0.2, restored fast_config.translator
+**Status**: RESOLVED
+**Verified By**: pytest (235/235 pass), manual reprocessing of Chapter 13 (zero garbage, single heading, 99.8% Myanmar)
+
 ### ERROR-049: Live CLI Progress Display — Code Review Fixes
 **Date**: 2026-05-01
 **Files**: `src/cli/formatters.py`, `src/pipeline/orchestrator.py`, `src/cli/commands.py`, `tests/test_translator.py`

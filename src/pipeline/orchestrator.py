@@ -99,6 +99,13 @@ class TranslationPipeline:
         if self._memory_manager is None:
             from src.memory.memory_manager import MemoryManager
             self._memory_manager = MemoryManager(novel_name=self._current_novel)
+            # Auto-approve pending glossary terms marked 'approved' by user
+            try:
+                auto_count = self._memory_manager.auto_approve_pending_terms()
+                if auto_count:
+                    self.logger.info(f"Auto-promoted {auto_count} pending glossary terms")
+            except Exception:
+                pass
         return self._memory_manager
     
     @property
@@ -249,10 +256,27 @@ class TranslationPipeline:
             # Postprocess
             result_text = self._postprocess(translated_chunks)
 
-            # Save output
-            output_path = self._save_output(filepath, result_text)
-
             duration = time.time() - start_time
+
+            # Save output
+            output_path = self._save_output(filepath, result_text, extra_meta={
+                "duration_seconds": round(duration, 1),
+                "model": self.config.models.translator,
+                "chunk_count": len(chunk_metrics) if chunk_metrics else None,
+                "myanmar_ratio": round(
+                    self._calc_myanmar_ratio(result_text), 3
+                ) if result_text else 0.0,
+                "char_count": len(result_text) if result_text else 0,
+                "avg_quality_score": round(
+                    sum(m["quality_score"] for m in chunk_metrics) / len(chunk_metrics), 1
+                ) if chunk_metrics else None,
+            })
+
+            # Auto-review: generate quality report after saving
+            try:
+                self._auto_review(str(output_path), result_text)
+            except Exception as e:
+                self.logger.warning(f"Auto-review failed (non-fatal): {e}")
 
             # Compute summary metrics
             avg_score = 0
@@ -727,12 +751,13 @@ class TranslationPipeline:
         
         return result
     
-    def _save_output(self, input_path: str, text: str) -> Path:
+    def _save_output(self, input_path: str, text: str, extra_meta: Optional[Dict[str, Any]] = None) -> Path:
         """Save translated output.
         
         Args:
             input_path: Original input file path
             text: Translated text
+            extra_meta: Additional metadata to save
             
         Returns:
             Path to output file
@@ -751,12 +776,26 @@ class TranslationPipeline:
         if self.config.output.add_metadata:
             from src.utils.file_handler import FileHandler
             meta_path = output_path.with_suffix('.meta.json')
+            # Extract chapter number from filename
+            import re
+            chapter_num = None
+            m = re.search(r'(\d+)', output_path.stem)
+            if m:
+                chapter_num = int(m.group(1))
+            
             metadata = {
                 "translated_at": datetime.now().isoformat(),
                 "source": str(input_path),
                 "pipeline": self.config.translation_pipeline.mode,
                 "output_file": str(output_path.name),
+                "novel": self._current_novel,
+                "chapter": chapter_num,
             }
+            # Merge extra metadata (duration, quality, etc.)
+            if extra_meta:
+                # Filter out None values
+                metadata.update({k: v for k, v in extra_meta.items() if v is not None})
+            
             try:
                 import json
                 meta_content = json.dumps(metadata, indent=2, ensure_ascii=False)
@@ -772,6 +811,45 @@ class TranslationPipeline:
         
         return output_path
     
+    def _auto_review(self, output_path: str, translated_text: str = "") -> None:
+        """Run automatic quality review on the translated output file.
+
+        Generates a report in logs/report/ that can be read by an AI agent
+        to determine what needs to be fixed or improved.
+
+        Args:
+            output_path: Path to the saved .mm.md file
+            translated_text: The translated text (avoid re-reading file)
+        """
+        try:
+            from src.utils.translation_reviewer import review_and_report
+
+            report, report_path = review_and_report(
+                output_path,
+                novel=self._current_novel,
+            )
+
+            self.logger.info(
+                f"Auto-review: score={report.total_score}/100, "
+                f"passed={len(report.passed_checks)}, "
+                f"warnings={len(report.warnings)}, "
+                f"critical={len(report.critical_fixes)}"
+            )
+            self.logger.info(f"Review report saved: {report_path}")
+
+            self._report({
+                "type": "review_complete",
+                "score": report.total_score,
+                "passed": len(report.passed_checks),
+                "warnings": len(report.warnings),
+                "critical": len(report.critical_fixes),
+                "report_path": str(report_path),
+            })
+        except ImportError as e:
+            self.logger.debug(f"Review module not available: {e}")
+        except Exception as e:
+            self.logger.error(f"Auto-review failed: {e}")
+
     def _cleanup_resources(self) -> None:
         """Internal method to clean up resources and free RAM after translation."""
         self.logger.info("Cleaning up resources and freeing RAM...")

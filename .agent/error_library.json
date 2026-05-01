@@ -1,6 +1,6 @@
 {
-  "last_updated": "2026-05-01T00:00:00Z",
-  "notes": "ERR-007 through ERR-042 are reserved for future Myanmar-specific translation errors (ArchaicWordUsage, ParticleRepetition, PlaceholderResolved, etc.). Do not reuse these IDs.",
+  "last_updated": "2026-05-02T00:40:00Z",
+  "notes": "ERR-007 through ERR-042 are reserved for future Myanmar-specific translation errors. ERR-050 and ERR-051 are new padauk-gemma-specific errors. Do not reuse these IDs.",
   "errors": [
     {
       "id": "ERR-001",
@@ -145,6 +145,24 @@
       "prevention": "All agents should have consistent constructor patterns. Test full pipeline initialization.",
       "times_seen": 1,
       "last_seen": "2026-05-01"
+    },
+    {
+      "id": "ERR-050",
+      "error_type": "PadaukGemmaGlossaryComparisonGarbage",
+      "trigger": "padauk-gemma model outputs word-by-word glossary comparison lines (*:* \"word\" is . \"other\" is .) in translation output",
+      "solution": "Add postprocessor patterns for *:* lines with English comparison words. Add line-level *:* detection in strip_reasoning_process().",
+      "prevention": "Keep padauk-gemma temperature ≤ 0.2 to reduce hallucinations. Add anti-glossary-comparison instruction to translator prompt.",
+      "times_seen": 1,
+      "last_seen": "2026-05-02"
+    },
+    {
+      "id": "ERR-051",
+      "error_type": "DuplicateHeadingVariant",
+      "trigger": "remove_duplicate_headings() uses exact string match but headings vary slightly between chunks (different title text, with/without subtitle)",
+      "solution": "Use prefix matching on '# အခန်း N' pattern instead of exact string comparison. Reset in_duplicate_block flag when new chapter heading encountered.",
+      "prevention": "Always test deduplication with varied heading formats including minor character differences.",
+      "times_seen": 1,
+      "last_seen": "2026-05-02"
     }
   ]
 }

@@ -199,6 +199,12 @@ Examples:
         help="View a translated .mm.md file with formatted output in terminal"
     )
     utility_group.add_argument(
+        "--review",
+        type=str,
+        dest="review_file",
+        help="Review a translated .mm.md file against quality rules and generate report"
+    )
+    utility_group.add_argument(
         "--clean",
         action="store_true",
         help="Clear Python cache (__pycache__ and .pyc files) before running"
@@ -236,7 +242,7 @@ def validate_arguments(args: argparse.Namespace) -> None:
         SystemExit: If validation fails
     """
     # Check for required arguments when not running utility commands
-    utility_commands = [args.ui, args.test, args.generate_glossary and not args.novel, args.view_file]
+    utility_commands = [args.ui, args.test, args.generate_glossary and not args.novel, args.view_file, args.review_file]
     
     if not any(utility_commands):
         if not args.novel and not args.input_file:

@@ -407,7 +407,7 @@ class MemoryManager:
             source: The source term to reject
 
         Returns:
-            True if removed, False if not found
+            True if rejected successfully, False if not found
         """
         pending_data = FileHandler.read_json(self.pending_path)
         if not pending_data:
@@ -423,6 +423,42 @@ class MemoryManager:
         FileHandler.write_json(self.pending_path, pending_data)
         logger.info(f"Rejected pending term: {source}")
         return True
+
+    def auto_approve_pending_terms(self) -> int:
+        """Automatically promote pending terms with status 'approved'.
+
+        User writes 'approved' in the status field of glossary_pending.json,
+        then on next pipeline run, these terms are auto-promoted to the
+        main glossary and removed from the pending list.
+
+        Returns:
+            Number of terms promoted
+        """
+        pending_data = FileHandler.read_json(self.pending_path)
+        if not pending_data:
+            return 0
+
+        pending_terms = pending_data.get("pending_terms", [])
+        approved = [t for t in pending_terms if t.get("status") == "approved"]
+
+        if not approved:
+            return 0
+
+        for term in approved:
+            source = term.get("source", "")
+            target = term.get("target", "")
+            category = term.get("category", "term")
+            chapter = term.get("extracted_from_chapter", 0)
+            if source and target:
+                self.add_term(source, target, category, chapter)
+
+        # Remove approved terms from pending
+        pending_data["pending_terms"] = [
+            t for t in pending_terms if t.get("status") != "approved"
+        ]
+        FileHandler.write_json(self.pending_path, pending_data)
+        logger.info(f"Auto-approved {len(approved)} pending glossary terms")
+        return len(approved)
 
     def get_all_memory_for_prompt(self) -> Dict[str, str]:
         """Get all memory tiers formatted for prompts."""

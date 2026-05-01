@@ -8,8 +8,74 @@
 ---
 
 ## Last Updated
-- Date: 2026-05-01
+- Date: 2026-05-02
 - Last task completed:
+  - **ADDED: Translation Quality Review System + Auto-Review Pipeline + Pending Glossary Workflow** (STATUS: READY_TO_COMMIT):
+    - **Translation Rules File**: Created `working_data/translation_rules.md` — comprehensive quality rules with 10 linguistic checks (L1-L10) and 6 quantitative checks (Q1-Q6), scoring matrix, and report format spec
+    - **Review Module**: Created `src/utils/translation_reviewer.py` — runs all quality checks against output files:
+      - Q1: Myanmar ratio (≥70% PASS, <30% REJECT)
+      - Q2: Foreign script leakage (Chinese, Bengali, Thai, Korean)
+      - Q3: English/Latin word leakage
+      - Q4: Markdown structure (H1 count, bold balance)
+      - Q5: Content completeness (char count, error markers, placeholders)
+      - Q6: Paragraph structure (breaks, readability)
+      - L1: Archaic words (သင်သည်, ဤ, ထို, သည်သည်ကို)
+      - L2: Particle repetition (same particle ≥3x consecutively — use backreference)
+      - L4: Register consistency (formal vs colloquial)
+      - L7: Overlong sentences (>50 words)
+      - L8: Sentence enders (proper ။, ၏ ending)
+      - Paragraph duplication (chunk boundary dedup check)
+      - **Note**: L3 (SVO→SOV), L5 (pronoun hierarchy), L6 (emotional quality), L9 (glossary consistency) are defined in rules but best assessed by LLM QualityAgent
+    - **CLI Integration**: `--review` flag added to parser.py — `python -m src.main --review file.mm.md`
+    - **Auto-Review**: Pipeline automatically runs review after each translation via `_auto_review()` in orchestrator.py — generates `logs/report/{novel}_chapter_{N}_review_{timestamp}.md`
+    - **Pending Glossary Workflow**: Added `auto_approve_pending_terms()` to MemoryManager — when user edits pending file with `"status": "approved"`, next pipeline run auto-promotes terms to main glossary. Auto-approve runs on MemoryManager lazy-load initialization.
+    - **Reviewer fixes applied**:
+      1. Fixed `_cleanup_resources()` method restored (was absorbed into `_auto_review`)
+      2. Added `သည်သည်ကို` to archaic word check
+      3. Fixed particle repetition regex to use backreference (same particle only)
+      4. Fixed sentence enders to exclude ASCII punctuation
+      5. Fixed `save_review_report()` to use UTF-8-SIG encoding
+      6. Added `_check_overlong_sentences()` and `_check_paragraph_duplication()` functions
+    - **Files Created**: `working_data/translation_rules.md`, `src/utils/translation_reviewer.py`, `tests/test_translation_reviewer.py` (34 tests)
+    - **Files Modified**: `src/cli/parser.py`, `src/cli/commands.py`, `src/main.py`, `src/pipeline/orchestrator.py`, `src/memory/memory_manager.py`
+    - **Tests**: 269/269 pass (235 existing + 34 new)
+  - Previous tasks:
+  - **FIXED: Pipeline Mode, Paragraph Breaks, Chunk Stitching, Data Cleanup, Config Simplification, Enhanced Metadata** (STATUS: READY_TO_COMMIT):
+    - **Root Cause 1 (CRITICAL)**: Ch12 (single_stage, 99 blank lines, good quality, ~60 min) vs Ch13 (full pipeline, 0 blank lines, terrible quality, ~120 min). The `_apply_workflow_config` was forcing `full` pipeline for way1 (EN→MM), but padauk-gemma works BETTER in `single_stage` mode — `full` adds 2 extra API calls per chunk (3x slower) and refinement/reflection with padauk-gemma collapses all paragraph breaks
+    - **Root Cause 2**: No blank lines between paragraphs in Ch13 output — 0 double-newlines vs Ch12's 99
+    - **Root Cause 3**: Sentences cut at chunk boundaries (lines 10, 13, 23, 29, 38 end mid-sentence) — `\n\n` between chunks creates paragraph break inside sentences
+    - **Root Cause 4**: Data folder had 12+ JSON files (copies, backups, test files) polluting the directory
+    - **Root Cause 5**: `config/settings.english.yaml` (189 lines) was stale — not referenced anywhere in code
+    - **Root Cause 6**: Meta.json only had 4 fields — no chapter number, duration, quality metrics
+    - **Fixes Applied**:
+      1. **Pipeline mode**: Changed way1 from `full` to `single_stage` in `commands.py` `_apply_workflow_config()` — padauk-gemma produces better quality + 3x faster in single-stage. Updated test.
+      2. **`ensure_markdown_readability()`**: New postprocessor function — adds blank lines between consecutive content paragraphs that lack them, preserves existing blank lines, ensures heading spacing. Does NOT strip existing blank lines.
+      3. **`stitch_chunk_boundaries()`**: New postprocessor function — detects sentences cut at chunk boundaries (no `။`/`၊`/`"` ender) and joins them with the next Myanmar content line, skipping blank lines between
+      4. **`clean_output()`**: Updated to call `stitch_chunk_boundaries()` (after tag stripping, before dedup) and `ensure_markdown_readability()` (final step after dedup)
+      5. **Data cleanup**: Removed 7 stale JSON files (`context_memory (Copy).json`, `glossary (Copy).json`, `glossary_backup_gudaoxianhong_20260430_203825.json`, 4 test files) — kept only `glossary_reverend-insanity.json`, `glossary_pending_reverend-insanity.json`, `context_memory_reverend-insanity.json`, `glossary_pending.json`, `context_memory.json`
+      6. **Config simplifed**: Removed `config/settings.english.yaml` (189 lines, not referenced anywhere)
+      7. **Enhanced `_save_output()`**: Now accepts `extra_meta` dict — saves chapter number (extracted from filename), novel name, duration_seconds, model used, chunk_count, myanmar_ratio, char_count, avg_quality_score. Extracts chapter number from filename via regex.
+      8. **Output file fixed**: Ch13 now has 75 lines, 37 paragraph breaks (up from 0), proper readability
+    - **Files Modified**: `src/cli/commands.py`, `src/utils/postprocessor.py`, `src/pipeline/orchestrator.py`, `tests/test_workflow_routing.py`
+    - **Files Deleted**: `config/settings.english.yaml`, 7 data/*.json files
+    - **Tests**: 235/235 pass
+  - Previous tasks:
+  - **FIXED: Chapter 13 Translation Quality — Garbage Meta-Lines + Duplicate Headings + Temperature** (STATUS: READY_TO_COMMIT):
+    - **Root Cause 1**: padauk-gemma model outputs glossary comparison garbage lines (`*:* "မြန်မာ" is . "other" is .`) — a new hallucination pattern not caught by existing postprocessor patterns
+    - **Root Cause 2**: `remove_duplicate_headings()` used exact string matching, but chapter headings differ slightly between chunks (different Myanmar characters in title, or with/without subtitle suffix) → duplicate headings survived
+    - **Root Cause 3**: Temperature was raised from 0.2 to 0.4 in a prior fix — increased randomness caused more padauk-gemma hallucinations
+    - **Fixes Applied**:
+      1. `remove_duplicate_headings()`: Changed from exact match to prefix match (`r'#\s+အခန်း\s+[\u1040-\u1049\d]+'`) — catches all variants of the same chapter heading. Added `in_duplicate_block` reset when new chapter heading encountered during skip mode (prevents skipping subtitle of a new chapter after duplicate block). Updated type hints to `set[str]` / `list[str]`.
+      2. `strip_reasoning_process()`: Added line-level `*:*` garbage detection — lines matching `r'^\s*\*[\s:]*:[\s:]*\*'` (requires colon between asterisks to avoid false-positive on `**bold**` markdown)
+      3. `_REASONING_PATTERNS`: Added 3 new regex patterns for padauk-gemma glossary comparison garbage:
+         - `^\s*\*[\s:]*\*.*?\"[\u1000-\u109F]+\".*?(?:is|be|of|on|a|an|the)\b.*$` — lines with Myanmar quoted text + English comparison words
+         - `^\s*\*[\s:]*\*[\s,.]*$` — short garbage fragments like `* :* , .`
+         - `^\s*\*[\s:]*\*.*?to\s*/\.\s*.*$` — `*:* to /.` pattern lines (fixed missing `.*$` suffix to consume full line)
+      4. `config/settings.yaml`: Reduced temperature 0.4→0.2 for both `processing` and `fast_config` sections (per long_term_memory: padauk-gemma best at temp=0.2). Restored missing `fast_config.translator: padauk-gemma:q8_0`.
+      5. **Output file fixed**: `data/output/reverend-insanity/reverend-insanity_chapter_013.mm.md` cleaned (610 chars of garbage removed, 99.8% Myanmar ratio, 1 heading)
+    - **Files Modified**: `src/utils/postprocessor.py` (+25 lines), `config/settings.yaml` (-2 temp, +1 translator)
+    - **Tests**: 235/235 pass
+  - Previous tasks:
   - **ADDED: Live CLI Progress Display for Translation Pipeline** (STATUS: READY_TO_COMMIT):
     - Added `print_progress_event()` to `src/cli/formatters.py` — color-coded per-chunk translation progress with timing, quality scores, Myanmar ratio, and summary
     - Added `set_progress_callback()` / `_report()` to `TranslationPipeline` in `src/pipeline/orchestrator.py` — non-intrusive callback pattern

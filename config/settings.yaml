@@ -6,7 +6,7 @@ fast_config:
   num_ctx: 4096
   refiner: padauk-gemma:q8_0
   repeat_penalty: 1.3
-  temperature: 0.4
+  temperature: 0.2
   translator: padauk-gemma:q8_0
 glossary_v3:
   alias_matching: true
@@ -94,7 +94,7 @@ processing:
   repeat_penalty: 1.15
   request_timeout: 300
   stream: true
-  temperature: 0.4
+  temperature: 0.2
   top_k: 40
   top_p: 0.95
 project:

@@ -1,6 +1,18 @@
 {
-  "last_updated": "2026-05-01T00:00:00Z",
+  "last_updated": "2026-05-02T00:40:00Z",
   "lessons": [
+    {
+      "date": "2026-05-02",
+      "context": "Novel: Reverend Insanity — padauk-gemma glossary comparison garbage",
+      "lesson": "padauk-gemma at temperature ≥ 0.4 outputs word-by-word glossary comparison junk (*:* \"word\" is . \"other\" is .) mixed with translation. These are NOT caught by existing reasoning-stripping patterns. Temperature 0.2 prevents this behavior.",
+      "action": "Always use temperature ≤ 0.2 for padauk-gemma. Add *:* pattern detection in postprocessor as defense-in-depth."
+    },
+    {
+      "date": "2026-05-02",
+      "context": "Duplicate chapter headings re-appeared after postprocessor fix",
+      "lesson": "remove_duplicate_headings() used exact string match but the padauk-gemma model outputs slightly different heading text per chunk (e.g., နှင်းမှုန် vs နှင်းစက်). Prefix matching on '# အခန်း N' pattern is required.",
+      "action": "Always use prefix/regex matching for heading deduplication, not exact string comparison."
+    },
     {
       "date": "2026-05-01",
       "context": "Project infrastructure initialization",
@@ -19,8 +31,8 @@
     "padauk-gemma:q8_0": {
       "avg_myanmar_ratio": 0.98,
       "chapters_tested": 12,
-      "notes": "Primary EN→MM model. 98%+ Myanmar ratio. Best results with temp=0.2, repeat_penalty=1.15.",
-      "last_used": "2026-05-01"
+      "notes": "Primary EN→MM model. 98%+ Myanmar ratio. Best results with temp=0.2, repeat_penalty=1.15. DO NOT increase temperature above 0.2 — causes glossary comparison garbage (*:* pattern).",
+      "last_used": "2026-05-02"
     },
     "alibayram/hunyuan:7b": {
       "avg_quality_score": 72.0,

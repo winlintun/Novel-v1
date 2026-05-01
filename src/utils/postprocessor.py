@@ -63,6 +63,13 @@ _REASONING_PATTERNS: List[re.Pattern] = [
     re.compile(r"\(This is.*?\)", re.MULTILINE | re.IGNORECASE),
     # NEW: Remove lines with only bullet markers and no Myanmar
     re.compile(r"^\s*\*\s*$", re.MULTILINE),
+    # PADAUK-GEMMA: Glossary comparison garbage lines
+    # Pattern: *:* A . "မြန်မာစကားလုံး" is . "နောက်ထပ်" is .
+    re.compile(r"^\s*\*[\s:]*\*.*?\"[\u1000-\u109F]+\".*?(?:is|be|of|on|a|an|the)\b.*$", re.MULTILINE),
+    # Pattern: * :* , .  or  * :* . .  (short garbage fragments)
+    re.compile(r"^\s*\*[\s:]*\*[\s,.]*$", re.MULTILINE),
+    # Pattern: *:* to /. "word" is ...
+    re.compile(r"^\s*\*[\s:]*\*.*?to\s*/\.\s*.*$", re.MULTILINE),
 ]
 
 # Thai Unicode range — should never appear in Myanmar output
@@ -175,6 +182,13 @@ def strip_reasoning_process(text: str) -> str:
         line = re.sub(r'\(This is.*?\)', '', line, flags=re.IGNORECASE)
         line = re.sub(r'\(.*?\)', '', line)  # Remove all parenthetical content
         
+        # Skip padauk-gemma glossary comparison garbage lines (*:* pattern)
+        # These look like: *:* "word" is . "other" is .
+        # Or: * :* , .  (short garbage fragments with English)
+        # NOTE: requires colon between asterisks to avoid matching **bold** markdown
+        if re.match(r'^\s*\*[\s:]*:[\s:]*\*', original_line):
+            continue
+            
         # Skip empty lines or lines with only whitespace
         if not line.strip():
             continue
@@ -288,33 +302,43 @@ def remove_duplicate_headings(text: str) -> str:
     The translator may repeat '# အခန်း N ## Title' at the start of
     every chunk. Keep only the first occurrence and skip its associated
     subtitle line and blank spacer lines.
+
+    Uses prefix matching: '# အခန်း ၁၃: Title A' and '# အခန်း ၁၃'
+    are both treated as the same chapter heading block.
     """
-    seen_headings: set = set()
+    seen_chapters: set[str] = set()
     lines = text.split('\n')
-    result: list = []
+    result: list[str] = []
     in_duplicate_block = False
-    
+
     for line in lines:
         stripped = line.strip()
-        
-        # Detect chapter heading (# အခန်း N)
-        if re.match(r'^#\s+အခန်း\s+[\u1040-\u1049\d]', stripped):
-            if stripped in seen_headings:
+
+        # Detect chapter heading (# အခန်း N...)
+        heading_match = re.match(
+            r'^(#\s+အခန်း\s+[\u1040-\u1049\d]+)',
+            stripped
+        )
+        if heading_match:
+            chapter_prefix = heading_match.group(1)
+            if chapter_prefix in seen_chapters:
                 # Enter skip mode for this heading block
                 in_duplicate_block = True
                 continue
-            seen_headings.add(stripped)
+            # New chapter heading — exit any prior skip mode
+            in_duplicate_block = False
+            seen_chapters.add(chapter_prefix)
             result.append(line)
         elif in_duplicate_block:
-            # Skip subtitle (## ...) and blank spacer lines in the heading block
-            if stripped.startswith('## ') or not stripped:
+            # Skip subtitle (## ...), spacer lines (---, blank), and heading variant lines
+            if stripped.startswith('## ') or not stripped or stripped.startswith('---'):
                 continue
             # Reached body text — exit skip mode and keep this line
             in_duplicate_block = False
             result.append(line)
         else:
             result.append(line)
-    
+
     return '\n'.join(result)
 
 
@@ -374,18 +398,181 @@ def detect_potential_hallucinations(text: str, known_terms: Optional[set] = None
     return warnings
 
 
+def ensure_markdown_readability(text: str) -> str:
+    """Ensure output has proper paragraph separation for readability.
+    
+    - Adds blank lines between consecutive content paragraphs that lack them
+    - Preserves existing blank lines (does not remove them)
+    - Proper heading spacing: blank line before and after H1/H2
+    - No more than 2 consecutive blank lines
+    """
+    if not text:
+        return text
+
+    lines = text.split('\n')
+    result: list[str] = []
+    in_blank_run = False
+
+    for line in lines:
+        stripped = line.strip()
+        is_blank = not stripped
+
+        # Handle blank lines: allow up to 2 consecutive blanks
+        if is_blank:
+            if in_blank_run and result and result[-1] == '':
+                # Already have 1 blank, this makes 2 -> skip
+                continue
+            if result and result[-1] != '':
+                result.append('')
+            in_blank_run = True
+            continue
+
+        in_blank_run = False
+
+        # Detect headings
+        is_heading = stripped.startswith('#')
+
+        # Add blank line before heading if previous line was content
+        if is_heading and result and result[-1] != '':
+            result.append('')
+
+        result.append(stripped)
+
+        # Add blank line after H1 heading
+        if stripped.startswith('# ') and not stripped.startswith('## '):
+            result.append('')
+
+    # Post-pass: add blank lines between consecutive non-heading content paragraphs
+    # that are NOT already separated by blank lines
+    final: list[str] = []
+    for i, line in enumerate(result):
+        if i > 0 and line and result[i-1] and line != '' and result[i-1] != '':
+            # Two consecutive content lines without blank between them
+            prev_is_heading = result[i-1].startswith('#')
+            curr_is_heading = line.startswith('#')
+            if not prev_is_heading and not curr_is_heading:
+                final.append('')
+        final.append(line)
+
+    # Remove leading/trailing blanks
+    while final and final[0] == '':
+        final.pop(0)
+    while final and final[-1] == '':
+        final.pop()
+
+    return '\n'.join(final)
+
+
+def stitch_chunk_boundaries(text: str) -> str:
+    """Stitch sentences cut at chunk boundaries.
+    
+    When chunks are joined with '\n\n', a sentence that was split at the
+    chunk boundary (e.g., 'He went to the\n\nold house') gets a paragraph
+    break in the middle. This function detects and joins such fragments.
+
+    A sentence fragment is a line that ends without a Myanmar sentence-ender
+    and is followed by a continuation line (starts with a Myanmar medial
+    character like vowel sign or asat, indicating mid-word continuation).
+    """
+    # Myanmar sentence-enders: full stop, comma, quote markers
+    _MYANMAR_ENDERS = ('။', '၊', '"', '\u201d', "'", '!', '?',
+                        '\u104f',  # ၏ (literary/genitive ender, common in Wuxia)
+                        '\u1000',  # dummy (not an ender, just for set)
+                        )
+    _ENDER_SET = {'။', '၊', '"', '\u201d', "'", '!', '?', '၏'}
+
+    # Separator/marker lines that should never be stitched
+    _SEPARATORS = ('---', '***', '===')
+
+    def _is_ender(line: str) -> bool:
+        """Check if line ends with a Myanmar sentence-ender."""
+        stripped = line.rstrip()
+        if not stripped:
+            return False
+        last_char = stripped[-1]
+        return last_char in _ENDER_SET
+
+    def _is_continuation(line: str) -> bool:
+        """Check if line starts like a mid-word continuation (medial character).
+        
+        Myanmar medial characters include: vowel signs (ၲ-ၰ), asat (ၹ),
+        great sa (ၿ), tone marks that attach to a preceding consonant.
+        A new sentence always starts with a full consonant letter (က-အ).
+        """
+        if not line:
+            return False
+        first_char = line[0]
+        code = ord(first_char)
+        # Myanmar medial/vowel signs that indicate mid-word continuation:
+        # U+1039 virama/asat, U+102C-1032 vowels, U+1036 anusvara,
+        # U+1037 tone, U+1038 visarga, U+103A asat
+        return (0x102C <= code <= 0x1032 or
+                code in (0x1036, 0x1037, 0x1038, 0x1039, 0x103A))
+
+    lines = text.split('\n')
+    result: list[str] = []
+    i = 0
+
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.strip()
+        
+        # Skip blank lines (preserved as-is)
+        if not stripped:
+            result.append('')
+            i += 1
+            continue
+
+        # NEVER stitch separator lines (---, ***, ===)
+        is_separator = any(stripped.startswith(s) for s in _SEPARATORS)
+        if is_separator:
+            result.append(stripped)
+            i += 1
+            continue
+
+        # Check if this line looks like a truncated sentence:
+        # - Does NOT end with a sentence-ender
+        # - Next content line is a continuation (starts with medial char)
+        if not _is_ender(stripped) and i + 1 < len(lines):
+            # Find next content line, skipping blanks
+            j = i + 1
+            while j < len(lines) and not lines[j].strip():
+                j += 1
+            if j < len(lines):
+                next_content = lines[j].strip()
+                # Only stitch if next line starts like a mid-word continuation
+                # (NOT a heading, separator, number, or new sentence-starting consonant)
+                if (next_content
+                    and not next_content.startswith('#')
+                    and not any(next_content.startswith(s) for s in _SEPARATORS)
+                    and not next_content[0].isdigit()
+                    and not next_content[0] in '*-'
+                    and _is_continuation(next_content)):
+                    # Stitch: join lines, preserving separator blank lines
+                    stitched = stripped + next_content
+                    result.append(stitched)
+                    i = j + 1
+                    continue
+
+        result.append(stripped)
+        i += 1
+
+    return '\n'.join(result)
+
+
 def clean_output(raw: str, aggressive: bool = False) -> str:
     """
     Full postprocessing pipeline. Apply in order:
     1. Strip reasoning tags (<think>, etc.)
     2. Strip reasoning process (model's analysis sections)
     3. Strip header artifacts
-    4. Remove Chinese characters (model leakage) - only if aggressive=True
-    5. Remove Latin words (English/German leakage) - only if aggressive=True
+    4. Stitch chunk boundary fragments (join truncated sentences)
+    5. Remove Chinese/Bengali/Latin leakage (aggressive mode only)
     6. Collapse 3+ blank lines → 2
     7. Fix chapter heading format (# X ## Y → proper markdown)
     8. Remove duplicate chapter headings
-    9. Strip leading/trailing whitespace
+    9. Ensure markdown readability (paragraph breaks, heading spacing)
+    10. Strip leading/trailing whitespace
     
     Args:
         raw: Raw LLM output
@@ -400,21 +587,20 @@ def clean_output(raw: str, aggressive: bool = False) -> str:
     text = strip_reasoning_process(text)
     text = strip_header_artifacts(text)
     
+    # Stitch fragments at chunk boundaries BEFORE other processing
+    text = stitch_chunk_boundaries(text)
+    
     # Fixed: Only aggressively remove Chinese/Latin if explicitly requested
-    # Per need_fix.md: Over-aggressive post-processing can corrupt Myanmar script output
     if aggressive:
         text = remove_chinese_characters(text)
         text = remove_bengali_characters(text)
         text = remove_latin_words(text)
-    else:
-        # Light cleanup: only remove obvious leakage patterns, not all Latin/Chinese
-        # This preserves intentional mixed content (like pinyin names in parentheses)
-        pass
     
     text = re.sub(r"\n{3,}", "\n\n", text)  # collapse excess blank lines
     text = _split_into_lines_if_needed(text)  # recover structure from collapsed text
     text = fix_chapter_heading_format(text)
     text = remove_duplicate_headings(text)
+    text = ensure_markdown_readability(text)  # proper paragraph breaks, heading spacing
     text = text.strip()
     return text
 

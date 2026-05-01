@@ -31,6 +31,7 @@ from src.cli.commands import (
     run_ui_launch,
     run_test,
     run_view_file,
+    run_review,
 )
 
 
@@ -52,6 +53,9 @@ def main() -> int:
     
     if args.view_file:
         return run_view_file(args)
+
+    if args.review_file:
+        return run_review(args)
     
     # Validate arguments for translation commands
     validate_arguments(args)

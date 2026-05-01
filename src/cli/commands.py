@@ -447,6 +447,65 @@ def run_view_file(args: argparse.Namespace) -> int:
     return 0
 
 
+def run_review(args: argparse.Namespace) -> int:
+    """Run quality review on a translated output file.
+    
+    Args:
+        args: Parsed command line arguments (must have review_file)
+
+    Returns:
+        Exit code (0 for success, 1 for failure)
+    """
+    logger = setup_logging()
+
+    filepath = args.review_file
+    p = Path(filepath)
+
+    if not p.exists():
+        logger.error(f"File not found: {filepath}")
+        return 1
+
+    from src.utils.translation_reviewer import review_and_report
+
+    # Find associated log file (most recent in logs/)
+    log_file = None
+    logs_dir = Path("logs")
+    if logs_dir.is_dir():
+        log_files = sorted(logs_dir.glob("translation_*.log"), reverse=True)
+        if log_files:
+            log_file = str(log_files[0])
+
+    logger.info(f"Reviewing: {filepath}")
+    report, report_path = review_and_report(
+        str(p),
+        log_file=log_file,
+    )
+
+    print(f"\n{'='*60}")
+    print(f"  📊 Translation Quality Report")
+    print(f"{'='*60}")
+    print(f"  Novel:      {report.novel}")
+    print(f"  Chapter:    {report.chapter}")
+    print(f"  Score:      {report.total_score}/100")
+    print(f"  ✅ Passed:  {len(report.passed_checks)}")
+    print(f"  ⚠️  Warnings: {len(report.warnings)}")
+    print(f"  🔴 Critical: {len(report.critical_fixes)}")
+    print(f"{'='*60}")
+    print(f"  Report saved: {report_path}")
+
+    if report.critical_fixes:
+        print(f"\n  🔴 Critical Issues:")
+        for item in report.critical_fixes[:5]:
+            print(f"     - {item}")
+    if report.todo_items:
+        print(f"\n  📝 TODO:")
+        for item in report.todo_items[:3]:
+            print(f"     {item}")
+
+    print()
+    return 0 if report.total_score >= 70 else 1
+
+
 def _apply_workflow_config(config: AppConfig, workflow: str, logger: Optional[logging.Logger] = None) -> AppConfig:
     """Apply workflow-specific configuration overrides with automatic model selection.
     
@@ -463,14 +522,18 @@ def _apply_workflow_config(config: AppConfig, workflow: str, logger: Optional[lo
     if workflow == 'way1':
         # way1: English -> Myanmar direct
         # Use padauk-gemma:q8_0 for best Myanmar output
-        # Full pipeline includes Translation → Refinement → Reflection → Quality Check
+        # SINGLE_STAGE mode: padauk-gemma produces BETTER quality in single-stage
+        # (direct translation only) than full pipeline (translate→refine→reflect).
+        # Full pipeline adds 2 extra API calls per chunk (3x slower) and the
+        # refinement/reflection steps with padauk-gemma collapse paragraph breaks
+        # and degrade output quality. See ERROR-050.
         overrides = {
             "project": {
                 "source_language": "en-US"
             },
             "translation_pipeline": {
-                "mode": "full",
-                "use_reflection": True,
+                "mode": "single_stage",
+                "use_reflection": False,
                 "stage1_model": "padauk-gemma:q8_0",
                 "stage2_model": "padauk-gemma:q8_0"
             },
@@ -481,7 +544,7 @@ def _apply_workflow_config(config: AppConfig, workflow: str, logger: Optional[lo
             }
         }
         if logger:
-            logger.info("🔄 Auto-detected ENGLISH source → Using way1 (EN→MM direct, full pipeline)")
+            logger.info("🔄 Auto-detected ENGLISH source → Using way1 (EN→MM direct, single-stage)")
             logger.info("🤖 Auto-selected models: padauk-gemma:q8_0 (best for Myanmar)")
     
     elif workflow == 'way2':

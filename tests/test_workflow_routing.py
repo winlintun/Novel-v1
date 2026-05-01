@@ -49,8 +49,8 @@ class TestWorkflowRouting(unittest.TestCase):
         })
         out = _apply_workflow_config(cfg, "way1")
         self.assertEqual(out.project.source_language, "en-US")
-        self.assertEqual(out.translation_pipeline.mode, "full")
-        self.assertTrue(out.translation_pipeline.use_reflection)
+        self.assertEqual(out.translation_pipeline.mode, "single_stage")
+        self.assertFalse(out.translation_pipeline.use_reflection)
 
     def test_apply_way2_overrides_pivot_cn_to_en_to_mm(self):
         cfg = load_config_from_dict({

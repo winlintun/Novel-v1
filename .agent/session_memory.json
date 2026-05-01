@@ -1,11 +1,27 @@
 {
-  "session_id": "2026-05-01-001",
-  "started_at": "2026-05-01T00:00:00Z",
-  "task": "Initialize project infrastructure (.agent files, CHANGELOG.md)",
+  "session_id": "2026-05-02-002",
+  "started_at": "2026-05-02T01:00:00Z",
+  "task": "Comprehensive fix: pipeline mode, paragraph breaks, chunk stitching, data cleanup, config simplification, metadata enhancement",
   "current_step": "Complete",
-  "last_action": "Added live CLI progress display; committed 7d871f2",
+  "last_action": "Fixed 6 root causes: pipeline mode single_stage, paragraph breaks, chunk stitching, data folder cleanup (7 files removed), config simplification (settings.english.yaml removed), meta.json enhancement. Saved fixed Ch13 with 37 paragraph breaks. 235/235 tests pass.",
   "next_action": "None",
   "open_files": [],
   "pending_decisions": [],
-  "session_errors": []
+  "session_errors": [
+    {
+      "step": "Pipeline mode regression",
+      "error": "way1 using 'full' pipeline caused 0 paragraph breaks + 2x slower translation vs 'single_stage' which works perfectly",
+      "resolved_by": "Changed way1 to single_stage in commands.py _apply_workflow_config"
+    },
+    {
+      "step": "Chunk boundary truncation",
+      "error": "Sentences cut at chunk boundaries when chunks joined with \\n\\n",
+      "resolved_by": "Added stitch_chunk_boundaries() to detect truncated sentences and join them"
+    },
+    {
+      "step": "Missing paragraph breaks",
+      "error": "Postprocessor didn't add blank lines between consecutive content paragraphs",
+      "resolved_by": "Added ensure_markdown_readability() that adds blank lines while preserving existing ones"
+    }
+  ]
 }
