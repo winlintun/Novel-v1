@@ -8,9 +8,15 @@
 ---
 
 ## Last Updated
-- Date: 2026-05-01 15:30 UTC
-    - **Files Reviewed**: ui/pages/6_Reader.py, src/cli/commands.py, src/cli/__init__.py, src/cli/parser.py, src/main.py, ui/streamlit_app.py
-    - Previous:
+- Date: 2026-05-01
+- Last task completed:
+  - **English Source Pipeline Verification + Markdown Reader Feature** (STATUS: READY_TO_COMMIT):
+    - **Pipeline Verification**: English source uses `en_mm_rules.py`, per-novel glossary/context isolated (`glossary_{novel}.json`, etc.), no cross-contamination
+    - **Markdown Reader**: New `ui/pages/6_Reader.py` (Streamlit), `--view` CLI command, DRY imports from postprocessor
+    - **Files Created**: `ui/pages/6_Reader.py`
+    - **Files Modified**: `src/main.py`, `src/cli/commands.py`, `src/cli/parser.py`, `src/cli/__init__.py`, `ui/streamlit_app.py`
+    - **Tests**: 229/229 pass
+  - **FIXED: Postprocessor destroying paragraph structure + 8 duplicate headings** (STATUS: READY_TO_COMMIT, commit 98dbe5a):
     - **Root Cause 1**: `remove_latin_words` had `re.sub(r'\s+', ' ', text)` which collapsed ALL whitespace (including `\n`) to spaces, making output a single line
     - **Root Cause 2**: Model outputs `# အခန်း ၁၂ ## Title` on single line instead of proper `# H1\n\n## H2`
     - **Root Cause 3**: Heading repeated 8 times (once per chunk) due to context buffer leaking heading to subsequent chunk translations
