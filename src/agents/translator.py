@@ -113,6 +113,9 @@ STRICT RULES:
 5. REGISTER: Pick ONE register for narration — do NOT mix formal and colloquial particles.
 6. EMOTION: For aggressive dialogue, use strong active verbs. For sadness/fear, show physical sensations.
 7. OUTPUT: Return ONLY the translated Myanmar text. Zero preamble. Zero postamble. No thinking tags.
+8. ANTI-HALLUCINATION: NEVER invent proper names or characters. If source says \"Brother Zhang\", translate it as \"အစ်ကိုကျန်း\" — do NOT substitute with glossary character names like \"ဖန်ကျန်း\". Only use glossary terms when the EXACT source term appears in the input.
+9. FOOTNOTES: Preserve inline markers like (1), (2), [1], [2] exactly as they appear in source.
+10. PLACE NAMES: Use EXACT glossary terms for places (e.g., Gu Yue Village → ကူယွဲ့ကျေးရွာ). Do not transliterate differently.
 
 Text to translate:"""
 

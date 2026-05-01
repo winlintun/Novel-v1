@@ -318,6 +318,62 @@ def remove_duplicate_headings(text: str) -> str:
     return '\n'.join(result)
 
 
+def detect_potential_hallucinations(text: str, known_terms: Optional[set] = None) -> List[str]:
+    """Detect Myanmar proper names that may be LLM hallucinations.
+    
+    Compares proper-name-like sequences against a set of known glossary 
+    target terms. Names found in the text but NOT in the glossary are
+    flagged for human review.
+    
+    A 'proper name' is a 2-8 Myanmar-syllable sequence that appears
+    repeatedly (2+ times) at sentence boundaries — common for named
+    characters and places.
+    
+    Args:
+        text: Translated Myanmar text
+        known_terms: Set of approved Myanmar target terms from glossary
+        
+    Returns:
+        List of potentially hallucinated name strings
+    """
+    if known_terms is None:
+        known_terms = set()
+    
+    # Extract 2-8 character Myanmar sequences that appear multiple times
+    # at the start of sentences (common position for proper names in narration)
+    from collections import Counter
+    
+    # Find Myanmar sequences that could be names: 2-8 chars long, appearing
+    # after sentence-enders or paragraph starts
+    candidates = re.findall(
+        r'(?:^|\n|[။]\s+|၊\s+)([\u1000-\u109F]{2,8})\s+(?:သည်|က|မှာ|ကို|၏|၌)',
+        text,
+        re.MULTILINE
+    )
+    
+    counts = Counter(candidates)
+    
+    # A name candidate must appear at least 2 times (to filter noise)
+    warnings = []
+    for name, count in counts.items():
+        if count >= 2 and name not in known_terms:
+            # Also filter common non-name words
+            common_words = {
+                'တစ်ခု', 'တစ်ယောက်', 'အခါ', 'သူတို့', 'တစ်ဦး',
+                'ကျွန်တော်', 'တစ်ချိန်', 'တစ်ခါ', 'ဒီအတွက်',
+                'တစ်စုံ', 'ဘယ်သူ', 'ဘယ်လို', 'အဲဒီ', 'ဒါပေမယ့်',
+                'သူတို့ရဲ့', 'ဘာဖြစ်', 'အဲဒီမှာ', 'အဲဒါ',
+                'ဘယ်လောက်', 'ဒီလို', 'ဒါဟာ', 'ဒါကြောင့်',
+                'အဲဒီအခါ', 'သို့သော်', 'ထို့ကြောင့်', 'အလွန်',
+                'သူသည်', 'ဒါပေမဲ့', 'ထိုအခါ', 'တစ်ခုမှာ',
+            }
+            if name in common_words:
+                continue
+            warnings.append(name)
+    
+    return warnings
+
+
 def clean_output(raw: str, aggressive: bool = False) -> str:
     """
     Full postprocessing pipeline. Apply in order:

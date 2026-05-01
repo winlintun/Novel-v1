@@ -457,12 +457,14 @@ def _apply_workflow_config(config: AppConfig, workflow: str, logger: Optional[lo
     if workflow == 'way1':
         # way1: English -> Myanmar direct
         # Use padauk-gemma:q8_0 for best Myanmar output
+        # Full pipeline includes Translation → Refinement → Reflection → Quality Check
         overrides = {
             "project": {
                 "source_language": "en-US"
             },
             "translation_pipeline": {
-                "mode": "single_stage",
+                "mode": "full",
+                "use_reflection": True,
                 "stage1_model": "padauk-gemma:q8_0",
                 "stage2_model": "padauk-gemma:q8_0"
             },
@@ -473,7 +475,7 @@ def _apply_workflow_config(config: AppConfig, workflow: str, logger: Optional[lo
             }
         }
         if logger:
-            logger.info("🔄 Auto-detected ENGLISH source → Using way1 (EN→MM direct)")
+            logger.info("🔄 Auto-detected ENGLISH source → Using way1 (EN→MM direct, full pipeline)")
             logger.info("🤖 Auto-selected models: padauk-gemma:q8_0 (best for Myanmar)")
     
     elif workflow == 'way2':
