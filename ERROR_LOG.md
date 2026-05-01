@@ -39,6 +39,41 @@
 
 *No active issues currently.*
 
+### ERROR-042: Poor EN→MM Translation - padauk-gemma Produces Garbled/English Output
+**Date**: 2026-04-30
+**Files**: Multiple (glossary.json, orchestrator.py, ollama_client.py, translator.py, settings.yaml)
+**Error Messages**:
+```
+Chunk 1: myanmar_ratio: 0.417, english_common_words: 24 → NEEDS_REVIEW
+Chunk 2: myanmar_ratio: 0.000 → REJECTED
+Chunk 3: myanmar_ratio: 0.912 → NEEDS_REVIEW  
+Chunk 4: myanmar_ratio: 0.000 → REJECTED
+
+Output contained: raw English fragments, Korean chars, wrong glossary terms from different novel
+```
+**Root Cause**: 
+1. `data/glossary.json` contained 50 terms from wrong novel (dao-equaling-the-heavens/古道仙鸿) that were being injected into Reverend Insanity translations, confusing the model
+2. `OllamaClient` in orchestrator was created without passing temperature/top_p/repeat_penalty from config — used wrong defaults (temp=0.5 instead of config's 0.3)
+3. Chunk size 2000 chars overwhelmed padauk-gemma for EN→MM translation
+4. English system prompt lacked LANGUAGE_GUARD reinforcement against English leakage
+
+**Fix Applied**:
+1. Backed up old glossary, created fresh empty glossary for Reverend Insanity
+2. Added temperature/top_p/top_k/repeat_penalty/max_retries passthrough from config.processing to OllamaClient in orchestrator
+3. Reduced chunk_size 2000→800, tuned sampling params (temperature 0.3→0.2, repeat_penalty 1.3→1.15, top_p 0.92→0.95, top_k 50→40)
+4. Added LANGUAGE_GUARD prefix to both EN→MM and CN→MM prompts; strengthened EN prompt with COMPLETENESS rule
+5. Increased num_predict for gemma models 1024→2048 and others 800→1024
+
+**Files Modified**:
+- `config/settings.yaml` - chunk_size, temperature, repeat_penalty, top_p, top_k
+- `src/agents/translator.py` - LANGUAGE_GUARD + strengthened EN prompt
+- `src/pipeline/orchestrator.py` - config param passthrough to OllamaClient
+- `src/utils/ollama_client.py` - increased num_predict
+- `data/glossary.json` - replaced with fresh empty glossary
+
+**Status**: RESOLVED
+**Verified By**: pytest (227/229 pass, 2 pre-existing failures), py_compile checks, code review
+
 ### ERROR-040: Poor Translation Quality & Missing CLI Information
 **Date**: 2026-04-27
 **Files**: `config/settings.yaml`, `src/agents/translator.py`, `src/cli/commands.py`, `src/cli/formatters.py`

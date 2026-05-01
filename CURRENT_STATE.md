@@ -8,9 +8,22 @@
 ---
 
 ## Last Updated
-- Date: 2026-04-28
+- Date: 2026-04-30
 - Last task completed:
-  - **CREATED: Comprehensive Technical Documentation (`PROJECT_DOCUMENTATION.md`)**:
+  - **FIXED: Poor EN→MM Translation Quality for Reverend Insanity**:
+    - **Root Cause #1**: `glossary.json` contained 50 terms from wrong novel (古道仙鸿), poisoning translations with irrelevant terminology
+    - **Root Cause #2**: `OllamaClient` in orchestrator wasn't receiving config sampling params (temperature, top_p, etc.) — using wrong defaults
+    - **Root Cause #3**: Chunk size 2000 too large for padauk-gemma EN→MM
+    - **Root Cause #4**: System prompt lacked LANGUAGE_GUARD reinforcement
+    - **Fixes Applied**:
+      1. Cleared glossary.json (backed up old one) — fresh empty glossary for Reverend Insanity
+      2. Added temperature/top_p/top_k/repeat_penalty/max_retries passthrough from config to OllamaClient in orchestrator
+      3. Reduced chunk_size 2000→800, tuned sampling (temperature 0.2, repeat_penalty 1.15, top_p 0.95)
+      4. Added LANGUAGE_GUARD to both EN→MM and CN→MM prompts in translator.py, strengthened EN prompt with COMPLETENESS rule
+      5. Increased num_predict 1024→2048 for gemma models, 800→1024 for others
+    - **Files Modified**: config/settings.yaml, src/agents/translator.py, src/pipeline/orchestrator.py, src/utils/ollama_client.py, data/glossary.json
+  - Previous tasks:
+    - **CREATED: Comprehensive Technical Documentation (`PROJECT_DOCUMENTATION.md`)**:
     - **Purpose**: Complete technical reference for all files and functions in the project
     - **Contents**:
       - Project overview and architecture

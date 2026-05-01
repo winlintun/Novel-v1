@@ -92,6 +92,11 @@ class TranslationPipeline:
                 model=self.config.models.translator,
                 base_url=self.config.models.ollama_base_url,
                 timeout=self.config.models.timeout,
+                temperature=getattr(self.config.processing, 'temperature', 0.3),
+                top_p=getattr(self.config.processing, 'top_p', 0.92),
+                top_k=getattr(self.config.processing, 'top_k', 50),
+                repeat_penalty=getattr(self.config.processing, 'repeat_penalty', 1.3),
+                max_retries=getattr(self.config.processing, 'max_retries', 2),
                 use_gpu=getattr(self.config.models, 'use_gpu', True),
                 gpu_layers=getattr(self.config.models, 'gpu_layers', -1),
                 main_gpu=getattr(self.config.models, 'main_gpu', 0)

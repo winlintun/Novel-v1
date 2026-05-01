@@ -213,7 +213,7 @@ class OllamaClient:
                 # and keep_alive (default 10m per need_fix.md)
                 options = {
                     "temperature": self.temperature,
-                    "num_predict": 1024 if is_gemma else 800,
+                    "num_predict": 2048 if is_gemma else 1024,
                     "num_ctx": self.num_ctx,      # Configurable context window
                     "top_p": self.top_p,
                     "top_k": self.top_k,

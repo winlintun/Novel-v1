@@ -85,6 +85,8 @@ models/*
 # Input novels (user files - don't commit)
 data/input/
 data/input/*
+data/output/
+data/output/*
 input_novels/*.txt
 input_novels/*.md
 !input_novels/.gitkeep

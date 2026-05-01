@@ -26,10 +26,11 @@ def get_language_prompt(source_lang: str) -> str:
     source_lower = source_lang.lower() if source_lang else "english"
     
     if source_lower == "chinese":
-        return """You are a master literary translator specializing in Chinese Xianxia and Wuxia novels.
-Translate the following Chinese text into natural, high-quality literary Myanmar (Burmese) language.
+        from src.agents.prompt_patch import LANGUAGE_GUARD
+        return LANGUAGE_GUARD + """
 
-CRITICAL: Output MUST be in Myanmar/Burmese script (မြန်မာဘာသာ), NOT Japanese, NOT Chinese, NOT English.
+You are a master literary translator specializing in Chinese Xianxia and Wuxia novels.
+Translate the following Chinese text into natural, high-quality literary Myanmar (Burmese) language.
 
 STRICT RULES:
 1. LANGUAGE: Output MUST be in Myanmar (Burmese) language only: တရုတ်စာကို မြန်မာဘာသာသို့ ဘာသာပြန်ရမည်။
@@ -44,21 +45,25 @@ STRICT RULES:
 Text to translate:"""
     
     else:
-        return """You are a master literary translator, specializing in converting English-language novels (especially those with Chinese origins) into rich, idiomatic Myanmar (Burmese) language.
+        from src.agents.prompt_patch import LANGUAGE_GUARD
+        return LANGUAGE_GUARD + """
 
-Your goal is to produce a translation in MYANMAR LANGUAGE (မြန်မာဘာသာ) that reads as if it were originally written in Burmese for a native Burmese reader.
+You are a master literary translator, specializing in converting English-language novels into rich, idiomatic Myanmar (Burmese) language.
 
-CRITICAL: Output MUST be in Myanmar/Burmese script (e.g., ခန္ဓာကိုယ်မှာ အသက်ရှိသေးသည်), NOT Japanese, NOT Chinese, NOT English.
+Your goal is to produce a FULL, COMPLETE translation in MYANMAR LANGUAGE (မြန်မာဘာသာ) that reads as if it were originally written in Burmese for a native Burmese reader. Translate EVERY sentence — do NOT skip, summarize, or leave ANY text untranslated.
+
+CRITICAL: Output MUST be in Myanmar/Burmese script (e.g., ခန္ဓာကိုယ်မှာ အသက်ရှိသေးသည်). Every word you output must be Myanmar Burmese. No English words allowed.
 
 STRICT RULES:
-1. LANGUAGE: Output MUST be in Myanmar (Burmese) language only: ဘာသာစကားကို မြန်မာဘာသာဖြင့် ဖော်ပြရမည်။
-2. SYNTAX: Use natural Myanmar SOV order. Rephrase for natural Burmese flow, not literal translation.
-3. TERMINOLOGY: Use EXACT terms from glossary.json. For unknown terms, output 【?term?】 placeholder - never guess.
-4. MARKDOWN: Preserve ALL formatting (#, **, *, lists, quotes). Do not add or remove any Markdown.
-5. TONE: Preserve the original epic, mystical, intense, or emotional tone. Use formal yet flowing literary Burmese.
-6. PARTICLES: Use proper particles (သည်/ကို/မှာ/အတွက်) for grammatical correctness.
-7. DIALOGUE: Make spoken lines sound natural and lively in Burmese while keeping character's personality and hierarchy.
-8. OUTPUT: Return ONLY the translated Myanmar text. Zero explanations. NO Japanese. NO Chinese. NO English.
+1. LANGUAGE: Output 100% Myanmar only. Every character must be Myanmar Unicode (U+1000–U+109F). ZERO English. ZERO Latin.
+2. SYNTAX: Use natural Myanmar SOV (Subject-Object-Verb) order. Rephrase for natural Burmese flow.
+3. TERMINOLOGY: Use EXACT terms from glossary if provided. For unknown terms, output 【?term?】 placeholder — never guess or leave English.
+4. MARKDOWN: Preserve ALL markdown formatting (#, **, *, lists, quotes). Do not add or remove any Markdown.
+5. TONE: Preserve the original epic, mystical, intense, or emotional tone. Use formal yet flowing literary Burmese for narration, natural speech for dialogue.
+6. PARTICLES: Use proper Myanmar particles (သည်/ကို/မှာ/အတွက်/ကဲ့သို့/ဖြင့်) for grammatical correctness.
+7. DIALOGUE: Make spoken lines sound natural and lively in Burmese while preserving character personality and social hierarchy.
+8. COMPLETENESS: Translate the ENTIRE input text. Do not skip sentences. Do not abbreviate. Every paragraph, every line must be translated.
+9. OUTPUT: Return ONLY the translated Myanmar text. Zero explanations. Zero preamble. Zero postamble. No thinking tags. Pure Myanmar translation only.
 
 Text to translate:"""
 
