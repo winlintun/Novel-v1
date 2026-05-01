@@ -8,9 +8,18 @@
 ---
 
 ## Last Updated
-- Date: 2026-04-30
+- Date: 2026-05-01
 - Last task completed:
-  - **FIXED: Poor EN→MM Translation Quality for Reverend Insanity**:
+  - **FIXED: --chapter-range 9-15 All Chapters Failed - File Not Found**:
+    - **Root Cause**: `translate_chapter()` in orchestrator only looked for `{chapter:03d}.md` (e.g., `009.md`), but actual files use naming conventions like `{novel}_chapter_009.md`, `{novel}_0009.md`
+    - **Fix Applied**:
+      1. Added `_find_chapter_file()` static method to try 5 naming patterns
+      2. Added `_discover_chapters()` static method for auto-discovery with regex fallback
+      3. Improved per-chapter error logging in `commands.py` to always log details (not just for partial success)
+    - **Files Modified**: `src/pipeline/orchestrator.py`, `src/cli/commands.py`
+  - **COMMIT: 4bb2c97 - Push to remote**:
+    - Committed and pushed all staged changes including translation quality fixes (ERROR-042)
+  - Previous: **FIXED: Poor EN→MM Translation Quality for Reverend Insanity**:
     - **Root Cause #1**: `glossary.json` contained 50 terms from wrong novel (古道仙鸿), poisoning translations with irrelevant terminology
     - **Root Cause #2**: `OllamaClient` in orchestrator wasn't receiving config sampling params (temperature, top_p, etc.) — using wrong defaults
     - **Root Cause #3**: Chunk size 2000 too large for padauk-gemma EN→MM

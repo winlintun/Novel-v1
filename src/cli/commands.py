@@ -176,14 +176,17 @@ def run_translation_pipeline(args: argparse.Namespace) -> int:
                     return 0
                 elif success_count > 0:
                     logger.warning(f"Partial success: {success_count}/{total_count} chapters translated")
-                    # Log failed chapters
-                    for i, r in enumerate(results):
-                        if not r.get("success"):
-                            logger.error(f"Chapter {i+1} failed: {r.get('errors', ['Unknown'])}")
-                    return 1
                 else:
                     logger.error(f"All {total_count} chapters failed to translate")
-                    return 1
+                
+                # Always log per-chapter details for failures
+                if success_count < total_count:
+                    for i, r in enumerate(results):
+                        if not r.get("success"):
+                            chapter_num = chapters[i] if i < len(chapters) else f"index_{i}"
+                            errors = r.get('errors', ['Unknown'])
+                            logger.error(f"Chapter {chapter_num} failed: {errors}")
+                return 1 if success_count < total_count else 0
             else:
                 result = pipeline.translate_chapter(args.novel, args.chapter)
         else:

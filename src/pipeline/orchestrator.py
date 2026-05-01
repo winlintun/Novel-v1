@@ -259,19 +259,88 @@ class TranslationPipeline:
         Returns:
             Pipeline result dictionary
         """
-        chapter_file = Path(INPUT_DIR) / novel / f"{chapter:03d}.md"
+        chapter_file = self._find_chapter_file(novel, chapter)
         
-        if not chapter_file.exists():
+        if not chapter_file:
+            novel_dir = Path(INPUT_DIR) / novel
+            attempted = [
+                f"{chapter:03d}.md",
+                f"{chapter:04d}.md",
+                f"{novel}_chapter_{chapter:03d}.md",
+                f"{novel}_{chapter:03d}.md",
+                f"{novel}_{chapter:04d}.md",
+            ]
             return {
                 "success": False,
                 "output_path": None,
                 "glossary_updates": [],
-                "errors": [f"Chapter file not found: {chapter_file}"],
+                "errors": [f"Chapter file not found for chapter {chapter} in {novel_dir}. Tried: {', '.join(attempted)}"],
                 "metrics": {},
                 "chapter": str(chapter)
             }
         
         return self.translate_file(str(chapter_file))
+    
+    @staticmethod
+    def _discover_chapters(novel_dir: Path) -> List[int]:
+        """Discover chapter numbers from files in a novel directory.
+        
+        Handles multiple naming conventions:
+        - {novel}_chapter_001.md, {novel}_0001.md, 001.md, chapter_001.md
+        
+        Args:
+            novel_dir: Novel directory path
+            
+        Returns:
+            Sorted list of unique chapter numbers
+        """
+        import re
+        
+        chapters: set = set()
+        for f in novel_dir.glob("*.md"):
+            # Try pure-digit stem: "009.md"
+            if f.stem.isdigit():
+                chapters.add(int(f.stem))
+                continue
+            
+            # Try patterns like "xxx_chapter_009" or "xxx_0009"
+            m = re.search(r'(?:chapter[\s_-]*)?(\d{3,4})$', f.stem)
+            if m:
+                chapters.add(int(m.group(1)))
+        
+        return sorted(chapters)
+    
+    @staticmethod
+    def _find_chapter_file(novel: str, chapter: int) -> Optional[Path]:
+        """Find a chapter file using multiple naming conventions.
+        
+        Args:
+            novel: Novel name
+            chapter: Chapter number
+            
+        Returns:
+            Path to chapter file, or None if not found
+        """
+        novel_dir = Path(INPUT_DIR) / novel
+        if not novel_dir.is_dir():
+            return None
+        
+        patterns = [
+            # Format 1: {novel}_chapter_{XXX}.md (e.g., 古道仙鸿_chapter_009.md)
+            novel_dir / f"{novel}_chapter_{chapter:03d}.md",
+            # Format 2: {chapter}.md (e.g., 009.md)
+            novel_dir / f"{chapter:03d}.md",
+            novel_dir / f"{chapter:04d}.md",
+            # Format 3: {novel}_{chapter}.md (e.g., reverend-insanity_0009.md)
+            novel_dir / f"{novel}_{chapter:03d}.md",
+            novel_dir / f"{novel}_{chapter:04d}.md",
+        ]
+        
+        for p in patterns:
+            if p.exists():
+                return p
+        
+        return None
     
     def translate_novel(self, novel: str, chapters: Optional[List[int]] = None) -> List[Dict[str, Any]]:
         """Translate multiple chapters of a novel.
@@ -284,7 +353,7 @@ class TranslationPipeline:
             List of pipeline results
         """
         # If no chapters specified, find all available
-        if chapters is None:
+        if not chapters:
             novel_dir = Path(INPUT_DIR) / novel
             if not novel_dir.exists():
                 return [{
@@ -296,9 +365,7 @@ class TranslationPipeline:
                     "chapter": "all"
                 }]
             
-            # Find all .md files
-            chapter_files = sorted(novel_dir.glob("*.md"))
-            chapters = [int(f.stem) for f in chapter_files if f.stem.isdigit()]
+            chapters = self._discover_chapters(novel_dir)
         
         results = []
         for chapter in chapters:

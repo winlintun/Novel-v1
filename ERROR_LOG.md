@@ -39,7 +39,36 @@
 
 *No active issues currently.*
 
-### ERROR-042: Poor EN→MM Translation - padauk-gemma Produces Garbled/English Output
+### ERROR-043: --chapter-range 9-15 - All Chapters Failed (File Not Found)
+**Date**: 2026-05-01
+**File**: `src/pipeline/orchestrator.py`, `src/cli/commands.py`
+**Error Message**:
+```
+ERROR - All 7 chapters failed to translate
+```
+**Root Cause**: 
+1. `translate_chapter()` only looked for `{chapter:03d}.md` (e.g., `009.md`), but actual input files use naming conventions like:
+   - `{novel}_chapter_{chapter:03d}.md` (e.g., `dao-equaling-the-heavens_chapter_009.md`)
+   - `{novel}_{chapter:04d}.md` (e.g., `reverend-insanity_0009.md`)
+2. `translate_novel()` auto-discovery used `f.stem.isdigit()` which fails for stems like `reverend-insanity_0009`
+3. Per-chapter error details only logged for partial success, not total failure — making debugging hard
+
+**Fix Applied**:
+1. Added `_find_chapter_file()` static method to try 5 naming patterns in priority order:
+   - `{novel}_chapter_{XXX}.md`
+   - `{XXX}.md` (3-digit)
+   - `{XXXX}.md` (4-digit)
+   - `{novel}_{XXX}.md` (3-digit)
+   - `{novel}_{XXXX}.md` (4-digit)
+2. Added `_discover_chapters()` static method with regex fallback for non-pure-digit stems
+3. Fixed `commands.py` to always log per-chapter failures with actual chapter number
+
+**Files Modified**:
+- `src/pipeline/orchestrator.py` - Added `_find_chapter_file()` and `_discover_chapters()`, updated `translate_chapter()` and `translate_novel()`
+- `src/cli/commands.py` - Always log per-chapter errors, use actual chapter numbers in messages
+
+**Status**: RESOLVED
+**Verified By**: python3 py_compile, manual path resolution test (all 3 novel naming conventions confirmed)
 **Date**: 2026-04-30
 **Files**: Multiple (glossary.json, orchestrator.py, ollama_client.py, translator.py, settings.yaml)
 **Error Messages**:
