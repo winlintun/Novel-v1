@@ -96,12 +96,15 @@ Language:"""
     
     def create_chunks(self, text: str) -> List[Dict[str, Any]]:
         """
-        Create chunks from text with sliding window overlap.
+        Create chunks from text with configurable overlap.
+        When overlap_size > 0, last N paragraphs are prepended to the next chunk.
+        When overlap_size == 0, chunks are non-overlapping paragraph groups.
         
         Returns list of dicts with:
         - chunk_id: int
         - text: str
         - size: int (estimated tokens)
+        - overlap_count: int (number of overlap paragraphs from previous chunk)
         """
         paragraphs = self.split_into_paragraphs(text)
         
@@ -111,6 +114,8 @@ Language:"""
         chunks = []
         current_chunk = []
         current_size = 0
+        # Track how many overlap paragraphs each chunk includes from previous chunk
+        overlap_counts = []
         
         for para in paragraphs:
             para_size = self.estimate_tokens(para)
@@ -122,15 +127,20 @@ Language:"""
                 chunks.append({
                     'chunk_id': len(chunks) + 1,
                     'text': chunk_text,
-                    'size': current_size
+                    'size': current_size,
+                    'overlap_count': overlap_counts[len(chunks) - 1] if overlap_counts else 0
                 })
                 
-                # Create overlap for next chunk (last paragraph or two)
-                overlap_paras = current_chunk[-2:] if len(current_chunk) >= 2 else [current_chunk[-1]]
-                overlap_text = '\n\n'.join(overlap_paras)
+                # Create overlap for next chunk if overlap_size > 0
+                overlap_paras = []
+                if self.overlap_size > 0:
+                    overlap_count = min(self.overlap_size, len(current_chunk))
+                    overlap_paras = current_chunk[-overlap_count:] if overlap_count > 0 else []
                 
-                current_chunk = [overlap_text, para]
-                current_size = self.estimate_tokens(overlap_text) + para_size
+                overlap_counts.append(len(overlap_paras))
+                
+                current_chunk = overlap_paras + [para]
+                current_size = sum(self.estimate_tokens(p) for p in current_chunk)
             else:
                 current_chunk.append(para)
                 current_size += para_size
@@ -141,7 +151,8 @@ Language:"""
             chunks.append({
                 'chunk_id': len(chunks) + 1,
                 'text': chunk_text,
-                'size': current_size
+                'size': current_size,
+                'overlap_count': overlap_counts[len(chunks) - 1] if len(overlap_counts) == len(chunks) else 0
             })
         
         logger.info(f"Created {len(chunks)} chunks from {len(paragraphs)} paragraphs")
@@ -157,6 +168,35 @@ Language:"""
         
         return text.strip()
     
+    def strip_metadata(self, text: str) -> str:
+        """Strip translator/editor/website metadata lines that appear before the novel body.
+        
+        Removes lines like:
+        - Translator: Skyfarrow Editor: Skyfarrow
+        - Translation by X, Edited by Y
+        - Website: www.example.com
+        - Chinese Novel Translations
+        """
+        # Remove entire lines that contain translator/editor metadata
+        # Line-by-line check is more reliable than regex for mixed-format lines
+        lines = text.split('\n')
+        cleaned = []
+        for line in lines:
+            stripped = line.strip()
+            # Skip lines that are only metadata credits (no novel content)
+            if re.match(
+                r'^\s*(?:Translator|Editor|Translation|Translated|Proofreader|Proofread|Website|Source|Original)\b',
+                stripped,
+                re.IGNORECASE
+            ):
+                continue
+            cleaned.append(line)
+        
+        # Remove consecutive empty lines (more than 2)
+        result = '\n'.join(cleaned)
+        result = re.sub(r'\n{3,}', '\n\n', result)
+        return result.strip()
+    
     def load_and_preprocess(self, filepath: str) -> List[Dict[str, Any]]:
         """
         Load a chapter file and preprocess it.
@@ -171,6 +211,9 @@ Language:"""
         
         # Read file
         text = FileHandler.read_text(filepath)
+        
+        # Strip translator/editor metadata before chunking
+        text = self.strip_metadata(text)
         
         # Clean markdown
         text = self.clean_markdown(text)

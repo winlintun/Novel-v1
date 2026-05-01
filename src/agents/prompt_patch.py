@@ -18,11 +18,13 @@ You MUST output ONLY in Myanmar (Burmese) language using Myanmar Unicode script 
    "神仙打群架，正好被我撞到了" - Chinese characters are FORBIDDEN
    "这件事很扯" - Any Chinese text is FORBIDDEN  
    "นี่คือหนังสือ" - Thai script is FORBIDDEN
+   "গাঢ়" / "অ" / "ক" - Bengali script is FORBIDDEN
 
 ⚠️ ABSOLUTE PROHIBITIONS - ZERO TOLERANCE:
 - 🚫 NEVER output ANY Chinese characters (中文字符) - NOT EVEN ONE
 - 🚫 NEVER output English words or phrases
 - 🚫 NEVER output Thai script
+- 🚫 NEVER output Bengali script (U+0980–U+09FF)
 - 🚫 NEVER output Japanese or Korean
 - 🚫 NEVER output Latin alphabet (a-z, A-Z) except in 【?term?】 placeholders
 - 🚫 NEVER copy/paste the original Chinese input text

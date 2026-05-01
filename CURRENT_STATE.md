@@ -10,6 +10,25 @@
 ## Last Updated
 - Date: 2026-05-01
 - Last task completed:
+  - **FIXED: need_fix_bug.md — 7 Translation Quality Bugs**:
+    - **Bug 1 (Bengali script leak)**: Added Bengali Unicode range (U+0980–U+09FF) to `detect_language_leakage()` and `validate_output()` in postprocessor.py; added Bengali removal function; added Bengali check in `myanmar_quality_checker.py`
+    - **Bug 2 (Duplicate paragraphs)**: Added `_deduplicate_chunks()` method in orchestrator.py to detect and remove overlapping paragraphs at chunk boundaries during assembly
+    - **Bug 3 (Translator credit in body)**: Added `strip_metadata()` to preprocessor.py to remove Translator/Editor/Proofreader metadata lines before chunking
+    - **Bug 4 (HTML metadata in .md)**: Changed `_save_output()` to write metadata to sidecar `.meta.json` file instead of embedding HTML comments in the .md body
+    - **Bug 5 (Register inconsistency)**: Added rule 9 (REGISTER CONSISTENCY) to translator prompts in translator.py — pick formal (သည်/၏/၌) OR colloquial (တယ်/ရဲ့/မှာ), not both
+    - **Bug 6 (Chapter heading format)**: Added rule 10 (CHAPTER HEADINGS) to translator prompts — convert to proper Myanmar markdown heading format
+    - **Bug 7 (Emotional intensity)**: Added rule 11 (EMOTIONAL INTENSITY) to translator prompts — use strong active verbs for aggressive dialogue
+    - **Settings**: Changed `chunk_overlap` 50→0, `temperature` 0.2→0.4 in both `processing` and `fast_config`
+    - **Files Modified**: `src/utils/postprocessor.py`, `src/agents/preprocessor.py`, `src/agents/translator.py`, `src/agents/myanmar_quality_checker.py`, `src/pipeline/orchestrator.py`, `config/settings.yaml`
+    - **Tests**: 227/229 pass (2 pre-existing failures unrelated)
+  - **Registered Burmese-GPT GGUF model**: Created `Modelfile.burmese-gpt`, registered as `burmese-gpt:7b` in Ollama, added to `model_roles` in settings.yaml
+  - **Updated Project Documentation (README, USER_GUIDE, PROJECT_DOC, ROADMAP)**:
+    - Updated supported models (padauk-gemma as primary, aya:8b as fallback)
+    - Added `--chapter-range` command examples
+    - Added supported file naming conventions section
+    - Updated config reference to match current settings.yaml values
+    - Removed references to deleted launcher scripts
+    - Updated model comparison tables
   - **FIXED: --chapter-range 9-15 All Chapters Failed - File Not Found**:
     - **Root Cause**: `translate_chapter()` in orchestrator only looked for `{chapter:03d}.md` (e.g., `009.md`), but actual files use naming conventions like `{novel}_chapter_009.md`, `{novel}_0009.md`
     - **Fix Applied**:

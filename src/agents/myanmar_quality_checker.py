@@ -180,6 +180,11 @@ class MyanmarQualityChecker(BaseAgent):
         if total_words > 0 and english_words / total_words > 0.3:
             issues.append(f"Too much English ({english_words}/{total_words} words)")
         
+        # Check for Bengali script leakage (U+0980–U+09FF)
+        bengali_chars = len(re.findall(r'[\u0980-\u09FF]', text))
+        if bengali_chars > 0:
+            issues.append(f"CRITICAL: Bengali script leaked ({bengali_chars} chars) - must be removed")
+        
         return issues
     
     def _check_tone(self, text: str) -> Dict[str, Any]:

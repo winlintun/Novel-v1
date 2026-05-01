@@ -39,6 +39,40 @@
 
 *No active issues currently.*
 
+### ERROR-044: Translation Quality Bugs from need_fix_bug.md
+**Date**: 2026-05-01
+**File**: Multiple (postprocessor.py, preprocessor.py, translator.py, myanmar_quality_checker.py, orchestrator.py, settings.yaml)
+**Error Description**:
+1. Bengali script (গাঢ়) leaked into Myanmar output — not caught by quality checker
+2. Duplicate paragraphs from chunking overlap (same paragraph translated twice with slight variation)
+3. Translator credit line included in body text
+4. HTML metadata comment (<!-- Translated:... -->) embedded in output .md body
+5. Inconsistent formal/colloquial register mixed within same chapter
+6. Chapter heading format incorrect (inline instead of markdown # heading)
+7. Emotional intensity flat in aggressive dialogue (weak verbs)
+
+**Root Cause**: 
+1. `detect_language_leakage()` only checked Thai/Chinese/English, not Bengali
+2. Chunk overlap=50 passed same paragraphs into adjacent chunks, no deduplication during assembly
+3. Preprocessor didn't strip `Translator:`/`Editor:` metadata lines
+4. `_save_output()` embedded HTML comments in .md body instead of sidecar file
+5. Translator prompts lacked register consistency rule
+6. Translator prompts lacked chapter heading format instruction
+7. Translator prompts lacked emotional intensity guidance for aggressive dialogue
+
+**Fix Applied**: See CURRENT_STATE.md for full details. 7 bugs fixed across 6 files.
+
+**Files Modified**:
+- `src/utils/postprocessor.py` - Bengali detection, removal, validation
+- `src/agents/preprocessor.py` - strip_metadata()
+- `src/agents/translator.py` - Prompt rules 9-11 (register, headings, intensity)
+- `src/agents/myanmar_quality_checker.py` - Bengali detection in quality check
+- `src/pipeline/orchestrator.py` - _deduplicate_chunks(), sidecar metadata writing
+- `config/settings.yaml` - chunk_overlap=0, temperature=0.4
+
+**Status**: RESOLVED
+**Verified By**: python3 verification tests, pytest 227/229 pass
+
 ### ERROR-043: --chapter-range 9-15 - All Chapters Failed (File Not Found)
 **Date**: 2026-05-01
 **File**: `src/pipeline/orchestrator.py`, `src/cli/commands.py`

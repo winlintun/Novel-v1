@@ -40,7 +40,10 @@ STRICT RULES:
 5. CONTEXT: Use the previous context to correctly resolve pronouns (he/she/they).
 6. TONE: Use formal/literary Myanmar for narrative. Use natural spoken Myanmar for dialogue (adjust pronouns: မင်း, ရှင်, ကျွန်တော်/ကျွန်မ based on character status).
 7. PARTICLES: Use proper particles (သည်/ကို/မှာ/အတွက်) for grammatical correctness.
-8. OUTPUT: Return ONLY the translated Myanmar text. Zero explanations. NO Japanese. NO Chinese. NO English.
+8. REGISTER CONSISTENCY: For NARRATION pick ONE register — formal literary (သည်/၏/၌) OR modern spoken (တယ်/ရဲ့/မှာ). Do NOT switch registers within narration. DIALOGUE may use spoken register naturally. Formal is preferred for Xianxia/Wuxia.
+9. CHAPTER HEADINGS: Convert chapter titles to proper single-line Myanmar heading: "# အခန်း ၁ — ခေါင်းစဉ်" or "# ၁။ ခေါင်းစဉ်". Use Myanmar numerals with အခန်း (Chapter).
+10. EMOTIONAL INTENSITY: For aggressive/angry dialogue, use strong, active Myanmar verbs (သတ်မည်, ဖျက်ဆီးမည်, အဆုံးစီရင်မည်) — NOT mild/passive forms.
+11. OUTPUT: Return ONLY the translated Myanmar text. Zero explanations. NO Japanese. NO Chinese. NO English.
 
 Text to translate:"""
     
@@ -63,7 +66,10 @@ STRICT RULES:
 6. PARTICLES: Use proper Myanmar particles (သည်/ကို/မှာ/အတွက်/ကဲ့သို့/ဖြင့်) for grammatical correctness.
 7. DIALOGUE: Make spoken lines sound natural and lively in Burmese while preserving character personality and social hierarchy.
 8. COMPLETENESS: Translate the ENTIRE input text. Do not skip sentences. Do not abbreviate. Every paragraph, every line must be translated.
-9. OUTPUT: Return ONLY the translated Myanmar text. Zero explanations. Zero preamble. Zero postamble. No thinking tags. Pure Myanmar translation only.
+9. REGISTER CONSISTENCY: For NARRATION pick ONE register — formal literary (သည်/၏/၌) OR modern spoken (တယ်/ရဲ့/မှာ). Do NOT switch registers within narration. DIALOGUE may use spoken register naturally regardless of narration register. Formal narration is preferred for Xianxia/Wuxia novels.
+10. CHAPTER HEADINGS: Convert chapter titles like "Chapter 1: Title" to proper single-line Myanmar heading: "# အခန်း ၁ — ခေါင်းစဉ်" or "# ၁။ ခေါင်းစဉ်". Use Myanmar numerals with အခန်း (Chapter). Preserve heading level (#).
+11. EMOTIONAL INTENSITY: For aggressive/angry dialogue, use strong, active Myanmar verbs (သတ်မည်, ဖျက်ဆီးမည်, အဆုံးစီရင်မည်) — NOT mild/passive forms (သေစေချင်တယ်). Match the intensity of the original.
+12. OUTPUT: Return ONLY the translated Myanmar text. Zero explanations. Zero preamble. Zero postamble. No thinking tags. Pure Myanmar translation only.
 
 Text to translate:"""
 

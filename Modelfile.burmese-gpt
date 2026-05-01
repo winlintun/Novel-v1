@@ -1,0 +1,5 @@
+FROM ./models/Burmese-GPT-7b_2025.f16.gguf
+
+PARAMETER temperature 0.2
+PARAMETER top_p 0.95
+PARAMETER repeat_penalty 1.15

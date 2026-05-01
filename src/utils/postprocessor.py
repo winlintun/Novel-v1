@@ -68,6 +68,9 @@ _REASONING_PATTERNS: List[re.Pattern] = [
 # Thai Unicode range — should never appear in Myanmar output
 _THAI_PATTERN = re.compile(r"[\u0E00-\u0E7F]+")
 
+# Bengali Unicode range — should never appear in Myanmar output
+_BENGALI_PATTERN = re.compile(r"[\u0980-\u09FF]+")
+
 # Chinese characters — should not remain in translated output body
 _CHINESE_PATTERN = re.compile(r"[\u4E00-\u9FFF\u3400-\u4DBF]+")
 
@@ -185,16 +188,18 @@ def strip_reasoning_process(text: str) -> str:
 def detect_language_leakage(text: str) -> dict[str, int]:
     """
     Count non-Myanmar language characters in output.
-    Returns counts for Thai, Chinese, and English.
+    Returns counts for Thai, Bengali, Chinese, and English.
     Used for quality logging.
     """
     thai_count = len(_THAI_PATTERN.findall(text))
+    bengali_count = len(_BENGALI_PATTERN.findall(text))
     chinese_count = len(_CHINESE_PATTERN.findall(text))
     latin_words = len(_LATIN_WORD_PATTERN.findall(text))
     english_common = len(_ENGLISH_COMMON_WORDS.findall(text))
     
     return {
         "thai_chars": thai_count,
+        "bengali_chars": bengali_count,
         "chinese_chars": chinese_count,
         "latin_words": latin_words,
         "english_common_words": english_common,
@@ -214,6 +219,11 @@ def myanmar_char_ratio(text: str) -> float:
 def remove_chinese_characters(text: str) -> str:
     """Remove all Chinese characters from text."""
     return _CHINESE_PATTERN.sub("", text)
+
+
+def remove_bengali_characters(text: str) -> str:
+    """Remove all Bengali characters from text."""
+    return _BENGALI_PATTERN.sub("", text)
 
 
 def remove_latin_words(text: str) -> str:
@@ -253,6 +263,7 @@ def clean_output(raw: str, aggressive: bool = False) -> str:
     # Per need_fix.md: Over-aggressive post-processing can corrupt Myanmar script output
     if aggressive:
         text = remove_chinese_characters(text)
+        text = remove_bengali_characters(text)
         text = remove_latin_words(text)
     else:
         # Light cleanup: only remove obvious leakage patterns, not all Latin/Chinese
@@ -277,14 +288,16 @@ def validate_output(text: str, chapter: int) -> dict:
     leakage = detect_language_leakage(text)
     ratio = myanmar_char_ratio(text)
     
-    # Determine status - Chinese characters = automatic REJECT
-    if leakage["thai_chars"] > 0:
+    # Determine status - Chinese or Bengali characters = automatic REJECT
+    if leakage.get("thai_chars", 0) > 0:
         status = "REJECTED"
-    elif leakage["chinese_chars"] > 0:
+    elif leakage.get("bengali_chars", 0) > 0:
+        status = "REJECTED"
+    elif leakage.get("chinese_chars", 0) > 0:
         status = "REJECTED"
     elif ratio < 0.30:
         status = "REJECTED"
-    elif ratio < 0.70 or leakage["latin_words"] > 5:
+    elif ratio < 0.70 or leakage.get("latin_words", 0) > 5:
         status = "NEEDS_REVIEW"
     else:
         status = "APPROVED"
@@ -292,10 +305,11 @@ def validate_output(text: str, chapter: int) -> dict:
     report = {
         "chapter": chapter,
         "myanmar_ratio": round(ratio, 3),
-        "thai_chars_leaked": leakage["thai_chars"],
-        "chinese_chars_leaked": leakage["chinese_chars"],
-        "latin_words_found": leakage["latin_words"],
-        "english_common_words": leakage["english_common_words"],
+        "thai_chars_leaked": leakage.get("thai_chars", 0),
+        "bengali_chars_leaked": leakage.get("bengali_chars", 0),
+        "chinese_chars_leaked": leakage.get("chinese_chars", 0),
+        "latin_words_found": leakage.get("latin_words", 0),
+        "english_common_words": leakage.get("english_common_words", 0),
         "status": status,
     }
     return report

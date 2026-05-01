@@ -459,6 +459,9 @@ class TranslationPipeline:
         # Use aggressive mode to strip all reasoning/analysis content
         processor = Postprocessor(aggressive=True)
         
+        # Deduplicate overlapping paragraphs between adjacent chunks
+        chunks = self._deduplicate_chunks(chunks)
+        
         # Join chunks
         text = '\n\n'.join(chunks)
         
@@ -466,6 +469,79 @@ class TranslationPipeline:
         text = processor.clean(text)
         
         return text
+    
+    def _deduplicate_chunks(self, chunks: List[str]) -> List[str]:
+        """Remove duplicated overlapping paragraphs between adjacent chunks.
+        
+        The chunking algorithm may use overlap to preserve context. This function
+        detects and removes paragraphs from chunk N+1 that already appeared at the
+        end of chunk N, preventing duplicated content in the final output.
+        
+        Uses a high-similarity threshold (>0.95) and minimum-length checks to
+        avoid false positives on short Myanmar paragraphs.
+        
+        Args:
+            chunks: List of translated chunk texts
+            
+        Returns:
+            Deduplicated chunk texts
+        """
+        if len(chunks) <= 1:
+            return chunks
+        
+        def split_paragraphs(text: str) -> List[str]:
+            """Split text into paragraphs."""
+            return [p.strip() for p in text.split('\n\n') if p.strip()]
+        
+        def chars_overlap_ratio(p1: str, p2: str) -> float:
+            """Compute character set overlap ratio between two strings.
+            Only used for boundary-adjacent paragraphs with minimum length."""
+            set1 = set(p1.replace(' ', ''))
+            set2 = set(p2.replace(' ', ''))
+            if not set1 or not set2:
+                return 0.0
+            intersection = set1 & set2
+            union = set1 | set2
+            return len(intersection) / len(union)
+        
+        result = [chunks[0]]
+        
+        for i in range(1, len(chunks)):
+            prev_paras = split_paragraphs(result[-1])
+            curr_paras = split_paragraphs(chunks[i])
+            
+            if not prev_paras or not curr_paras:
+                result.append(chunks[i])
+                continue
+            
+            # Only check the last paragraph of prev vs first paragraph of curr
+            # to find overlap at chunk boundary
+            remove_from_curr = 0
+            last_prev = prev_paras[-1]
+            first_curr = curr_paras[0]
+            
+            # Only attempt deduplication on paragraphs with substantial content (>50 chars)
+            # to avoid false positives on short, similar-looking Myanmar sentences
+            if len(last_prev) > 50 and len(first_curr) > 50:
+                if chars_overlap_ratio(last_prev, first_curr) > 0.95:
+                    remove_from_curr = 1
+                    # Check if more consecutive boundary paragraphs match
+                    for k in range(2, min(len(prev_paras), len(curr_paras)) + 1):
+                        p = prev_paras[-k]
+                        c = curr_paras[k-1]
+                        if len(p) > 50 and len(c) > 50 and chars_overlap_ratio(p, c) > 0.95:
+                            remove_from_curr = k
+                        else:
+                            break
+            
+            if remove_from_curr > 0:
+                deduped = '\n\n'.join(curr_paras[remove_from_curr:])
+                if deduped.strip():
+                    result.append(deduped)
+            else:
+                result.append(chunks[i])
+        
+        return result
     
     def _save_output(self, input_path: str, text: str) -> Path:
         """Save translated output.
@@ -489,14 +565,20 @@ class TranslationPipeline:
         
         # Add metadata if enabled
         if self.config.output.add_metadata:
-            metadata = f"""<!--
-Translated: {datetime.now().isoformat()}
-Source: {input_path}
-Pipeline: {self.config.translation_pipeline.mode}
--->
-
-"""
-            text = metadata + text
+            from src.utils.file_handler import FileHandler
+            meta_path = output_path.with_suffix('.meta.json')
+            metadata = {
+                "translated_at": datetime.now().isoformat(),
+                "source": str(input_path),
+                "pipeline": self.config.translation_pipeline.mode,
+                "output_file": str(output_path.name),
+            }
+            try:
+                import json
+                meta_content = json.dumps(metadata, indent=2, ensure_ascii=False)
+                FileHandler.write_text(str(meta_path), meta_content)
+            except Exception as e:
+                self.logger.warning(f"Failed to write metadata sidecar: {e}")
         
         # Write file
         from src.utils.file_handler import FileHandler
