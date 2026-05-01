@@ -53,6 +53,7 @@ models:
   checker: qwen:7b
   cloud_model: gemini-2.5-flash
   editor: padauk-gemma:q8_0
+  num_ctx: 4096
   ollama_base_url: http://localhost:11434
   provider: ollama
   refiner: padauk-gemma:q8_0

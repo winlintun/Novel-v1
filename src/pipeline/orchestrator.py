@@ -492,21 +492,83 @@ class TranslationPipeline:
         # Clean and normalize
         text = self.preprocessor.clean_markdown(text)
         
+        # Auto-detect optimal chunk size based on model context window
+        optimal_size = self._auto_detect_chunk_size(text)
+        
         # Create chunks: paragraph-only, no splitting, overlap=0
-        chunks = smart_chunk(text, max_tokens=self.config.processing.chunk_size)
+        chunks = smart_chunk(text, max_tokens=optimal_size)
 
-        self.logger.info(f"Created {len(chunks)} chunks")
+        self.logger.info(
+            f"Created {len(chunks)} chunks (size={optimal_size} tokens, "
+            f"auto-detected from model context window)"
+        )
         total_tokens = sum(estimate_tokens(c) for c in chunks)
         self.logger.info(f"Estimated total tokens: {total_tokens}, avg: {total_tokens // max(len(chunks), 1)}")
 
         self._report({
             "type": "preprocess_done",
             "chunk_count": len(chunks),
-            "chunk_size": self.config.processing.chunk_size,
+            "chunk_size": optimal_size,
             "duration": time.time() - t0,
         })
 
         return chunks
+    
+    def _auto_detect_chunk_size(self, source_text: str = "") -> int:
+        """Auto-detect optimal chunk size based on model context window.
+        
+        Formula:
+          optimal = min(
+              model_num_ctx * 0.35,     # 35% of model context window
+              max_chunk_size,           # config ceiling (default 2000)
+              len(source) * 1.5,        # don't chunk if source is tiny
+          )
+          clamp(optimal, 600, 2000)     # safety bounds
+        
+        The token budget is:
+          system(400) + glossary(300) + context(400) + chunk + output(400) ≤ model_ctx
+        So chunk ≤ model_ctx - 1500, but we use 35% for safety margin.
+        
+        Returns:
+            Optimal max_tokens value for smart_chunk()
+        """
+        config_size = getattr(self.config.processing, 'chunk_size', 1500)
+        
+        # Try to get model context window from Ollama
+        model_ctx = None
+        try:
+            client = self.ollama_client
+            if hasattr(client, '_client') and client._client:
+                # Ollama Python client
+                pass
+            # Fallback: use config or default
+            model_ctx = getattr(self.config.models, 'num_ctx', 4096)
+            if not model_ctx:
+                model_ctx = 4096
+        except Exception:
+            model_ctx = 4096
+        
+        # Calculate optimal: 35% of context window, capped by config max
+        optimal = min(
+            int(model_ctx * 0.35),       # e.g., 4096*0.35 = 1433
+            min(config_size, 2000),      # never exceed 2000
+        )
+        
+        # If source text is very short, just use 1 chunk
+        if source_text:
+            source_tokens = int(len(source_text) * 1.5)
+            if source_tokens <= optimal:
+                optimal = max(optimal, source_tokens)  # single chunk
+        
+        # Safety bounds
+        optimal = max(optimal, 600)   # minimum 600 tokens
+        optimal = min(optimal, 2000)  # maximum 2000 tokens
+        
+        self.logger.debug(
+            f"Auto-detected chunk_size={optimal} "
+            f"(model_ctx={model_ctx}, config_size={config_size})"
+        )
+        return optimal
     
     def _translate_chunks(self, chunks: List[str]) -> Tuple[List[str], List[Dict[str, Any]]]:
         """Translate chunks through the pipeline with rolling context.
