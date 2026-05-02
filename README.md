@@ -1,320 +1,199 @@
 # Novel Translation Pipeline
 
-AI-powered Chinese/English-to-Myanmar (Burmese) novel translation system specializing in Wuxia/Xianxia cultivation novels. Supports both direct EN→MM translation and CN→EN→MM pivot workflows.
+AI-powered Chinese/English-to-Myanmar (Burmese) novel translation system specializing in Wuxia/Xianxia cultivation novels.
+**Ollama-only** — runs entirely on local models, no cloud API needed.
 
-> 💡 **Tip**: Use `--clean` flag to clear Python cache before running: `python3 -m src.main --chapter 1 --novel "古道仙鸿" --clean`
+> **Quick start**: `python -m src.main --novel reverend-insanity --chapter 1`
+> **Web UI**: `python -m src.main --ui`
+> **Full help**: `python -m src.main --help`
 
-## Overview
+---
 
-This pipeline uses a multi-stage agent system to translate web novels while preserving:
-- Tone, style, and literary depth
-- Terminology consistency via glossary
-- Story context across chapters
-- Proper Chinese SVO to Myanmar SOV syntax conversion
+## Features
+
+| Feature | Description |
+|---------|-------------|
+| Dual workflows | way1 (EN→MM direct), way2 (CN→EN→MM pivot) — auto-detected |
+| 6-stage pipeline | Translate → Refine → Reflect → Quality Check → Consistency → QA |
+| Smart chunking | Token-aware, paragraph-safe, zero overlap, rolling context |
+| 3-tier memory | Glossary (persistent) + Context (FIFO) + Session rules |
+| Glossary engine | Auto-extract terms, confidence-based auto-promote, deduplication |
+| Quality gates | Myanmar ratio ≥70%, register mixing, archaic words, particle repetition |
+| Auto-review | Per-chapter quality reports in `logs/report/` |
+| Quality stats | `--stats` shows per-chapter score trends with bar charts |
+| Web UI | 6-page Streamlit interface: Quickstart, Translate, Progress, Glossary, Settings, Reader |
+| CI/CD | GitHub Actions: Python 3.10-3.13, Ruff linter, 35% coverage |
+
+---
+
+## Quick Start
+
+### 1. Install
+```bash
+pip install -r requirements.txt
+ollama pull padauk-gemma:q8_0
+ollama pull alibayram/hunyuan:7b
+```
+
+### 2. Translate
+```bash
+# Single chapter (auto-detects language)
+python -m src.main --novel reverend-insanity --chapter 1
+
+# Chapter range
+python -m src.main --novel reverend-insanity --chapter-range 1-10
+
+# All chapters starting from chapter 5
+python -m src.main --novel reverend-insanity --all --start 5
+
+# Single file
+python -m src.main --input data/input/reverend-insanity/ch001.md
+```
+
+### 3. Review Quality
+```bash
+# Review a translated file
+python -m src.main --review data/output/reverend-insanity/reverend-insanity_chapter_001.mm.md
+
+# Show quality score trends for entire novel
+python -m src.main --stats --novel reverend-insanity
+
+# View translated file in terminal
+python -m src.main --view data/output/reverend-insanity/reverend-insanity_chapter_001.mm.md
+```
+
+### 4. Manage Glossary
+```bash
+# Generate glossary from first 5 chapters
+python -m src.main --novel reverend-insanity --generate-glossary --chapter-range 1-5
+
+# Auto-promote high-confidence pending terms
+python -m src.main --auto-promote --novel reverend-insanity
+```
+
+### 5. Web UI
+```bash
+python -m src.main --ui
+# or: streamlit run ui/streamlit_app.py
+```
+
+---
+
+## CLI Reference
+
+```
+python -m src.main [OPTIONS]
+
+Translation:
+  --novel NAME              Novel name
+  --chapter N               Single chapter
+  --chapter-range 1-10      Chapter range
+  --all                     All chapters
+  --start N                 Start chapter (default: 1)
+  --input FILE              Single input file
+  --output-dir DIR          Override output directory
+
+Workflow:
+  --workflow {way1,way2}    Force workflow (auto-detected if omitted)
+  --lang {zh,en}            Source language hint
+  --mode {full,lite,fast}   Pipeline mode
+  --skip-refinement         Skip Stage 2 (faster)
+  --use-reflection          Enable self-correction (Stage 3)
+
+Config:
+  --config FILE             Config file (default: config/settings.yaml)
+  --model MODEL             Override translator model
+
+Quality & Review:
+  --review FILE             Review translated .mm.md file
+  --stats                   Show per-chapter score trends (requires --novel)
+  --view FILE               View translated file in terminal
+
+Glossary:
+  --generate-glossary       Generate glossary from chapters
+  --auto-promote            Promote high-confidence pending terms (requires --novel)
+
+Utilities:
+  --ui                      Launch Streamlit web UI
+  --test                    Run sample translation test
+  --clean                   Clear Python cache
+  --no-metadata             Skip metadata in output
+  --version                 Show version
+```
+
+---
+
+## Supported Models
+
+| Model | Quality | Speed | Best For |
+|-------|---------|-------|----------|
+| `padauk-gemma:q8_0` | ⭐⭐⭐⭐⭐ | ~5 min/chunk | **Primary** EN→MM output |
+| `alibayram/hunyuan:7b` | ⭐⭐⭐⭐ | Medium | CN→EN pivot (way2 Stage 1) |
+| `qwen:7b` | ⭐⭐⭐ | Fast | QA checks, glossary sync |
+
+---
 
 ## Architecture
 
 ```
-Input (Chinese) → Preprocess → Stage 1 (CN→EN) → Stage 2 (EN→MM) → Refine → Reflection (Critique) → QA Check → Output (Myanmar)
+Input → Preprocess → Translate → Refine → Reflect → Quality Check → Consistency → QA → Output
+         (chunk)     (Stage 1)  (Stage 2)  (Stage 3)  (Stage 4)      (Stage 5)    (Stage 6)
 ```
 
-## Advanced Features
+### Pipeline Stages
 
-### 🧠 Reflection & Self-Correction
-The `ReflectionAgent` implements Andrew Ng's translation-agent pattern. After the initial translation and refinement, the model analyzes its own work, identifies issues (awkward phrasing, tone inconsistency, etc.), and iteratively improves it.
+| Stage | Agent | Role |
+|-------|-------|------|
+| 1 | `Translator` | CN/EN → MM translation with glossary + rolling context |
+| 2 | `Refiner` | Literary editing, natural flow, glossary enforcement |
+| 3 | `ReflectionAgent` | Self-critique + iterative improvement |
+| 4 | `MyanmarQualityChecker` | Archaic words, register mixing, particle repetition |
+| 5 | `Checker` | Glossary consistency (untranslated terms + target spelling) |
+| 6 | `QATesterAgent` | Markdown, Myanmar ratio, placeholders, chapter title |
 
-### 🇲🇲 Myanmar Quality Checker
-A specialized `MyanmarQualityChecker` validates translations for linguistic naturalness, proper particle usage, and tone consistency. It helps ensure the output sounds like literary Myanmar rather than a machine translation.
+---
 
-### 🌐 Web Interface
-A Streamlit-based Web UI provides a user-friendly way to manage translations, view progress, and edit the glossary.
+## Memory System
 
-Run the UI:
-```bash
-streamlit run ui/streamlit_app.py
-```
+| Tier | Storage | Scope |
+|------|---------|-------|
+| Glossary | `data/glossary_{novel}.json` | Persistent (per-novel isolation) |
+| Context | `data/context_memory_{novel}.json` | Chapter FIFO buffer (last 3) |
+| Pending | `data/glossary_pending_{novel}.json` | Terms awaiting review |
 
-## Supported Models
-
-| Model | Quality | Speed | VRAM | Best For |
-|-------|---------|-------|------|----------|
-| `padauk-gemma:q8_0` | ⭐⭐⭐⭐⭐ | Fast | 5GB | **Primary**: Best EN→MM output, low hallucination |
-| `aya:8b` | ⭐⭐⭐⭐ | Fast | 5GB | Fallback multilingual model |
-| `alibayram/hunyuan:7b` | ⭐⭐⭐⭐ | Medium | 4GB | CN→EN pivot (Stage 1 of way2) |
-| `qwen:7b` | ⭐⭐⭐ | Fast | 4GB | QA checks, lightweight tasks |
-| `qwen2.5:14b` | ⭐⭐⭐⭐⭐ | Medium | 9GB | CN→EN (alternative for way2 Stage 1) |
-
-**NOT recommended**: `yxchia/seallms-v3-7b` (produces Thai instead of Myanmar)
-
-## Quick Start
-
-### 1. Install Dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-### 2. Install Ollama and Pull Models
-
-```bash
-# Install Ollama from https://ollama.ai
-
-# Pull primary model (Myanmar-optimized)
-ollama pull padauk-gemma:q8_0
-
-# Pull pivot model (Chinese→English, for way2 workflow)
-ollama pull alibayram/hunyuan:7b
-
-# Pull fallback models
-ollama pull aya:8b
-```
-
-### 3. Configure Settings
-
-Edit `config/settings.yaml` or use one of the preset configs:
-
-```yaml
-# Standard (Chinese → Myanmar direct)
-config: config/settings.yaml
-
-# Pivot via English (CN → EN → MM)
-config: config/settings.pivot.yaml
-
-# Fast mode (lighter model)
-config: config/settings.fast.yaml
-```
-
-### 4. Run Translation
-
-```bash
-# Single chapter
-python -m src.main --novel 古道仙鸿 --chapter 1
-
-# Multiple chapters (range)
-python -m src.main --novel 古道仙鸿 --chapter-range 9-15
-
-# All chapters
-python -m src.main --novel 古道仙鸿 --all
-
-# From specific chapter onwards
-python -m src.main --novel 古道仙鸿 --all --start 10
-
-# Use specific workflow (auto-detected if omitted)
-python -m src.main --novel 古道仙鸿 --chapter 1 --workflow way2
-
-# Skip refinement (faster, lower quality)
-python -m src.main --novel 古道仙鸿 --chapter 1 --skip-refinement
-
-# Unload model after each chapter (saves VRAM)
-python -m src.main --novel 古道仙鸿 --all --unload-after-chapter
-
-# Multiple chapters with specific start/end
-python -m src.main --novel 古道仙鸿 --start 9 --end 15
-```
+---
 
 ## Directory Structure
 
 ```
-novel_translation_project/
-├── config/                    # Model and pipeline configs
-│   ├── settings.yaml         # Standard CN→MM
-│   ├── settings.pivot.yaml   # CN→EN→MM pivot
-│   └── settings.fast.yaml    # Fast mode
+├── config/settings.yaml          # Main config (Ollama-only)
 ├── data/
-│   ├── input/               # Chinese chapter files (*.md)
-│   ├── output/              # Myanmar translations
-│   │   └── {novel}/        #   ├── en/     (English intermediate)
-│   │   │                  #   └── mm/     (Myanmar final)
-│   │   ├── glossary.json    # Approved terminology
-│   │   ├── glossary_pending.json  # Terms awaiting review
-│   │   └── context_memory.json    # Chapter context
+│   ├── input/{novel}/            # Source chapters (*.md)
+│   └── output/{novel}/           # Translated output (*.mm.md + meta.json)
 ├── src/
-│   ├── agents/              # Translation agents
-│   │   ├── pivot_translator.py  # CN→EN→MM routing
-│   │   ├── translator.py    # Stage 1
-│   │   ├── refiner.py       # Stage 2
-│   │   ├── checker.py       # QA validation
-│   │   ├── reflection_agent.py   # Self-correction
-│   │   ├── myanmar_quality_checker.py  # Linguistic validation
-│   │   ├── qa_tester.py     # QA validation agent
-│   │   └── context_updater.py  # Term extraction
-│   ├── cli/                 # CLI module (refactored)
-│   │   ├── parser.py        # Argument parsing
-│   │   ├── formatters.py    # Output formatting
-│   │   └── commands.py      # Command handlers
-│   ├── config/              # Configuration management
-│   │   ├── models.py        # Pydantic config models
-│   │   └── loader.py        # Config loading with validation
-│   ├── core/                # Core functionality
-│   │   └── container.py     # Dependency injection container
-│   ├── memory/              # 3-tier memory system
-│   │   └── memory_manager.py
-│   ├── pipeline/            # Pipeline orchestration
-│   │   └── orchestrator.py  # TranslationPipeline coordinator
-│   ├── types/               # Type definitions
-│   │   └── definitions.py   # TypedDict for data structures
-│   ├── utils/               # Utilities
-│   │   ├── ollama_client.py  # Ollama API wrapper
-│   │   ├── file_handler.py   # File I/O
-│   │   └── postprocessor.py # Output cleaning
-│   ├── web/                 # Web UI launcher
-│   │   └── launcher.py      # Streamlit launcher
-│   ├── exceptions.py        # Exception hierarchy
-│   └── main.py              # Entry point (thin dispatcher)
-├── tests/                   # Unit tests (229+ tests)
-└── tools/                   # Maintenance tools
-    └── cleanup.py           # Ollama memory cleanup
+│   ├── agents/                   # 8 pipeline agents
+│   ├── cli/                      # CLI parser, commands, formatters
+│   ├── config/                   # Pydantic config models + loader
+│   ├── memory/                   # MemoryManager (3-tier + dedup)
+│   ├── pipeline/                 # TranslationPipeline orchestrator
+│   └── utils/                    # postprocessor, chunker, ollama_client, fluency_scorer, reviewer
+├── tests/                        # 254 tests (35% coverage)
+├── logs/report/                  # Auto-generated quality reports
+└── ui/                           # 6-page Streamlit Web UI
 ```
 
-## Translation Workflow
-
-### 4-Stage Pipeline
-
-1. **Preprocess**: Clean and chunk input text with sliding window overlap
-2. **Translate**: CN → EN → MM pivot translation (or direct CN → MM)
-3. **Refine**: Literary editing for natural flow
-4. **QA Check**: Terminology consistency and quality validation
-
-### Memory System
-
-| Tier | Storage | Scope |
-|------|---------|-------|
-| 1 | `glossary.json` | Persistent terminology |
-| 2 | `context_memory.json` | Chapter context (FIFO) |
-| 3 | Session rules | Runtime only |
-
-### Glossary Management
-
-New terms are extracted automatically and stored in `glossary_pending.json` for review:
-
-```json
-{
-  "pending_terms": [
-    {
-      "source": "新术语",
-      "target": "မြန်မာဘာသာ",
-      "category": "item",
-      "extracted_from_chapter": 12,
-      "status": "pending"
-    }
-  ]
-}
-```
-
-Approve terms by changing `"status": "pending"` to `"status": "approved"`.
-
-## Configuration Reference
-
-### Model Settings
-
-```yaml
-models:
-  provider: "ollama"
-  translator: "padauk-gemma:q8_0"
-  editor: "padauk-gemma:q8_0"
-  refiner: "padauk-gemma:q8_0"
-  checker: "qwen:7b"
-  ollama_base_url: "http://localhost:11434"
-```
-
-### Processing Settings
-
-```yaml
-processing:
-  chunk_size: 800        # Characters per chunk (800 optimal for padauk-gemma)
-  temperature: 0.2       # Lower = more deterministic (0.2 recommended)
-  repeat_penalty: 1.15   # Prevents repetition loops (1.15 recommended)
-  top_p: 0.95
-  top_k: 40
-  max_retries: 2
-```
-
-## Troubleshooting
-
-### Model produces Thai/English instead of Myanmar
-
-- Use `padauk-gemma:q8_0` as primary model (Myanmar-optimized)
-- Verify `LANGUAGE_GUARD` is active in translator prompts
-- Lower temperature to 0.2
-- Reduce `chunk_size` to 800
-
-### Out of VRAM
-
-```bash
-# Unload model after each chapter
-python -m src.main --novel 古道仙鸿 --all --unload-after-chapter
-
-# Or use lighter model
-python -m src.main --novel 古道仙鸿 --all --config config/settings.fast.yaml
-```
-
-### Slow inference
-
-- Use `padauk-gemma:q8_0` (smaller, faster than qwen2.5:14b)
-- Reduce `chunk_size` from 800 to 400
-- Disable reflection: set `use_reflection: false`
+---
 
 ## Testing
 
 ```bash
-# Run all tests
-pytest tests/ -v
-
-# Run specific test file
-pytest tests/test_pivot_translator.py -v
-
-# Run with coverage
-pytest tests/ -v --cov=src --cov-report=term-missing
+pytest tests/ -v                          # All tests
+pytest tests/ -v --cov=src --cov-report=term   # With coverage
+ruff check src/ tests/ --select=E,F       # Lint
 ```
 
-## Architecture Overview
-
-### Refactored Codebase (v2.0)
-
-The codebase has been refactored for better maintainability and testability:
-
-| Module | Purpose |
-|--------|---------|
-| `src/cli/` | CLI argument parsing, formatting, and command handlers |
-| `src/config/` | Pydantic-based configuration with validation |
-| `src/pipeline/` | Pipeline orchestration with lazy agent loading |
-| `src/core/` | Dependency injection container |
-| `src/types/` | TypedDict definitions for type safety |
-| `src/web/` | Web UI launcher |
-| `src/exceptions.py` | Structured exception hierarchy |
-
-### Key Improvements
-
-- **Type Safety**: Pydantic models for configuration validation
-- **Error Handling**: Structured exception hierarchy (NovelTranslationError, ModelError, etc.)
-- **Testability**: Dependency injection container for easy mocking
-- **Modularity**: Clean separation between CLI, pipeline, and agents
-- **Lazy Loading**: Agents loaded only when needed
-
-## Development
-
-### Adding New Agents
-
-Follow the modular boundaries defined in `AGENTS.md`:
-- Agents must not import other agents directly
-- Use `MemoryManager` as the single data gateway
-- All public methods require type hints
-- Add types to `src/types/definitions.py`
-
-### Running CI Locally
-
-```bash
-# Same checks as GitHub Actions
-pytest tests/ -v --tb=short
-python -m py_compile src/**/*.py
-```
+---
 
 ## License
 
-MIT License
-
-## Contributing
-
-1. Read `AGENTS.md` for architecture rules
-2. Run tests before committing: `pytest tests/ -v`
-3. Update `CURRENT_STATE.md` after changes
+MIT License — see `LICENSE`

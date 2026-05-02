@@ -23,30 +23,42 @@ def create_parser() -> argparse.ArgumentParser:
     """
     parser = argparse.ArgumentParser(
         prog="novel-translate",
-        description="AI-powered Chinese-to-Myanmar novel translation pipeline",
+        description="AI-powered Chinese/English-to-Myanmar novel translation pipeline (Ollama-only)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Examples:
-    # Translate a single chapter
-    python -m src.main --novel "古道仙鸿" --chapter 1
-    
-    # Translate all chapters
-    python -m src.main --novel "古道仙鸿" --all
-    
-    # Translate from specific chapter onwards
-    python -m src.main --novel "古道仙鸿" --all --start 10
-    
-    # Translate a single file
-    python -m src.main --input data/input/chapter_001.md
-    
-    # Use specific workflow
-    python -m src.main --novel "古道仙鸿" --chapter 1 --workflow way2
-    
-    # Launch web UI
-    python -m src.main --ui
-    
-    # Generate glossary from first 5 chapters
-    python -m src.main --novel "古道仙鸿" --generate-glossary --chapter-range 1-5
+╔══════════════════════════════════════════════════════════════════════╗
+║                    QUICKSTART EXAMPLES                              ║
+╠══════════════════════════════════════════════════════════════════════╣
+║                                                                      ║
+║  TRANSLATION:                                                        ║
+║    python -m src.main --novel reverend-insanity --chapter 1          ║
+║    python -m src.main --novel reverend-insanity --all                ║
+║    python -m src.main --novel reverend-insanity --chapter-range 1-5 ║
+║    python -m src.main --novel reverend-insanity --all --start 10     ║
+║    python -m src.main --input data/input/reverend-insanity/ch001.md ║
+║    python -m src.main --novel reverend-insanity --all --mode fast    ║
+║                                                                      ║
+║  WORKFLOW:                                                           ║
+║    python -m src.main --novel reverend-insanity --ch 1 --workflow way1  (EN→MM)
+║    python -m src.main --novel reverend-insanity --ch 1 --lang zh        (auto way2)
+║    python -m src.main --novel reverend-insanity --ch 1 --skip-refinement
+║                                                                      ║
+║  QUALITY & REVIEW:                                                   ║
+║    python -m src.main --review data/output/reverend-insanity/ch017.mm.md
+║    python -m src.main --stats --novel reverend-insanity              ║
+║    python -m src.main --view data/output/reverend-insanity/ch017.mm.md
+║                                                                      ║
+║  GLOSSARY:                                                           ║
+║    python -m src.main --novel reverend-insanity --generate-glossary --chapter-range 1-5
+║    python -m src.main --auto-promote --novel reverend-insanity       ║
+║                                                                      ║
+║  UTILITIES:                                                          ║
+║    python -m src.main --ui         (launch Streamlit web UI)         ║
+║    python -m src.main --test       (run sample translation test)     ║
+║    python -m src.main --clean      (clear Python cache)              ║
+║    python -m src.main --version    (show version)                    ║
+║                                                                      ║
+╚══════════════════════════════════════════════════════════════════════╝
         """
     )
 
