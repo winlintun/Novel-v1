@@ -15,7 +15,7 @@ This enables:
 - Reduced coupling between components
 """
 
-from typing import Optional, Dict, Any
+from typing import Optional, Any
 from dataclasses import dataclass, field
 
 from src.config import AppConfig
@@ -28,16 +28,16 @@ class Container:
     Manages the lifecycle of all application components
     and provides factory methods for creating instances.
     """
-    
+
     config: AppConfig
-    
+
     # Cached instances (singletons)
     _ollama_client: Optional[Any] = field(default=None, repr=False)
     _memory_manager: Optional[Any] = field(default=None, repr=False)
     _translator: Optional[Any] = field(default=None, repr=False)
     _refiner: Optional[Any] = field(default=None, repr=False)
     _checker: Optional[Any] = field(default=None, repr=False)
-    
+
     def get_ollama_client(self) -> Any:
         """Get or create OllamaClient instance.
         
@@ -55,7 +55,7 @@ class Container:
                 main_gpu=getattr(self.config.models, 'main_gpu', 0)
             )
         return self._ollama_client
-    
+
     def get_memory_manager(self) -> Any:
         """Get or create MemoryManager instance.
         
@@ -69,7 +69,7 @@ class Container:
                 context_path=self.config.paths.context_memory_file
             )
         return self._memory_manager
-    
+
     def get_translator(self) -> Any:
         """Get or create Translator instance.
         
@@ -84,7 +84,7 @@ class Container:
                 config=self.config.dict()
             )
         return self._translator
-    
+
     def get_refiner(self) -> Any:
         """Get or create Refiner instance.
         
@@ -99,7 +99,7 @@ class Container:
                 config=self.config.dict()
             )
         return self._refiner
-    
+
     def get_checker(self) -> Any:
         """Get or create Checker instance.
         
@@ -113,7 +113,7 @@ class Container:
                 config=self.config.dict()
             )
         return self._checker
-    
+
     def create_preprocessor(self) -> Any:
         """Create a new Preprocessor instance.
         
@@ -124,7 +124,7 @@ class Container:
         return Preprocessor(
             chunk_size=self.config.processing.chunk_size,
         )
-    
+
     def create_pipeline(self) -> Any:
         """Create a new TranslationPipeline instance.
         
@@ -133,7 +133,7 @@ class Container:
         """
         from src.pipeline.orchestrator import TranslationPipeline
         return TranslationPipeline(self.config)
-    
+
     def cleanup(self) -> None:
         """Clean up all cached resources."""
         if self._ollama_client:
@@ -142,14 +142,14 @@ class Container:
             except Exception:
                 pass
             self._ollama_client = None
-        
+
         if self._memory_manager:
             try:
                 self._memory_manager.save_memory()
             except Exception:
                 pass
             self._memory_manager = None
-        
+
         self._translator = None
         self._refiner = None
         self._checker = None

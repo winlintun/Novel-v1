@@ -42,7 +42,7 @@ class MemoryManager:
     - Tier 2: Chapter Context (FIFO sliding window)
     - Tier 3: Session Rules (Dynamic corrections)
     """
-    
+
     def __init__(
         self,
         glossary_path: str = "data/glossary.json",
@@ -54,24 +54,24 @@ class MemoryManager:
             glossary_path, context_path, self.pending_path = _resolve_glossary_path(novel_name)
         else:
             self.pending_path = "data/glossary_pending.json"
-        
+
         self.glossary_path = glossary_path
         self.context_path = context_path
         self.novel_name = novel_name
-        
+
         # Tier 1: Global Glossary
         self.glossary: Dict[str, Any] = {}
-        
+
         # Tier 2: Context Memory
         self.context_memory: Dict[str, Any] = {}
         self.paragraph_buffer: deque = deque(maxlen=10)
-        
+
         # Tier 3: Session Rules
         self.session_rules: Dict[str, str] = {}
-        
+
         # Load all memory
         self._load_memory()
-    
+
     def _load_memory(self):
         """Load all memory files."""
         # Load glossary
@@ -95,7 +95,7 @@ class MemoryManager:
             self.glossary["terms"] = terms
             if normalized_count > 0:
                 logger.debug(f"Normalized {normalized_count} glossary terms from old format")
-        
+
         # Load context memory
         self.context_memory = FileHandler.read_json(self.context_path)
         if not self.context_memory:
@@ -111,20 +111,20 @@ class MemoryManager:
             # Restore paragraph buffer
             buffer_data = self.context_memory.get("paragraph_buffer", [])
             self.paragraph_buffer = deque(buffer_data, maxlen=10)
-        
+
         logger.info(f"Memory loaded: {self.glossary.get('total_terms', 0)} glossary terms")
-    
+
     def save_memory(self):
         """Save all memory to disk."""
         # Update context memory with buffer
         self.context_memory["paragraph_buffer"] = list(self.paragraph_buffer)
-        
+
         # Save files
         FileHandler.write_json(self.glossary_path, self.glossary)
         FileHandler.write_json(self.context_path, self.context_memory)
-        
+
         logger.debug("Memory saved to disk")
-    
+
     @staticmethod
     def _is_valid_myanmar_text(text: str, min_ratio: float = 0.5) -> bool:
         """Check if text contains sufficient Myanmar Unicode characters.
@@ -141,13 +141,13 @@ class MemoryManager:
         """
         if not text or not text.strip():
             return False
-        
+
         # Forcin placeholders — these are legitimate temp values
         if text.startswith("【?") and text.endswith("?】"):
             return True
-        
+
         MYANMAR_RANGES = [(0x1000, 0x109F), (0xAA60, 0xAA7F), (0xA9E0, 0xA9FF)]
-        
+
         mm_count = 0
         total = 0
         for ch in text:
@@ -157,16 +157,16 @@ class MemoryManager:
             total += 1
             if any(lo <= code <= hi for lo, hi in MYANMAR_RANGES):
                 mm_count += 1
-        
+
         if total == 0:
             return False
-        
+
         return (mm_count / total) >= min_ratio
-    
+
     # -------------------------------------------------------------------------
     # Tier 1: Glossary Operations
     # -------------------------------------------------------------------------
-    
+
     def add_term(
         self,
         source: str,
@@ -179,17 +179,17 @@ class MemoryManager:
         Validates that the target contains Myanmar text before accepting.
         """
         terms = self.glossary.get("terms", [])
-        
+
         # Check for duplicates
         existing = {t.get("source") or t.get("source_term", "") for t in terms}
         if source in existing:
             return False
-        
+
         # Validate target contains Myanmar text (reject pure English/Latin/Chinese)
         if not self._is_valid_myanmar_text(target):
             logger.warning(f"Rejected non-Myanmar target for '{source}': '{target}'")
             return False
-        
+
         new_term = {
             "id": f"term_{len(terms) + 1:03d}",
             "source": source,
@@ -200,24 +200,24 @@ class MemoryManager:
             "verified": False,
             "added_at": datetime.now().isoformat()
         }
-        
+
         terms.append(new_term)
         self.glossary["terms"] = terms
         self.glossary["total_terms"] = len(terms)
         self.glossary["last_updated"] = datetime.now().isoformat()
-        
+
         self.save_memory()
         logger.info(f"Added glossary term: {source} -> {target}")
         return True
-    
+
     def update_term(self, source: str, new_target: str, chapter: int = 0) -> bool:
         """Update an existing term with Myanmar validation."""
         if not self._is_valid_myanmar_text(new_target):
             logger.warning(f"Rejected non-Myanmar update for '{source}': '{new_target}'")
             return False
-        
+
         terms = self.glossary.get("terms", [])
-        
+
         for term in terms:
             term_source = term.get("source") or term.get("source_term", "")
             if term_source == source:
@@ -226,33 +226,33 @@ class MemoryManager:
                 term["target_term"] = new_target
                 term["chapter_last_seen"] = chapter
                 term["updated_at"] = datetime.now().isoformat()
-                
+
                 self.save_memory()
                 logger.info(f"Updated term: {source} -> {new_target}")
                 return True
-        
+
         return False
-    
+
     def get_term(self, source: str) -> Optional[str]:
         """Get target translation for a source term."""
         terms = self.glossary.get("terms", [])
-        
+
         for term in terms:
             term_source = term.get("source") or term.get("source_term", "")
             if term_source == source:
                 return term.get("target") or term.get("target_term")
-        
+
         return None
-    
+
     def get_glossary_for_prompt(self, limit: int = 20) -> str:
         """Get formatted glossary for prompt injection."""
         terms = self.glossary.get("terms", [])
-        
+
         if not terms:
             return "No glossary entries yet."
-        
+
         lines = ["GLOSSARY (Use these exact translations):"]
-        
+
         for term in terms[:limit]:
             verified = "✓" if term.get("verified") else "○"
             source = self._sanitize_for_prompt(term.get("source") or term.get("source_term", ""))
@@ -262,13 +262,13 @@ class MemoryManager:
                 f"  [{verified}] {source} = {target} "
                 f"({category})"
             )
-        
+
         return "\n".join(lines)
-    
+
     def get_all_terms(self) -> List[Dict[str, Any]]:
         """Get all glossary terms."""
         return self.glossary.get("terms", [])
-    
+
     def _sanitize_for_prompt(self, text: str) -> str:
         """Sanitize text for safe use in LLM prompts."""
         if not isinstance(text, str):
@@ -279,74 +279,74 @@ class MemoryManager:
         text = text.replace('```', '').replace('"""', '').replace("'''", '')
         # Limit length
         return text[:100]
-    
+
     # -------------------------------------------------------------------------
     # Tier 2: Context Memory Operations
     # -------------------------------------------------------------------------
-    
+
     def update_chapter_context(self, chapter_num: int, summary: str = ""):
         """Update context after chapter translation."""
         self.context_memory["last_translated_chapter"] = self.context_memory.get("current_chapter", 0)
         self.context_memory["current_chapter"] = chapter_num
-        
+
         if summary:
             self.context_memory["summary"] = summary
-        
+
         self.save_memory()
-    
+
     def push_to_buffer(self, translated_text: str):
         """Add translated paragraph to FIFO buffer."""
         self.paragraph_buffer.append(translated_text)
-    
+
     def get_context_buffer(self, count: int = 3) -> str:
         """Get recent translations for context."""
         if not self.paragraph_buffer:
             return "No previous context."
-        
+
         recent = [self._sanitize_for_prompt(text) for text in list(self.paragraph_buffer)[-count:]]
         return "PREVIOUS CONTEXT:\n" + "\n".join(recent)
-    
+
     def clear_buffer(self):
         """Clear paragraph buffer (e.g., at chapter end)."""
         self.paragraph_buffer.clear()
         logger.debug("Context buffer cleared")
-    
+
     def get_summary(self) -> str:
         """Get summary of previous chapters."""
         summary = self.context_memory.get("summary", "")
         return self._sanitize_for_prompt(summary)
-    
+
     # -------------------------------------------------------------------------
     # Tier 3: Session Rules
     # -------------------------------------------------------------------------
-    
+
     def add_session_rule(self, incorrect: str, correct: str):
         """Add a temporary correction rule."""
         self.session_rules[incorrect] = correct
         logger.info(f"Session rule added: {incorrect} -> {correct}")
-    
+
     def get_session_rules(self) -> str:
         """Get formatted session rules."""
         if not self.session_rules:
             return "No session rules."
-        
+
         lines = ["CORRECTION RULES:"]
         for incorrect, correct in self.session_rules.items():
             lines.append(f"  {self._sanitize_for_prompt(incorrect)} -> {self._sanitize_for_prompt(correct)}")
-        
+
         return "\n".join(lines)
-    
+
     def promote_rule_to_glossary(self, incorrect: str, correct: str, chapter: int = 0):
         """Promote a session rule to permanent glossary entry."""
         # Add to glossary
         self.add_term(incorrect, correct, "user_correction", chapter)
-        
+
         # Remove from session rules
         if incorrect in self.session_rules:
             del self.session_rules[incorrect]
-        
+
         logger.info(f"Promoted to glossary: {incorrect} -> {correct}")
-    
+
     def add_pending_term(
         self,
         source: str,
@@ -366,19 +366,19 @@ class MemoryManager:
         pending_data = FileHandler.read_json(self.pending_path)
         if not pending_data:
             pending_data = {"pending_terms": []}
-        
+
         pending_terms = pending_data.get("pending_terms", [])
-        
+
         # Check for duplicates in approved glossary
         if self.get_term(source):
             return False
-        
+
         # Validate target: reject pure non-Myanmar unless it's a placeholder
         if target and not target.startswith("【?") and not target.startswith("["):
             if not self._is_valid_myanmar_text(target):
                 logger.warning(f"Rejected non-Myanmar pending target for '{source}': '{target}'")
                 return False
-            
+
         # Check for duplicate in pending list — update chapter count
         for t in pending_terms:
             if t.get("source") == source:
@@ -397,7 +397,7 @@ class MemoryManager:
                 FileHandler.write_json(self.pending_path, pending_data)
                 logger.debug(f"Updated pending term chapter count: {source} (seen in {len(chapters_seen)} chapters)")
                 return True
-            
+
         new_pending = {
             "source": source,
             "target": target,
@@ -408,10 +408,10 @@ class MemoryManager:
             "status": "pending",
             "added_at": datetime.now().isoformat()
         }
-        
+
         pending_terms.append(new_pending)
         pending_data["pending_terms"] = pending_terms
-        
+
         FileHandler.write_json(self.pending_path, pending_data)
         logger.info(f"Added pending glossary term: {source} -> {target}")
         return True
@@ -540,10 +540,10 @@ class MemoryManager:
                     not_promoted.append(term)
 
         # Remove promoted terms from pending (keep those that failed validation)
-        promoted_sources = {t.get("source") for t in approved if t not in not_promoted}
+        failed_sources = {n.get("source") for n in not_promoted}
         pending_data["pending_terms"] = [
             t for t in pending_terms
-            if t.get("status") != "approved" or t.get("source") in {n.get("source") for n in not_promoted}
+            if t.get("status") != "approved" or t.get("source") in failed_sources
         ]
         FileHandler.write_json(self.pending_path, pending_data)
         logger.info(f"Auto-approved {promoted_count}/{len(approved)} pending glossary terms")

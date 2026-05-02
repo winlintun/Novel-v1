@@ -13,7 +13,7 @@ import json
 import logging
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple, Any
+from typing import List, Optional, Tuple
 from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
@@ -134,8 +134,8 @@ def _check_markdown_structure(text: str, expected_chapter: Optional[int] = None)
     """Q4: Markdown structure check."""
     results = []
     lines = text.split('\n')
-    h1_count = sum(1 for l in lines if re.match(r'^#\s+အခန်း\s+', l.strip()))
-    h2_count = sum(1 for l in lines if re.match(r'^##\s+', l.strip()))
+    h1_count = sum(1 for line in lines if re.match(r'^#\s+အခန်း\s+', line.strip()))
+    _ = sum(1 for line in lines if re.match(r'^##\s+', line.strip()))
 
     if h1_count == 1:
         results.append(CheckResult("H1 Count", True, 0, f"{h1_count} heading"))
@@ -154,7 +154,7 @@ def _check_markdown_structure(text: str, expected_chapter: Optional[int] = None)
                                    f"Odd ** count ({bold_markers}) — unmatched pair", "WARNING"))
 
     # Chapter title format
-    chapter_heading = next((l.strip() for l in lines if re.match(r'^#\s+အခန်း\s+', l.strip())), "")
+    chapter_heading = next((line.strip() for line in lines if re.match(r'^#\s+အခန်း\s+', line.strip())), "")
     if chapter_heading and ':' not in chapter_heading:
         results.append(CheckResult("Chapter Title Format", True, 0, "Proper format"))
     elif chapter_heading:
@@ -186,7 +186,7 @@ def _check_content_completeness(text: str) -> CheckResult:
 def _check_paragraph_structure(text: str) -> CheckResult:
     """Q6: Paragraph structure check."""
     lines = text.split('\n')
-    content_lines = [l for l in lines if l.strip() and not l.strip().startswith('#')]
+    content_lines = [line for line in lines if line.strip() and not line.strip().startswith('#')]
     para_breaks = text.count('\n\n')
 
     if para_breaks == 0:
@@ -256,9 +256,9 @@ def _check_register_consistency(text: str) -> CheckResult:
 def _check_sentence_enders(text: str) -> CheckResult:
     """L8: Check paragraphs end with proper Myanmar enders."""
     lines = text.split('\n')
-    content_lines = [l.strip() for l in lines
-                     if l.strip() and not l.strip().startswith('#')
-                     and not l.strip().startswith('---')]
+    content_lines = [line.strip() for line in lines
+                     if line.strip() and not line.strip().startswith('#')
+                     and not line.strip().startswith('---')]
     # Only Myanmar sentence enders: ။ ၏ ၊ and closing Myanmar quotes
     unended = 0
     for line in content_lines:
@@ -316,6 +316,51 @@ def _check_paragraph_duplication(text: str) -> CheckResult:
         return CheckResult("Paragraph Duplication", True, 0, "No duplicated paragraphs")
     return CheckResult("Paragraph Duplication", False, dups * 5,
                        f"{dups} duplicated paragraph boundary(ies) found — chunk overlap artifact", "WARNING")
+
+
+# ── Fluency Score (Custom Burmese Heuristic) ──────────────────────
+
+def _check_fluency(text: str) -> CheckResult:
+    """F0: Burmese fluency heuristic score — reference-free quality metric.
+
+    Uses custom statistical heuristics (no BLEU/COMET reference needed):
+    - Lexical diversity (Type-Token Ratio)
+    - Particle diversity
+    - Sentence flow and length variance
+    - Syllable richness (compound word density)
+    - Paragraph rhythm
+    - Punctuation health
+    - Hallucination repetition penalty
+    """
+    try:
+        from src.utils.fluency_scorer import score_fluency
+        report = score_fluency(text)
+        score = report.composite_score
+
+        if score >= 80:
+            return CheckResult("Fluency Score", True, 0,
+                               f"{score:.0f}/100 — {report.grade}", "INFO")
+        elif score >= 70:
+            return CheckResult("Fluency Score", True, 0,
+                               f"{score:.0f}/100 — {report.grade} (borderline)", "INFO")
+        elif score >= 50:
+            details = f"{score:.0f}/100 — {report.grade}"
+            if report.issues:
+                details += f" ({len(report.issues)} issues)"
+            return CheckResult("Fluency Score", False, 10,
+                               details, "WARNING")
+        else:
+            details = f"{score:.0f}/100 — {report.grade}"
+            if report.recommendations:
+                details += f" | Fix: {report.recommendations[0]}"
+            return CheckResult("Fluency Score", False, 20,
+                               details, "CRITICAL")
+    except ImportError:
+        return CheckResult("Fluency Score", False, 0,
+                           "Fluency scorer not available — skipping", "INFO")
+    except Exception as e:
+        return CheckResult("Fluency Score", False, 0,
+                           f"Error computing fluency: {e}", "WARNING")
 
 
 # ── Main Review Function ──────────────────────────────────────────
@@ -393,6 +438,9 @@ def review_translation(
 
     # ── Run all checks ──
 
+    # Fluency heuristic (new — reference-free quality metric)
+    report.add_check(_check_fluency(text))
+
     # Quantitative
     report.add_check(_check_myanmar_ratio(text))
     for r in _check_foreign_scripts(text):
@@ -446,9 +494,9 @@ def save_review_report(report: ReviewReport, report_dir: str = "logs/report") ->
 
     # Build report markdown
     lines = [
-        f"# Translation Quality Report",
+        "# Translation Quality Report",
         "",
-        f"## 📋 File Info",
+        "## 📋 File Info",
         f"- **Output file**: `{report.output_file}`",
         f"- **Novel**: {report.novel}",
         f"- **Chapter**: {report.chapter}",
@@ -459,8 +507,8 @@ def save_review_report(report: ReviewReport, report_dir: str = "logs/report") ->
         "",
         f"## 📊 Overall Score: {report.total_score}/100",
         "",
-        f"| Status | Count |",
-        f"|--------|-------|",
+        "| Status | Count |",
+        "|--------|-------|",
         f"| ✅ Passed | {len(report.passed_checks)} |",
         f"| ⚠️ Warnings | {len(report.warnings)} |",
         f"| 🔴 Critical | {len(report.critical_fixes)} |",
@@ -545,7 +593,7 @@ if __name__ == "__main__":
     )
 
     print(f"\n{'='*60}")
-    print(f"  Translation Quality Report")
+    print("  Translation Quality Report")
     print(f"{'='*60}")
     print(f"  Novel:   {report.novel}")
     print(f"  Chapter: {report.chapter}")

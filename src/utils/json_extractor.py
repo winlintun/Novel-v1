@@ -107,7 +107,7 @@ def extract_json_from_response(raw: str) -> dict:
     if not raw or not raw.strip():
         logger.warning("Empty response for JSON extraction")
         return {}
-    
+
     # Attempt 1: direct parse of entire response
     try:
         data = json.loads(raw.strip())
@@ -115,7 +115,7 @@ def extract_json_from_response(raw: str) -> dict:
             return data
     except json.JSONDecodeError:
         pass
-    
+
     # Attempt 2: extract JSON block from prose
     block = extract_json_block(raw)
     if block:
@@ -125,7 +125,7 @@ def extract_json_from_response(raw: str) -> dict:
                 return data
         except json.JSONDecodeError:
             pass
-        
+
         # Attempt 3: repair then parse
         try:
             data = json.loads(_repair_json(block))
@@ -134,7 +134,7 @@ def extract_json_from_response(raw: str) -> dict:
                 return data
         except json.JSONDecodeError:
             pass
-    
+
     logger.warning("JSON extraction failed after 3 attempts")
     logger.debug("Raw response was: %s", raw[:300])
     return {}

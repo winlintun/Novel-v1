@@ -10,12 +10,10 @@ Implements command handlers for:
 """
 
 import os
-import sys
-import signal
 import logging
 from pathlib import Path
 import argparse
-from typing import List, Optional
+from typing import Optional
 
 from src.config import AppConfig, load_config
 from src.cli.parser import get_chapter_list
@@ -41,16 +39,16 @@ def setup_logging(log_file: Optional[str] = None) -> logging.Logger:
     """
     os.makedirs(LOG_DIR, exist_ok=True)
     os.makedirs(WORKING_DIR, exist_ok=True)
-    
+
     if not log_file:
         from datetime import datetime
         log_file = f"{LOG_DIR}/translation_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
-    
+
     # Remove existing handlers to avoid duplicates
     root_logger = logging.getLogger()
     for handler in root_logger.handlers[:]:
         root_logger.removeHandler(handler)
-    
+
     # Configure logging
     logging.basicConfig(
         level=logging.INFO,
@@ -60,7 +58,7 @@ def setup_logging(log_file: Optional[str] = None) -> logging.Logger:
             logging.StreamHandler()
         ]
     )
-    
+
     return logging.getLogger(__name__)
 
 
@@ -77,37 +75,37 @@ def run_translation_pipeline(args: argparse.Namespace) -> int:
     if getattr(args, 'clean', False):
         from src.utils.cache_cleaner import clean_cache_with_report
         clean_cache_with_report()
-    
+
     logger = setup_logging()
-    
+
     try:
         # Load configuration
         config = load_config(args.config)
-        
+
         # Apply command line overrides
         if args.model:
             config.models.translator = args.model
             config.models.editor = args.model
-        
+
         if args.provider:
             config.models.provider = args.provider
-        
+
         if args.mode:
             config.translation_pipeline.mode = args.mode
-        
+
         if args.use_reflection:
             config.translation_pipeline.use_reflection = True
-        
+
         if args.output_dir:
             config.paths.output_dir = args.output_dir
-        
+
         if args.no_metadata:
             config.output.add_metadata = False
-        
+
         # Handle workflow resolution with auto-detection
         workflow = _resolve_workflow(args)
         detected_lang = None
-        
+
         # Detect source language for display
         if hasattr(args, 'input_file') and args.input_file:
             try:
@@ -118,27 +116,25 @@ def run_translation_pipeline(args: argparse.Namespace) -> int:
                 detected_lang = preprocessor.detect_language(text)
             except Exception:
                 detected_lang = "unknown"
-        
+
         if workflow:
             config = _apply_workflow_config(config, workflow, logger)
-        
+
         # Get chapters to translate
         chapters = get_chapter_list(args)
-        
+
         # Import formatters for verbose output
         from src.cli.formatters import (
             print_translation_header,
             print_pipeline_stages,
-            print_pipeline_status,
             print_success,
             print_error,
-            print_warning,
             print_info,
             print_section_header,
             print_auto_detection_result,
             print_progress_event,
         )
-        
+
         # Print auto-detection results if workflow was auto-detected
         if workflow and detected_lang:
             models_info = {
@@ -147,24 +143,24 @@ def run_translation_pipeline(args: argparse.Namespace) -> int:
                 "refiner": config.models.refiner,
             }
             print_auto_detection_result(detected_lang, workflow, models_info)
-        
+
         # Print detailed header information
         novel_name = args.novel if args.novel else (args.input_file if args.input_file else "Unknown")
         print_translation_header(config, novel_name)
         print_pipeline_stages(config)
-        
+
         # Build progress reporter for live CLI output (after novel_name is set)
         def _progress_reporter(event: dict) -> None:
             print_progress_event(event, novel_name=novel_name)
-        
+
         # Import and run pipeline
         from src.pipeline.orchestrator import TranslationPipeline
-        
+
         pipeline = TranslationPipeline(config)
         pipeline.set_progress_callback(_progress_reporter)
-        
+
         print_section_header("Starting Translation")
-        
+
         if args.input_file:
             # Single file translation
             print_info(f"Input file: {args.input_file}")
@@ -176,7 +172,7 @@ def run_translation_pipeline(args: argparse.Namespace) -> int:
                 # Handle list of results
                 success_count = sum(1 for r in results if r.get("success"))
                 total_count = len(results)
-                
+
                 if success_count == total_count:
                     logger.info(f"All {total_count} chapters translated successfully")
                     return 0
@@ -184,7 +180,7 @@ def run_translation_pipeline(args: argparse.Namespace) -> int:
                     logger.warning(f"Partial success: {success_count}/{total_count} chapters translated")
                 else:
                     logger.error(f"All {total_count} chapters failed to translate")
-                
+
                 # Always log per-chapter details for failures
                 if success_count < total_count:
                     for i, r in enumerate(results):
@@ -198,21 +194,21 @@ def run_translation_pipeline(args: argparse.Namespace) -> int:
         else:
             logger.error("No input specified")
             return 1
-        
+
         # Handle single result (for input_file or single chapter)
         if isinstance(result, dict):
             if result.get("success"):
                 output_path = result.get('output_path')
                 duration = result.get('duration_seconds', 0)
                 metrics = result.get('metrics', {})
-                
-                print_success(f"Translation completed successfully!")
+
+                print_success("Translation completed successfully!")
                 print_info(f"Output file: {output_path}")
                 if duration:
                     print_info(f"Duration: {duration:.1f} seconds")
                 if metrics:
                     print_info(f"Metrics: {metrics}")
-                
+
                 logger.info(f"Translation completed successfully: {output_path}")
                 return 0
             else:
@@ -224,7 +220,7 @@ def run_translation_pipeline(args: argparse.Namespace) -> int:
             print_error(f"Unexpected result type: {type(result)}")
             logger.error(f"Unexpected result type: {type(result)}")
             return 1
-            
+
     except ConfigurationError as e:
         logger.error(f"Configuration error: {e.message}")
         return 1
@@ -246,55 +242,55 @@ def run_glossary_generation(args: argparse.Namespace) -> int:
         Exit code (0 for success, 1 for failure)
     """
     logger = setup_logging()
-    
+
     try:
         config = load_config(args.config)
-        
+
         if not args.novel:
             logger.error("--novel is required for glossary generation")
             return 1
-        
+
         # Get chapter range
         chapters = get_chapter_list(args)
         if not chapters:
             chapters = list(range(1, 6))  # Default to first 5 chapters
-        
+
         from src.agents.glossary_generator import GlossaryGenerator
         from src.utils.ollama_client import OllamaClient
         from src.memory.memory_manager import MemoryManager
-        
+
         client = OllamaClient(
             model=config.models.translator,
             base_url=config.models.ollama_base_url
         )
         memory = MemoryManager(novel_name=args.novel)
-        
+
         generator = GlossaryGenerator(client, memory, config.dict())
-        
+
         logger.info(f"Generating glossary for {args.novel} from chapters {chapters}")
-        
+
         for chapter_num in chapters:
             # Try multiple file naming formats
             # Format 1: {novel_name}_chapter_{XXX}.md (e.g., 古道仙鸿_chapter_001.md)
             chapter_file = Path(INPUT_DIR) / args.novel / f"{args.novel}_chapter_{chapter_num:03d}.md"
-            
+
             # Format 2: {XXX}.md (e.g., 001.md) - legacy format
             if not chapter_file.exists():
                 chapter_file = Path(INPUT_DIR) / args.novel / f"{chapter_num:03d}.md"
-            
+
             # Format 3: chapter_{XXX}.md (e.g., chapter_001.md)
             if not chapter_file.exists():
                 chapter_file = Path(INPUT_DIR) / args.novel / f"chapter_{chapter_num:03d}.md"
-            
+
             if chapter_file.exists():
                 logger.info(f"Processing chapter {chapter_num}: {chapter_file}")
                 generator.generate_from_chapter(str(chapter_file), chapter_num)
             else:
                 logger.warning(f"Chapter file not found: {chapter_file}")
-        
+
         logger.info("Glossary generation completed")
         return 0
-        
+
     except Exception as e:
         logger.error(f"Glossary generation failed: {e}", exc_info=True)
         return 1
@@ -323,11 +319,11 @@ def run_test(args: argparse.Namespace) -> int:
         Exit code (0 for success, 1 for failure)
     """
     logger = setup_logging()
-    
+
     try:
         # Use sample.md if it exists
         sample_file = Path(INPUT_DIR) / "sample.md"
-        
+
         if not sample_file.exists():
             # Create a sample file
             sample_file.parent.mkdir(parents=True, exist_ok=True)
@@ -335,10 +331,10 @@ def run_test(args: argparse.Namespace) -> int:
                 "# Sample Chapter\n\n这是一个测试段落。\n\nThis is a test paragraph.",
                 encoding="utf-8"
             )
-        
+
         args.input_file = str(sample_file)
         return run_translation_pipeline(args)
-        
+
     except Exception as e:
         logger.error(f"Test failed: {e}", exc_info=True)
         return 1
@@ -356,7 +352,7 @@ def _resolve_workflow(args) -> Optional[str]:
     # Check explicit workflow flag
     if hasattr(args, 'workflow') and args.workflow:
         return args.workflow
-    
+
     # Check language flag
     lang = getattr(args, 'lang', None)
     if lang:
@@ -365,26 +361,26 @@ def _resolve_workflow(args) -> Optional[str]:
             return 'way1'
         elif lang_lower in ('zh', 'chinese'):
             return 'way2'
-    
+
     # Try to infer from input file using Preprocessor's detect_language
     if hasattr(args, 'input_file') and args.input_file:
         try:
             from src.utils.file_handler import FileHandler
             from src.agents.preprocessor import Preprocessor
-            
+
             text = FileHandler.read_text(args.input_file)
-            
+
             # Use Preprocessor's detect_language for accuracy
             preprocessor = Preprocessor()
             detected_lang = preprocessor.detect_language(text)
-            
+
             if detected_lang == "chinese":
                 return 'way2'
             elif detected_lang == "english":
                 return 'way1'
         except Exception:
             pass
-    
+
     return None
 
 
@@ -399,15 +395,15 @@ def run_view_file(args: argparse.Namespace) -> int:
     """
     filepath = args.view_file
     p = Path(filepath)
-    
+
     if not p.exists():
         print(f"Error: File not found: {filepath}")
         return 1
-    
+
     print(f"\n{'='*70}")
     print(f"  📖  {p.name}")
     print(f"{'='*70}\n")
-    
+
     try:
         with open(p, 'r', encoding='utf-8-sig') as f:
             content = f.read()
@@ -415,7 +411,7 @@ def run_view_file(args: argparse.Namespace) -> int:
         print(f"Warning: BOM decode failed, trying utf-8 fallback for {p.name}")
         with open(p, 'r', encoding='utf-8') as f:
             content = f.read()
-    
+
     # Apply postprocessing (single source of truth)
     from src.utils.postprocessor import (
         _split_into_lines_if_needed,
@@ -425,9 +421,8 @@ def run_view_file(args: argparse.Namespace) -> int:
     content = _split_into_lines_if_needed(content)
     content = fix_chapter_heading_format(content)
     content = remove_duplicate_headings(content)
-    
+
     # Print with formatting
-    import re
     for line in content.split('\n'):
         stripped = line.strip()
         if not stripped:
@@ -440,7 +435,7 @@ def run_view_file(args: argparse.Namespace) -> int:
             print(f"\n\033[1;32m{stripped}\033[0m")
         else:
             print(stripped)
-    
+
     print(f"\n{'='*70}")
     print(f"  {len(content):,} chars | {content.count(chr(10)) + 1} lines")
     print(f"{'='*70}\n")
@@ -482,7 +477,7 @@ def run_review(args: argparse.Namespace) -> int:
     )
 
     print(f"\n{'='*60}")
-    print(f"  📊 Translation Quality Report")
+    print("  📊 Translation Quality Report")
     print(f"{'='*60}")
     print(f"  Novel:      {report.novel}")
     print(f"  Chapter:    {report.chapter}")
@@ -494,11 +489,11 @@ def run_review(args: argparse.Namespace) -> int:
     print(f"  Report saved: {report_path}")
 
     if report.critical_fixes:
-        print(f"\n  🔴 Critical Issues:")
+        print("\n  🔴 Critical Issues:")
         for item in report.critical_fixes[:5]:
             print(f"     - {item}")
     if report.todo_items:
-        print(f"\n  📝 TODO:")
+        print("\n  📝 TODO:")
         for item in report.todo_items[:3]:
             print(f"     {item}")
 
@@ -518,7 +513,7 @@ def _apply_workflow_config(config: AppConfig, workflow: str, logger: Optional[lo
         Modified configuration
     """
     from src.config import merge_configs
-    
+
     if workflow == 'way1':
         # way1: English -> Myanmar direct
         # Use padauk-gemma:q8_0 for best Myanmar output
@@ -546,7 +541,7 @@ def _apply_workflow_config(config: AppConfig, workflow: str, logger: Optional[lo
         if logger:
             logger.info("🔄 Auto-detected ENGLISH source → Using way1 (EN→MM direct, single-stage)")
             logger.info("🤖 Auto-selected models: padauk-gemma:q8_0 (best for Myanmar)")
-    
+
     elif workflow == 'way2':
         # way2: Chinese -> English -> Myanmar pivot
         # Use alibayram/hunyuan:7b for CN→EN, padauk-gemma:q8_0 for EN→MM
@@ -572,5 +567,5 @@ def _apply_workflow_config(config: AppConfig, workflow: str, logger: Optional[lo
             logger.info("   - Stage 2 (EN→MM): padauk-gemma:q8_0")
     else:
         return config
-    
+
     return merge_configs(config, overrides)

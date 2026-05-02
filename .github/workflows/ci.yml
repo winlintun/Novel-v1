@@ -51,8 +51,7 @@ jobs:
         run: pip install ruff
 
       - name: Run Ruff linter
-        # TODO: remove || true once codebase is lint-clean
-        run: ruff check src/ tests/ --select=E,F,W --ignore=E501,F841 || true
+        run: ruff check src/ tests/ --select=E,F --ignore=E501
 
       - name: Compile check (syntax only)
         run: |

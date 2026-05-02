@@ -34,7 +34,7 @@ def load_config(config_path: Optional[Union[str, Path]] = None) -> AppConfig:
         config_path = _find_config_file()
     else:
         config_path = Path(config_path)
-    
+
     # Check if file exists
     if not config_path.exists():
         raise ConfigurationError(
@@ -42,7 +42,7 @@ def load_config(config_path: Optional[Union[str, Path]] = None) -> AppConfig:
             config_key="config_path",
             context={"searched_path": str(config_path)}
         )
-    
+
     # Load raw YAML
     try:
         with open(config_path, 'r', encoding='utf-8') as f:
@@ -59,11 +59,11 @@ def load_config(config_path: Optional[Union[str, Path]] = None) -> AppConfig:
             config_key="file_read",
             context={"file": str(config_path), "error": str(e)}
         )
-    
+
     # Handle empty config
     if raw_config is None:
         raw_config = {}
-    
+
     # Validate with Pydantic
     try:
         config = AppConfig(**raw_config)
@@ -73,12 +73,12 @@ def load_config(config_path: Optional[Union[str, Path]] = None) -> AppConfig:
         for error in e.errors():
             loc = ".".join(str(x) for x in error["loc"])
             errors.append(f"{loc}: {error['msg']}")
-        
+
         raise ConfigurationError(
-            f"Configuration validation failed:\n" + "\n".join(f"  - {err}" for err in errors),
+            "Configuration validation failed:\n" + "\n".join(f"  - {err}" for err in errors),
             context={"file": str(config_path), "validation_errors": errors}
         )
-    
+
     return config
 
 
@@ -101,9 +101,9 @@ def load_config_from_dict(config_dict: Dict[str, Any]) -> AppConfig:
         for error in e.errors():
             loc = ".".join(str(x) for x in error["loc"])
             errors.append(f"{loc}: {error['msg']}")
-        
+
         raise ConfigurationError(
-            f"Configuration validation failed:\n" + "\n".join(f"  - {err}" for err in errors),
+            "Configuration validation failed:\n" + "\n".join(f"  - {err}" for err in errors),
             context={"validation_errors": errors}
         )
 
@@ -124,11 +124,11 @@ def _find_config_file() -> Path:
         Path("settings.yaml"),
         Path("settings.yml"),
     ]
-    
+
     for path in search_paths:
         if path.exists():
             return path
-    
+
     # Check environment variable
     env_path = os.environ.get("NOVEL_CONFIG_PATH")
     if env_path:
@@ -139,7 +139,7 @@ def _find_config_file() -> Path:
             f"Config file from NOVEL_CONFIG_PATH not found: {env_path}",
             config_key="NOVEL_CONFIG_PATH"
         )
-    
+
     raise ConfigurationError(
         "No configuration file found. Searched: " + ", ".join(str(p) for p in search_paths),
         config_key="config_file",
@@ -167,14 +167,14 @@ def save_config(config: AppConfig, output_path: Union[str, Path]) -> None:
         ConfigurationError: If save fails
     """
     output_path = Path(output_path)
-    
+
     # Ensure directory exists
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    
+
     try:
         # Convert to dict
         config_dict = config.model_dump()
-        
+
         # Write YAML
         with open(output_path, 'w', encoding='utf-8') as f:
             yaml.dump(config_dict, f, default_flow_style=False, allow_unicode=True)
@@ -198,10 +198,10 @@ def merge_configs(base_config: AppConfig, override_dict: Dict[str, Any]) -> AppC
     """
     # Convert base to dict
     base_dict = base_config.model_dump()
-    
+
     # Deep merge
     merged = _deep_merge(base_dict, override_dict)
-    
+
     # Validate and return
     return AppConfig(**merged)
 
@@ -217,11 +217,11 @@ def _deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any
         Merged dictionary
     """
     result = base.copy()
-    
+
     for key, value in override.items():
         if key in result and isinstance(result[key], dict) and isinstance(value, dict):
             result[key] = _deep_merge(result[key], value)
         else:
             result[key] = value
-    
+
     return result

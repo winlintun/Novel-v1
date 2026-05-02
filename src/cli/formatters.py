@@ -26,7 +26,7 @@ def print_box(title: str, content: List[Union[str, Tuple[str, str]]], width: int
     print("╔" + "═" * (width - 2) + "╗")
     print("║" + title.center(width - 2) + "║")
     print("╠" + "═" * (width - 2) + "╣")
-    
+
     for line in content:
         if isinstance(line, tuple):
             # (label, value) pair
@@ -34,13 +34,13 @@ def print_box(title: str, content: List[Union[str, Tuple[str, str]]], width: int
             text = f"  {label}: {value}"
         else:
             text = f"  {line}"
-        
+
         # Truncate if too long
         if len(text) > width - 2:
             text = text[:width - 5] + "..."
-        
+
         print("║" + text.ljust(width - 2) + "║")
-    
+
     print("╚" + "═" * (width - 2) + "╝")
 
 
@@ -61,7 +61,7 @@ def print_pipeline_status(step: str, status: str, details: str = "") -> None:
     }
     icon = icons.get(status, "•")
     status_text = status.upper()
-    
+
     if details:
         print(f"  {icon} {step:<25} [{status_text}] {details}")
     else:
@@ -78,10 +78,10 @@ def print_translation_header(config: AppConfig, novel: Optional[str] = None) -> 
     print("\n" + "=" * 70)
     print("  📚 NOVEL TRANSLATION PIPELINE")
     print("=" * 70)
-    
+
     if novel:
         print(f"\n  Novel: {novel}")
-    
+
     # Config Info
     print("\n📋 CONFIGURATION")
     print("-" * 70)
@@ -89,7 +89,7 @@ def print_translation_header(config: AppConfig, novel: Optional[str] = None) -> 
     print(f"  Translator:      {config.models.translator}")
     print(f"  Editor:          {config.models.editor}")
     print(f"  Pipeline Mode:   {config.translation_pipeline.mode.upper()}")
-    
+
     # Processing settings
     print("\n⚙️  PROCESSING SETTINGS")
     print("-" * 70)
@@ -108,9 +108,9 @@ def print_pipeline_stages(config: AppConfig, skip_refinement: bool = False) -> N
     """
     print("\n🔄 PIPELINE STAGES")
     print("-" * 70)
-    
+
     mode = config.translation_pipeline.mode
-    
+
     if mode == "full":
         stages = [
             ("1. Preprocessing", "pending", "Chunking input text"),
@@ -151,10 +151,10 @@ def print_pipeline_stages(config: AppConfig, skip_refinement: bool = False) -> N
             ("5. Consistency", "pending", "Glossary verification"),
             ("6. QA Review", "pending", "Final validation"),
         ]
-    
+
     for stage_name, status, details in stages:
         print_pipeline_status(stage_name, status, details)
-    
+
     print("\n" + "=" * 70)
     print()
 
@@ -169,13 +169,13 @@ def print_progress_bar(current: int, total: int, width: int = 50) -> None:
     """
     if total == 0:
         return
-    
+
     percent = current / total
     filled = int(width * percent)
     bar = "█" * filled + "░" * (width - filled)
-    
+
     print(f"\r  [{bar}] {current}/{total} ({percent*100:.1f}%)", end="", flush=True)
-    
+
     if current >= total:
         print()  # New line when complete
 
@@ -241,29 +241,29 @@ def print_auto_detection_result(source_lang: str, workflow: str, models: dict) -
     print("\n" + "=" * 70)
     print("  🔍 AUTO-DETECTION RESULTS")
     print("=" * 70)
-    
+
     # Language emoji
     lang_emoji = {"chinese": "🇨🇳", "english": "🇬🇧", "unknown": "❓"}
     lang_display = source_lang.upper() if source_lang != "unknown" else "UNKNOWN"
-    
+
     print(f"\n  Source Language: {lang_emoji.get(source_lang, '❓')} {lang_display}")
-    
+
     # Workflow info
     if workflow == "way1":
-        print(f"  Workflow:        🔄 way1 (EN → MM direct)")
-        print(f"  Description:     English to Myanmar direct translation")
+        print("  Workflow:        🔄 way1 (EN → MM direct)")
+        print("  Description:     English to Myanmar direct translation")
     elif workflow == "way2":
-        print(f"  Workflow:        🔄 way2 (CN → EN → MM pivot)")
-        print(f"  Description:     Chinese to English to Myanmar pivot translation")
+        print("  Workflow:        🔄 way2 (CN → EN → MM pivot)")
+        print("  Description:     Chinese to English to Myanmar pivot translation")
     else:
-        print(f"  Workflow:        ⚠️  Using config default")
-    
+        print("  Workflow:        ⚠️  Using config default")
+
      # Model info
     if models:
-        print(f"\n  🤖 Auto-Selected Models:")
+        print("\n  🤖 Auto-Selected Models:")
         for role, model in models.items():
             print(f"     • {role.capitalize():12} {model}")
-    
+
     print("\n" + "=" * 70)
     print()
 

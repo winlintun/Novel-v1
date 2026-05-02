@@ -49,7 +49,7 @@ Examples:
     python -m src.main --novel "古道仙鸿" --generate-glossary --chapter-range 1-5
         """
     )
-    
+
     # Input options
     input_group = parser.add_argument_group("Input Options")
     input_group.add_argument(
@@ -89,7 +89,7 @@ Examples:
         type=str,
         help="Chapter range (e.g., '1-10')"
     )
-    
+
     # Configuration options
     config_group = parser.add_argument_group("Configuration Options")
     config_group.add_argument(
@@ -109,7 +109,7 @@ Examples:
         choices=["ollama", "gemini", "openrouter"],
         help="Override model provider"
     )
-    
+
     # Workflow options
     workflow_group = parser.add_argument_group("Workflow Options")
     workflow_group.add_argument(
@@ -134,7 +134,7 @@ Examples:
         action="store_true",
         help="Skip the refinement stage (faster, lower quality)"
     )
-    
+
     # Pipeline options
     pipeline_group = parser.add_argument_group("Pipeline Options")
     pipeline_group.add_argument(
@@ -153,7 +153,7 @@ Examples:
         action="store_true",
         help="Disable Myanmar quality checking"
     )
-    
+
     # Output options
     output_group = parser.add_argument_group("Output Options")
     output_group.add_argument(
@@ -166,7 +166,7 @@ Examples:
         action="store_true",
         help="Don't add metadata headers to output"
     )
-    
+
     # Memory optimization
     memory_group = parser.add_argument_group("Memory Optimization")
     memory_group.add_argument(
@@ -174,7 +174,7 @@ Examples:
         action="store_true",
         help="Unload model from GPU after each chapter"
     )
-    
+
     # Utility commands
     utility_group = parser.add_argument_group("Utility Commands")
     utility_group.add_argument(
@@ -215,7 +215,7 @@ Examples:
         version="%(prog)s 2.0.0",
         help="Show version information"
     )
-    
+
     return parser
 
 
@@ -243,20 +243,20 @@ def validate_arguments(args: argparse.Namespace) -> None:
     """
     # Check for required arguments when not running utility commands
     utility_commands = [args.ui, args.test, args.generate_glossary and not args.novel, args.view_file, args.review_file]
-    
+
     if not any(utility_commands):
         if not args.novel and not args.input_file:
             raise SystemExit(
                 "Error: Either --novel, --input, or a utility command (--ui, --test) is required.\n"
                 "Use --help for usage information."
             )
-        
+
         if args.novel and not (args.chapter or args.all or args.chapter_range):
             raise SystemExit(
                 "Error: When using --novel, specify --chapter, --all, or --chapter-range.\n"
                 "Use --help for usage information."
             )
-    
+
     # Validate chapter range format
     if args.chapter_range:
         try:
@@ -271,11 +271,11 @@ def validate_arguments(args: argparse.Namespace) -> None:
                 f"Error: Invalid chapter range format: {args.chapter_range}\n"
                 "Expected format: 'start-end' (e.g., '1-10')"
             )
-    
+
     # Validate input file exists
     if args.input_file and not Path(args.input_file).exists():
         raise SystemExit(f"Error: Input file not found: {args.input_file}")
-    
+
     # Validate config file exists
     if args.config and not Path(args.config).exists():
         raise SystemExit(f"Error: Config file not found: {args.config}")
@@ -292,13 +292,13 @@ def get_chapter_list(args: argparse.Namespace) -> List[int]:
     """
     if args.chapter:
         return [args.chapter]
-    
+
     if args.chapter_range:
         start, end = map(int, args.chapter_range.split('-'))
         return list(range(start, end + 1))
-    
+
     if args.all:
         # Return empty list to indicate "all chapters"
         return []
-    
+
     return []

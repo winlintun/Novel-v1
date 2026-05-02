@@ -5,7 +5,6 @@ Extracts entities and updates glossary/context.
 """
 
 import logging
-import re
 from typing import Dict, List, Any
 
 from src.utils.ollama_client import OllamaClient
@@ -24,7 +23,7 @@ class ContextUpdater(BaseAgent):
     - Updates glossary
     - Updates chapter context
     """
-    
+
     def __init__(
         self,
         ollama_client: OllamaClient,
@@ -32,7 +31,7 @@ class ContextUpdater(BaseAgent):
         config: Dict[str, Any] = None
     ):
         super().__init__(ollama_client, memory_manager, config)
-    
+
     def extract_entities(self, text: str) -> Dict[str, List]:
         """
         Extract entities from text using LLM.
@@ -46,7 +45,7 @@ class ContextUpdater(BaseAgent):
         """
         # Limit text length for extraction
         sample_text = text[:3000]  # First 3000 chars
-        
+
         # Build prompt with glossary context using EXTRACTOR_SYSTEM_PROMPT
         glossary_str = ""
         if self.memory:
@@ -57,23 +56,23 @@ class ContextUpdater(BaseAgent):
             except Exception:
                 pass
         prompt = EXTRACTOR_SYSTEM_PROMPT.replace("{glossary}", glossary_str).replace("{translated_text}", sample_text)
-        
+
         try:
             raw_response = self.client.chat(prompt=prompt)
-            
+
             # Use safe_parse_terms to handle malformed JSON
             data = safe_parse_terms(raw_response)
-            
+
             # Convert new_terms format to legacy entity format for compatibility
             new_terms = data.get("new_terms", [])
-            
+
             result = {
                 'characters': [],
                 'cultivation_realms': [],
                 'sects_organizations': [],
                 'items_artifacts': []
             }
-            
+
             # Map category to result keys
             category_map = {
                 'character': 'characters',
@@ -81,20 +80,20 @@ class ContextUpdater(BaseAgent):
                 'level': 'cultivation_realms',
                 'item': 'items_artifacts'
             }
-            
+
             for term in new_terms:
                 category = term.get('category', '')
                 target_key = category_map.get(category, 'items_artifacts')
-                
+
                 result[target_key].append({
                     'name': term.get('source', ''),
                     'description': term.get('target', ''),
                     'type': category
                 })
-            
+
             logger.info(f"Extracted {len(new_terms)} new entities")
             return result
-            
+
         except Exception as e:
             logger.warning(f"Entity extraction failed: {e}")
             return {
@@ -103,7 +102,7 @@ class ContextUpdater(BaseAgent):
                 'sects_organizations': [],
                 'items_artifacts': []
             }
-    
+
     def update_glossary(self, entities: Dict[str, List], chapter_num: int) -> int:
         """
         Add extracted entities to pending glossary for review.
@@ -117,7 +116,7 @@ class ContextUpdater(BaseAgent):
             Number of new terms added to pending
         """
         added = 0
-        
+
         for category_key, category_name in [
             ('characters', 'character'),
             ('items_artifacts', 'item'),
@@ -127,13 +126,13 @@ class ContextUpdater(BaseAgent):
             for entity in entities.get(category_key, []):
                 name = entity.get('name', '').strip()
                 translation = entity.get('description', '').strip()
-                
+
                 if not name or len(name) > 20:
                     continue
-                    
+
                 # Use the LLM-provided translation if it looks valid, else placeholder
                 target = translation if translation and translation != f"[{name}]" else f"【?{name}?】"
-                
+
                 if self.memory.add_pending_term(
                     source=name,
                     target=target,
@@ -141,10 +140,10 @@ class ContextUpdater(BaseAgent):
                     chapter=chapter_num
                 ):
                     added += 1
-        
+
         logger.info(f"Added {added} new terms to pending glossary")
         return added
-    
+
     def update_chapter_context(self, chapter_num: int, translated_text: str):
         """
         Update context memory after chapter translation.
@@ -155,12 +154,12 @@ class ContextUpdater(BaseAgent):
         """
         # Update chapter tracking
         self.memory.update_chapter_context(chapter_num)
-        
+
         # Save to disk
         self.memory.save_memory()
-        
+
         logger.info(f"Context updated for Chapter {chapter_num}")
-    
+
     def process_chapter(
         self,
         original_text: str,
@@ -182,16 +181,16 @@ class ContextUpdater(BaseAgent):
             Processing results
         """
         logger.info(f"Processing Chapter {chapter_num} for context updates...")
-        
+
         # Extract entities from original
         entities = self.extract_entities(original_text)
-        
+
         # Update glossary with new entities
         new_terms = self.update_glossary(entities, chapter_num)
-        
+
         # Update chapter context
         self.update_chapter_context(chapter_num, translated_text)
-        
+
         return {
             'chapter': chapter_num,
             'entities_found': sum(len(v) for v in entities.values()),

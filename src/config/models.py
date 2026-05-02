@@ -6,13 +6,13 @@ Provides validated configuration management with automatic type checking,
 enforcement of constraints, and clear error messages for misconfiguration.
 """
 
-from typing import List, Dict, Any, Optional, Literal
-from pydantic import BaseModel, Field, validator, root_validator
+from typing import List, Literal
+from pydantic import BaseModel, Field
 
 
 class ProcessingConfig(BaseModel):
     """Processing and chunking configuration."""
-    
+
     chunk_size: int = Field(
         default=800,
         ge=100,
@@ -119,7 +119,7 @@ class ModelsConfig(BaseModel):
 
 class ModelRolesConfig(BaseModel):
     """Model role assignments for different agents."""
-    
+
     translator: List[str] = Field(
         default=["qwen2.5:14b", "qwen2.5:7b", "qwen:7b"],
         description="Models suitable for translation"
@@ -144,7 +144,7 @@ class ModelRolesConfig(BaseModel):
 
 class ModelRouterConfig(BaseModel):
     """Model router configuration for automatic fallback."""
-    
+
     enabled: bool = Field(
         default=True,
         description="Whether model routing is enabled"
@@ -169,7 +169,7 @@ class ModelRouterConfig(BaseModel):
 
 class TranslationPipelineConfig(BaseModel):
     """Translation pipeline configuration."""
-    
+
     mode: Literal["full", "lite", "fast", "single_stage", "two_stage"] = Field(
         default="full",
         description="Pipeline execution mode"
@@ -194,7 +194,7 @@ class TranslationPipelineConfig(BaseModel):
 
 class PathsConfig(BaseModel):
     """File path configuration."""
-    
+
     input_dir: str = Field(
         default="data/input",
         description="Input directory for source files"
@@ -227,7 +227,7 @@ class PathsConfig(BaseModel):
 
 class ProjectConfig(BaseModel):
     """Project metadata configuration."""
-    
+
     name: str = Field(
         default="novel_translation",
         description="Project name"
@@ -248,7 +248,7 @@ class ProjectConfig(BaseModel):
 
 class OutputConfig(BaseModel):
     """Output formatting configuration."""
-    
+
     format: Literal["markdown", "txt", "json"] = Field(
         default="markdown",
         description="Output file format"
@@ -269,7 +269,7 @@ class OutputConfig(BaseModel):
 
 class QATestingConfig(BaseModel):
     """QA testing configuration."""
-    
+
     enabled: bool = Field(
         default=True,
         description="Whether QA testing is enabled"
@@ -296,7 +296,7 @@ class QATestingConfig(BaseModel):
 
 class MyanmarReadabilityConfig(BaseModel):
     """Myanmar readability checking configuration."""
-    
+
     enabled: bool = Field(
         default=True,
         description="Whether readability checking is enabled"
@@ -319,7 +319,7 @@ class MyanmarReadabilityConfig(BaseModel):
 
 class GlossaryV3Config(BaseModel):
     """Glossary v3 advanced configuration."""
-    
+
     enabled: bool = Field(
         default=True,
         description="Whether glossary v3 is enabled"
@@ -382,7 +382,7 @@ class GlossaryV3Config(BaseModel):
 
 class FastConfig(BaseModel):
     """Fast mode configuration."""
-    
+
     enabled: bool = Field(
         default=False,
         description="Whether fast mode is enabled"
@@ -434,7 +434,7 @@ class AppConfig(BaseModel):
     
     This is the main configuration class that combines all sub-configurations.
     """
-    
+
     project: ProjectConfig = Field(
         default_factory=ProjectConfig,
         description="Project metadata"
@@ -483,7 +483,7 @@ class AppConfig(BaseModel):
         default_factory=FastConfig,
         description="Fast mode configuration"
     )
-    
+
     class Config:
         """Pydantic configuration."""
         env_prefix = "NOVEL_"

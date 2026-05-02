@@ -22,7 +22,6 @@ Covers:
   - Confrontation speech pattern
 """
 
-from typing import Dict, List, Optional
 
 
 # ===========================================================================

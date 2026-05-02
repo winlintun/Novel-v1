@@ -123,88 +123,88 @@ def strip_reasoning_process(text: str) -> str:
     # First pass: remove large reasoning blocks
     for pattern in _REASONING_PATTERNS:
         text = pattern.sub("", text)
-    
+
     # Second pass: clean up remaining analysis lines and markers
     lines = text.split('\n')
     cleaned_lines = []
     skip_section = False
-    
+
     for line in lines:
         original_line = line
         stripped = line.strip()
-        
+
         # Detect section headers to skip (numbered sections with **)
         if re.match(r'^\s*\d+\.\s+\*\*.*?:\*\*', original_line):
             skip_section = True
             continue
-        
+
         # If we were skipping a section and hit a blank line or new section, stop skipping
         if skip_section and (not stripped or re.match(r'^\s*\d+\.\s+', line)):
             skip_section = False
             if not stripped:
                 continue
-            
+
         # Skip lines within analysis sections
         if skip_section:
             continue
-        
+
         # Skip lines that are just bullet points without Myanmar content
         if re.match(r'^\s*\*\s*\w+\s*=', original_line):
             continue
-            
+
         # Skip lines with only analysis markers (no actual Myanmar content)
         if re.match(r'^\s*[\*\-]?\s*\*+[^\u1000-\u109F]*\*+\s*$', original_line):
             continue
-            
+
         # Skip lines with only "Refinement:", "Drafting:", etc. labels
         if re.match(r'^\s*[\*\-]?\s*\*+(Refinement|Drafting|Drafting Focus|Focus):\*+\s*$', original_line, re.IGNORECASE):
             continue
-            
+
         # Skip analysis lines like "*   *Refinement:* Needs high literary tone." (no Myanmar text)
         if re.match(r'^\s*\*\s*\*(Refinement|Drafting|Focus|Key Concepts|Key elements|Tone):\*.*$', original_line, re.IGNORECASE):
             # Check if line has Myanmar text
             if not re.search(r'[\u1000-\u109F]', original_line):
                 continue
-                
+
         # Skip "Here's the actual Myanmar translation:" preamble
         if re.match(r'^Here.*?Myanmar translation[:;]', line, re.IGNORECASE):
             continue
-            
-        # Skip "Here's the actual translation:" preamble  
+
+        # Skip "Here's the actual translation:" preamble
         if re.match(r'^Here.*?actual translation[:;]', line, re.IGNORECASE):
             continue
-            
+
         # Remove "**Burmese Draft:**" or "**Myanmar Draft:**" markers with optional leading bullet
         line = re.sub(r'^\s*[\*\-]?\s*\*\*Burmese Draft:\*\*\s*', '', line, flags=re.IGNORECASE)
         line = re.sub(r'^\s*[\*\-]?\s*\*\*Myanmar Draft:\*\*\s*', '', line, flags=re.IGNORECASE)
-        # Also handle single-asterisk variant: *   *Burmese Draft:* 
+        # Also handle single-asterisk variant: *   *Burmese Draft:*
         line = re.sub(r'^\s*\*\s*\*Burmese Draft:\*\s*', '', line, flags=re.IGNORECASE)
         line = re.sub(r'^\s*\*\s*\*Myanmar Draft:\*\s*', '', line, flags=re.IGNORECASE)
-        
+
         # Remove standalone bullet points at start of line (keeping Myanmar content)
         line = re.sub(r'^\s*\*\s+', '', line)
-        
+
         # Remove inline *Drafting:* and *Refinement:* markers
         line = re.sub(r'\*Drafting:\*|\*Refinement:\*', '', line, flags=re.IGNORECASE)
-        
+
         # Remove parenthetical English explanations
         line = re.sub(r'\(This is.*?\)', '', line, flags=re.IGNORECASE)
         line = re.sub(r'\(.*?\)', '', line)  # Remove all parenthetical content
-        
+
         # Skip padauk-gemma glossary comparison garbage lines (*:* pattern)
         # These look like: *:* "word" is . "other" is .
         # Or: * :* , .  (short garbage fragments with English)
         # NOTE: requires colon between asterisks to avoid matching **bold** markdown
         if re.match(r'^\s*\*[\s:]*:[\s:]*\*', original_line):
             continue
-            
+
         # Skip empty lines or lines with only whitespace
         if not line.strip():
             continue
-            
+
         # Keep the line (now cleaned of markers)
         cleaned_lines.append(line)
-    
+
     return '\n'.join(cleaned_lines)
 
 
@@ -220,7 +220,7 @@ def detect_language_leakage(text: str) -> dict[str, int]:
     chinese_count = len(_CHINESE_PATTERN.findall(text))
     latin_words = len(_LATIN_WORD_PATTERN.findall(text))
     english_common = len(_ENGLISH_COMMON_WORDS.findall(text))
-    
+
     return {
         "thai_chars": thai_count,
         "bengali_chars": bengali_count,
@@ -297,18 +297,18 @@ def _split_into_lines_if_needed(text: str) -> str:
     """
     if '\n' in text:
         return text  # Already has line breaks
-    
+
     # Split at each '# အခန်း N' to restore heading boundaries
     text = re.sub(
         r'(#\s+အခန်း\s+[\u1040-\u1049\d]+\s*)',
         r'\n\1',
         text
     )
-    
+
     # Split after Myanmar sentence-ending marker ။ followed by space
     # to restore paragraph/sentence boundaries
     text = re.sub(r'(။)\s+', r'\1\n\n', text)
-    
+
     return text.strip()
 
 
@@ -351,7 +351,7 @@ def remove_duplicate_headings(text: str) -> str:
                 in_duplicate_block = False
                 result.append(line)
                 continue
-            
+
             if chapter_prefix in seen_chapters:
                 in_duplicate_block = True
                 continue
@@ -392,11 +392,11 @@ def detect_potential_hallucinations(text: str, known_terms: Optional[set] = None
     """
     if known_terms is None:
         known_terms = set()
-    
+
     # Extract 2-8 character Myanmar sequences that appear multiple times
     # at the start of sentences (common position for proper names in narration)
     from collections import Counter
-    
+
     # Find Myanmar sequences that could be names: 2-8 chars long, appearing
     # after sentence-enders or paragraph starts
     candidates = re.findall(
@@ -404,9 +404,9 @@ def detect_potential_hallucinations(text: str, known_terms: Optional[set] = None
         text,
         re.MULTILINE
     )
-    
+
     counts = Counter(candidates)
-    
+
     # A name candidate must appear at least 2 times (to filter noise)
     warnings = []
     for name, count in counts.items():
@@ -424,7 +424,7 @@ def detect_potential_hallucinations(text: str, known_terms: Optional[set] = None
             if name in common_words:
                 continue
             warnings.append(name)
-    
+
     return warnings
 
 
@@ -444,15 +444,15 @@ def replace_archaic_words(text: str) -> str:
     """
     if not text:
         return text
-    
+
     # Myanmar consonant range: U+1000-U+1021 (က-အ) + independent vowels U+1023-U+102A
     # Combining marks: virama U+1039, asat U+103A, vowels U+102C-1032, tones U+1036-1038
     _MYANMAR_CONSONANT = r'[\u1000-\u1021\u1023-\u102A]'
     _MYANMAR_COMBINING = r'[\u1039\u103A\u102C-\u1032\u1036-\u1038]*'
-    
+
     # Lookbehind: NOT preceded by a Myanmar consonant letter
     # Lookahead: NOT followed by (combining marks + consonant) — i.e. standalone
-    
+
     # ဤ → ဒီ
     text = re.sub(
         r'(?<!' + _MYANMAR_CONSONANT + r')ဤ(?!' + _MYANMAR_COMBINING + _MYANMAR_CONSONANT + r')',
@@ -484,16 +484,16 @@ def undo_archaic_corruptions(text: str) -> str:
     """
     if not text:
         return text
-    
+
     # Fix 1: အဲဒီ directly followed by Myanmar combining mark → replace with ထို
     text = re.sub(r'အဲဒီ(?=[\u1039\u103A\u102C-\u1032\u1036-\u1038])', 'ထို', text)
-    
+
     # Fix 2: အဲဒီင → ထိုင (restores ထိုင်, ထိုင်း, etc. from compound corruptions)
     text = re.sub(r'အဲဒီင', 'ထိုင', text)
-    
+
     # Fix 3: အဲဒီဟ → ထိုဟ (for ထိုဟန် etc.)
     text = re.sub(r'အဲဒီဟ', 'ထိုဟ', text)
-    
+
     return text
 
 
@@ -610,10 +610,10 @@ def stitch_chunk_boundaries(text: str) -> str:
     2. Line ends without sentence-ender AND is short (< SHORT_LINE_THRESHOLD → truncation),
        next line contains Myanmar content AND isn't a heading/separator
     """
-    # Threshold below which a line ending without sentence-ender is 
+    # Threshold below which a line ending without sentence-ender is
     # considered likely truncated at a chunk boundary (vs a legit short line)
     SHORT_LINE_THRESHOLD = 150
-    
+
     _ENDER_SET = {'။', '၊', '"', '\u201d', "'", '!', '?', '၏'}
     _SEPARATORS = ('---', '***', '===')
     _MYANMAR_RE = re.compile(r'[\u1000-\u109F]')
@@ -647,7 +647,7 @@ def stitch_chunk_boundaries(text: str) -> str:
     while i < len(lines):
         line = lines[i]
         stripped = line.strip()
-        
+
         if not stripped:
             result.append('')
             i += 1
@@ -670,7 +670,7 @@ def stitch_chunk_boundaries(text: str) -> str:
                     and not next_content.startswith('#')
                     and not any(next_content.startswith(s) for s in _SEPARATORS)
                     and not next_content[0].isdigit()
-                    and not next_content[0] in '*-'):
+                    and next_content[0] not in '*-'):
                     # Strategy 1: next line starts with medial character (continuation)
                     if _is_medial_continuation(next_content):
                         result.append(stripped + next_content)
@@ -715,31 +715,31 @@ def clean_output(raw: str, aggressive: bool = False) -> str:
     text = strip_reasoning_tags(raw)
     text = strip_reasoning_process(text)
     text = strip_header_artifacts(text)
-    
+
     # Remove Myanmar-translated metadata lines (translator/editor credit)
     text = strip_translated_metadata(text)
-    
+
     # Stitch fragments at chunk boundaries
     text = stitch_chunk_boundaries(text)
-    
+
     # Always strip Chinese, Bengali, and other Indic scripts (unambiguous garbage)
     text = remove_chinese_characters(text)
     text = remove_bengali_characters(text)
     text = remove_indic_characters(text)
-    
+
     # Only remove Latin words if aggressive mode
     if aggressive:
         text = remove_latin_words(text)
-    
+
     # Fix degraded placeholders
     text = fix_degraded_placeholders(text)
-    
+
     # Undo corruptions from old \b-based archaic word replacement (pre-existing)
     text = undo_archaic_corruptions(text)
-    
+
     # Replace archaic Myanmar words with modern equivalents
     text = replace_archaic_words(text)
-    
+
     text = re.sub(r"\n{3,}", "\n\n", text)  # collapse excess blank lines
     text = _split_into_lines_if_needed(text)  # recover structure from collapsed text
     text = fix_chapter_heading_format(text)
@@ -761,7 +761,7 @@ def validate_output(text: str, chapter: int) -> dict:
     """
     leakage = detect_language_leakage(text)
     ratio = myanmar_char_ratio(text)
-    
+
     # Determine status - Chinese, Bengali, Indic characters = automatic REJECT
     if leakage.get("thai_chars", 0) > 0:
         status = "REJECTED"
@@ -800,10 +800,10 @@ def is_valid_myanmar_syllable(text: str) -> bool:
     """
     if not text:
         return 0.0
-    
+
     # Myanmar consonants (basic range)
     _MYANMAR_CONSONANTS = re.compile(r'[\u1000-\u1021]')
-    
+
     # Common valid Myanmar patterns (simplified check)
     # Look for consonant followed by optional modifiers
     _VALID_SYLLABLE = re.compile(
@@ -811,11 +811,11 @@ def is_valid_myanmar_syllable(text: str) -> bool:
         r'[\u1039\u103A]?'   # Optional: virama/asat
         r'[\u102D-\u1030\u1032\u1036\u1037\u1038]*'  # Optional: vowels/tone
     )
-    
+
     myanmar_chars = len(_MYANMAR_PATTERN.findall(text))
     if myanmar_chars == 0:
         return 0.0
-    
+
     valid_syllables = len(_VALID_SYLLABLE.findall(text))
     # Rough estimate: each syllable should have ~1-3 characters
     # If ratio is too low, text may be garbled

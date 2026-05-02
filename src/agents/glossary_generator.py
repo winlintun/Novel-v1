@@ -7,8 +7,6 @@ Supports both Chinese and English source text.
 
 import logging
 from typing import Dict, List, Optional, Any
-import json
-import os
 
 from src.utils.ollama_client import OllamaClient
 from src.memory.memory_manager import MemoryManager
@@ -42,7 +40,7 @@ class GlossaryGenerator(BaseAgent):
     """
     Agent responsible for automatic glossary generation from source text.
     """
-    
+
     def __init__(
         self,
         ollama_client: Optional[OllamaClient] = None,
@@ -50,7 +48,7 @@ class GlossaryGenerator(BaseAgent):
         config: Optional[Dict[str, Any]] = None
     ):
         super().__init__(ollama_client, memory_manager, config)
-    
+
     def extract_terms(self, text: str, source_lang: str = "Chinese") -> List[Dict[str, Any]]:
         """
         Extract terms from a block of text.
@@ -59,7 +57,7 @@ class GlossaryGenerator(BaseAgent):
             source_lang=source_lang,
             text=text[:4000] # Limit to 4000 chars for context window
         )
-        
+
         try:
             response = self.client.chat(prompt=prompt)
             data = extract_json_from_response(response)
@@ -73,13 +71,13 @@ class GlossaryGenerator(BaseAgent):
         Process multiple files to generate a comprehensive glossary.
         """
         all_terms = {} # Use dict to deduplicate by source term
-        
+
         for path in file_paths:
             self.log_info(f"Extracting terms from {path}...")
             try:
                 with open(path, 'r', encoding='utf-8-sig') as f:
                     content = f.read()
-                
+
                 # Take samples from beginning, middle and end for better coverage
                 samples = []
                 if len(content) > 10000:
@@ -88,17 +86,17 @@ class GlossaryGenerator(BaseAgent):
                     samples.append(content[-4000:])
                 else:
                     samples.append(content)
-                
+
                 for sample in samples:
                     terms = self.extract_terms(sample, source_lang)
                     for term in terms:
                         source = term.get("source")
                         if source and source not in all_terms:
                             all_terms[source] = term
-                            
+
             except Exception as e:
                 self.log_error(f"Error reading {path}: {e}")
-        
+
         return list(all_terms.values())
 
     def save_to_pending(self, terms: List[Dict[str, Any]], chapter_num: int = 0):
@@ -112,7 +110,7 @@ class GlossaryGenerator(BaseAgent):
                 category=term.get("category", "item"),
                 chapter=chapter_num
             )
-        
+
         self.log_info(f"Saved {len(terms)} terms to pending glossary.")
 
     def generate_from_chapter(self, chapter_file: str, chapter_num: int = 0) -> int:
@@ -128,35 +126,35 @@ class GlossaryGenerator(BaseAgent):
         """
         try:
             logger.info(f"Reading chapter {chapter_num}: {chapter_file}")
-            
+
             # Read the chapter file
             with open(chapter_file, 'r', encoding='utf-8-sig') as f:
                 content = f.read()
-            
+
             if not content.strip():
                 logger.warning(f"Chapter {chapter_num} is empty")
                 return 0
-            
+
             # Detect source language
             from src.agents.preprocessor import Preprocessor
             preprocessor = Preprocessor()
             detected_lang = preprocessor.detect_language(content)
             source_lang = "Chinese" if detected_lang == "chinese" else "English"
-            
+
             logger.info(f"Processing chapter {chapter_num} ({source_lang}, {len(content)} chars)...")
-            
+
             # Process this file
             terms = self.process_files([chapter_file], source_lang)
-            
+
             # Save to pending
             if terms:
                 self.save_to_pending(terms, chapter_num)
                 logger.info(f"✅ Chapter {chapter_num}: Extracted {len(terms)} terms")
             else:
                 logger.info(f"⚠️ Chapter {chapter_num}: No terms found")
-            
+
             return len(terms)
-            
+
         except Exception as e:
             logger.error(f"❌ Failed to process chapter {chapter_num}: {e}")
             return 0

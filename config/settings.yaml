@@ -8,47 +8,12 @@ fast_config:
   repeat_penalty: 1.3
   temperature: 0.2
   translator: padauk-gemma:q8_0
-glossary_v3:
-  alias_matching: true
-  cache_ttl_minutes: 30
-  enabled: false
-  exception_rules: true
-  include_examples: false
-  lazy_load: true
-  max_prompt_entries: 40
-  path: data/glossary_v3.json
-  priority_threshold: 2
-  prompt_format: markdown
-  show_exceptions_count: true
-  show_pronunciation: false
-  track_usage: true
 model_roles:
-  checker:
-  - qwen:7b
-  - gemma:7b
-  - burmese-gpt:7b
-  glossary_sync:
-  - qwen:7b
-  - burmese-gpt:7b
-  qa_final:
-  - qwen:7b
-  - gemma:7b
-  - burmese-gpt:7b
-  refiner:
-  - padauk-gemma:q8_0
-  - burmese-gpt:7b
-  - aya:8b
-  - qwen:7b
-  translator:
-  - padauk-gemma:q8_0
-  - burmese-gpt:7b
-  - aya:8b
-  - qwen:7b
-model_router:
-  enabled: true
-  max_fallback_depth: 2
-  retry_on_failure: true
-  vram_budget_gb: 16.0
+  translator: [padauk-gemma:q8_0]
+  refiner: [padauk-gemma:q8_0, yxchia/seallms-v3-7b:Q4_K_M]
+  checker: [qwen:7b]
+  glossary_sync: [qwen:7b]
+  qa_final: [qwen:7b]
 models:
   checker: qwen:7b
   cloud_model: gemini-2.5-flash

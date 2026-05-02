@@ -6,6 +6,10 @@ Exports:
 - en_mm_rules: English-to-Myanmar linguistic transformation rules
 """
 
+# Prompts module — exports linguistic rules for CN→MM and EN→MM translation.
+# Imports are intentionally re-exported for downstream consumers (translator, refiner).
+# ruff: noqa: F401
+
 from src.agents.prompts.cn_mm_rules import (
     SVO_TO_SOV_RULES,
     PARTICLE_GUIDELINES,

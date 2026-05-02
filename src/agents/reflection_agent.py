@@ -44,7 +44,7 @@ class ReflectionAgent(BaseAgent):
     Self-correction agent that analyzes translations and suggests improvements.
     Based on Andrew Ng's translation-agent pattern.
     """
-    
+
     def __init__(
         self,
         ollama_client: Optional[OllamaClient] = None,
@@ -54,7 +54,7 @@ class ReflectionAgent(BaseAgent):
         super().__init__(ollama_client, config=config, memory_manager=memory_manager)
         self.model = self.config.get('reflection_model', 'qwen:7b')
         self.temperature = self.config.get('reflection_temperature', 0.3)
-    
+
     def _get_glossary_for_prompt(self) -> str:
         """Fetch glossary terms for injection."""
         if hasattr(self, 'memory') and self.memory:
@@ -63,7 +63,7 @@ class ReflectionAgent(BaseAgent):
             except Exception:
                 pass
         return "No glossary entries yet."
-    
+
     def analyze(self, text: str, source_text: str = "") -> Dict[str, Any]:
         """
         Analyze translation for issues.
@@ -77,13 +77,13 @@ class ReflectionAgent(BaseAgent):
         """
         glossary_text = self._get_glossary_for_prompt()
         prompt = REFLECTION_SYSTEM_PROMPT.format(text=text, glossary=glossary_text)
-        
+
         if source_text:
             prompt = prompt.replace(
                 "Input text to analyze:",
                 f"Original source:\n{source_text}\n\nTranslated text to analyze:"
             )
-        
+
         try:
             # Use the model from config — never mutate shared state on OllamaClient.
             # Pass model per-call so OllamaClient stays stateless.
@@ -92,11 +92,11 @@ class ReflectionAgent(BaseAgent):
                 system_prompt="You are a meticulous translation quality checker.",
                 model=self.model
             )
-            
+
             # Parse response
             result = self._parse_response(response, text)
             return result
-            
+
         except Exception as e:
             self.log_error("Analysis failed", e)
             return {
@@ -106,16 +106,16 @@ class ReflectionAgent(BaseAgent):
                 "final_text": text,
                 "error": str(e)
             }
-    
+
     def _parse_response(self, response: str, original: str) -> Dict[str, Any]:
         """Parse LLM response for improvements."""
         improvements = []
         suggestions = []
         final_text = original
-        
+
         lines = response.split('\n')
         current_section = None
-        
+
         for line in lines:
             line = line.strip()
             if line.startswith("IMPROVEMENTS:"):
@@ -131,14 +131,14 @@ class ReflectionAgent(BaseAgent):
                     suggestions.append(line.lstrip('- '))
                 elif current_section == "final_text" and len(line) > 50:
                     final_text = line
-        
+
         return {
             "has_issues": len(improvements) > 0,
             "improvements": improvements,
             "suggestions": suggestions,
             "final_text": final_text if final_text != original else None
         }
-    
+
     def reflect_and_improve(
         self,
         text: str,
@@ -157,24 +157,24 @@ class ReflectionAgent(BaseAgent):
             Improved translation
         """
         current_text = text
-        
+
         for i in range(max_iterations):
             self.log_info(f"Reflection iteration {i+1}/{max_iterations}")
-            
+
             result = self.analyze(current_text, source_text)
-            
+
             if not result.get("has_issues") or not result.get("final_text"):
                 self.log_info("No more improvements found")
                 break
-            
+
             if result["final_text"] != current_text:
                 current_text = result["final_text"]
                 self.log_info(f"Applied improvements: {len(result.get('improvements', []))}")
             else:
                 break
-        
+
         return current_text
-    
+
     def check_consistency(
         self,
         text: str,
@@ -191,18 +191,18 @@ class ReflectionAgent(BaseAgent):
             List of consistency issues
         """
         issues = []
-        
+
         for term in glossary_terms:
             source = term.get("source", "")
             target = term.get("target", "")
-            
+
             if source in text and target not in text:
                 issues.append(
                     f"Term '{source}' found but translation '{target}' not used"
                 )
-        
+
         return issues
-    
+
     def compare_with_source(
         self,
         source: str,
@@ -220,9 +220,9 @@ class ReflectionAgent(BaseAgent):
         """
         source_words = len(source.split())
         trans_words = len(translation.split())
-        
+
         ratio = trans_words / max(source_words, 1)
-        
+
         return {
             "source_words": source_words,
             "translation_words": trans_words,

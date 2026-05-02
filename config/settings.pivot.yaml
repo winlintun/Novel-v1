@@ -170,12 +170,6 @@ output:
 # =====================================================
 # MODEL ROUTER
 # =====================================================
-model_router:
-  enabled: true
-  vram_budget_gb: 16.0          # Need for sequential model loading
-  retry_on_failure: true
-  max_fallback_depth: 2
-
 # Fixed: Model roles per need_fix.md
 model_roles:
   translator: ["alibayram/hunyuan:7b"]
@@ -193,21 +187,3 @@ qa_testing:
   min_myanmar_ratio: 0.70
   fail_on_placeholders: false   # Allow placeholders for review
   markdown_strict: true
-
-# =====================================================
-# GLOSSARY V3 SETTINGS
-# =====================================================
-glossary_v3:
-  enabled: true
-  path: "data/glossary.json"    # Use standard glossary
-  max_prompt_entries: 60        # All glossary terms fit in prompt
-  priority_threshold: 2
-  include_examples: false
-  track_usage: true
-  alias_matching: true
-  exception_rules: true
-  prompt_format: "markdown"
-  show_pronunciation: false
-  show_exceptions_count: true
-  cache_ttl_minutes: 30
-  lazy_load: true

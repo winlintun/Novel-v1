@@ -20,7 +20,7 @@ class NovelTranslationError(Exception):
         context: Additional context data for debugging
         error_code: Optional error code for categorization
     """
-    
+
     def __init__(
         self,
         message: str,
@@ -31,12 +31,12 @@ class NovelTranslationError(Exception):
         self.message = message
         self.context = context or {}
         self.error_code = error_code
-    
+
     def __str__(self) -> str:
         if self.context:
             return f"{self.message} (context: {self.context})"
         return self.message
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert exception to dictionary for logging/serialization."""
         return {
@@ -56,7 +56,7 @@ class ModelError(NovelTranslationError):
     - Model not found or unavailable
     - Timeout or connection issues
     """
-    
+
     def __init__(
         self,
         message: str,
@@ -78,7 +78,7 @@ class GlossaryError(NovelTranslationError):
     - Term validation errors
     - Duplicate term conflicts
     """
-    
+
     def __init__(
         self,
         message: str,
@@ -100,7 +100,7 @@ class ValidationError(NovelTranslationError):
     - Output quality validation
     - Schema mismatch errors
     """
-    
+
     def __init__(
         self,
         message: str,
@@ -122,7 +122,7 @@ class ResourceError(NovelTranslationError):
     - Network connectivity issues
     - Missing required files or directories
     """
-    
+
     def __init__(
         self,
         message: str,
@@ -143,7 +143,7 @@ class PipelineError(NovelTranslationError):
     - Pipeline configuration errors
     - Dependency resolution issues
     """
-    
+
     def __init__(
         self,
         message: str,
@@ -164,7 +164,7 @@ class ConfigurationError(NovelTranslationError):
     - Invalid configuration format
     - Environment variable issues
     """
-    
+
     def __init__(
         self,
         message: str,

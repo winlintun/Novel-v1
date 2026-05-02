@@ -26,9 +26,9 @@ from typing import Any, Optional
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.utils.file_handler import FileHandler
-from src.utils.postprocessor import validate_output, detect_language_leakage
-from src.utils.ollama_client import OllamaClient
+from src.utils.file_handler import FileHandler  # noqa: E402
+from src.utils.postprocessor import validate_output, detect_language_leakage  # noqa: E402
+from src.utils.ollama_client import OllamaClient  # noqa: E402
 
 
 def translate_sentence_cn_en_mm(chinese_text: str) -> dict[str, Any]:
@@ -45,31 +45,31 @@ def translate_sentence_cn_en_mm(chinese_text: str) -> dict[str, Any]:
     print("SENTENCE TRANSLATION MODE")
     print(f"{'='*60}")
     print(f"\n🇨🇳 Chinese Input:\n{chinese_text}")
-    
+
     # Stage 1: Chinese → English
     print(f"\n{'='*60}")
     print("STAGE 1: Chinese → English")
     print(f"{'='*60}")
     print("Model: qwen2.5:14b (CN->EN)")
-    
+
     client1 = OllamaClient(
         model="qwen2.5:14b",
         temperature=0.3,
         repeat_penalty=1.15,
         unload_on_cleanup=True
     )
-    
+
     system_prompt_1 = """You are an expert Chinese-to-English literary translator.
 Translate accurately while preserving names in pinyin (e.g., 罗青 → Luo Qing).
 Output ONLY English translation."""
-    
+
     prompt_1 = f"""Translate the following Chinese text to English:
 
 CHINESE TEXT:
 {chinese_text}
 
 ENGLISH TRANSLATION:"""
-    
+
     try:
         english_result = client1.chat(prompt=prompt_1, system_prompt=system_prompt_1)
         print(f"\n🇬🇧 English Output:\n{english_result.strip()}")
@@ -78,20 +78,20 @@ ENGLISH TRANSLATION:"""
         return {"success": False, "error": f"Stage 1: {e}"}
     finally:
         client1.cleanup()
-    
+
     # Stage 2: English → Myanmar
     print(f"\n{'='*60}")
     print("STAGE 2: English → Myanmar")
     print(f"{'='*60}")
     print("Model: qwen:7b (EN->MM)")
-    
+
     client2 = OllamaClient(
         model="qwen:7b",
         temperature=0.2,
         repeat_penalty=1.15,
         unload_on_cleanup=True
     )
-    
+
     system_prompt_2 = """CRITICAL: Output ONLY Myanmar (Burmese) language using Myanmar Unicode script.
 
 FORBIDDEN: English words, Chinese characters, Thai script, Latin alphabet.
@@ -105,7 +105,7 @@ RULES:
 4. Use 【?term?】 placeholder for unknown words
 5. NO English words. NO Chinese characters.
 6. Use formal tone: သည် for "is/am/are", ကို for object marker"""
-    
+
     prompt_2 = f"""Translate the following English text to Myanmar using the glossary.
 
 GLOSSARY (USE THESE EXACT TERMS):
@@ -129,7 +129,7 @@ ENGLISH TEXT:
 {english_result}
 
 MYANMAR TRANSLATION (SOV structure, natural Myanmar):"""
-    
+
     try:
         myanmar_result = client2.chat(prompt=prompt_2, system_prompt=system_prompt_2)
         print(f"\n🇲🇲 Myanmar Output:\n{myanmar_result.strip()}")
@@ -138,11 +138,11 @@ MYANMAR TRANSLATION (SOV structure, natural Myanmar):"""
         return {"success": False, "error": f"Stage 2: {e}"}
     finally:
         client2.cleanup()
-    
+
     # Validate output
     validation = validate_output(myanmar_result, chapter=0)
     leakage = detect_language_leakage(myanmar_result)
-    
+
     print(f"\n{'='*60}")
     print("VALIDATION RESULTS")
     print(f"{'='*60}")
@@ -150,7 +150,7 @@ MYANMAR TRANSLATION (SOV structure, natural Myanmar):"""
     print(f"Myanmar ratio: {validation.get('myanmar_ratio', 0):.2%}")
     print(f"Chinese chars: {leakage.get('chinese_chars', 0)}")
     print(f"English words: {leakage.get('latin_words', 0)}")
-    
+
     return {
         "success": True,
         "chinese": chinese_text,
@@ -177,15 +177,15 @@ def run_chapter_translation(chapter_num: str, novel_name: str = "古道仙鸿") 
     print(f"{'='*60}")
     print(f"Novel: {novel_name}")
     print(f"Chapter: {chapter_num}")
-    print(f"Config: config/settings.pivot.yaml")
-    print(f"Models: qwen2.5:14b (CN->EN) -> qwen:7b (EN->MM)")
-    
+    print("Config: config/settings.pivot.yaml")
+    print("Models: qwen2.5:14b (CN->EN) -> qwen:7b (EN->MM)")
+
     # Validate config exists
     config_path = Path("config/settings.pivot.yaml")
     if not config_path.exists():
         print(f"❌ Config not found: {config_path}")
         return None, None, False
-    
+
     # Build command
     cmd = [
         "python", "-m", "src.main",
@@ -194,10 +194,10 @@ def run_chapter_translation(chapter_num: str, novel_name: str = "古道仙鸿") 
         "--chapter", chapter_num,
         "--unload-after-chapter"
     ]
-    
+
     print(f"\nCommand: {' '.join(cmd)}")
     print("\n⏳ Running translation (this may take 10-30 minutes)...")
-    
+
     try:
         # Run translation
         result = subprocess.run(
@@ -206,11 +206,11 @@ def run_chapter_translation(chapter_num: str, novel_name: str = "古道仙鸿") 
             text=True,
             timeout=3600  # 1 hour timeout
         )
-        
+
         # Log stderr if there are errors
         if result.returncode != 0 and result.stderr:
             print(f"\n⚠️  Translation stderr:\n{result.stderr[:500]}")
-        
+
         # Find the log file
         log_dir = Path("logs")
         log_file = None
@@ -222,7 +222,7 @@ def run_chapter_translation(chapter_num: str, novel_name: str = "古道仙鸿") 
             )
             if log_files:
                 log_file = str(log_files[0])
-        
+
         # Find output file
         output_dir = Path("data/output")
         output_file = None
@@ -232,15 +232,15 @@ def run_chapter_translation(chapter_num: str, novel_name: str = "古道仙鸿") 
                 # Get the most recently modified
                 output_files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
                 output_file = str(output_files[0])
-        
+
         success = result.returncode == 0 and output_file is not None
-        
+
         if not success:
-            print(f"\n❌ Translation failed!")
+            print("\n❌ Translation failed!")
             print(f"Return code: {result.returncode}")
-        
+
         return log_file, output_file, success
-        
+
     except subprocess.TimeoutExpired:
         print("\n❌ Translation timed out after 1 hour")
         return None, None, False
@@ -255,29 +255,29 @@ def show_log_file(log_file: Optional[str], tail_lines: int = 50) -> None:
     print("TRANSLATION LOG")
     print(f"{'='*60}")
     print(f"Log file: {log_file}")
-    
+
     if not log_file:
         print("❌ No log file specified")
         return
-    
+
     log_path = Path(log_file)
     if not log_path.exists():
         print("❌ Log file not found")
         return
-    
+
     try:
         content = FileHandler.read_text(log_file)
         lines = content.splitlines()
-        
+
         print(f"\nTotal lines: {len(lines)}")
         print(f"Showing last {tail_lines} lines:\n")
         print("-" * 60)
-        
+
         for line in lines[-tail_lines:]:
             print(line)
-        
+
         print("-" * 60)
-        
+
     except Exception as e:
         print(f"❌ Error reading log: {e}")
 
@@ -288,40 +288,40 @@ def check_output_file(output_file: Optional[str]) -> dict[str, Any]:
     print("OUTPUT FILE VALIDATION")
     print(f"{'='*60}")
     print(f"Output file: {output_file}")
-    
+
     if not output_file:
         return {"valid": False, "error": "No output file specified"}
-    
+
     output_path = Path(output_file)
     if not output_path.exists():
         return {"valid": False, "error": "File not found"}
-    
+
     try:
         content = FileHandler.read_text(output_file)
-        
+
         file_size = output_path.stat().st_size
         char_count = len(content)
         line_count = len(content.splitlines())
-        
+
         print(f"\nFile size: {file_size:,} bytes")
         print(f"Characters: {char_count:,}")
         print(f"Lines: {line_count}")
-        
+
         validation = validate_output(content, chapter=0)
         leakage = detect_language_leakage(content)
-        
-        print(f"\nValidation Results:")
+
+        print("\nValidation Results:")
         print(f"  Status: {validation['status']}")
         print(f"  Myanmar ratio: {validation.get('myanmar_ratio', 0):.2%}")
         print(f"  Chinese chars: {leakage.get('chinese_chars', 0)}")
         print(f"  English words: {leakage.get('latin_words', 0)}")
-        
+
         print(f"\n{'='*60}")
         print("OUTPUT PREVIEW (first 1000 chars)")
         print(f"{'='*60}")
         print(content[:1000])
         print("\n... [truncated] ...")
-        
+
         return {
             "valid": validation['status'] == "APPROVED",
             "status": validation['status'],
@@ -330,7 +330,7 @@ def check_output_file(output_file: Optional[str]) -> dict[str, Any]:
             "output_file": output_file,
             "leakage": leakage
         }
-        
+
     except Exception as e:
         print(f"❌ Error reading output: {e}")
         return {"valid": False, "error": str(e)}
@@ -354,18 +354,18 @@ def main():
         default="古道仙鸿",
         help="Novel name for chapter mode (default: 古道仙鸿)"
     )
-    
+
     args = parser.parse_args()
-    
+
     print("="*60)
     print("CHINESE → ENGLISH → MYANMAR TRANSLATION TEST")
     print("="*60)
     print(f"\nStarted at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    
+
     # Sentence mode
     if args.sentence:
         result = translate_sentence_cn_en_mm(args.sentence)
-        
+
         print(f"\n{'='*60}")
         print("FINAL RESULTS")
         print(f"{'='*60}")
@@ -373,27 +373,27 @@ def main():
             print(f"\n🇨🇳 Chinese:\n{result['chinese']}")
             print(f"\n🇬🇧 English:\n{result['english']}")
             print(f"\n🇲🇲 Myanmar:\n{result['myanmar']}")
-            print(f"\n✅ Translation complete!")
+            print("\n✅ Translation complete!")
             return 0
         else:
             print(f"\n❌ Translation failed: {result.get('error', 'Unknown error')}")
             return 1
-    
+
     # Chapter mode
     elif args.chapter:
         log_file, output_file, success = run_chapter_translation(args.chapter, args.novel)
-        
+
         if not success:
             if log_file:
                 show_log_file(log_file)
             print("\n❌ CHAPTER TRANSLATION FAILED")
             return 1
-        
+
         if log_file:
             show_log_file(log_file, tail_lines=100)
-        
+
         validation = check_output_file(output_file)
-        
+
         print(f"\n{'='*60}")
         print("CHAPTER TRANSLATION SUMMARY")
         print(f"{'='*60}")
@@ -401,14 +401,14 @@ def main():
         print(f"Output file: {output_file}")
         print(f"Validation: {validation.get('status', 'UNKNOWN')}")
         print(f"Myanmar ratio: {validation.get('myanmar_ratio', 0):.2%}")
-        
+
         if validation.get('valid'):
             print("\n✅ CHAPTER TRANSLATION PASSED!")
             return 0
         else:
             print("\n⚠️  CHAPTER TRANSLATION COMPLETED with warnings")
             return 0
-    
+
     # No arguments - show help
     else:
         parser.print_help()

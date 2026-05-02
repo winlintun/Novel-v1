@@ -103,12 +103,6 @@ output:
 # =====================================================
 # MODEL ROUTER
 # =====================================================
-model_router:
-  enabled: false
-  vram_budget_gb: 8.0
-  retry_on_failure: true
-  max_fallback_depth: 1
-  
 model_roles:
   translator: ["alibayram/hunyuan:7b"]
   refiner: ["yxchia/seallms-v3-7b:Q4_K_M"]
@@ -120,21 +114,3 @@ qa_testing:
   min_myanmar_ratio: 0.70
   fail_on_placeholders: false
   markdown_strict: true
-
-# =====================================================
-# GLOSSARY V3 SETTINGS
-# =====================================================
-glossary_v3:
-  enabled: true
-  path: "data/glossary_v3.json"
-  max_prompt_entries: 40
-  priority_threshold: 2
-  include_examples: false
-  track_usage: true
-  alias_matching: true
-  exception_rules: true
-  prompt_format: "markdown"
-  show_pronunciation: false
-  show_exceptions_count: true
-  cache_ttl_minutes: 30
-  lazy_load: true

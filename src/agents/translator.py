@@ -5,7 +5,6 @@ Core Chinese to Myanmar translation using Ollama.
 """
 
 import logging
-import re
 from typing import Dict, List, Optional, Any
 
 from src.utils.ollama_client import OllamaClient
@@ -13,9 +12,8 @@ from src.memory.memory_manager import MemoryManager
 from src.utils.progress_logger import ProgressLogger
 
 from src.utils.postprocessor import clean_output, validate_output, detect_language_leakage
-from src.utils.json_extractor import safe_parse_terms
 from src.agents.base_agent import BaseAgent
-from src.agents.prompt_patch import TRANSLATOR_SYSTEM_PROMPT, EDITOR_SYSTEM_PROMPT
+from src.agents.prompt_patch import TRANSLATOR_SYSTEM_PROMPT
 
 
 logger = logging.getLogger(__name__)
@@ -152,7 +150,7 @@ class Translator(BaseAgent):
     Translates Chinese text to Myanmar using LLM.
     Integrates glossary and context memory.
     """
-    
+
     def __init__(
         self,
         ollama_client: Optional[OllamaClient] = None,
@@ -161,18 +159,18 @@ class Translator(BaseAgent):
     ):
         super().__init__(ollama_client, memory_manager, config)
         self.ollama = ollama_client
-        
+
         pipeline = self.config.get('translation_pipeline', {})
         self._custom_system_prompt = pipeline.get('stage1_system_prompt')
         self._custom_prompt_template = pipeline.get('stage1_prompt', '{text}')
         self._fallback_system_prompt = TRANSLATOR_SYSTEM_PROMPT
-    
+
     def get_system_prompt(self, source_lang: str = "english") -> str:
         """Get system prompt based on source language (chinese or english)."""
         if self._custom_system_prompt:
             return self._custom_system_prompt
         return get_language_prompt(source_lang)
-    
+
     def build_prompt(self, text: str, rolling_context: str = "") -> str:
         """Build translation prompt with memory context and rolling translation context.
         
@@ -183,22 +181,22 @@ class Translator(BaseAgent):
         # Get all memory context
         mem = self.memory.get_all_memory_for_prompt()
         glossary_text = mem['glossary'] if mem['glossary'] else ""
-        
+
         # Use custom template from config if available
         if self._custom_prompt_template and self._custom_prompt_template != '{text}':
             prompt = self._custom_prompt_template.replace('{text}', text).replace('{glossary}', glossary_text)
             if mem['context'] and mem['context'] != "No previous context.":
                 prompt = prompt.replace('{context}', mem['context'])
             return prompt
-        
+
         # Fallback to default template
         prompt_parts = []
-        
+
         # Add glossary
         if mem['glossary']:
             prompt_parts.append(mem['glossary'])
             prompt_parts.append("")
-        
+
         # Add rolling context (tail of previous translated chunk)
         if rolling_context:
             prompt_parts.append("PREVIOUS CONTEXT (translated Myanmar, for continuity):")
@@ -208,20 +206,20 @@ class Translator(BaseAgent):
             # Fallback to accumulated context buffer
             prompt_parts.append(mem['context'])
             prompt_parts.append("")
-        
+
         # Add correction rules
         if mem['rules'] and mem['rules'] != "No session rules.":
             prompt_parts.append(mem['rules'])
             prompt_parts.append("")
-        
+
         # Add source text
         prompt_parts.append("SOURCE TEXT TO TRANSLATE:")
         prompt_parts.append(text)
         prompt_parts.append("")
         prompt_parts.append("MYANMAR TRANSLATION:")
-        
+
         return "\n".join(prompt_parts)
-    
+
     def translate_paragraph(
         self,
         paragraph: str,
@@ -241,22 +239,22 @@ class Translator(BaseAgent):
         """
         # Build prompt with context
         prompt = self.build_prompt(paragraph, rolling_context=rolling_context)
-        
+
         # Select correct system prompt based on source language
         source_lang = self.config.get('project', {}).get('source_language', 'chinese')
         if 'en' in source_lang.lower():
             lang_key = 'english'
         else:
             lang_key = 'chinese'
-            
+
         system_prompt = self.get_system_prompt(lang_key)
-        
+
         # First attempt
         raw = self.ollama.chat(
             prompt=prompt,
             system_prompt=system_prompt
         )
-        
+
         # Handle empty response (model collapse)
         if not raw or not raw.strip():
             logger.warning(f"Empty response from model in chapter {chapter_num}. Retrying with reinforced prompt...")
@@ -265,39 +263,39 @@ class Translator(BaseAgent):
                 prompt=prompt,
                 system_prompt=retry_system
             )
-            
+
         # Clean output
         translated = clean_output(raw)
-        
+
         # Check for language leakage (English or Chinese)
         leakage = detect_language_leakage(translated)
         needs_retry = False
         retry_reason = ""
-        
+
         if leakage.get("has_english", False) and leakage.get("latin_words", 0) > 3:
             needs_retry = True
             retry_reason = f"English ({leakage['latin_words']} words)"
-        
+
         if leakage.get("chinese_chars", 0) > 0:
             needs_retry = True
             retry_reason = f"Chinese ({leakage['chinese_chars']} chars)"
-        
+
         if needs_retry:
             logger.warning(f"{retry_reason} detected in translation (chapter {chapter_num}), retrying with stronger prompt...")
-            
+
             # Retry with reinforced language guard
             retry_prompt = prompt + "\n\n⚠️ CRITICAL: Your previous output contained " + retry_reason + ". This time output ONLY Myanmar text. NO Chinese or English allowed. Use 【?term?】 for unknown words."
             retry_system = system_prompt + "\n\n[RETRY MODE] Previous output failed - contained " + retry_reason + ". This time output 100% Myanmar ONLY."
-            
+
             raw_retry = self.ollama.chat(
                 prompt=retry_prompt,
                 system_prompt=retry_system
             )
             translated_retry = clean_output(raw_retry)
-            
+
             # Check if retry is better
             leakage_retry = detect_language_leakage(translated_retry)
-            
+
             # Determine if retry improved
             improved = False
             if leakage.get("chinese_chars", 0) > 0 and leakage_retry.get("chinese_chars", 0) < leakage.get("chinese_chars", 0):
@@ -306,24 +304,24 @@ class Translator(BaseAgent):
             elif leakage.get("latin_words", 0) > 0 and leakage_retry.get("latin_words", 0) < leakage.get("latin_words", 0):
                 improved = True
                 logger.info(f"Retry successful - reduced English words from {leakage['latin_words']} to {leakage_retry['latin_words']}")
-            
+
             if improved:
                 translated = translated_retry
             else:
-                logger.warning(f"Retry did not improve language content")
-        
+                logger.warning("Retry did not improve language content")
+
         # Validate and log quality report
         report = validate_output(translated, chapter_num)
         if report["status"] == "REJECTED":
             logger.error(f"CRITICAL: Translation REJECTED in chapter {chapter_num}: {report}")
         elif report["status"] == "NEEDS_REVIEW":
             logger.warning(f"Translation quality issue in chapter {chapter_num}: {report}")
-        
+
         # Push to context buffer
         self.memory.push_to_buffer(translated)
-        
+
         return translated
-    
+
     def translate_with_fallback(
         self,
         text: str,
@@ -332,37 +330,37 @@ class Translator(BaseAgent):
     ) -> str:
         """Translate with fallback retry on empty or short output."""
         result = self.translate_paragraph(text, chapter_num)
-        
+
         if not result or len(result.strip()) < 50:
             logger.warning("Empty or short output detected. Using fallback prompt...")
             fallback_prompt = self.get_fallback_prompt(source_lang)
-            
+
             prompt = self.build_prompt(text)
             system_prompt = fallback_prompt
-            
+
             result = self.ollama.chat(
                 prompt=prompt,
                 system_prompt=system_prompt
             )
-        
+
         if not result:
             logger.error("Translation returned empty after fallback")
             raise ValueError("Translation failed completely. Check model and prompt.")
-        
+
         return result
-    
+
     def get_fallback_prompt(self, source_lang: str) -> str:
         """Get minimal fallback prompt for retry on empty output."""
         from src.agents.prompt_patch import LANGUAGE_GUARD
-        
+
         target_instr = "Chinese text to Myanmar" if source_lang.lower() == "chinese" else "English text to Myanmar"
-        
+
         return LANGUAGE_GUARD + f"""
 You are a professional translator. Translate the following {target_instr}.
 Keep all names and terms as-is. Output ONLY the translation. No preamble.
 
 Text to translate:"""
-    
+
     def translate_chunks(
         self,
         chunks: List[Dict],
@@ -382,15 +380,15 @@ Text to translate:"""
         """
         translated = []
         total = len(chunks)
-        
+
         for i, chunk in enumerate(chunks, 1):
             logger.info(f"Translating chunk {i}/{total}...")
-            
+
             try:
                 # Translate chunk with chapter number for quality tracking
                 result = self.translate_paragraph(chunk['text'], chapter_num)
                 translated.append(result)
-                
+
                 # Log progress if logger is provided
                 if progress_logger:
                     progress_logger.log_chunk(
@@ -398,13 +396,13 @@ Text to translate:"""
                         chunk_text=result,
                         source_text=chunk.get('text', '')
                     )
-                
+
             except Exception as e:
                 logger.error(f"Failed to translate chunk {i}: {e}")
                 translated.append(f"[TRANSLATION ERROR: {e}]")
-        
+
         return translated
-    
+
     def translate_chapter(
         self,
         chunks: List[Dict[str, Any]],
@@ -424,12 +422,12 @@ Text to translate:"""
             Full translated chapter
         """
         logger.info(f"Translating Chapter {chapter_num}")
-        
+
         # Clear context buffer for new chapter
         self.memory.clear_buffer()
-        
+
         # Translate chunks
         translated_chunks = self.translate_chunks(chunks, chapter_num)
-        
+
         # Join results
         return '\n\n'.join(translated_chunks)

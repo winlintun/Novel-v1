@@ -18,7 +18,6 @@ Covers:
   - Cultural adaptation
 """
 
-from typing import Dict, List
 
 
 # ===========================================================================

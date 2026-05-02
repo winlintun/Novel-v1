@@ -39,7 +39,7 @@ CULTURAL_RULES = {
 
 def build_linguistic_context() -> str:
     """Generate prompt snippet with linguistic rules."""
-    return f"""
+    return """
 [LINGUISTIC RULES - CN→MM]
 1. STRUCTURE: Convert Chinese SVO → Myanmar SOV. Example:
    CN: 他(主) + 吃(动) + 饭(宾) → MM: သူ(သည်) + ထမင်း(ကို) + စား(သည်)

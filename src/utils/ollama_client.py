@@ -7,7 +7,7 @@ Supports both /api/chat and /api/generate endpoints.
 import time
 import random
 import logging
-from typing import Iterator, Optional, Dict, Any
+from typing import Iterator, Optional
 import ollama
 
 from src.exceptions import ModelError
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 class OllamaClient:
     """Client for Ollama LLM API with robust error handling and resource cleanup."""
-    
+
     def __init__(
         self,
         model: str = "qwen2.5:14b",
@@ -72,24 +72,24 @@ class OllamaClient:
         self.gpu_layers = gpu_layers
         self.main_gpu = main_gpu
         self._is_connected = False
-        
+
         # Configure ollama client
         self.client = ollama.Client(host=base_url)
         self._is_connected = True
-        
+
         # Log GPU configuration
         gpu_info = f"GPU: enabled (layers={gpu_layers}, main_gpu={main_gpu})" if use_gpu else "GPU: disabled (CPU only)"
         logger.debug(f"OllamaClient initialized for model: {model}, endpoint: {'/api/generate' if use_generate_endpoint else '/api/chat'}, num_ctx: {num_ctx}, {gpu_info}")
-    
+
     def __enter__(self):
         """Context manager entry."""
         return self
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit with automatic cleanup."""
         self.cleanup()
         return False
-    
+
     def cleanup(self) -> None:
         """
         Cleanup resources and optionally unload model from GPU.
@@ -99,7 +99,7 @@ class OllamaClient:
         """
         if not self._is_connected:
             return
-        
+
         try:
             if self.unload_on_cleanup:
                 # Unload model from GPU/CPU to free RAM/VRAM
@@ -107,7 +107,7 @@ class OllamaClient:
                 try:
                     # Method 1: Use API to unload this specific model
                     self._unload_model(self.model)
-                    
+
                     # Method 2: Also try to unload via direct API call with keep_alive=0
                     try:
                         import requests
@@ -125,17 +125,17 @@ class OllamaClient:
                             logger.info(f"Successfully sent unload request for {self.model}")
                     except Exception as api_err:
                         logger.debug(f"Direct API unload attempt: {api_err}")
-                    
+
                     logger.info(f"Model {self.model} unloaded from memory")
                 except Exception as e:
                     logger.warning(f"Could not unload model: {e}")
-            
+
             self._is_connected = False
             logger.debug("OllamaClient cleanup complete")
-            
+
         except Exception as e:
             logger.error(f"Error during OllamaClient cleanup: {e}")
-    
+
     def _unload_model(self, model_name: str) -> None:
         """
         Explicitly unload a model from Ollama memory.
@@ -154,7 +154,7 @@ class OllamaClient:
             logger.info(f"Model {model_name} scheduled for unload")
         except Exception as e:
             logger.warning(f"Model unload API call failed: {e}")
-    
+
     def unload_all_models(self) -> None:
         """
         Force unload all loaded models from Ollama to free all RAM.
@@ -163,14 +163,14 @@ class OllamaClient:
         logger.info("Unloading all models from Ollama to free RAM...")
         try:
             import requests
-            
+
             # Get list of loaded models
             try:
                 response = requests.get(f"{self.base_url}/api/ps", timeout=5)
                 if response.status_code == 200:
                     data = response.json()
                     models = data.get('models', [])
-                    
+
                     for model_info in models:
                         model_name = model_info.get('name', '')
                         if model_name:
@@ -180,15 +180,15 @@ class OllamaClient:
                     logger.warning(f"Could not get running models list: HTTP {response.status_code}")
             except Exception as e:
                 logger.warning(f"Could not query running models: {e}")
-            
+
             # Also try to unload the current model
             self._unload_model(self.model)
-            
+
             logger.info("All models unload requests sent")
-            
+
         except Exception as e:
             logger.error(f"Error unloading all models: {e}")
-    
+
     def chat(
         self,
         prompt: str,
@@ -213,13 +213,13 @@ class OllamaClient:
             ModelError: If all retries exhausted
         """
         effective_model = model if model else self.model
-        
+
         for attempt in range(self.max_retries):
             try:
                 # Adjust options based on model
                 is_gemma = "gemma" in effective_model.lower()
                 is_padauk = "padauk" in effective_model.lower()
-                
+
                 # Use configurable num_ctx (default 8192 per need_fix.md)
                 # and keep_alive (default 10m per need_fix.md)
                 options = {
@@ -237,14 +237,14 @@ class OllamaClient:
                     if self.gpu_layers >= 0:
                         options["num_gpu"] = self.gpu_layers
                     options["main_gpu"] = self.main_gpu
-                
+
                 # Fixed: Support both /api/chat and /api/generate endpoints (per need_fix.md)
                 if self.use_generate_endpoint:
                     full_prompt = ""
                     if system_prompt:
                         full_prompt = f"{system_prompt}\n\n"
                     full_prompt += prompt
-                    
+
                     response = self.client.generate(
                         model=effective_model,
                         prompt=full_prompt,
@@ -261,7 +261,7 @@ class OllamaClient:
                     if system_prompt:
                         messages.append({"role": "system", "content": system_prompt})
                     messages.append({"role": "user", "content": prompt})
-                    
+
                     response = self.client.chat(
                         model=effective_model,
                         messages=messages,
@@ -275,14 +275,14 @@ class OllamaClient:
                         if isinstance(msg, dict):
                             raw_content = msg.get('content', '') or msg.get('thinking', '')
                     return raw_content
-                
+
             except (ConnectionError, ConnectionAbortedError, ConnectionRefusedError) as e:
                 # Do NOT retry connection failures — raise immediately
                 logger.error(f"Ollama unreachable: {e}")
                 raise ModelError(f"Ollama connection failed: {e}") from e
             except Exception as e:
                 error_msg = str(e).lower()
-                
+
                 # Check for rate limit errors (429 Too Many Requests)
                 is_rate_limit = (
                     '429' in error_msg or
@@ -290,7 +290,7 @@ class OllamaClient:
                     'too many requests' in error_msg or
                     'request limit' in error_msg
                 )
-                
+
                 # Calculate wait time with jitter
                 if is_rate_limit:
                     base_wait = 2 ** attempt * 2
@@ -299,16 +299,16 @@ class OllamaClient:
                 else:
                     wait_time = 2 ** attempt + random.uniform(0.5, 1.5)
                     logger.warning(f"Ollama call failed (attempt {attempt + 1}/{self.max_retries}): {e}")
-                
+
                 if attempt < self.max_retries - 1:
                     logger.info(f"Retrying in {wait_time:.1f}s...")
                     time.sleep(wait_time)
                 else:
                     logger.error(f"Ollama failed after {self.max_retries} attempts")
                     raise ModelError(f"Ollama API error after {self.max_retries} retries on model {effective_model}: {e}") from e
-        
+
         raise ModelError(f"Ollama failed after {self.max_retries} attempts on model {effective_model}")
-    
+
     def chat_stream(
         self,
         prompt: str,
@@ -327,12 +327,12 @@ class OllamaClient:
             Text chunks as they arrive
         """
         effective_model = model if model else self.model
-        
+
         messages = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": prompt})
-        
+
         try:
             # Build options with GPU configuration
             stream_options = {
@@ -358,7 +358,7 @@ class OllamaClient:
                 options=stream_options,
                 keep_alive=self.keep_alive
             )
-            
+
             for chunk in stream:
                 if isinstance(chunk, dict) and 'message' in chunk:
                     msg = chunk.get('message', {})
@@ -366,20 +366,20 @@ class OllamaClient:
                         content = msg.get('content', '') or msg.get('thinking', '')
                         if content:
                             yield content
-                    
+
         except (ConnectionError, ConnectionAbortedError, ConnectionRefusedError) as e:
             logger.error(f"Ollama streaming connection error: {e}")
             raise ModelError(f"Ollama connection failed during streaming: {e}") from e
         except Exception as e:
             logger.error(f"Streaming error: {e}")
             raise ModelError(f"Ollama streaming error: {e}") from e
-    
+
     def check_model_available(self) -> bool:
         """Check if the configured model is available."""
         try:
             models = self.client.list()
             model_list = models.get('models', [])
-            
+
             # Handle different API response formats
             available = []
             for m in model_list:
@@ -387,17 +387,17 @@ class OllamaClient:
                 model_name = m.get('model') or m.get('name')
                 if model_name:
                     available.append(model_name)
-            
+
             if self.model in available:
                 return True
             else:
                 logger.warning(f"Model '{self.model}' not found. Available: {available}")
                 return False
-                
+
         except Exception as e:
             logger.error(f"Cannot connect to Ollama: {e}")
             return False
-    
+
     def unload_model(self) -> bool:
         """
         Explicitly unload model from GPU to free VRAM.

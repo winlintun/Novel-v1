@@ -4,7 +4,6 @@ Unit tests for MemoryManager.
 
 import unittest
 import os
-import json
 import tempfile
 import sys
 from pathlib import Path
@@ -20,7 +19,7 @@ class TestMemoryManager(unittest.TestCase):
         self.temp_dir = tempfile.mkdtemp()
         self.glossary_path = os.path.join(self.temp_dir, "glossary.json")
         self.context_path = os.path.join(self.temp_dir, "context.json")
-        
+
         # Initialize with empty files
         self.memory = MemoryManager(self.glossary_path, self.context_path)
 
@@ -31,11 +30,11 @@ class TestMemoryManager(unittest.TestCase):
     def test_add_get_term(self):
         """Test adding and retrieving glossary terms."""
         self.memory.add_term("主角", "ဇော်ဂျီ", "character", 1)
-        
+
         # Check retrieval
         target = self.memory.get_term("主角")
         self.assertEqual(target, "ဇော်ဂျီ")
-        
+
         # Check glossary prompt formatting
         prompt = self.memory.get_glossary_for_prompt()
         self.assertIn("主角", prompt)
@@ -47,7 +46,7 @@ class TestMemoryManager(unittest.TestCase):
         self.memory.push_to_buffer("Para 2")
         self.memory.push_to_buffer("Para 3")
         self.memory.push_to_buffer("Para 4")
-        
+
         # Default get_context_buffer gets last 3
         context = self.memory.get_context_buffer(3)
         self.assertNotIn("Para 1", context)
@@ -59,7 +58,7 @@ class TestMemoryManager(unittest.TestCase):
         self.memory.add_term("Item", "ပစ္စည်း", "item", 1)
         self.memory.push_to_buffer("Context text")
         self.memory.save_memory()
-        
+
         # New instance
         new_memory = MemoryManager(self.glossary_path, self.context_path)
         self.assertEqual(new_memory.get_term("Item"), "ပစ္စည်း")
@@ -70,7 +69,7 @@ class TestMemoryManager(unittest.TestCase):
         self.memory.add_session_rule("ဟောင်း", "သစ်")
         rules = self.memory.get_session_rules()
         self.assertIn("ဟောင်း -> သစ်", rules)
-        
+
         # Promote to glossary
         self.memory.promote_rule_to_glossary("ဟောင်း", "သစ်", 1)
         self.assertEqual(self.memory.get_term("ဟောင်း"), "သစ်")

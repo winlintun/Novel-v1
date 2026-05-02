@@ -43,27 +43,27 @@ def main() -> int:
     """
     # Parse arguments
     args = parse_arguments()
-    
+
     # Handle utility commands first
     if args.ui:
         return run_ui_launch(args)
-    
+
     if args.test:
         return run_test(args)
-    
+
     if args.view_file:
         return run_view_file(args)
 
     if args.review_file:
         return run_review(args)
-    
+
     # Validate arguments for translation commands
     validate_arguments(args)
-    
+
     # Handle glossary generation
     if args.generate_glossary:
         return run_glossary_generation(args)
-    
+
     # Run translation pipeline
     return run_translation_pipeline(args)
 

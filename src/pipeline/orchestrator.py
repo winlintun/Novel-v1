@@ -12,7 +12,6 @@ Coordinates all translation stages:
 7. QA Review - Final validation
 """
 
-import os
 import time
 import signal
 import logging
@@ -21,13 +20,6 @@ from typing import List, Dict, Any, Optional, Tuple, Callable
 from datetime import datetime
 
 from src.config import AppConfig
-from src.types import PipelineResult, TranslationChunk
-from src.exceptions import (
-    NovelTranslationError,
-    PipelineError,
-    ModelError,
-    ResourceError,
-)
 
 # Constants
 INPUT_DIR = "data/input"
@@ -41,7 +33,7 @@ class TranslationPipeline:
     Coordinates all agents and stages to translate novel chapters
     from Chinese to Myanmar with quality checks.
     """
-    
+
     def __init__(self, config: AppConfig):
         """Initialize the pipeline with configuration.
         
@@ -50,7 +42,7 @@ class TranslationPipeline:
         """
         self.config = config
         self.logger = logging.getLogger(__name__)
-        
+
         # Initialize agents (lazy loading)
         self._preprocessor = None
         self._translator = None
@@ -62,21 +54,21 @@ class TranslationPipeline:
         self._context_updater = None
         self._memory_manager = None
         self._ollama_client = None
-        
+
         # State
         self._shutdown_requested = False
         self._current_novel: Optional[str] = None
         self._progress_callback: Optional[Callable] = None
-        
+
         # Register signal handlers
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
-    
+
     def _signal_handler(self, signum: int, frame: Any) -> None:
         """Handle shutdown signals gracefully."""
         self.logger.warning("Shutdown requested. Finishing current chunk...")
         self._shutdown_requested = True
-    
+
     def set_progress_callback(self, callback: Optional[Callable[[Dict[str, Any]], None]]) -> None:
         """Set a progress callback for live CLI output.
         
@@ -84,7 +76,7 @@ class TranslationPipeline:
             callback: Function that accepts a dict event, or None to disable
         """
         self._progress_callback = callback
-    
+
     def _report(self, event: Dict[str, Any]) -> None:
         """Send a progress event to the callback if configured."""
         if self._progress_callback:
@@ -92,7 +84,7 @@ class TranslationPipeline:
                 self._progress_callback(event)
             except Exception:
                 pass  # Never let progress reporting break the pipeline
-    
+
     @property
     def memory_manager(self):
         """Lazy load memory manager with novel-specific glossary."""
@@ -114,7 +106,7 @@ class TranslationPipeline:
             except Exception:
                 pass
         return self._memory_manager
-    
+
     @property
     def ollama_client(self):
         """Lazy load Ollama client."""
@@ -134,7 +126,7 @@ class TranslationPipeline:
                 main_gpu=getattr(self.config.models, 'main_gpu', 0)
             )
         return self._ollama_client
-    
+
     @property
     def preprocessor(self):
         """Lazy load preprocessor."""
@@ -144,7 +136,7 @@ class TranslationPipeline:
                 chunk_size=self.config.processing.chunk_size,
             )
         return self._preprocessor
-    
+
     @property
     def translator(self):
         """Lazy load translator."""
@@ -156,7 +148,7 @@ class TranslationPipeline:
                 config=self.config.dict()
             )
         return self._translator
-    
+
     @property
     def refiner(self):
         """Lazy load refiner."""
@@ -169,7 +161,7 @@ class TranslationPipeline:
                 memory_manager=self.memory_manager
             )
         return self._refiner
-    
+
     @property
     def reflection_agent(self):
         """Lazy load reflection agent."""
@@ -181,7 +173,7 @@ class TranslationPipeline:
                 memory_manager=self.memory_manager
             )
         return self._reflection_agent
-    
+
     @property
     def myanmar_checker(self):
         """Lazy load Myanmar quality checker."""
@@ -193,7 +185,7 @@ class TranslationPipeline:
                 config=self.config.dict()
             )
         return self._myanmar_checker
-    
+
     @property
     def checker(self):
         """Lazy load consistency checker."""
@@ -204,7 +196,7 @@ class TranslationPipeline:
                 config=self.config.dict()
             )
         return self._checker
-    
+
     @property
     def qa_tester(self):
         """Lazy load QA tester."""
@@ -215,7 +207,7 @@ class TranslationPipeline:
                 config=self.config.dict()
             )
         return self._qa_tester
-    
+
     @property
     def context_updater(self):
         """Lazy load context updater."""
@@ -227,7 +219,7 @@ class TranslationPipeline:
                 config=self.config.dict()
             )
         return self._context_updater
-    
+
     def translate_file(self, filepath: str, novel_name: Optional[str] = None) -> Dict[str, Any]:
         """Translate a single file.
 
@@ -240,7 +232,7 @@ class TranslationPipeline:
         """
         self.logger.info(f"Starting translation of file: {filepath}")
         start_time = time.time()
-        
+
         # Resolve novel name from filepath if not provided
         if novel_name:
             self._current_novel = novel_name
@@ -254,7 +246,7 @@ class TranslationPipeline:
 
             # Chapter label for progress display
             chapter_label = Path(filepath).name
-            
+
             # Extract chapter number from filename (needed for meta + context update)
             import re
             chapter_num = None
@@ -374,7 +366,7 @@ class TranslationPipeline:
         finally:
             # Always cleanup to free RAM after translation
             self._cleanup_resources()
-    
+
     def translate_chapter(self, novel: str, chapter: int) -> Dict[str, Any]:
         """Translate a single chapter of a novel.
         
@@ -386,7 +378,7 @@ class TranslationPipeline:
             Pipeline result dictionary
         """
         chapter_file = self._find_chapter_file(novel, chapter)
-        
+
         if not chapter_file:
             novel_dir = Path(INPUT_DIR) / novel
             attempted = [
@@ -404,10 +396,10 @@ class TranslationPipeline:
                 "metrics": {},
                 "chapter": str(chapter)
             }
-        
+
         self._current_novel = novel
         return self.translate_file(str(chapter_file), novel_name=novel)
-    
+
     @staticmethod
     def _extract_novel_from_path(filepath: str) -> Optional[str]:
         """Extract novel name from a filepath like data/input/{novel}/chapter.md."""
@@ -420,7 +412,7 @@ class TranslationPipeline:
         except ValueError:
             pass
         return None
-    
+
     @staticmethod
     def _discover_chapters(novel_dir: Path) -> List[int]:
         """Discover chapter numbers from files in a novel directory.
@@ -435,21 +427,21 @@ class TranslationPipeline:
             Sorted list of unique chapter numbers
         """
         import re
-        
+
         chapters: set = set()
         for f in novel_dir.glob("*.md"):
             # Try pure-digit stem: "009.md"
             if f.stem.isdigit():
                 chapters.add(int(f.stem))
                 continue
-            
+
             # Try patterns like "xxx_chapter_009" or "xxx_0009"
             m = re.search(r'(?:chapter[\s_-]*)?(\d{3,4})$', f.stem)
             if m:
                 chapters.add(int(m.group(1)))
-        
+
         return sorted(chapters)
-    
+
     @staticmethod
     def _find_chapter_file(novel: str, chapter: int) -> Optional[Path]:
         """Find a chapter file using multiple naming conventions.
@@ -464,7 +456,7 @@ class TranslationPipeline:
         novel_dir = Path(INPUT_DIR) / novel
         if not novel_dir.is_dir():
             return None
-        
+
         patterns = [
             # Format 1: {novel}_chapter_{XXX}.md (e.g., 古道仙鸿_chapter_009.md)
             novel_dir / f"{novel}_chapter_{chapter:03d}.md",
@@ -475,13 +467,13 @@ class TranslationPipeline:
             novel_dir / f"{novel}_{chapter:03d}.md",
             novel_dir / f"{novel}_{chapter:04d}.md",
         ]
-        
+
         for p in patterns:
             if p.exists():
                 return p
-        
+
         return None
-    
+
     def translate_novel(self, novel: str, chapters: Optional[List[int]] = None) -> List[Dict[str, Any]]:
         """Translate multiple chapters of a novel.
         
@@ -504,20 +496,20 @@ class TranslationPipeline:
                     "metrics": {},
                     "chapter": "all"
                 }]
-            
+
             chapters = self._discover_chapters(novel_dir)
-        
+
         results = []
         for chapter in chapters:
             if self._shutdown_requested:
                 self.logger.warning("Shutdown requested, stopping translation")
                 break
-            
+
             result = self.translate_chapter(novel, chapter)
             results.append(result)
-        
+
         return results
-    
+
     def _preprocess(self, text: str, chapter_label: str = "") -> List[str]:
         """Preprocess text into chunks using token-aware paragraph grouping.
         
@@ -539,16 +531,16 @@ class TranslationPipeline:
 
         # Use smart_chunk directly per need_to_fix.md spec
         from src.utils.chunker import smart_chunk, estimate_tokens
-        
+
         # Strip translator/editor metadata lines BEFORE chunking
         text = self.preprocessor.strip_metadata(text)
-        
+
         # Clean and normalize
         text = self.preprocessor.clean_markdown(text)
-        
+
         # Auto-detect optimal chunk size based on model context window
         optimal_size = self._auto_detect_chunk_size(text)
-        
+
         # Create chunks: paragraph-only, no splitting, overlap=0
         chunks = smart_chunk(text, max_tokens=optimal_size)
 
@@ -567,7 +559,7 @@ class TranslationPipeline:
         })
 
         return chunks
-    
+
     def _auto_detect_chunk_size(self, source_text: str = "") -> int:
         """Auto-detect optimal chunk size based on model context window.
         
@@ -587,7 +579,7 @@ class TranslationPipeline:
             Optimal max_tokens value for smart_chunk()
         """
         config_size = getattr(self.config.processing, 'chunk_size', 1500)
-        
+
         # Try to get model context window from Ollama
         model_ctx = None
         try:
@@ -601,29 +593,29 @@ class TranslationPipeline:
                 model_ctx = 4096
         except Exception:
             model_ctx = 4096
-        
+
         # Calculate optimal: 35% of context window, capped by config max
         optimal = min(
             int(model_ctx * 0.35),       # e.g., 4096*0.35 = 1433
             min(config_size, 2000),      # never exceed 2000
         )
-        
+
         # If source text is very short, just use 1 chunk
         if source_text:
             source_tokens = int(len(source_text) * 1.5)
             if source_tokens <= optimal:
                 optimal = max(optimal, source_tokens)  # single chunk
-        
+
         # Safety bounds
         optimal = max(optimal, 600)   # minimum 600 tokens
         optimal = min(optimal, 2000)  # maximum 2000 tokens
-        
+
         self.logger.debug(
             f"Auto-detected chunk_size={optimal} "
             f"(model_ctx={model_ctx}, config_size={config_size})"
         )
         return optimal
-    
+
     def _translate_chunks(self, chunks: List[str]) -> Tuple[List[str], List[Dict[str, Any]]]:
         """Translate chunks through the pipeline with rolling context.
         
@@ -638,11 +630,11 @@ class TranslationPipeline:
             Tuple of (translated chunks list, list of per-chunk quality metrics)
         """
         from src.utils.chunker import get_rolling_context, estimate_tokens
-        
+
         translated = []
         chunk_metrics = []
         rolling_context = ""  # first chunk: empty
-        
+
         for i, chunk in enumerate(chunks):
             if self._shutdown_requested:
                 break
@@ -656,7 +648,7 @@ class TranslationPipeline:
                 "total_chunks": total,
                 "char_count": len(chunk),
             })
-            
+
             # Token budget check before sending (per spec: ≤2600 tokens total)
             est_chunk = estimate_tokens(chunk)
             est_context = estimate_tokens(rolling_context)
@@ -674,7 +666,7 @@ class TranslationPipeline:
             self.logger.info(f"Step 2/7: Translating chunk {i+1}/{total}... "
                            f"[{len(chunk)} chars, est {est_chunk} tokens, "
                            f"ctx: {len(rolling_context)} chars]")
-            
+
             # Stage 1: Translation with rolling context
             t1 = time.time()
             translated_chunk = self.translator.translate_paragraph(
@@ -743,7 +735,7 @@ class TranslationPipeline:
                 "total_chunks": total,
                 "issue_count": cons_count,
             })
-            
+
             total_issues = quality_issues + cons_count
             chunk_duration = time.time() - chunk_t0
             self._report({
@@ -762,16 +754,16 @@ class TranslationPipeline:
             })
 
             translated.append(translated_chunk)
-            
+
             # Checkpoint: log progress after each chunk (resumability)
             self.logger.info(
                 f"✓ Chunk {i+1}/{total} complete in {chunk_duration:.0f}s. "
                 f"Quality: {quality_score}, Ratio: {mm_ratio:.1%}, Issues: {total_issues}"
             )
-            
+
             # Advance rolling context: tail of this chunk for next iteration
             rolling_context = get_rolling_context(translated_chunk, max_context_tokens=400)
-        
+
         return translated, chunk_metrics
 
     @staticmethod
@@ -796,7 +788,7 @@ class TranslationPipeline:
                 if any(lo <= code <= hi for lo, hi in myanmar_ranges):
                     mm += 1
         return mm / total if total > 0 else 0.0
-    
+
     def _postprocess(self, chunks: List[str]) -> str:
         """Postprocess translated chunks.
         
@@ -807,18 +799,18 @@ class TranslationPipeline:
             Final translated text
         """
         from src.utils.postprocessor import Postprocessor
-        
+
         # Use aggressive mode to strip all reasoning/analysis content
         processor = Postprocessor(aggressive=True)
-        
+
         # Deduplicate overlapping paragraphs between adjacent chunks
         before_count = sum(len(c) for c in chunks)
         chunks = self._deduplicate_chunks(chunks)
         after_count = sum(len(c) for c in chunks)
-        
+
         # Join chunks
         text = '\n\n'.join(chunks)
-        
+
         # Clean up
         text = processor.clean(text)
 
@@ -827,9 +819,9 @@ class TranslationPipeline:
             "dedup_removed": max(0, before_count - after_count),
             "final_chars": len(text),
         })
-        
+
         return text
-    
+
     def _deduplicate_chunks(self, chunks: List[str]) -> List[str]:
         """Remove duplicated overlapping paragraphs between adjacent chunks.
         
@@ -848,11 +840,11 @@ class TranslationPipeline:
         """
         if len(chunks) <= 1:
             return chunks
-        
+
         def split_paragraphs(text: str) -> List[str]:
             """Split text into paragraphs."""
             return [p.strip() for p in text.split('\n\n') if p.strip()]
-        
+
         def chars_overlap_ratio(p1: str, p2: str) -> float:
             """Compute character set overlap ratio between two strings.
             Only used for boundary-adjacent paragraphs with minimum length."""
@@ -863,23 +855,23 @@ class TranslationPipeline:
             intersection = set1 & set2
             union = set1 | set2
             return len(intersection) / len(union)
-        
+
         result = [chunks[0]]
-        
+
         for i in range(1, len(chunks)):
             prev_paras = split_paragraphs(result[-1])
             curr_paras = split_paragraphs(chunks[i])
-            
+
             if not prev_paras or not curr_paras:
                 result.append(chunks[i])
                 continue
-            
+
             # Only check the last paragraph of prev vs first paragraph of curr
             # to find overlap at chunk boundary
             remove_from_curr = 0
             last_prev = prev_paras[-1]
             first_curr = curr_paras[0]
-            
+
             # Only attempt deduplication on paragraphs with substantial content (>50 chars)
             # to avoid false positives on short, similar-looking Myanmar sentences
             if len(last_prev) > 50 and len(first_curr) > 50:
@@ -893,16 +885,16 @@ class TranslationPipeline:
                             remove_from_curr = k
                         else:
                             break
-            
+
             if remove_from_curr > 0:
                 deduped = '\n\n'.join(curr_paras[remove_from_curr:])
                 if deduped.strip():
                     result.append(deduped)
             else:
                 result.append(chunks[i])
-        
+
         return result
-    
+
     def _save_output(self, input_path: str, text: str, extra_meta: Optional[Dict[str, Any]] = None) -> Path:
         """Save translated output and update per-novel cumulative meta.json.
         
@@ -915,33 +907,33 @@ class TranslationPipeline:
             Path to output file
         """
         input_path = Path(input_path)
-        
+
         # Determine output path
         relative = input_path.relative_to(INPUT_DIR) if str(input_path).startswith(INPUT_DIR) else input_path.name
         output_path = Path(OUTPUT_DIR) / relative
         output_path = output_path.with_suffix('.mm.md')
-        
+
         # Ensure directory exists
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         # Extract chapter number from filename
         import re
         chapter_num = None
         m = re.search(r'(\d+)', output_path.stem)
         if m:
             chapter_num = int(m.group(1))
-        
+
         # --- Write chapter .mm.md file ---
         from src.utils.file_handler import FileHandler
         FileHandler.write_text(str(output_path), text)
-        
+
         # --- Update cumulative per-novel meta.json ---
         # Single file: data/output/{novel}/{novel}.mm.meta.json
         # Updated cumulatively with each chapter translation
         if self._current_novel:
             import json
             novel_meta_path = output_path.parent / f"{self._current_novel}.mm.meta.json"
-            
+
             # Load existing meta if it exists
             existing_meta = {}
             if novel_meta_path.exists():
@@ -949,7 +941,7 @@ class TranslationPipeline:
                     existing_meta = json.loads(FileHandler.read_text(str(novel_meta_path)))
                 except Exception:
                     existing_meta = {}
-            
+
             # Build chapter entry
             chapter_entry = {
                 "chapter": chapter_num,
@@ -964,7 +956,7 @@ class TranslationPipeline:
             }
             if extra_meta:
                 chapter_entry.update({k: v for k, v in extra_meta.items() if v is not None})
-            
+
             # Update cumulative meta
             chapters_meta = existing_meta.get("chapters", {})
             chapters_meta[str(chapter_num)] = chapter_entry
@@ -972,18 +964,18 @@ class TranslationPipeline:
             existing_meta["last_updated"] = datetime.now().isoformat()
             existing_meta["total_chapters"] = len(chapters_meta)
             existing_meta["chapters"] = chapters_meta
-            
+
             try:
                 meta_content = json.dumps(existing_meta, indent=2, ensure_ascii=False)
                 FileHandler.write_text(str(novel_meta_path), meta_content)
                 self.logger.info(f"Updated meta: {novel_meta_path.name} (chapters: {len(chapters_meta)})")
             except Exception as e:
                 self.logger.warning(f"Failed to write meta: {e}")
-        
+
         self.logger.info(f"Step 7/7: Saved output to {output_path}")
-        
+
         return output_path
-    
+
     def _auto_review(self, output_path: str, translated_text: str = "") -> None:
         """Run automatic quality review on the translated output file.
 

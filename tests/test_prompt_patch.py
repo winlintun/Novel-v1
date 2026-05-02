@@ -20,39 +20,39 @@ from src.agents.prompt_patch import (
 
 class TestLanguageGuard(unittest.TestCase):
     """Test LANGUAGE_GUARD constant."""
-    
+
     def test_contains_myanmar_only_rule(self):
         """Test LANGUAGE_GUARD specifies Myanmar only output."""
         self.assertIn("Myanmar (Burmese)", LANGUAGE_GUARD)
         self.assertIn("ONLY", LANGUAGE_GUARD)
-    
+
     def test_contains_myanmar_unicode_range(self):
         """Test LANGUAGE_GUARD specifies Myanmar Unicode range."""
         self.assertIn("U+1000", LANGUAGE_GUARD)
         self.assertIn("U+109F", LANGUAGE_GUARD)
-    
+
     def test_forbids_thai(self):
         """Test LANGUAGE_GUARD forbids Thai output."""
         self.assertIn("Thai", LANGUAGE_GUARD)
         self.assertIn("FORBIDDEN", LANGUAGE_GUARD)
-    
+
     def test_forbids_chinese(self):
         """Test LANGUAGE_GUARD forbids Chinese output."""
         self.assertIn("Chinese", LANGUAGE_GUARD)
-    
+
     def test_contains_placeholder_instruction(self):
         """Test LANGUAGE_GUARD mentions 【?term?】 placeholder."""
         self.assertIn("【?term?】", LANGUAGE_GUARD)
-    
+
     def test_forbids_think_tags(self):
         """Test LANGUAGE_guard forbids <think> tags."""
         self.assertIn("<think>", LANGUAGE_GUARD)
         self.assertIn("Do NOT output", LANGUAGE_GUARD)
-    
+
     def test_forbids_answer_tags(self):
         """Test LANGUAGE_GUARD forbids <answer> tags."""
         self.assertIn("<answer>", LANGUAGE_GUARD)
-    
+
     def test_requires_zero_preamble(self):
         """Test LANGUAGE_GUARD requires zero preamble."""
         self.assertIn("Zero preamble", LANGUAGE_GUARD)
@@ -107,22 +107,22 @@ class TestEditorSystemPrompt(unittest.TestCase):
 
 class TestExtractorSystemPrompt(unittest.TestCase):
     """Test EXTRACTOR_SYSTEM_PROMPT."""
-    
+
     def test_requires_valid_json(self):
         """Test prompt requires valid JSON output."""
         self.assertIn("valid JSON", EXTRACTOR_SYSTEM_PROMPT)
-    
+
     def test_specifies_format(self):
         """Test prompt specifies exact JSON format."""
         self.assertIn("new_terms", EXTRACTOR_SYSTEM_PROMPT)
         self.assertIn("source", EXTRACTOR_SYSTEM_PROMPT)
         self.assertIn("target", EXTRACTOR_SYSTEM_PROMPT)
         self.assertIn("category", EXTRACTOR_SYSTEM_PROMPT)
-    
+
     def test_contains_glossary_placeholder(self):
         """Test prompt contains glossary placeholder."""
         self.assertIn("{glossary}", EXTRACTOR_SYSTEM_PROMPT)
-    
+
     def test_contains_translated_text_placeholder(self):
         """Test prompt contains translated text placeholder."""
         self.assertIn("{translated_text}", EXTRACTOR_SYSTEM_PROMPT)
@@ -140,7 +140,7 @@ class TestPromptFormatting(unittest.TestCase):
         """Test editor prompt contains example input/output."""
         self.assertIn("ဖန်ယွမ်", EDITOR_SYSTEM_PROMPT)
         self.assertIn("မြန်မာဘာသာ", EDITOR_SYSTEM_PROMPT)
-    
+
     def test_extractor_prompt_formatting(self):
         """Test extractor prompt accepts format parameters."""
         # Use safe formatting to avoid issues with JSON braces in the prompt

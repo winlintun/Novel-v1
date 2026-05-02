@@ -5,7 +5,7 @@ Glossary Synchronization Agent
 - Proposes merges for duplicate terms
 """
 import logging
-from typing import Optional, List, Dict, Any
+from typing import List, Dict, Any
 
 from src.memory.memory_manager import MemoryManager
 from src.utils.ollama_client import OllamaClient
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 class GlossarySyncAgent:
     """Sync terminology consistency using multilingual LLM."""
-    
+
     def __init__(
         self,
         memory_manager: MemoryManager,
@@ -26,14 +26,14 @@ class GlossarySyncAgent:
         self.mm = memory_manager
         self.client = ollama_client
         self.model = model
-    
+
     def check_consistency(self, chapter_text: str, chapter_num: int) -> List[Dict[str, Any]]:
         """
         Scan chapter for terms that may have inconsistent translations.
         Returns list of potential issues for human review.
         """
         glossary = self.mm.get_all_terms()
-        
+
         prompt = f"""
 You are a terminology consistency specialist for Chinese-Myanmar translation.
 
@@ -60,12 +60,12 @@ OUTPUT FORMAT (JSON only):
 
 Return ONLY valid JSON. No explanations.
 """
-        
+
         response = self.client.chat(
             prompt=prompt,
             temperature=0.1
         )
-        
+
         # Parse and validate response
         try:
             result = extract_json_from_response(response)
@@ -81,7 +81,7 @@ Return ONLY valid JSON. No explanations.
             # Fallback: return empty, log warning
             logger.warning(f"Failed to parse consistency check response: {e}")
             return []
-    
+
     def propose_merges(self) -> List[Dict[str, Any]]:
         """
         Analyze glossary_pending.json for terms that might duplicate existing entries.
@@ -93,7 +93,7 @@ Return ONLY valid JSON. No explanations.
             pending = pending_data.get("pending_terms", [])
 
         approved = self.mm.get_all_terms()
-        
+
         prompt = f"""
 You are a terminology deduplication specialist.
 
