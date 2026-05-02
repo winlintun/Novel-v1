@@ -102,12 +102,8 @@ with col_nav2:
                             cfg['processing']['max_retries'] = settings["max_retries"]
                         
                         # Update glossary settings
-                        if 'glossary_v3' not in cfg:
-                            cfg['glossary_v3'] = {}
                         if settings.get("enable_glossary") is not None:
-                            cfg['glossary_v3']['enabled'] = settings["enable_glossary"]
-                        if settings.get("priority"):
-                            cfg['glossary_v3']['priority'] = settings["priority"].lower()
+                            cfg['models']['use_glossary'] = settings["enable_glossary"]
                         
                         # Update pipeline mode settings
                         if 'translation_pipeline' not in cfg:
@@ -166,6 +162,32 @@ with col_nav3:
         st.info(f"Running for: {str(elapsed).split('.')[0]} | PID: {st.session_state.pid}")
     else:
         st.info("Status: Ready | အသင်းသင်း အသုံးရန် အသင့်ပါ။")
+
+# ── Real-time progress display while translation is running ──
+if st.session_state.running:
+    st.divider()
+    st.subheader("📊 Translation Progress")
+
+    # Find the progress log file
+    progress_log = Path("logs/translation.log")
+    progress_placeholder = st.empty()
+
+    try:
+        if progress_log.exists():
+            with open(progress_log, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+            # Show last 20 lines
+            recent = lines[-20:] if len(lines) > 20 else lines
+            progress_placeholder.code(''.join(recent), language=None)
+        else:
+            progress_placeholder.info("Waiting for progress log...")
+    except Exception:
+        progress_placeholder.info("Reading progress log...")
+
+    # Auto-refresh every 5 seconds
+    import time as _time
+    _time.sleep(3)
+    st.rerun()
 
 st.divider()
 

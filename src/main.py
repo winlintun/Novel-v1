@@ -40,16 +40,30 @@ from src.cli.commands import (
 def main() -> int:
     """Main entry point.
     
+    Command priority (descending):
+    1. --ui  (with optional --novel --chapter to translate first)
+    2. --test, --view, --review, --stats, --auto-promote (standalone)
+    3. --generate-glossary (before translation if both specified)
+    4. Translation pipeline (--novel / --input)
+    
+    If --generate-glossary AND --novel --chapter are both given,
+    run glossary generation first, then translation.
+    
     Returns:
         Exit code (0 for success, 1 for failure)
     """
     # Parse arguments
     args = parse_arguments()
 
-    # Handle utility commands first
+    # ── UI: if --novel and --chapter also given, translate first ──
     if args.ui:
+        if args.novel and (args.chapter or args.all or args.chapter_range):
+            result = _run_translation_with_opts(args)
+            if result != 0:
+                return result
         return run_ui_launch(args)
 
+    # ── Standalone utilities (no translation) ──
     if args.test:
         return run_test(args)
 
@@ -65,14 +79,39 @@ def main() -> int:
     if args.stats:
         return run_stats(args)
 
-    # Validate arguments for translation commands
+    # ── Translation commands (with optional glossary generation) ──
+    # Validate arguments for translation
     validate_arguments(args)
 
-    # Handle glossary generation
+    # Generate glossary BEFORE translation if requested
     if args.generate_glossary:
-        return run_glossary_generation(args)
+        result = run_glossary_generation(args)
+        if result != 0:
+            return result
 
     # Run translation pipeline
+    return _run_translation_with_opts(args)
+
+
+def _run_translation_with_opts(args) -> int:
+    """Run translation pipeline with optional pre-processing."""
+    from src.config import load_config
+
+    config = load_config(args.config)
+
+    # Override model if specified
+    if hasattr(args, 'model') and args.model:
+        config.models.translator = args.model
+        config.models.editor = args.model
+
+    # Override mode
+    if hasattr(args, 'mode') and args.mode:
+        config.translation_pipeline.mode = args.mode
+
+    # Override output dir
+    if hasattr(args, 'output_dir') and args.output_dir:
+        config.paths.output_dir = args.output_dir
+
     return run_translation_pipeline(args)
 
 
