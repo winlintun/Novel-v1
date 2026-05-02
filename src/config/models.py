@@ -84,9 +84,9 @@ class ModelsConfig(BaseModel):
         default="gemini-2.5-flash",
         description="Cloud model for API-based translation"
     )
-    provider: Literal["ollama", "gemini", "openrouter"] = Field(
+    provider: str = Field(
         default="ollama",
-        description="Model provider type"
+        description="Model provider (ollama only)"
     )
     ollama_base_url: str = Field(
         default="http://localhost:11434",
@@ -139,31 +139,6 @@ class ModelRolesConfig(BaseModel):
     glossary_sync: List[str] = Field(
         default=["qwen:7b"],
         description="Models suitable for glossary synchronization"
-    )
-
-
-class ModelRouterConfig(BaseModel):
-    """Model router configuration for automatic fallback."""
-
-    enabled: bool = Field(
-        default=True,
-        description="Whether model routing is enabled"
-    )
-    max_fallback_depth: int = Field(
-        default=2,
-        ge=1,
-        le=5,
-        description="Maximum fallback attempts"
-    )
-    retry_on_failure: bool = Field(
-        default=True,
-        description="Whether to retry on model failure"
-    )
-    vram_budget_gb: float = Field(
-        default=16.0,
-        ge=4.0,
-        le=128.0,
-        description="VRAM budget in GB for model selection"
     )
 
 
@@ -317,69 +292,6 @@ class MyanmarReadabilityConfig(BaseModel):
     )
 
 
-class GlossaryV3Config(BaseModel):
-    """Glossary v3 advanced configuration."""
-
-    enabled: bool = Field(
-        default=True,
-        description="Whether glossary v3 is enabled"
-    )
-    path: str = Field(
-        default="data/glossary_v3.json",
-        description="Path to glossary v3 file"
-    )
-    lazy_load: bool = Field(
-        default=True,
-        description="Whether to lazy-load glossary entries"
-    )
-    cache_ttl_minutes: int = Field(
-        default=30,
-        ge=1,
-        le=1440,
-        description="Cache TTL in minutes"
-    )
-    max_prompt_entries: int = Field(
-        default=40,
-        ge=10,
-        le=100,
-        description="Maximum glossary entries in prompt"
-    )
-    alias_matching: bool = Field(
-        default=True,
-        description="Whether to match aliases"
-    )
-    exception_rules: bool = Field(
-        default=True,
-        description="Whether to apply exception rules"
-    )
-    include_examples: bool = Field(
-        default=False,
-        description="Whether to include examples in prompt"
-    )
-    track_usage: bool = Field(
-        default=True,
-        description="Whether to track term usage"
-    )
-    priority_threshold: int = Field(
-        default=2,
-        ge=1,
-        le=10,
-        description="Priority threshold for term inclusion"
-    )
-    show_exceptions_count: bool = Field(
-        default=True,
-        description="Whether to show exception count"
-    )
-    show_pronunciation: bool = Field(
-        default=False,
-        description="Whether to show pronunciation"
-    )
-    prompt_format: Literal["markdown", "json", "xml"] = Field(
-        default="markdown",
-        description="Glossary prompt format"
-    )
-
-
 class FastConfig(BaseModel):
     """Fast mode configuration."""
 
@@ -447,10 +359,6 @@ class AppConfig(BaseModel):
         default_factory=ModelRolesConfig,
         description="Model role assignments"
     )
-    model_router: ModelRouterConfig = Field(
-        default_factory=ModelRouterConfig,
-        description="Model router configuration"
-    )
     processing: ProcessingConfig = Field(
         default_factory=ProcessingConfig,
         description="Processing configuration"
@@ -474,10 +382,6 @@ class AppConfig(BaseModel):
     myanmar_readability: MyanmarReadabilityConfig = Field(
         default_factory=MyanmarReadabilityConfig,
         description="Myanmar readability configuration"
-    )
-    glossary_v3: GlossaryV3Config = Field(
-        default_factory=GlossaryV3Config,
-        description="Glossary v3 configuration"
     )
     fast_config: FastConfig = Field(
         default_factory=FastConfig,

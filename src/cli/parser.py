@@ -106,7 +106,6 @@ Examples:
     config_group.add_argument(
         "--provider",
         type=str,
-        choices=["ollama", "gemini", "openrouter"],
         help="Override model provider"
     )
 
@@ -205,6 +204,16 @@ Examples:
         help="Review a translated .mm.md file against quality rules and generate report"
     )
     utility_group.add_argument(
+        "--auto-promote",
+        action="store_true",
+        help="Auto-promote high-confidence pending glossary terms to approved glossary"
+    )
+    utility_group.add_argument(
+        "--stats",
+        action="store_true",
+        help="Show per-chapter quality score trends for a novel"
+    )
+    utility_group.add_argument(
         "--clean",
         action="store_true",
         help="Clear Python cache (__pycache__ and .pyc files) before running"
@@ -242,7 +251,7 @@ def validate_arguments(args: argparse.Namespace) -> None:
         SystemExit: If validation fails
     """
     # Check for required arguments when not running utility commands
-    utility_commands = [args.ui, args.test, args.generate_glossary and not args.novel, args.view_file, args.review_file]
+    utility_commands = [args.ui, args.test, args.generate_glossary and not args.novel, args.view_file, args.review_file, args.auto_promote, args.stats]
 
     if not any(utility_commands):
         if not args.novel and not args.input_file:

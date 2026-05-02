@@ -128,14 +128,14 @@ class ModelConfig(TypedDict):
         translator: Model name for translation
         editor: Model name for editing/refinement
         checker: Model name for quality checking
-        provider: Model provider (ollama, gemini, openrouter)
+        provider: Model provider (ollama only)
         base_url: API base URL for the provider
         timeout: Request timeout in seconds
     """
     translator: str
     editor: str
     checker: str
-    provider: Literal["ollama", "gemini", "openrouter"]
+    provider: str
     base_url: str
     timeout: int
 

@@ -13,7 +13,7 @@ import os
 import logging
 from pathlib import Path
 import argparse
-from typing import Optional
+from typing import Optional, List
 
 from src.config import AppConfig, load_config
 from src.cli.parser import get_chapter_list
@@ -569,3 +569,202 @@ def _apply_workflow_config(config: AppConfig, workflow: str, logger: Optional[lo
         return config
 
     return merge_configs(config, overrides)
+
+
+def run_glossary_promotion(args: argparse.Namespace) -> int:
+    """Auto-promote high-confidence pending glossary terms to approved glossary.
+
+    Threshold: confidence ≥ 0.85 AND appears in ≥ 3 chapters → auto-approve.
+    Uses MemoryManager.auto_approve_by_confidence() which already implements
+    these heuristics.
+
+    Args:
+        args: Parsed command line arguments (must have --novel)
+
+    Returns:
+        Exit code (0 for success, 1 for failure)
+    """
+    logger = setup_logging()
+
+    if not args.novel:
+        logger.error("--novel is required for --auto-promote")
+        return 1
+
+    from src.memory.memory_manager import MemoryManager
+
+    memory = MemoryManager(novel_name=args.novel)
+
+    # Show pending count before promotion
+    pending_before = memory.get_pending_terms()
+    logger.info(
+        f"Loaded glossary for '{args.novel}': "
+        f"{memory.glossary.get('total_terms', 0)} approved, "
+        f"{len(pending_before)} pending"
+    )
+
+    # Auto-approve by confidence (threshold 0.85 per spec)
+    promoted = memory.auto_approve_by_confidence(confidence_threshold=0.85)
+
+    # Also auto-approve any manually marked 'approved'
+    manual_count = memory.auto_approve_pending_terms()
+
+    total_promoted = promoted + manual_count
+
+    # Show results
+    pending_after = memory.get_pending_terms()
+    print(f"\n{'='*50}")
+    print(f"  Glossary Promotion — {args.novel}")
+    print(f"{'='*50}")
+    print(f"  Pending before: {len(pending_before)}")
+    print(f"  Auto-promoted (confidence): {promoted}")
+    print(f"  Auto-promoted (manual):    {manual_count}")
+    print(f"  Total promoted:            {total_promoted}")
+    print(f"  Pending remaining:         {len(pending_after)}")
+    print(f"  Approved total:            {memory.glossary.get('total_terms', 0)}")
+    print(f"{'='*50}")
+
+    if total_promoted > 0:
+        logger.info(f"Promoted {total_promoted} terms to approved glossary")
+    else:
+        logger.info("No terms met promotion threshold")
+
+    memory.save_memory()
+    return 0
+
+
+def run_stats(args: argparse.Namespace) -> int:
+    """Aggregate per-chapter quality review reports and show score trends.
+
+    Reads all reports in logs/report/ for the given novel and displays:
+    - Per-chapter scores with pass/warn/critical counts
+    - Score trend (improving/degrading/stable)
+    - Summary statistics
+
+    Args:
+        args: Parsed command line arguments (must have --novel)
+
+    Returns:
+        Exit code (0 for success, 1 for failure)
+    """
+    import re
+    import glob
+
+    logger = setup_logging()
+
+    if not args.novel:
+        logger.error("--novel is required for --stats")
+        return 1
+
+    novel = args.novel.replace(' ', '_').replace('/', '_')
+
+    # Find all review reports for this novel
+    report_dir = Path("logs/report")
+    if not report_dir.exists():
+        logger.error("No report directory found at logs/report/")
+        return 1
+
+    pattern = str(report_dir / f"{novel}_chapter_*_review_*.md")
+    report_files = sorted(glob.glob(pattern))
+
+    if not report_files:
+        logger.error(f"No review reports found for novel '{novel}' in logs/report/")
+        logger.info(f"Searched pattern: {pattern}")
+        return 1
+
+    # Parse each report
+    chapters: List[dict] = []
+
+    for rp in report_files:
+        try:
+            with open(rp, 'r', encoding='utf-8-sig') as f:
+                content = f.read()
+        except Exception:
+            continue
+
+        # Extract chapter number from filename
+        ch_match = re.search(r'chapter_(\d+)_review', Path(rp).name)
+        if not ch_match:
+            continue
+        ch_num = int(ch_match.group(1))
+
+        # Extract score
+        score_match = re.search(r'Overall Score:\s*(\d+)/100', content)
+        score = int(score_match.group(1)) if score_match else 0
+
+        # Extract metrics
+        passed_match = re.search(r'✅ Passed\s*\|\s*(\d+)', content)
+        passed = int(passed_match.group(1)) if passed_match else 0
+        warn_match = re.search(r'⚠️ Warnings\s*\|\s*(\d+)', content)
+        warnings = int(warn_match.group(1)) if warn_match else 0
+        crit_match = re.search(r'🔴 Critical\s*\|\s*(\d+)', content)
+        critical = int(crit_match.group(1)) if crit_match else 0
+
+        # Extract duration
+        dur_match = re.search(r'Duration.*?:\s*([\d.]+)s', content)
+        duration = float(dur_match.group(1)) if dur_match else 0
+
+        # Extract pipeline mode
+        pipe_match = re.search(r'Pipeline.*?:\s*(\w+)', content)
+        pipeline = pipe_match.group(1) if pipe_match else "?"
+
+        chapters.append({
+            "chapter": ch_num,
+            "score": score,
+            "passed": passed,
+            "warnings": warnings,
+            "critical": critical,
+            "duration": duration,
+            "pipeline": pipeline,
+        })
+
+    if not chapters:
+        logger.error("Could not parse any report data")
+        return 1
+
+    chapters.sort(key=lambda c: c["chapter"])
+
+    # Compute trends
+    scores = [c["score"] for c in chapters]
+    avg_score = sum(scores) / len(scores)
+    min_score = min(scores)
+    max_score = max(scores)
+
+    # Trend: compare first half vs second half
+    half = len(chapters) // 2
+    first_half_avg = sum(scores[:half]) / half if half > 0 else avg_score
+    second_half_avg = sum(scores[half:]) / (len(chapters) - half) if len(chapters) > half else avg_score
+    delta = second_half_avg - first_half_avg
+
+    if delta > 5:
+        trend = "📈 IMPROVING"
+    elif delta < -5:
+        trend = "📉 DEGRADING"
+    else:
+        trend = "📊 STABLE"
+
+    # Display
+    print(f"\n{'='*60}")
+    print(f"  📊 Quality Score Trends — {novel}")
+    print(f"{'='*60}")
+    print(f"  Reports found: {len(chapters)} chapters")
+    print(f"  Average score: {avg_score:.0f}/100")
+    print(f"  Range: {min_score} – {max_score}")
+    print(f"  Trend: {trend} ({delta:+.0f} pts)")
+    print(f"  First half avg: {first_half_avg:.0f}  →  Second half avg: {second_half_avg:.0f}")
+    print(f"\n{'─'*60}")
+    print(f"  {'Ch':>4} {'Score':>6} {'P':>4} {'W':>4} {'C':>4} {'Time':>7}  Pipeline")
+    print(f"  {'───':>4} {'─────':>6} {'───':>4} {'───':>4} {'───':>4} {'─────':>7}  {'───────'}")
+
+    for c in chapters:
+        bar = "█" * min(20, c["score"] // 5)
+        gap = "░" * (20 - len(bar))
+        print(
+            f"  {c['chapter']:>4} {c['score']:>3}/100 {c['passed']:>3} "
+            f"{c['warnings']:>3} {c['critical']:>3} "
+            f"{c['duration']:>5.0f}s  {c['pipeline']}  {bar}{gap}"
+        )
+
+    print("\n  Legend: P=Passed  W=Warnings  C=Critical")
+    print(f"{'='*60}\n")
+
+    return 0

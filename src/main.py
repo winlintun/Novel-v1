@@ -28,6 +28,8 @@ from src.cli import parse_arguments, validate_arguments
 from src.cli.commands import (
     run_translation_pipeline,
     run_glossary_generation,
+    run_glossary_promotion,
+    run_stats,
     run_ui_launch,
     run_test,
     run_view_file,
@@ -56,6 +58,12 @@ def main() -> int:
 
     if args.review_file:
         return run_review(args)
+
+    if args.auto_promote:
+        return run_glossary_promotion(args)
+
+    if args.stats:
+        return run_stats(args)
 
     # Validate arguments for translation commands
     validate_arguments(args)

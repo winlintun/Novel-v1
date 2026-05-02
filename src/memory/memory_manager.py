@@ -141,13 +141,13 @@ class MemoryManager:
         """
         if not text or not text.strip():
             return False
-
+        
         # Forcin placeholders — these are legitimate temp values
         if text.startswith("【?") and text.endswith("?】"):
             return True
-
+        
         MYANMAR_RANGES = [(0x1000, 0x109F), (0xAA60, 0xAA7F), (0xA9E0, 0xA9FF)]
-
+        
         mm_count = 0
         total = 0
         for ch in text:
@@ -157,11 +157,49 @@ class MemoryManager:
             total += 1
             if any(lo <= code <= hi for lo, hi in MYANMAR_RANGES):
                 mm_count += 1
-
+        
         if total == 0:
             return False
-
+        
         return (mm_count / total) >= min_ratio
+
+    @staticmethod
+    def _edit_distance(s1: str, s2: str) -> int:
+        """Levenshtein distance between two strings."""
+        if len(s1) < len(s2):
+            return MemoryManager._edit_distance(s2, s1)
+        if len(s2) == 0:
+            return len(s1)
+        prev = range(len(s2) + 1)
+        for i, c1 in enumerate(s1):
+            curr = [i + 1]
+            for j, c2 in enumerate(s2):
+                curr.append(min(
+                    prev[j + 1] + 1,      # insertion
+                    curr[j] + 1,           # deletion
+                    prev[j] + (0 if c1 == c2 else 1)  # substitution
+                ))
+            prev = curr
+        return prev[-1]
+
+    def _check_target_similarity(self, new_source: str, new_target: str,
+                                  max_distance: int = 3) -> Optional[str]:
+        """Check if new_target is too similar to any existing approved target.
+
+        Returns the source of the conflicting term, or None.
+        """
+        terms = self.glossary.get("terms", [])
+        for term in terms:
+            existing_target = term.get("target") or term.get("target_term", "")
+            existing_source = term.get("source") or term.get("source_term", "")
+            if not existing_target or existing_source == new_source:
+                continue
+            if abs(len(new_target) - len(existing_target)) > max_distance:
+                continue
+            dist = self._edit_distance(new_target, existing_target)
+            if dist < max_distance:
+                return existing_source
+        return None
 
     # -------------------------------------------------------------------------
     # Tier 1: Glossary Operations
@@ -190,6 +228,15 @@ class MemoryManager:
             logger.warning(f"Rejected non-Myanmar target for '{source}': '{target}'")
             return False
 
+        # Check semantic deduplication: warn if target is too similar to existing term
+        similar_source = self._check_target_similarity(source, target)
+        if similar_source:
+            logger.warning(
+                f"Near-duplicate target for '{source}': '{target}' "
+                f"is too similar to existing term '{similar_source}'. "
+                f"Manual review recommended before approving."
+            )
+
         new_term = {
             "id": f"term_{len(terms) + 1:03d}",
             "source": source,
@@ -215,6 +262,14 @@ class MemoryManager:
         if not self._is_valid_myanmar_text(new_target):
             logger.warning(f"Rejected non-Myanmar update for '{source}': '{new_target}'")
             return False
+
+        # Check semantic deduplication
+        similar_source = self._check_target_similarity(source, new_target)
+        if similar_source:
+            logger.warning(
+                f"Near-duplicate target update for '{source}': '{new_target}' "
+                f"is too similar to existing term '{similar_source}'"
+            )
 
         terms = self.glossary.get("terms", [])
 
