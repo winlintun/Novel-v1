@@ -300,15 +300,26 @@ class MemoryManager:
         return None
 
     def get_glossary_for_prompt(self, limit: int = 20) -> str:
-        """Get formatted glossary for prompt injection."""
+        """Get formatted glossary for prompt injection.
+
+        Sorts terms by chapter_last_seen (most recent first) so freshest
+        terms stay in the window as the glossary grows past `limit`.
+        """
         terms = self.glossary.get("terms", [])
 
         if not terms:
             return "No glossary entries yet."
 
+        # Sort by chapter_last_seen descending, then take top `limit`
+        sorted_terms = sorted(
+            terms,
+            key=lambda t: t.get("chapter_last_seen", 0) or 0,
+            reverse=True
+        )
+
         lines = ["GLOSSARY (Use these exact translations):"]
 
-        for term in terms[:limit]:
+        for term in sorted_terms[:limit]:
             verified = "✓" if term.get("verified") else "○"
             source = self._sanitize_for_prompt(term.get("source") or term.get("source_term", ""))
             target = self._sanitize_for_prompt(term.get("target") or term.get("target_term", ""))

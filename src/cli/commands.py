@@ -21,7 +21,6 @@ from src.exceptions import NovelTranslationError, ConfigurationError
 
 # Constants
 DEFAULT_CHUNK_SIZE = 1500
-DEFAULT_OVERLAP_SIZE = 100
 INPUT_DIR = "data/input"
 OUTPUT_DIR = "data/output"
 WORKING_DIR = "working_data"

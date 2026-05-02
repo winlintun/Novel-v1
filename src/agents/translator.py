@@ -380,14 +380,21 @@ Text to translate:"""
         """
         translated = []
         total = len(chunks)
+        rolling_context = ""  # first chunk: no previous context
 
         for i, chunk in enumerate(chunks, 1):
             logger.info(f"Translating chunk {i}/{total}...")
 
             try:
-                # Translate chunk with chapter number for quality tracking
-                result = self.translate_paragraph(chunk['text'], chapter_num)
+                # Translate chunk with rolling context from previous chunk
+                result = self.translate_paragraph(
+                    chunk['text'], chapter_num, rolling_context=rolling_context
+                )
                 translated.append(result)
+
+                # Advance rolling context for next chunk
+                from src.utils.chunker import get_rolling_context
+                rolling_context = get_rolling_context(result, max_context_tokens=400)
 
                 # Log progress if logger is provided
                 if progress_logger:

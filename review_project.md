@@ -1,5 +1,5 @@
 # Project Review — Novel Translation Pipeline
-> Last updated: 2026-05-02 18:30Z | Commits through `f0a685d`
+> Last updated: 2026-05-02 | Full code audit through every pipeline file
 
 ---
 
@@ -28,32 +28,31 @@ Two workflows: way1 (EN→MM, padauk-gemma:q8_0), way2 (CN→EN→MM pivot).
 
 ---
 
-## Bugs — Status After Fixes (Commit `f0a685d`)
+## Bugs — Status After Full Code Audit
 
 ### BUG 1 — ဤ/ထို Archaic Words — ✅ FIXED
-- `replace_archaic_words()` in `postprocessor.py` replaces ဤ→ဒီ, ထို→အဲဒီ on final output
-- MyanmarQualityChecker detects and deducts 5pts per occurrence
-- `clean_output()` pipeline calls it at line 741
-- **Status**: Code fixed. Existing chapters (12–17) need re-cleaning or re-translation to benefit.
+- `replace_archaic_words()` in `postprocessor.py` uses Myanmar-specific lookbehind regex (not `\b`)
+- Replaces ဤ→ဒီ, ထို→အဲဒီ, သင်သည်→မင်း in `clean_output()` step 8
+- `undo_archaic_corruptions()` runs before replacement to fix old `\b`-based corruptions
+- **Verified**: Correct Myanmar-safe regex in place. Future chapters will benefit.
+- **Note**: `_check_archaic_words()` in `MyanmarQualityChecker` still flags ဤ/ထို on raw chunk output (before postprocessor). This deflates the per-chunk quality score shown during translation, but final output is correct.
 
 ### BUG 2 — Chapter Title Colon Format — ✅ FIXED
-- `fix_chapter_heading_format()` now handles two patterns:
-  - `# အခန်း N ## Title` (old, already handled)
-  - `# အခန်း N: Title` → `# အခန်း N\n\n## Title` (new, added in `f0a685d`)
-- **Status**: Fixed. Future chapters will get correct formatting.
+- `fix_chapter_heading_format()` handles both patterns:
+  - `# အခန်း N ## Title` (Pattern 1, already existed)
+  - `# အခန်း N: Title` → `# အခန်း N\n\n## Title` (Pattern 2, added)
+- **Verified**: Both patterns confirmed in postprocessor.py.
 
 ### BUG 3 — Register Mixing Detection — ✅ FIXED
-- `myanmar_quality_checker._check_tone()` now does per-paragraph register analysis
-- Detects သည်/၏/ဖြင့်/ပေသည် (formal) + တယ်/ဘူး/လို့/နဲ့ (casual) in same paragraph
+- `_check_tone()` now does per-paragraph analysis (splits on `\n\n`)
+- Detects FORMAL_MARKERS (`['သည်', '၏', 'ဖြင့်', 'ပေသည်', 'သော', '၍']`) and CASUAL_MARKERS (`['တယ်', 'ဘူး', 'လို့', 'နဲ့', 'ပါတယ်', 'မယ်']`) in same paragraph
 - Deducts 5pts per mixed paragraph
-- `check_quality()` reports count in score/issue output
-- Register instruction already present in translator prompt (lines 64, 111)
-- **Status**: Fixed. Score gap between internal checker and review should narrow.
+- **Verified**: Implementation confirmed in myanmar_quality_checker.py:199.
+- **Known limitation**: Dialogue paragraphs that naturally mix registers (e.g., casual speech inside formal narration) will trigger false positives. Score deduction may be overstated for chapters with heavy dialogue.
 
 ### BUG 4 — preprocessor.py IndexError — ✅ ALREADY FIXED
-- `overlap_counts` variable removed entirely in smart_chunk refactor (commit `40dcde0`)
-- `create_chunks()` now delegates to `smart_chunk()` which has no overlap logic
-- **Status**: No action needed. Edge case cannot recur.
+- `overlap_counts` removed entirely; `create_chunks()` delegates to `smart_chunk()`.
+- **Verified**: No overlap logic in chunker.py or preprocessor.py.
 
 ### BUG 5 — Meta.json Incomplete — ⏳ PENDING
 - Only chapters 14–17 tracked in `reverend-insanity.mm.meta.json`
@@ -75,14 +74,18 @@ Two workflows: way1 (EN→MM, padauk-gemma:q8_0), way2 (CN→EN→MM pivot).
 
 ### Speed Fixes Applied
 
-| Fix | Status | Commit |
-|-----|--------|--------|
-| Per-chunk 15-min timeout | ✅ `f0a685d` | Prevents 4.8hr sessions from stuck retries |
+| Fix | Status | Notes |
+|-----|--------|-------|
+| Per-chunk 15-min timeout check | ✅ Implemented | orchestrator.py:751 — fires AFTER chunk completes |
 | Chunk size 1500→2000 tokens | ✅ Prior | Reduces chunks by ~30% |
-| Q4_K_M / Q5_K_M quantization | ⏭ SKIPPED | Not needed |
+| Rolling context (400-token limit) | ✅ Verified | get_rolling_context() advances after each chunk |
+| Token budget check (2600 token max) | ✅ Verified | orchestrator.py:652-664 |
+
+### Timeout Limitation
+The timeout check at orchestrator.py:751 is **post-hoc** — it runs after `translate_paragraph()` returns. It cannot interrupt a chunk that is mid-translation. A stuck model call will still run until the HTTP timeout (900s in `ProcessingConfig.request_timeout`). The 15-min guard only prevents the NEXT retry loop. To add true preemptive timeouts, threading or asyncio would be needed.
 
 ### Bottleneck
-Translation (Step 2) is ~330s/chunk. Steps 5 (quality) and 6 (consistency) are <1s — not LLM calls.
+Translation (Step 2) is ~330s/chunk. Steps 5 (quality) and 6 (consistency) are <1s — confirmed heuristic checks, not LLM calls.
 
 ---
 
@@ -90,6 +93,7 @@ Translation (Step 2) is ~330s/chunk. Steps 5 (quality) and 6 (consistency) are <
 
 ### ⚠️ Issue 1 — Glossary Too Small (20 terms / 17 chapters)
 Context_updater only adds ~1 term per chapter. Glossary needs growth.
+`get_glossary_for_prompt()` is hardcoded to `limit=20` — as glossary grows past 20 terms, newer terms won't reach the translation prompt.
 **Action**: Run `python -m src.main --novel reverend-insanity --generate-glossary --chapter-range 1-17` then `--auto-promote`.
 
 ### ⚠️ Issue 2 — 【?term?】 Placeholders in Ch 16, 17
@@ -104,6 +108,40 @@ One duplicated paragraph — chunk overlap artifact. Overlap is always 0 but bou
 
 ---
 
+## Code Audit Findings — New Issues Found
+
+### MEDIUM Priority
+
+#### M1 — `cloud_model` Field Still Present (`src/config/models.py:83`)
+`ModelsConfig.cloud_model: str = Field(default="gemini-2.5-flash", ...)` was not removed.
+The Ollama-only pipeline never reads this field, but it exists in the config class.
+`ModelRouterConfig`, `GlossaryV3Config`, and `AppConfig.model_router/glossary_v3` were removed (✅), but `cloud_model` remains.
+**Action**: Remove `cloud_model` field from `ModelsConfig`.
+
+#### M2 — Dead Constant (`src/cli/commands.py:24`)
+`DEFAULT_OVERLAP_SIZE = 100` — overlap was removed from the chunker. This constant is never used.
+**Action**: Delete line 24 in `commands.py`.
+
+#### M3 — `src/main_fast.py` Still Exists
+Separate entry point with duplicated pipeline logic. Never runs via normal CLI.
+**Action**: Delete `src/main_fast.py` or merge its unique logic into `src/main.py`.
+
+#### M4 — `_check_tone()` False Positives on Dialogue
+Dialogue paragraphs (which naturally mix formal narration markers and casual speech markers) get flagged as "register mixing." This inflates the warning count and deducts score unfairly on dialogue-heavy chapters.
+**Action**: Skip register mixing check for paragraphs that contain quotation marks (`"..."`, `"..."`, `「...」`).
+
+### LOW Priority
+
+#### L1 — `get_glossary_for_prompt(limit=20)` Won't Scale
+As the glossary grows past 20 terms, later entries won't reach the translation prompt.
+**Action**: Sort by `chapter_last_seen` (most recent first) before slicing, so freshest terms stay in the window.
+
+#### L2 — `translator.py:translate_chunks()` Missing Rolling Context
+`Translator.translate_chunks()` (line 364) calls `translate_paragraph()` without `rolling_context`. The orchestrator's own `_translate_chunks()` is used in normal operation and does pass rolling context correctly. But if `Translator.translate_chapter()` is called directly, rolling context is silently lost.
+**Action**: Low risk for current usage; worth fixing for correctness.
+
+---
+
 ## Architecture State
 
 | Area | Status | Notes |
@@ -112,35 +150,43 @@ One duplicated paragraph — chunk overlap artifact. Overlap is always 0 but bou
 | Core pipeline (way2 CN→EN→MM) | ✅ Working | hunyuan:7b → padauk-gemma:q8_0 |
 | CLI commands | ✅ Full-featured | translate, view, review, stats, auto-promote, test, UI |
 | Tests | ✅ 254 pass | 35% coverage floor (target: 50%) |
-| CI/CD | ✅ Ruff blocking + coverage | 35% floor |
+| CI/CD | ✅ Ruff blocking + coverage | 35% floor, Python 3.10–3.13 matrix |
 | Web UI | ✅ 6 pages | Quickstart, Translate, Progress, Glossary, Settings, Reader |
-| Glossary deduplication | ✅ | Levenshtein < 3 → warn |
-| Register mixing detection | ✅ `f0a685d` | Per-paragraph formal vs casual |
-| Per-chunk timeout | ✅ `f0a685d` | 15-min ceiling |
-| Colon heading fix | ✅ `f0a685d` | `# N: Title` → H1+H2 |
-| Dead config cleanup | ✅ `385eae9` | ModelRouterConfig, GlossaryV3Config, cloud_model removed |
-| Cloud provider references | ✅ `385eae9` | gemini/openrouter stripped |
-| cn_mm_rules1.py duplicate | ✅ `385eae9` | Deleted |
-| Q4_K_M/Q5_K_M | ⏭ Skipped | Not needed |
+| Glossary deduplication | ✅ | Levenshtein < 3 → warn; Myanmar text validation |
+| Register mixing detection | ✅ | Per-paragraph formal vs casual (with dialogue false positive caveat) |
+| Per-chunk timeout check | ✅ | 15-min post-hoc ceiling (can't interrupt mid-translation) |
+| Rolling context | ✅ | 400-token tail passed chunk-to-chunk; token budget 2600 enforced |
+| Colon heading fix | ✅ | `# N: Title` → H1+H2 confirmed |
+| Archaic word fix | ✅ | Myanmar-safe lookbehind regex confirmed |
+| Dead config cleanup | ✅ | ModelRouterConfig, GlossaryV3Config, AppConfig.model_router/glossary_v3 removed |
+| cloud_model in ModelsConfig | ⚠️ REMAINING | Field still present, never used (src/config/models.py:83) |
+| DEFAULT_OVERLAP_SIZE constant | ⚠️ DEAD CODE | commands.py:24 — never used, overlap removed |
+| main_fast.py | ⚠️ UNRESOLVED | Separate entry point with duplicated logic |
 
 ---
 
 ## TODO — Remaining
 
 ### HIGH
-- [ ] **Add `--rebuild-meta` CLI command** — scan output dir, rebuild per-novel meta.json
+- [ ] **Add `--rebuild-meta` CLI command** — scan output dir, rebuild per-novel meta.json (BUG 5)
 - [ ] **Strengthen paragraph boundary dedup** in postprocessor (Ch 17 had one duplicate)
 
 ### MEDIUM
 - [ ] **Build glossary properly**: run `--generate-glossary --chapter-range 1-17` + `--auto-promote`
-- [ ] **Add sentence-ender truncation check** to postprocessor
+- [ ] **Remove `cloud_model` from ModelsConfig** (`src/config/models.py:83`)
+- [ ] **Delete `DEFAULT_OVERLAP_SIZE` constant** (`src/cli/commands.py:24`)
 - [ ] **Integrate or delete `src/main_fast.py`** — separate entry point with duplicated pipeline logic
+- [ ] **Fix `_check_tone()` dialogue false positives** — skip register check inside quoted paragraphs
+- [ ] **Add sentence-ender truncation check** to postprocessor (Issue 3)
 - [ ] **Raise coverage floor**: 35% → 50% (add tests for untested modules)
 
 ### LOW
+- [ ] **Sort glossary by recency** in `get_glossary_for_prompt()` so fresh terms appear first
+- [ ] **Fix `translator.py:translate_chunks()`** to pass `rolling_context` (correctness fix)
 - [ ] **Add per-novel model override** in settings.yaml
 - [ ] **EPUB export** — compile chapters into single ebook
 - [ ] **Parallel chapter processing** — ThreadPoolExecutor with glossary write lock
+- [ ] **Preemptive chunk timeout** — threading/asyncio to interrupt stuck translations before they complete
 
 ---
 
@@ -150,14 +196,20 @@ One duplicated paragraph — chunk overlap artifact. Overlap is always 0 but bou
 |------|------|
 | Archaic word replacement | `src/utils/postprocessor.py` (line 431) |
 | Chapter heading format fix | `src/utils/postprocessor.py` (line 270) |
-| Register mixing detection | `src/agents/myanmar_quality_checker.py` (line 190) |
-| Per-chunk timeout | `src/pipeline/orchestrator.py` (line 740) |
-| Glossary deduplication | `src/memory/memory_manager.py` (_edit_distance) |
+| Register mixing detection | `src/agents/myanmar_quality_checker.py` (line 199) |
+| Per-chunk timeout check | `src/pipeline/orchestrator.py` (line 751) |
+| Rolling context advance | `src/pipeline/orchestrator.py` (line 785) |
+| Token budget check | `src/pipeline/orchestrator.py` (line 652) |
+| Glossary deduplication | `src/memory/memory_manager.py` (_edit_distance, _is_valid_myanmar_text) |
+| Glossary prompt injection | `src/memory/memory_manager.py:302` (get_glossary_for_prompt, limit=20) |
 | Pipeline stage coordination | `src/pipeline/orchestrator.py` |
-| Translator agent (CN→MM) | `src/agents/translator.py` |
-| Refiner agent (literary edit) | `src/agents/refiner.py` |
+| Translator agent (rolling context) | `src/agents/translator.py:translate_paragraph()` |
+| Refiner agent (batch mode) | `src/agents/refiner.py:refine_batch()` |
+| Context updater (entity extract) | `src/agents/context_updater.py:extract_entities()` |
 | Postprocessor pipeline | `src/utils/postprocessor.py` (clean_output) |
 | Quality review reports | `src/utils/translation_reviewer.py` |
 | CLI commands | `src/cli/commands.py` |
+| Workflow config (way1/way2) | `src/cli/commands.py:_apply_workflow_config()` |
 | Config defaults | `config/settings.yaml` |
 | CI workflow | `.github/workflows/ci.yml` |
+| Dead cloud_model field | `src/config/models.py:83` |

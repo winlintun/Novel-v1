@@ -80,10 +80,6 @@ class ModelsConfig(BaseModel):
         default="qwen:7b",
         description="Model for refinement stage"
     )
-    cloud_model: str = Field(
-        default="gemini-2.5-flash",
-        description="Cloud model for API-based translation"
-    )
     provider: str = Field(
         default="ollama",
         description="Model provider (ollama only)"

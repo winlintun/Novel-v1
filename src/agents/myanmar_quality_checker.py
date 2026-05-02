@@ -215,6 +215,10 @@ class MyanmarQualityChecker(BaseAgent):
         CASUAL_MARKERS = ['တယ်', 'ဘူး', 'လို့', 'နဲ့', 'ပါတယ်', 'မယ်']
 
         for para in paragraphs:
+            # Skip register check inside dialogue/quoted paragraphs
+            # (quoted speech naturally mixes registers — not a quality issue)
+            if re.search(r'[""「」]', para):
+                continue
             has_para_formal = any(m in para for m in FORMAL_MARKERS)
             has_para_casual = any(m in para for m in CASUAL_MARKERS)
             if has_para_formal and has_para_casual:
