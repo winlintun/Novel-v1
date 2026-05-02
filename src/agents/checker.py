@@ -30,6 +30,12 @@ class Checker(BaseAgent):
         """
         Check if glossary terms are used consistently.
         
+        Two checks:
+        1. Untranslated terms: Chinese source appears verbatim in Myanmar text
+        2. Target spelling check: for verified character/place names where
+           the source is NOT in the text (was translated), flag if the
+           approved target spelling is also missing (= wrong variant used)
+        
         Returns list of issues with 'term', 'expected', 'found'.
         """
         issues = []
@@ -40,11 +46,12 @@ class Checker(BaseAgent):
         for term in terms:
             source = term.get('source') or term.get('source_term', '')
             target = term.get('target') or term.get('target_term', '')
+            category = term.get('category', '')
             
-            if not source or not target:
+            if not source or not target or len(source) < 2:
                 continue
             
-            # Check if source term appears in text (shouldn't happen if translated)
+            # Check 1: Source term leaked untranslated
             if source in text:
                 issues.append({
                     'type': 'untranslated_term',
@@ -52,6 +59,15 @@ class Checker(BaseAgent):
                     'expected': target,
                     'found': source
                 })
+            # Check 2: For verified character/place names, verify target appears
+            elif term.get('verified') and category in ('character', 'place'):
+                if target not in text:
+                    issues.append({
+                        'type': 'target_missing',
+                        'term': source,
+                        'expected': target,
+                        'found': '?'
+                    })
         
         return issues
     

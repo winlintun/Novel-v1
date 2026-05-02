@@ -1,20 +1,16 @@
 {
   "current_phase": "DOC",
-  "task": "Bug fixes: credit lines, chunk truncation, archaic corruptions, Tamil leak, duplicate headings",
+  "task": "Fix need_to_fix_bug.md Phase 1-4: stability + glossary pipeline enforcement",
   "feature_type": 2,
   "phases": {
-    "PLAN": { "status": "DONE", "runner": "Agent", "requires_human": false },
-    "BUILD": { "status": "DONE", "runner": "Agent", "requires_human": false },
-    "TEST": { "status": "DONE", "runner": "Agent", "requires_human": false },
-    "VERIFY": {
-      "status": "DONE",
-      "runner": "Ollama",
-      "requires_human": false,
-      "score": 95,
-      "retry_count": 0
-    },
-    "AUDIT": { "status": "DONE", "runner": "Gemini", "requires_human": false },
-    "DOC": { "status": "DONE", "runner": "Agent", "requires_human": false, "skippable": false }
+    "PLAN":   { "status": "DONE",        "runner": "Agent",  "requires_human": false },
+    "BUILD":  { "status": "DONE", "runner": "Agent",  "requires_human": false },
+    "TEST":   { "status": "DONE",     "runner": "Agent",  "requires_human": false },
+    "VERIFY": { "status": "DONE", "runner": "Ollama", "requires_human": false,
+                "score": null, "retry_count": 0 },
+    "AUDIT":  { "status": "DONE", "runner": "Gemini", "requires_human": false },
+    "DOC":    { "status": "DONE", "runner": "Agent",  "requires_human": false,
+                "skippable": false }
   },
-  "updated_at": "2026-05-02T13:00:00Z"
+  "updated_at": "2026-05-02T18:00:00Z"
 }

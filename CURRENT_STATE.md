@@ -10,6 +10,40 @@
 ## Last Updated
 - Date: 2026-05-02
 - Last task completed:
+  - **FIXED: need_to_fix_bug.md Foundation Bugs — Phase 1-4 Stability + Glossary Pipeline** (STATUS: READY_TO_COMMIT):
+    - **Phase 1 — Stability Foundation**:
+      - **Fix 1 — State corruption**: ReflectionAgent no longer mutates `self.client.model` (shared mutable state). Instead uses per-call `model=` parameter on `OllamaClient.chat()`. State is now stateless.
+      - **Fix 2 — Timeout enforcement**: Added `"timeout": int(self.timeout)` to every Ollama call (chat, chat_stream, _unload_model, unload_model). Previously stored but never passed.
+      - **Fix 3 — Defensive response parsing**: All Ollama response access uses `.get()` with `isinstance` guards. No bare `response['response']` or `response['message']['content']` access.
+      - **Fix 4 — Typed exceptions**: `OllamaClient.chat()` and `chat_stream()` now raise `ModelError` (from `src/exceptions.py`) instead of `RuntimeError`. Connection errors raise immediately (no retry).
+      - **Fix 5 — Module-level imports**: `import random` moved to module top.
+    - **Phase 2 — Glossary Pipeline Enforcement**:
+      - **Fix 6 — Refiner glossary injection**: Refiner now accepts `MemoryManager`, calls `_get_glossary_for_prompt(limit=20)`, injects glossary into refinement prompts. Added `GLOSSARY_ENFORCEMENT` block with term-exact-match rules + particle diversity rule.
+      - **Fix 7 — ReflectionAgent glossary injection**: ReflectionAgent now accepts `MemoryManager`, injects glossary into system prompt. Added "NEVER change character names" rule. Uses `{glossary}` placeholder in `REFLECTION_SYSTEM_PROMPT`.
+    - **Phase 3 — Memory Validation**:
+      - **Fix 8 — Myanmar text validation**: Added `_is_valid_myanmar_text()` static method to MemoryManager. Rejects non-Myanmar target values (Myanmar ratio < 50%) in `add_term()`, `update_term()`, `add_pending_term()`. Prevents Bengali/Latin/Chinese leakage into glossary store.
+      - **Fix 9 — Promotion guard**: `promote_pending_to_glossary()`, `auto_approve_pending_terms()`, and `auto_approve_by_confidence()` now check `add_term()` return value. Failed promotions (rejected by validation) remain in pending list instead of being silently lost.
+    - **Phase 4 — QA Tester Real**:
+      - **Fix 10 — Glossary check uncommented**: `_check_glossary_consistency()` now actually checks for untranslated Chinese source terms and placeholder residue. Checks ALL terms (not just verified) since MemoryManager already validates targets.
+      - **Fix 11 — QA Tester wired into pipeline**: Orchestrator now calls `self.qa_tester.validate_output()` as Stage 6 after postprocessing. QA results included in returned metrics.
+      - **Fix 12 — Checker target verification**: `Checker.check_glossary_consistency()` now also detects missing target spellings for verified character/place names (logs as `target_missing`).
+      - **Fix 13 — Placeholder check hoisted**: `"【?term?】" in text` check moved outside the loop (runs once, not N times).
+    - **Files Modified**: `src/utils/ollama_client.py`, `src/agents/reflection_agent.py`, `src/agents/refiner.py`, `src/agents/qa_tester.py`, `src/pipeline/orchestrator.py`, `src/memory/memory_manager.py`, `src/agents/checker.py`, `tests/test_memory.py`
+    - **Tests**: 280/280 pass
+  - Previous: **IMPLEMENTED: Production Polish — Complete requirements.txt + GitHub Actions CI Pipeline** (STATUS: READY_TO_COMMIT):
+    - **Fix 1 — Complete requirements.txt**: Added missing dependencies (`pydantic>=2.0.0`, `typing_extensions>=4.0.0`, `requests>=2.28.0`). Removed dead dependency `chardet`. Requirements.txt now matches all actually-imported third-party packages.
+    - **Fix 2 — Automated CI Pipeline**: Created `.github/workflows/ci.yml` — GitHub Actions workflow with: Python 3.10-3.13 test matrix, dependency install + pytest run (280 tests), Ruff lint check, compile check (syntax validation). Enables automated testing on every push and PR.
+    - **Files Created**: `.github/workflows/ci.yml`
+    - **Files Modified**: `requirements.txt`
+  - Previous: **IMPLEMENTED: 4 Quality-of-Life Improvements (fluency metrics, quickstart wizard, auto-approve glossary, legal docs)** (STATUS: READY_TO_COMMIT):
+    - **Fix 1 — Automated Quality Metrics**: Created `src/utils/fluency_scorer.py` — reference-free Burmese fluency heuristic (no BLEU/COMET needed). 7 dimensions: lexical diversity (TTR), particle diversity, sentence flow (length variance + enders), syllable richness (compound word ratio), paragraph rhythm, punctuation health, hallucination repetition penalty. Composite 0-100 score. Integrated into `translation_reviewer.py` as F0 "Fluency Score" check. Works with 280 existing tests.
+    - **Fix 2 — CLI Learning Curve / Quickstart Wizard**: Created `ui/pages/0_Quickstart.py` — guided 3-step wizard: (1) Select novel, (2) Configure model, (3) Launch translation. Includes CLI command examples (--novel, --chapter, --all, --view, --review, --ui, --help). Appears as first page in Web UI sidebar.
+    - **Fix 3 — Glossary Auto-Approve Confidence Rules**: Added `auto_approve_by_confidence()` to `MemoryManager`. 5 heuristic rules: (1) seen in ≥3 chapters = +0.40, (2) ≥2 chapters = +0.25, (3) category is character/place = +0.20, (4) non-placeholder target = +0.15, (5) proper Myanmar target = +0.10, (6) Chinese name pattern = +0.10. Terms with confidence ≥ 0.75 auto-promoted to approved glossary. Updated `add_pending_term()` to track `chapters_seen` list. Integrated into orchestrator pipeline.
+    - **Fix 4 — Legal Documentation**: Created `LICENSE` (MIT) and `DISCLAIMER.md` (fair use, copyright, AI content, no-warranty, data privacy). Filled documentation gap.
+    - **Files Created**: `src/utils/fluency_scorer.py`, `ui/pages/0_Quickstart.py`, `LICENSE`, `DISCLAIMER.md`
+    - **Files Modified**: `src/utils/translation_reviewer.py` (+30 lines fluency check integration), `src/memory/memory_manager.py` (+95 lines auto-approve + chapter tracking), `src/pipeline/orchestrator.py` (+6 lines confidence auto-approve)
+    - **Tests**: 280/280 pass
+  - Previous tasks:
   - **FIXED: 7 Output Quality Issues from Log/Report Review** (STATUS: READY_TO_COMMIT):
     - **Root Cause 1 (Credit lines in output)**: Orchestrator `_preprocess()` never called `strip_metadata()` — only `clean_markdown()`. Translator: Skyfarrow Editor: Skyfarrow lines leaked into chunks and were translated to Myanmar.
     - **Root Cause 2 (Chunk boundary truncation)**: `stitch_chunk_boundaries()` only stitched when next line started with medial character. Truncation at consonant-starting lines wasn't caught.

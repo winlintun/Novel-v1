@@ -9,6 +9,7 @@ from typing import Dict, List, Optional, Any
 
 from src.utils.ollama_client import OllamaClient
 from src.agents.base_agent import BaseAgent
+from src.memory.memory_manager import MemoryManager
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,11 @@ CRITICAL RULES:
 2. Check for: awkward phrasing, unnatural flow, missing context, tone inconsistency
 3. Provide specific, actionable feedback
 4. Never change the meaning - only improve expression
+5. GLOSSARY: NEVER change character names, place names, or cultivation terms.
+   Use EXACTLY the approved glossary spellings. These are authoritative, not suggestions.
+
+GLOSSARY (approved terms — NEVER change these):
+{glossary}
 
 Output format:
 IMPROVEMENTS: [List of specific issues found]
@@ -42,11 +48,21 @@ class ReflectionAgent(BaseAgent):
     def __init__(
         self,
         ollama_client: Optional[OllamaClient] = None,
-        config: Optional[Dict[str, Any]] = None
+        config: Optional[Dict[str, Any]] = None,
+        memory_manager: Optional[MemoryManager] = None
     ):
-        super().__init__(ollama_client, config=config)
+        super().__init__(ollama_client, config=config, memory_manager=memory_manager)
         self.model = self.config.get('reflection_model', 'qwen:7b')
         self.temperature = self.config.get('reflection_temperature', 0.3)
+    
+    def _get_glossary_for_prompt(self) -> str:
+        """Fetch glossary terms for injection."""
+        if hasattr(self, 'memory') and self.memory:
+            try:
+                return self.memory.get_glossary_for_prompt(limit=20)
+            except Exception:
+                pass
+        return "No glossary entries yet."
     
     def analyze(self, text: str, source_text: str = "") -> Dict[str, Any]:
         """
@@ -59,7 +75,8 @@ class ReflectionAgent(BaseAgent):
         Returns:
             Dictionary with analysis results
         """
-        prompt = REFLECTION_SYSTEM_PROMPT.format(text=text)
+        glossary_text = self._get_glossary_for_prompt()
+        prompt = REFLECTION_SYSTEM_PROMPT.format(text=text, glossary=glossary_text)
         
         if source_text:
             prompt = prompt.replace(
@@ -68,17 +85,13 @@ class ReflectionAgent(BaseAgent):
             )
         
         try:
-            # Set model in client if it's different from default
-            original_model = self.client.model
-            self.client.model = self.model
-            
+            # Use the model from config — never mutate shared state on OllamaClient.
+            # Pass model per-call so OllamaClient stays stateless.
             response = self.client.chat(
                 prompt=prompt,
-                system_prompt="You are a meticulous translation quality checker."
+                system_prompt="You are a meticulous translation quality checker.",
+                model=self.model
             )
-            
-            # Restore original model
-            self.client.model = original_model
             
             # Parse response
             result = self._parse_response(response, text)

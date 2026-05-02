@@ -125,6 +125,44 @@ class MemoryManager:
         
         logger.debug("Memory saved to disk")
     
+    @staticmethod
+    def _is_valid_myanmar_text(text: str, min_ratio: float = 0.5) -> bool:
+        """Check if text contains sufficient Myanmar Unicode characters.
+        
+        Prevents Bengali, Latin, Chinese, or other non-Myanmar scripts
+        from being stored as glossary target values.
+        
+        Args:
+            text: Target translation text
+            min_ratio: Minimum ratio of Myanmar chars (0.0-1.0)
+            
+        Returns:
+            True if text passes Myanmar character ratio threshold
+        """
+        if not text or not text.strip():
+            return False
+        
+        # Forcin placeholders — these are legitimate temp values
+        if text.startswith("【?") and text.endswith("?】"):
+            return True
+        
+        MYANMAR_RANGES = [(0x1000, 0x109F), (0xAA60, 0xAA7F), (0xA9E0, 0xA9FF)]
+        
+        mm_count = 0
+        total = 0
+        for ch in text:
+            code = ord(ch)
+            if ch.isspace() or ch in '။၊()[]':
+                continue
+            total += 1
+            if any(lo <= code <= hi for lo, hi in MYANMAR_RANGES):
+                mm_count += 1
+        
+        if total == 0:
+            return False
+        
+        return (mm_count / total) >= min_ratio
+    
     # -------------------------------------------------------------------------
     # Tier 1: Glossary Operations
     # -------------------------------------------------------------------------
@@ -136,12 +174,20 @@ class MemoryManager:
         category: str = "general",
         chapter: int = 0
     ) -> bool:
-        """Add a new term to glossary."""
+        """Add a new term to glossary.
+        
+        Validates that the target contains Myanmar text before accepting.
+        """
         terms = self.glossary.get("terms", [])
         
         # Check for duplicates
         existing = {t.get("source") or t.get("source_term", "") for t in terms}
         if source in existing:
+            return False
+        
+        # Validate target contains Myanmar text (reject pure English/Latin/Chinese)
+        if not self._is_valid_myanmar_text(target):
+            logger.warning(f"Rejected non-Myanmar target for '{source}': '{target}'")
             return False
         
         new_term = {
@@ -165,7 +211,11 @@ class MemoryManager:
         return True
     
     def update_term(self, source: str, new_target: str, chapter: int = 0) -> bool:
-        """Update an existing term."""
+        """Update an existing term with Myanmar validation."""
+        if not self._is_valid_myanmar_text(new_target):
+            logger.warning(f"Rejected non-Myanmar update for '{source}': '{new_target}'")
+            return False
+        
         terms = self.glossary.get("terms", [])
         
         for term in terms:
@@ -304,7 +354,14 @@ class MemoryManager:
         category: str = "general",
         chapter: int = 0
     ) -> bool:
-        """Add a term to the novel-specific pending glossary for review."""
+        """Add a term to the novel-specific pending glossary for review.
+
+        If the term already exists in pending, increments its chapter
+        appearance count and updates the last-seen chapter.
+        
+        Validates that the target contains Myanmar text before accepting
+        (skips validation for placeholder targets like 【?term?】).
+        """
         # Load existing pending terms
         pending_data = FileHandler.read_json(self.pending_path)
         if not pending_data:
@@ -315,16 +372,39 @@ class MemoryManager:
         # Check for duplicates in approved glossary
         if self.get_term(source):
             return False
+        
+        # Validate target: reject pure non-Myanmar unless it's a placeholder
+        if target and not target.startswith("【?") and not target.startswith("["):
+            if not self._is_valid_myanmar_text(target):
+                logger.warning(f"Rejected non-Myanmar pending target for '{source}': '{target}'")
+                return False
             
-        # Check for duplicates in pending list
-        if any(t.get("source") == source for t in pending_terms):
-            return False
+        # Check for duplicate in pending list — update chapter count
+        for t in pending_terms:
+            if t.get("source") == source:
+                # Update chapter tracking
+                chapters_seen = t.get("chapters_seen", [])
+                if chapter not in chapters_seen and chapter > 0:
+                    chapters_seen.append(chapter)
+                t["chapters_seen"] = chapters_seen
+                t["extracted_from_chapter"] = chapter  # last seen
+                t["chapter_count"] = len(chapters_seen)
+                t["updated_at"] = datetime.now().isoformat()
+                # Update target if the new one is more specific (non-placeholder)
+                if target and not target.startswith("【?") and not target.startswith("["):
+                    if self._is_valid_myanmar_text(target):
+                        t["target"] = target
+                FileHandler.write_json(self.pending_path, pending_data)
+                logger.debug(f"Updated pending term chapter count: {source} (seen in {len(chapters_seen)} chapters)")
+                return True
             
         new_pending = {
             "source": source,
             "target": target,
             "category": category,
             "extracted_from_chapter": chapter,
+            "chapters_seen": [chapter] if chapter > 0 else [],
+            "chapter_count": 1 if chapter > 0 else 0,
             "status": "pending",
             "added_at": datetime.now().isoformat()
         }
@@ -381,10 +461,12 @@ class MemoryManager:
         terms = self.glossary.get("terms", [])
         existing = {t.get("source") or t.get("source_term", "") for t in terms}
         if source in existing:
-            # Already exists — update it
+            # Already exists — update it (keep in pending if update fails validation)
             self.update_term(source, target, chapter)
         else:
-            self.add_term(source, target, category, chapter)
+            if not self.add_term(source, target, category, chapter):
+                logger.warning(f"Failed to add term '{source}' — target '{target}' rejected by validation. Keeping in pending.")
+                return False
 
         # Remove from pending
         pending_data["pending_terms"] = [t for t in pending_terms if t.get("source") != source]
@@ -444,21 +526,135 @@ class MemoryManager:
         if not approved:
             return 0
 
+        promoted_count = 0
+        not_promoted = []
         for term in approved:
             source = term.get("source", "")
             target = term.get("target", "")
             category = term.get("category", "term")
             chapter = term.get("extracted_from_chapter", 0)
             if source and target:
-                self.add_term(source, target, category, chapter)
+                if self.add_term(source, target, category, chapter):
+                    promoted_count += 1
+                else:
+                    not_promoted.append(term)
 
-        # Remove approved terms from pending
+        # Remove promoted terms from pending (keep those that failed validation)
+        promoted_sources = {t.get("source") for t in approved if t not in not_promoted}
         pending_data["pending_terms"] = [
-            t for t in pending_terms if t.get("status") != "approved"
+            t for t in pending_terms
+            if t.get("status") != "approved" or t.get("source") in {n.get("source") for n in not_promoted}
         ]
         FileHandler.write_json(self.pending_path, pending_data)
-        logger.info(f"Auto-approved {len(approved)} pending glossary terms")
-        return len(approved)
+        logger.info(f"Auto-approved {promoted_count}/{len(approved)} pending glossary terms")
+        return promoted_count
+
+    def auto_approve_by_confidence(self, confidence_threshold: float = 0.75) -> int:
+        """Auto-approve pending terms based on confidence heuristics.
+
+        Confidence rules (each adds to the confidence score):
+          1. Seen in ≥3 different chapters            → +0.40
+          2. Seen in ≥2 different chapters            → +0.25
+          3. Category is "character" or "place"        → +0.20
+          4. Target is not a placeholder (not 【?..?】) → +0.15
+          5. Target is proper Myanmar (no Latin chars) → +0.10
+          6. Source matches known name pattern         → +0.10
+             (2-3 Chinese chars = likely person name)
+
+        Terms with confidence >= threshold are auto-promoted to
+        the approved glossary. This removes the bottleneck of
+        manually editing JSON to set status='approved'.
+
+        Args:
+            confidence_threshold: Minimum confidence to auto-approve (0.0-1.0)
+
+        Returns:
+            Number of terms auto-approved
+        """
+        pending_data = FileHandler.read_json(self.pending_path)
+        if not pending_data:
+            return 0
+
+        pending_terms = pending_data.get("pending_terms", [])
+        if not pending_terms:
+            return 0
+
+        to_approve: list = []
+        for term in pending_terms:
+            # Skip already approved or rejected
+            if term.get("status") in ("approved", "rejected"):
+                continue
+
+            confidence = 0.0
+            source = term.get("source", "")
+            target = term.get("target", "")
+            category = term.get("category", "general")
+            chapter_count = term.get("chapter_count", 0)
+
+            # Rule 1: Multi-chapter appearance (strongest signal)
+            if chapter_count >= 3:
+                confidence += 0.40
+            elif chapter_count >= 2:
+                confidence += 0.25
+
+            # Rule 2: Known category types get higher trust
+            if category in ("character", "place"):
+                confidence += 0.20
+
+            # Rule 3: Not a placeholder
+            if target and not target.startswith("【?") and not target.startswith("[") and "?" not in target:
+                confidence += 0.15
+
+            # Rule 4: Proper Myanmar target (no Latin script leakage)
+            if target and not any(ord(c) < 128 for c in target):
+                confidence += 0.10
+
+            # Rule 5: Chinese name pattern (2-3 chars = likely person name)
+            if source and all('\u4e00' <= c <= '\u9fff' for c in source) and 2 <= len(source) <= 3:
+                confidence += 0.10
+
+            if confidence >= confidence_threshold:
+                to_approve.append(term)
+                logger.debug(
+                    f"Auto-approve candidate: {source} -> {target} "
+                    f"(confidence={confidence:.2f}, chapters={chapter_count})"
+                )
+
+        if not to_approve:
+            return 0
+
+        # Promote approved terms
+        promoted_sources = set()
+        for term in to_approve:
+            source = term.get("source", "")
+            target = term.get("target", "")
+            category = term.get("category", "general")
+            chapter = term.get("extracted_from_chapter", 0)
+            if source and target:
+                try:
+                    if self.add_term(source, target, category, chapter):
+                        promoted_sources.add(source)
+                        # Mark as verified since it passed confidence check
+                        for t in self.glossary.get("terms", []):
+                            ts = t.get("source") or t.get("source_term", "")
+                            if ts == source:
+                                t["verified"] = True
+                                t["auto_approved"] = True
+                                break
+                    else:
+                        logger.warning(f"Auto-approve rejected term '{source}' — target '{target}' failed validation")
+                except Exception as e:
+                    logger.warning(f"Failed to auto-approve term '{source}': {e}")
+
+        # Remove only successfully promoted terms from pending
+        pending_data["pending_terms"] = [
+            t for t in pending_terms if t.get("source") not in promoted_sources
+        ]
+        FileHandler.write_json(self.pending_path, pending_data)
+        self.save_memory()
+
+        logger.info(f"Auto-approved {len(promoted_sources)}/{len(to_approve)} terms by confidence (threshold={confidence_threshold})")
+        return len(promoted_sources)
 
     def get_all_memory_for_prompt(self) -> Dict[str, str]:
         """Get all memory tiers formatted for prompts."""

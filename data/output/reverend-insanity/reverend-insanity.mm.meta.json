@@ -1,7 +1,7 @@
-{
+﻿{
   "novel": "reverend-insanity",
-  "last_updated": "2026-05-02T12:25:50.078584",
-  "total_chapters": 3,
+  "last_updated": "2026-05-02T13:59:15.045028",
+  "total_chapters": 4,
   "chapters": {
     "14": {
       "translated_at": "2026-05-02T05:01:32.746377",
@@ -44,6 +44,18 @@
       "myanmar_ratio": 0.995,
       "char_count": 9889,
       "avg_quality_score": 93.1
+    },
+    "17": {
+      "chapter": 17,
+      "translated_at": "2026-05-02T13:59:15.039370",
+      "source": "data/input/reverend-insanity/reverend-insanity_chapter_017.md",
+      "pipeline": "single_stage",
+      "model": "padauk-gemma:q8_0",
+      "char_count": 12685,
+      "myanmar_ratio": 0.994,
+      "duration_seconds": 5369.6,
+      "chunk_count": 16,
+      "avg_quality_score": 93.7
     }
   }
 }

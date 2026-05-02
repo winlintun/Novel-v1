@@ -67,13 +67,13 @@ class TestMemoryManager(unittest.TestCase):
 
     def test_session_rules(self):
         """Test Tier 3 session rules."""
-        self.memory.add_session_rule("Old", "New")
+        self.memory.add_session_rule("ဟောင်း", "သစ်")
         rules = self.memory.get_session_rules()
-        self.assertIn("Old -> New", rules)
+        self.assertIn("ဟောင်း -> သစ်", rules)
         
         # Promote to glossary
-        self.memory.promote_rule_to_glossary("Old", "New", 1)
-        self.assertEqual(self.memory.get_term("Old"), "New")
+        self.memory.promote_rule_to_glossary("ဟောင်း", "သစ်", 1)
+        self.assertEqual(self.memory.get_term("ဟောင်း"), "သစ်")
         self.assertEqual(self.memory.get_session_rules(), "No session rules.")
 
 

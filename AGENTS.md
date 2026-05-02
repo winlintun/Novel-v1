@@ -49,6 +49,400 @@ STEP 4: Fix all issues until both sub-agents respond READY_TO_COMMIT
 - Any decision was made that affects architecture
 
 ---
+## 🔒 STABILITY FIRST — Non-Negotiable (Read Before Any Code)
+ 
+> **This section is a prerequisite.**
+> Before adding any new feature, the agent MUST verify every check in this
+> section passes. If even one check fails — stop, fix it, verify again, then proceed.
+> No exceptions. No "I'll fix it later."
+ 
+---
+ 
+### THE 3 STABILITY RULES
+ 
+```
+RULE 1 — NO CRASHES
+  Every external call (Ollama, file read, file write, JSON parse)
+  must be wrapped in explicit error handling.
+  A crash = unhandled exception reaching the top of the call stack.
+  Zero crashes are acceptable in production runs.
+ 
+RULE 2 — NO HIDDEN STATE BUGS
+  All mutable state (glossary, context, session memory) must flow
+  through a single gateway (MemoryManager). No module may hold its
+  own copy of shared state. No global variables outside MemoryManager.
+ 
+RULE 3 — NO HANGING REQUESTS
+  Every Ollama call must have an explicit timeout.
+  Every retry loop must have a hard maximum iteration count.
+  No call may block the process indefinitely.
+```
+ 
+---
+ 
+### 📋 STABILITY CHECKLIST — Verify Before Any Feature Work
+ 
+Run through this list at the start of every session. If any item is ❌, fix it NOW.
+ 
+```
+OLLAMA CALL SAFETY
+[ ] Every ollama.chat() / ollama.generate() call has timeout= set explicitly
+[ ] Timeout value comes from settings.yaml (models.timeout = 300), not hardcoded
+[ ] Every Ollama call is wrapped in try/except with these cases handled:
+      - ollama.ResponseError     → log + retry with backoff
+      - requests.Timeout         → log + consult ERR-001 in error_library.json
+      - ConnectionError          → log + alert user (Ollama not running)
+      - MemoryError / OOM signal → log + consult ERR-006, switch model + reduce chunk
+[ ] No Ollama call is made outside a retry wrapper function
+ 
+RETRY LOOP SAFETY
+[ ] Every retry loop has a hard MAX_RETRIES cap (default: 3)
+[ ] Retry uses exponential backoff: wait = 2^attempt seconds (2s, 4s, 8s)
+[ ] After MAX_RETRIES exhausted → raise a typed exception, never silently continue
+[ ] No while True loop without a break/return condition that is always reachable
+ 
+FILE I/O SAFETY
+[ ] All file writes use FileHandler.write_text() — atomic temp-file → rename pattern
+[ ] All JSON reads wrapped in try/except json.JSONDecodeError
+[ ] If a JSON file is corrupted on load → log + create fresh with empty schema
+[ ] No direct open(..., 'w') anywhere in src/ — always via FileHandler
+[ ] All file paths use pathlib.Path, never string concatenation
+ 
+STATE MUTATION SAFETY
+[ ] No module outside MemoryManager reads or writes glossary.json directly
+[ ] No module outside MemoryManager reads or writes context_memory.json directly
+[ ] No module stores a local copy of glossary data (no self.glossary = {...} caches)
+[ ] ContextUpdater.process_chapter() is the ONLY place context_memory.json is updated
+[ ] session_memory.json is written at the END of every stage, not only at chapter end
+ 
+CHECKPOINT SAFETY
+[ ] Checkpoint is saved to .agent/session_memory.json after EACH chunk completes
+[ ] Checkpoint includes: chapter number, chunk index, stage name, timestamp
+[ ] On startup, orchestrator checks for an incomplete checkpoint before starting
+[ ] If checkpoint found → resume from that chunk, skip already-completed chunks
+[ ] Partial output is never overwritten — append mode or indexed files only
+```
+ 
+---
+ 
+### 🚫 CRASH PATTERNS — Exact Code The Agent Must Never Write
+ 
+```python
+# ❌ PATTERN 1 — Ollama call with no timeout
+response = ollama.chat(model="qwen2.5:14b", messages=[...])
+# HANGS FOREVER if Ollama is slow or OOM
+ 
+# ✅ FIX
+response = ollama.chat(
+    model="qwen2.5:14b",
+    messages=[...],
+    options={"timeout": settings.models.timeout},  # from settings.yaml
+)
+ 
+ 
+# ❌ PATTERN 2 — Bare Ollama call, no exception handling
+def translate(text: str) -> str:
+    result = ollama.chat(...)
+    return result["message"]["content"]
+# Crashes on Ollama timeout, OOM, or network error
+ 
+# ✅ FIX
+def translate(text: str) -> str:
+    for attempt in range(MAX_RETRIES):
+        try:
+            result = ollama.chat(..., options={"timeout": settings.models.timeout})
+            return result["message"]["content"]
+        except (ollama.ResponseError, ConnectionError) as e:
+            wait = 2 ** attempt
+            logger.warning(f"Ollama call failed (attempt {attempt+1}): {e}. Retry in {wait}s")
+            time.sleep(wait)
+    raise TranslationError(f"Ollama failed after {MAX_RETRIES} attempts")
+ 
+ 
+# ❌ PATTERN 3 — Direct JSON file write
+with open("data/glossary.json", "w") as f:
+    json.dump(data, f)
+# Corrupts file if process is killed mid-write
+ 
+# ✅ FIX — Always via FileHandler
+file_handler.write_json("data/glossary.json", data)
+# FileHandler writes to .tmp → renames atomically
+ 
+ 
+# ❌ PATTERN 4 — JSON load with no error handling
+with open("data/context_memory.json") as f:
+    context = json.load(f)
+# Crashes if file is empty, corrupted, or does not exist
+ 
+# ✅ FIX
+def load_json_safe(path: Path, default: dict) -> dict:
+    try:
+        if not path.exists():
+            return default
+        with open(path, encoding="utf-8-sig") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError) as e:
+        logger.error(f"Failed to load {path}: {e}. Using default schema.")
+        return default
+ 
+ 
+# ❌ PATTERN 5 — Unbounded retry loop
+while quality_score < 70:
+    result = translate(text)
+    quality_score = score(result)
+# Infinite loop if model never reaches 70
+ 
+# ✅ FIX
+for attempt in range(MAX_RETRIES):
+    result = translate(text)
+    quality_score = score(result)
+    if quality_score >= 70:
+        break
+    logger.warning(f"Quality {quality_score} < 70 (attempt {attempt+1}/{MAX_RETRIES})")
+else:
+    raise QualityGateError(f"Score {quality_score} after {MAX_RETRIES} attempts")
+ 
+ 
+# ❌ PATTERN 6 — Hidden state copy in agent
+class Translator:
+    def __init__(self, memory_manager: MemoryManager):
+        self.glossary = memory_manager.get_all_terms()  # local copy — STALE immediately
+# New terms added mid-chapter are invisible to this translator
+ 
+# ✅ FIX
+class Translator:
+    def __init__(self, memory_manager: MemoryManager):
+        self.memory = memory_manager  # only hold the reference, never a copy
+ 
+    def translate(self, text: str) -> str:
+        glossary = self.memory.get_top_n(n=20)  # fetch fresh every call
+        ...
+```
+ 
+---
+ 
+### 🔧 REQUIRED STABILITY UTILITIES
+ 
+These must exist in `src/utils/` before any agent code is written or modified.
+ 
+#### `src/utils/ollama_client.py` — Safe Ollama Wrapper
+ 
+```python
+import time
+import ollama
+import logging
+from src.config.models import AppConfig
+from src.exceptions import ModelError
+ 
+logger = logging.getLogger(__name__)
+MAX_RETRIES = 3
+ 
+ 
+def ollama_call_with_retry(
+    model: str,
+    messages: list[dict],
+    settings: AppConfig,
+) -> str:
+    """
+    Single entry point for ALL Ollama calls in the project.
+    Enforces timeout, retry with backoff, and typed error on exhaustion.
+ 
+    Raises:
+        ModelError: If all retries are exhausted.
+        ConnectionError:  If Ollama is not reachable at all.
+    """
+    for attempt in range(MAX_RETRIES):
+        try:
+            response = ollama.chat(
+                model=model,
+                messages=messages,
+                options={"timeout": settings.models.timeout},
+            )
+            return response["message"]["content"]
+ 
+        except ollama.ResponseError as e:
+            logger.warning(f"Ollama ResponseError attempt {attempt+1}: {e}")
+ 
+        except ConnectionError as e:
+            logger.error(f"Ollama unreachable: {e}")
+            raise  # Do not retry — Ollama is down. Alert user immediately.
+ 
+        except MemoryError:
+            logger.error("Ollama OOM — consult ERR-006 in error_library.json")
+            raise ModelError("OOM: reduce chunk size or switch to smaller model")
+ 
+        wait = 2 ** attempt
+        logger.info(f"Retrying in {wait}s...")
+        time.sleep(wait)
+ 
+    raise ModelError(f"Ollama failed after {MAX_RETRIES} attempts on model {model}")
+```
+
+> Current implementation note: `src/utils/ollama_client.py` currently exposes `OllamaClient.chat()` as the active retry+timeout gateway. If you add a standalone helper, keep behavior equivalent to this contract.
+ 
+#### `src/utils/file_handler.py` — Atomic Write (already exists — verify these methods exist)
+ 
+```python
+# Current required surface:
+def write_json(filepath: str, data: dict) -> None:
+    """Atomic write: temp file → rename."""
+
+def read_json(filepath: str) -> dict:
+    """Read JSON with UTF-8-SIG; return {} when missing."""
+
+def read_text(filepath: str) -> str:
+    """Read text with UTF-8-SIG and explicit missing-file error."""
+
+def write_text(filepath: str, content: str) -> None:
+    """Write text with UTF-8-SIG."""
+```
+ 
+#### `src/exceptions.py` — Typed Exceptions (add if missing)
+ 
+```python
+class TranslationError(Exception):
+    """Raised when translation fails after all retries."""
+ 
+class QualityGateError(Exception):
+    """Raised when quality score does not reach threshold after max retries."""
+ 
+class CheckpointError(Exception):
+    """Raised when checkpoint file is corrupted or unreadable."""
+ 
+class GlossaryError(Exception):
+    """Raised on glossary write/read failure."""
+```
+ 
+---
+ 
+### 🧪 STABILITY TESTS — Must ALL Pass Before Any Feature Work
+ 
+These tests verify the system will not crash, hang, or corrupt state.
+Recommended file: `tests/test_stability.py` (create if missing and keep aligned with current modules).
+ 
+```python
+from unittest.mock import patch, MagicMock
+import pytest, json, time
+from pathlib import Path
+from src.utils.ollama_client import OllamaClient
+from src.utils.file_handler import FileHandler
+from src.exceptions import ModelError
+ 
+ 
+# ── CRASH TESTS ──────────────────────────────────────────────────────────────
+ 
+def test_ollama_timeout_raises_translation_error(mock_settings):
+    """Ollama timeout must never hang — raises TranslationError after retries."""
+    client = OllamaClient(model="padauk-gemma:q8_0", timeout=1, max_retries=3)
+    with patch.object(client.client, "chat", side_effect=ConnectionAbortedError("timeout")):
+        with pytest.raises(ModelError):
+            client.chat("x")
+ 
+ 
+def test_ollama_connection_error_raises_immediately(mock_settings):
+    """If Ollama is unreachable, raise immediately — do not retry 3 times."""
+    start = time.time()
+    client = OllamaClient(model="padauk-gemma:q8_0", timeout=1, max_retries=3)
+    with patch.object(client.client, "chat", side_effect=ConnectionError("refused")):
+        with pytest.raises(ConnectionError):
+            client.chat("x")
+    elapsed = time.time() - start
+    assert elapsed < 2.0  # must not wait through retry backoff
+ 
+ 
+def test_retry_loop_has_hard_limit(mock_settings):
+    """Retry loop must stop at MAX_RETRIES, never loop forever."""
+    call_count = 0
+    client = OllamaClient(model="padauk-gemma:q8_0", timeout=1, max_retries=3)
+    def always_fail(*a, **kw):
+        nonlocal call_count
+        call_count += 1
+        raise RuntimeError("fail")
+    with patch.object(client.client, "chat", side_effect=always_fail):
+        with pytest.raises(ModelError):
+            client.chat("x")
+    assert call_count == 3  # exactly MAX_RETRIES, not more
+ 
+ 
+# ── STATE TESTS ───────────────────────────────────────────────────────────────
+ 
+def test_corrupted_json_returns_default_schema(tmp_path):
+    """Corrupted JSON file must never crash — return default schema."""
+    bad_file = tmp_path / "context_memory.json"
+    bad_file.write_text("{ this is not json !!!", encoding="utf-8")
+    fh = FileHandler()
+    result = fh.read_json(str(bad_file)) or {"current_chapter": 0}
+    assert result == {"current_chapter": 0}
+ 
+ 
+def test_atomic_write_leaves_no_partial_file(tmp_path):
+    """Simulated crash mid-write must not leave a corrupted output file."""
+    fh = FileHandler()
+    target = tmp_path / "glossary.json"
+    fh.write_json(target, {"version": "1.0", "terms": []})
+    # File must be valid JSON after write
+    with open(target, encoding="utf-8-sig") as f:
+        data = json.load(f)
+    assert data["version"] == "1.0"
+ 
+ 
+def test_missing_file_returns_default_not_crash(tmp_path):
+    """Missing JSON file must return default schema, not FileNotFoundError."""
+    fh = FileHandler()
+    result = fh.read_json(str(tmp_path / "nonexistent.json")) or {"terms": []}
+    assert result == {"terms": []}
+ 
+ 
+# ── HANGING TESTS ─────────────────────────────────────────────────────────────
+ 
+def test_quality_loop_does_not_run_forever(mock_settings):
+    """Quality retry loop must stop at MAX_RETRIES even if score never reaches 70."""
+    call_count = 0
+    def always_bad_quality(*a, **kw):
+        nonlocal call_count
+        call_count += 1
+        return 30  # always below threshold
+    from src.exceptions import QualityGateError
+    from src.agents.qa_tester import QATesterAgent
+    agent = QATesterAgent(mock_settings)
+    with patch.object(agent, "score_chapter", side_effect=always_bad_quality):
+        with pytest.raises(QualityGateError):
+            agent.score_with_retry("source", "translation")
+    assert call_count <= 3
+ 
+ 
+# ── RUN ───────────────────────────────────────────────────────────────────────
+# pytest tests/test_stability.py -v --tb=short
+# ALL tests must pass before any feature PR is merged.
+```
+ 
+---
+ 
+### 📊 STABILITY STATUS TRACKING
+ 
+Add this block to `CURRENT_STATE.md` and keep it updated:
+ 
+```markdown
+## 🔒 Stability Status (update after every session)
+ 
+| Check | Status | Last Verified | Notes |
+|---|---|---|---|
+| All Ollama calls have timeout | ❌ / ✅ | YYYY-MM-DD | |
+| All Ollama calls have retry wrapper | ❌ / ✅ | YYYY-MM-DD | |
+| All file writes via FileHandler | ❌ / ✅ | YYYY-MM-DD | |
+| All JSON reads have safe fallback | ❌ / ✅ | YYYY-MM-DD | |
+| No unbounded retry loops | ❌ / ✅ | YYYY-MM-DD | |
+| No hidden state copies in agents | ❌ / ✅ | YYYY-MM-DD | |
+| Checkpoint saved per chunk | ❌ / ✅ | YYYY-MM-DD | |
+| tests/test_stability.py all pass | ❌ / ✅ | YYYY-MM-DD | (or equivalent coverage in existing tests) |
+| src/exceptions.py exists | ❌ / ✅ | YYYY-MM-DD | |
+| src/utils/ollama_client.py exists | ❌ / ✅ | YYYY-MM-DD | |
+```
+ 
+**Rule:** Any row that is ❌ = the system is NOT stable.
+No new features until all rows are ✅.
+ 
+---
 
 ## 🎯 PROJECT STRATEGY
  
@@ -156,7 +550,7 @@ src/main.py (thin dispatcher)
 
 **Note:** As of v2.0, the monolithic `main.py` has been refactored into modular components under `src/cli/`, `src/pipeline/`, `src/config/`, `src/core/`, and `src/types/`.
 
-1. **Preprocess:** Clean and normalize input text, split into paragraph-safe chunks with sliding window overlap.
+1. **Preprocess:** Clean and normalize input text, split into paragraph-safe chunks with `smart_chunk()` (no overlap).
 2. **Context & Glossary Loading:**
    - `MemoryManager`: 3-tier memory system (Glossary → Context → Session rules).
    - `data/glossary.json`: Enforces strict terminology consistency.
@@ -460,20 +854,19 @@ Score ≤ 49  → STOP → alert user → do not save
 
 ```yaml
 models:
-  translator: "qwen2.5:14b"   # Stage 1: Strong Chinese comprehension
-  editor: "qwen2.5:14b"       # Stage 2: Literary rewriting
-  checker: "qwen:7b"          # Stage 3 & 4: Fast validation
+  translator: "padauk-gemma:q8_0"   # Primary MM output model (current default)
+  editor: "padauk-gemma:q8_0"       # Current default
+  checker: "qwen:7b"                # Fast validation
   ollama_base_url: "http://localhost:11434"
   timeout: 300
 
 processing:
   chunk_size: 1500
-  overlap_size: 0
-  max_retries: 3
-  temperature: 0.45           # Creativity for natural Myanmar phrasing
-  top_p: 0.92
-  top_k: 50
-  repeat_penalty: 1.1         # Prevents character repetition — critical for Myanmar LLM output
+  max_retries: 2
+  temperature: 0.2            # Current stable setting for padauk-gemma
+  top_p: 0.95
+  top_k: 40
+  repeat_penalty: 1.15
 ```
 
 ---

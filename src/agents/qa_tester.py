@@ -91,22 +91,22 @@ class QATesterAgent(BaseAgent):
         glossary = self.memory.get_all_terms()
 
         for term_data in glossary:
-            approved_mm = term_data.get("target")
-            if not approved_mm:
+            source = term_data.get("source", "")
+            target = term_data.get("target")
+            if not target:
                 continue
 
-            # Only check verified terms that should appear in most chapters
-            # Skip if term is not verified or has low priority
-            is_verified = term_data.get("verified", False)
-            if not is_verified:
-                continue
+            # Check all terms, not just verified — the MemoryManager
+            # already validates target via _is_valid_myanmar_text() before
+            # storage, so unverified terms are still valid translations.
+            # If the Chinese source term appears in the Myanmar text, it was never translated
+            if source and len(source) >= 2:
+                if source in text:
+                    issues.append(f"Untranslated term '{source}' — expected '{target}'")
 
-            # Check if this verified term is missing from the text
-            # This may indicate an inconsistency in translation
-            if approved_mm not in text:
-                # Note: This is a warning-level check - missing terms may be
-                # legitimate if they don't appear in this specific chapter
-                pass  # Commented out to reduce false positives
+        # Placeholder check — hoisted outside loop (once, not N times)
+        if "【?term?】" in text:
+            issues.append("Unresolved 【?term?】 placeholders found")
 
         return issues
     

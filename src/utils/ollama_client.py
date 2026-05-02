@@ -5,9 +5,12 @@ Supports both /api/chat and /api/generate endpoints.
 """
 
 import time
+import random
 import logging
 from typing import Iterator, Optional, Dict, Any
 import ollama
+
+from src.exceptions import ModelError
 
 logger = logging.getLogger(__name__)
 
@@ -145,8 +148,8 @@ class OllamaClient:
             self.client.generate(
                 model=model_name,
                 prompt="",
-                keep_alive=0,  # 0 means unload immediately
-                options={"num_predict": 1}
+                keep_alive=0,
+                options={"num_predict": 1, "timeout": min(self.timeout, 30)}
             )
             logger.info(f"Model {model_name} scheduled for unload")
         except Exception as e:
@@ -190,34 +193,43 @@ class OllamaClient:
         self,
         prompt: str,
         system_prompt: Optional[str] = None,
-        stream: bool = False
+        stream: bool = False,
+        model: Optional[str] = None
     ) -> str:
         """
-        Send chat request to Ollama with retry logic.
+        Send chat request to Ollama with retry + timeout + typed exceptions.
         Supports both /api/chat and /api/generate endpoints.
         
         Args:
             prompt: User prompt
             system_prompt: Optional system prompt
-            stream: Whether to stream response
+            stream: Whether to stream response (use chat_stream() instead)
+            model: Override model name per-call (stateless — never mutates self.model)
             
         Returns:
             Generated text response
+            
+        Raises:
+            ModelError: If all retries exhausted
         """
+        effective_model = model if model else self.model
+        
         for attempt in range(self.max_retries):
             try:
                 # Adjust options based on model
-                is_gemma = "gemma" in self.model.lower()
+                is_gemma = "gemma" in effective_model.lower()
+                is_padauk = "padauk" in effective_model.lower()
                 
                 # Use configurable num_ctx (default 8192 per need_fix.md)
                 # and keep_alive (default 10m per need_fix.md)
                 options = {
                     "temperature": self.temperature,
-                    "num_predict": 2048 if is_gemma else 1024,
-                    "num_ctx": self.num_ctx,      # Configurable context window
+                    "num_predict": 2048 if is_gemma or is_padauk else 1024,
+                    "num_ctx": self.num_ctx,
                     "top_p": self.top_p,
                     "top_k": self.top_k,
-                    "repeat_penalty": self.repeat_penalty
+                    "repeat_penalty": self.repeat_penalty,
+                    "timeout": int(self.timeout),  # explicitly enforce timeout per AGENTS.md
                 }
 
                 # Add GPU configuration if enabled
@@ -228,43 +240,46 @@ class OllamaClient:
                 
                 # Fixed: Support both /api/chat and /api/generate endpoints (per need_fix.md)
                 if self.use_generate_endpoint:
-                    # Use /api/generate for single-turn translation (no conversation history)
-                    # This often yields more consistent results for pure translation tasks
                     full_prompt = ""
                     if system_prompt:
                         full_prompt = f"{system_prompt}\n\n"
                     full_prompt += prompt
                     
                     response = self.client.generate(
-                        model=self.model,
+                        model=effective_model,
                         prompt=full_prompt,
                         options=options,
                         keep_alive=self.keep_alive
                     )
-                    # Bug fix: padauk-gemma outputs in 'thinking' field, fallback
-                    raw_response = response['response']
-                    if not raw_response and response.get('thinking'):
-                        raw_response = response['thinking']
+                    # Defensive parse: padauk-gemma outputs in 'thinking' field, fallback
+                    raw_response = ""
+                    if isinstance(response, dict):
+                        raw_response = response.get('response', '') or response.get('thinking', '')
                     return raw_response
                 else:
-                    # Use /api/chat (default, maintains conversation history)
                     messages = []
                     if system_prompt:
                         messages.append({"role": "system", "content": system_prompt})
                     messages.append({"role": "user", "content": prompt})
                     
                     response = self.client.chat(
-                        model=self.model,
+                        model=effective_model,
                         messages=messages,
                         options=options,
                         keep_alive=self.keep_alive
                     )
-                    # Bug fix: padauk-gemma outputs in 'thinking' field, fallback
-                    raw_content = response['message']['content']
-                    if not raw_content and response['message'].get('thinking'):
-                        raw_content = response['message']['thinking']
+                    # Defensive parse: handle missing keys and thinking fallback
+                    raw_content = ""
+                    if isinstance(response, dict):
+                        msg = response.get('message', {})
+                        if isinstance(msg, dict):
+                            raw_content = msg.get('content', '') or msg.get('thinking', '')
                     return raw_content
                 
+            except (ConnectionError, ConnectionAbortedError, ConnectionRefusedError) as e:
+                # Do NOT retry connection failures — raise immediately
+                logger.error(f"Ollama unreachable: {e}")
+                raise ModelError(f"Ollama connection failed: {e}") from e
             except Exception as e:
                 error_msg = str(e).lower()
                 
@@ -278,12 +293,11 @@ class OllamaClient:
                 
                 # Calculate wait time with jitter
                 if is_rate_limit:
-                    base_wait = 2 ** attempt * 2  # Double backoff for rate limits
-                    import random
-                    wait_time = base_wait + random.uniform(1, 3)  # Add jitter
+                    base_wait = 2 ** attempt * 2
+                    wait_time = base_wait + random.uniform(1, 3)
                     logger.warning(f"Rate limit hit (attempt {attempt + 1}/{self.max_retries}). Waiting {wait_time:.1f}s...")
                 else:
-                    wait_time = 2 ** attempt + random.uniform(0.5, 1.5)  # Standard exponential backoff
+                    wait_time = 2 ** attempt + random.uniform(0.5, 1.5)
                     logger.warning(f"Ollama call failed (attempt {attempt + 1}/{self.max_retries}): {e}")
                 
                 if attempt < self.max_retries - 1:
@@ -291,14 +305,15 @@ class OllamaClient:
                     time.sleep(wait_time)
                 else:
                     logger.error(f"Ollama failed after {self.max_retries} attempts")
-                    raise RuntimeError(f"Ollama API error after {self.max_retries} retries: {e}")
+                    raise ModelError(f"Ollama API error after {self.max_retries} retries on model {effective_model}: {e}") from e
         
-        return ""
+        raise ModelError(f"Ollama failed after {self.max_retries} attempts on model {effective_model}")
     
     def chat_stream(
         self,
         prompt: str,
-        system_prompt: Optional[str] = None
+        system_prompt: Optional[str] = None,
+        model: Optional[str] = None
     ) -> Iterator[str]:
         """
         Stream chat response from Ollama.
@@ -306,10 +321,13 @@ class OllamaClient:
         Args:
             prompt: User prompt
             system_prompt: Optional system prompt
+            model: Override model name per-call (stateless)
             
         Yields:
             Text chunks as they arrive
         """
+        effective_model = model if model else self.model
+        
         messages = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
@@ -320,10 +338,11 @@ class OllamaClient:
             stream_options = {
                 "temperature": self.temperature,
                 "num_predict": 2048,
-                "num_ctx": self.num_ctx,      # Configurable context window
+                "num_ctx": self.num_ctx,
                 "top_p": self.top_p,
                 "top_k": self.top_k,
-                "repeat_penalty": self.repeat_penalty
+                "repeat_penalty": self.repeat_penalty,
+                "timeout": int(self.timeout),
             }
 
             # Add GPU configuration if enabled
@@ -333,20 +352,27 @@ class OllamaClient:
                 stream_options["main_gpu"] = self.main_gpu
 
             stream = self.client.chat(
-                model=self.model,
+                model=effective_model,
                 messages=messages,
                 stream=True,
                 options=stream_options,
-                keep_alive=self.keep_alive  # Configurable keep_alive
+                keep_alive=self.keep_alive
             )
             
             for chunk in stream:
-                if 'message' in chunk and 'content' in chunk['message']:
-                    yield chunk['message']['content']
+                if isinstance(chunk, dict) and 'message' in chunk:
+                    msg = chunk.get('message', {})
+                    if isinstance(msg, dict):
+                        content = msg.get('content', '') or msg.get('thinking', '')
+                        if content:
+                            yield content
                     
+        except (ConnectionError, ConnectionAbortedError, ConnectionRefusedError) as e:
+            logger.error(f"Ollama streaming connection error: {e}")
+            raise ModelError(f"Ollama connection failed during streaming: {e}") from e
         except Exception as e:
             logger.error(f"Streaming error: {e}")
-            raise
+            raise ModelError(f"Ollama streaming error: {e}") from e
     
     def check_model_available(self) -> bool:
         """Check if the configured model is available."""
@@ -384,7 +410,8 @@ class OllamaClient:
             self.client.generate(
                 model=self.model,
                 prompt="",
-                keep_alive=0
+                keep_alive=0,
+                options={"num_predict": 1, "timeout": min(self.timeout, 30)}
             )
             logger.info(f"Model {self.model} unloaded from GPU")
             return True

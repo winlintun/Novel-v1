@@ -106,6 +106,13 @@ class TranslationPipeline:
                     self.logger.info(f"Auto-promoted {auto_count} pending glossary terms")
             except Exception:
                 pass
+            # Auto-approve high-confidence terms (no manual review needed)
+            try:
+                confidence_count = self._memory_manager.auto_approve_by_confidence()
+                if confidence_count:
+                    self.logger.info(f"Confidence-based auto-approve: {confidence_count} terms promoted")
+            except Exception:
+                pass
         return self._memory_manager
     
     @property
@@ -158,7 +165,8 @@ class TranslationPipeline:
             self._refiner = Refiner(
                 ollama_client=self.ollama_client,
                 batch_size=getattr(self.config.processing, 'batch_size', 1),
-                config=self.config.dict()
+                config=self.config.dict(),
+                memory_manager=self.memory_manager
             )
         return self._refiner
     
@@ -169,7 +177,8 @@ class TranslationPipeline:
             from src.agents.reflection_agent import ReflectionAgent
             self._reflection_agent = ReflectionAgent(
                 ollama_client=self.ollama_client,
-                config=self.config.dict()
+                config=self.config.dict(),
+                memory_manager=self.memory_manager
             )
         return self._reflection_agent
     
@@ -262,6 +271,24 @@ class TranslationPipeline:
             # Postprocess
             result_text = self._postprocess(translated_chunks)
 
+            # Stage 6: QA Validation — final quality gate on assembled chapter
+            # Runs after postprocessing so it checks the full, clean output
+            qa_result = None
+            try:
+                if self.config.translation_pipeline.mode in ('full', 'lite'):
+                    qa_result = self.qa_tester.validate_output(result_text, chapter_num or 0)
+                    if qa_result.get("issues"):
+                        self.logger.warning(
+                            f"QA found {len(qa_result['issues'])} issues: {qa_result['issues']}"
+                        )
+                    mya_ratio = qa_result.get("metrics", {}).get("myanmar_ratio", 0)
+                    self.logger.info(
+                        f"QA: passed={qa_result.get('passed')}, "
+                        f"MyeRatio={mya_ratio:.1%}, issues={len(qa_result.get('issues', []))}"
+                    )
+            except Exception as e:
+                self.logger.warning(f"QA validation failed (non-fatal): {e}")
+
             duration = time.time() - start_time
 
             # Save output
@@ -327,6 +354,8 @@ class TranslationPipeline:
                     "avg_quality_score": avg_score,
                     "total_chunks": len(chunk_metrics),
                     "chunk_metrics": chunk_metrics,
+                    "qa_passed": qa_result.get("passed") if qa_result else None,
+                    "qa_issues": len(qa_result.get("issues", [])) if qa_result else 0,
                 },
                 "chapter": Path(filepath).stem,
                 "duration_seconds": duration

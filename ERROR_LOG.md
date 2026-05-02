@@ -7,6 +7,117 @@
 ---
 
 
+### ERROR-057: need_to_fix_bug.md Foundation Bugs — State Corruption, Timeout, Glossary Pipeline
+**Date**: 2026-05-02
+**Files**: `src/utils/ollama_client.py`, `src/agents/reflection_agent.py`, `src/agents/refiner.py`, `src/agents/qa_tester.py`, `src/pipeline/orchestrator.py`, `src/memory/memory_manager.py`, `src/agents/checker.py`, `tests/test_memory.py`
+**Issue Summary**:
+Per `need_to_fix_bug.md`, 6 phases of bugs needed fixing:
+1. **State corruption**: ReflectionAgent mutated `self.client.model` (shared mutable state) and never restored on exception
+2. **Timeout not enforced**: `OllamaClient.chat()` stored `self.timeout` but never passed it to any Ollama API call
+3. **Response parsing unsafe**: Direct dict access (`response['response']`, `response['message']['content']`) with no defensive checks
+4. **Glossary not enforced in Refiner**: Refiner had zero glossary awareness — no MemoryManager, no glossary injection
+5. **QA Tester dead code**: `_check_glossary_consistency()` was commented out with `pass`; QA Tester never called in pipeline
+6. **No memory validation**: Glossary terms could be stored with Bengali/Latin/Chinese targets
+7. **DI Container dead code**: `src/core/container.py` unused, out of sync with orchestrator (OllamaClient constructor mismatch, missing agents, broken per-novel glossary)
+**Root Cause**:
+1. ReflectionAgent used temporary swap pattern (`self.client.model = self.model`) without try/finally restore
+2. AGENTS.md requires `options={"timeout": settings.models.timeout}` but OllamaClient never included `"timeout"` key
+3. padauk-gemma quirk (thinking field) was handled but no defense against missing keys
+4. Refiner constructor only accepted `ollama_client, batch_size, config` — no `memory_manager` param
+5. QA Tester glossary check was explicitly disabled with `pass # Commented out to reduce false positives`
+6. MemoryManager had no Unicode/character-set validation at storage time
+**Fix Applied**:
+1. ReflectionAgent now passes `model=self.model` as per-call param to `OllamaClient.chat()` — stateless
+2. Added `"timeout": int(self.timeout)` to options dict in chat(), chat_stream(), _unload_model(), unload_model()
+3. All response access uses `.get()` with `isinstance` guards: `response.get('response', '')`, `msg.get('content', '')`
+4. Refiner now accepts `memory_manager`, calls `_get_glossary_for_prompt(limit=20)`, injects glossary into prompts
+5. QA Tester glossary check uncommented, checks all terms (not just verified), wired as Stage 6
+6. Added `_is_valid_myanmar_text()` to MemoryManager; `add_term/update_term/add_pending_term` reject non-Myanmar targets
+7. Promotion methods guard `add_term()` return value — failed promotions stay in pending
+8. Checker now also detects missing target spellings for verified character/place names
+9. Particle diversity rule added to Refiner GLOSSARY_ENFORCEMENT
+10. `OllamaClient` now raises `ModelError` (typed) instead of `RuntimeError`; ConnectionError raises immediately
+11. DI Container left as-is (deleting it would be a separate cleanup task)
+**Files Modified**:
+- `src/utils/ollama_client.py` — timeout + defensive parse + typed exceptions + per-call model
+- `src/agents/reflection_agent.py` — stateless model + MemoryManager + glossary injection
+- `src/agents/refiner.py` — MemoryManager + glossary injection + particle rule
+- `src/agents/qa_tester.py` — uncommented glossary check + hoisted placeholder
+- `src/pipeline/orchestrator.py` — memory_manager wired to Refiner/Reflection + QA Stage 6
+- `src/memory/memory_manager.py` — `_is_valid_myanmar_text()` + promotion guards
+- `src/agents/checker.py` — target_missing detection for verified names
+- `tests/test_memory.py` — Myanmar test values
+**Status**: RESOLVED
+**Verified By**: pytest 280/280 pass, Reviewer A PASS, Reviewer B PASS (pre-existing issues noted separately)
+
+
+### ERROR-056: Production Polish — Incomplete requirements.txt + No CI Pipeline
+**Date**: 2026-05-02
+**Files**: `requirements.txt`, `.github/workflows/ci.yml` (new)
+**Issue Summary**:
+1. `requirements.txt` had only 4 packages — missing `pydantic` (used in `src/config/models.py`), `typing_extensions` (used in `src/types/definitions.py`), `requests` (used in `src/utils/ollama_client.py`). Also listed `chardet` as a dependency but it was never imported anywhere.
+2. No CI/CD pipeline — project relied entirely on manual test runs, no automated validation on push/PR.
+**Root Cause**:
+1. requirements.txt was never audited against actual `import` statements across the codebase
+2. CI pipeline mentioned in CURRENT_STATE.md but `.github/` directory was never created
+**Fix Applied**:
+1. Added `pydantic>=2.0.0`, `typing_extensions>=4.0.0`, `requests>=2.28.0` to requirements.txt. Removed dead `chardet` dependency.
+2. Created `.github/workflows/ci.yml` with: Python 3.10-3.13 matrix, pip install + pytest, Ruff lint (non-blocking with TODO), compile syntax check
+**Files Created**:
+- `.github/workflows/ci.yml` — 58 lines, 2 jobs (test + lint)
+**Files Modified**:
+- `requirements.txt` — +3 deps, -1 dead dep
+**Status**: RESOLVED
+**Verified By**: Reviewer A+B both PASS, pytest 280/280 pass
+**Commit**: faf3430
+
+### ERROR-055: 4 Quality-of-Life Gaps — Fluency Metrics, CLI Wizard, Auto-Approve Glossary, Legal Docs
+**Date**: 2026-05-02
+**Files**: `src/utils/fluency_scorer.py` (new), `ui/pages/0_Quickstart.py` (new), `src/memory/memory_manager.py`, `src/pipeline/orchestrator.py`, `src/utils/translation_reviewer.py`, `LICENSE`, `DISCLAIMER.md`
+**Issue Summary**:
+1. No automated quality metrics beyond rule-based deduction — no fluency heuristic, no BLEU/COMET equivalent
+2. CLI learning curve steep — users must know all flags; no guided first-run experience in Web UI
+3. Glossary bottleneck — pending terms require manual JSON editing to set status='approved'; no automatic confidence-based promotion
+4. No LICENSE file, no disclaimer, no copyright notice — legal documentation gap
+**Root Cause**:
+1. Quality scoring was purely arithmetic deduction (100→0) with no statistical fluency analysis
+2. Web UI had all options exposed at once with no onboarding wizard or guided walkthrough
+3. `auto_approve_pending_terms()` only promoted terms manually marked 'approved' by human in JSON
+4. Legal documentation was never created — PROJECT_DOCUMENTATION.md referenced a non-existent LICENSE
+**Fix Applied**:
+1. **Fluency Scorer**: Created `src/utils/fluency_scorer.py` with 7 reference-free heuristics:
+   - F1: Lexical Diversity (Type-Token Ratio) — catches repetitive/robotic output
+   - F2: Particle Diversity — ensures varied Myanmar particle usage
+   - F3: Sentence Flow — length variance + proper sentence enders
+   - F4: Syllable Richness — compound word density (literary vs simplistic)
+   - F5: Paragraph Rhythm — length variance between paragraphs
+   - F6: Punctuation Health — proper ။/၊ ratio and density
+   - F7: Repetition Penalty — hallucination loop detection
+   - Integrated into `translation_reviewer.py` as "Fluency Score" check (F0)
+2. **Quickstart Wizard**: Created `ui/pages/0_Quickstart.py` — 3-step guided wizard:
+   - Step 1: Select novel from available files
+   - Step 2: Configure model and settings (auto-detect from Ollama)
+   - Step 3: Review and launch translation with one click
+   - Includes CLI command reference (--help examples) for power users
+3. **Glossary Auto-Approve**: Added `auto_approve_by_confidence(confidence_threshold=0.75)` to MemoryManager:
+   - 5 confidence rules: chapter sightings (+0.25-0.40), category trust (+0.20), non-placeholder (+0.15), Myanmar target (+0.10), name pattern (+0.10)
+   - Terms with confidence ≥ threshold auto-promoted to approved glossary
+   - Updated `add_pending_term()` to track `chapters_seen` list and `chapter_count`
+   - Integrated into orchestrator pipeline initialization
+4. **Legal Documentation**: Created `LICENSE` (MIT) and `DISCLAIMER.md` (fair use, copyright, AI content, no-warranty, data privacy)
+**Files Created**:
+- `src/utils/fluency_scorer.py` — 350 lines, 7 heuristic scoring functions
+- `ui/pages/0_Quickstart.py` — 250 lines, guided 3-step wizard
+- `LICENSE` — MIT License
+- `DISCLAIMER.md` — Legal disclaimer
+**Files Modified**:
+- `src/utils/translation_reviewer.py` — +30 lines (_check_fluency + integration)
+- `src/memory/memory_manager.py` — +95 lines (auto_approve_by_confidence + chapter tracking in add_pending_term)
+- `src/pipeline/orchestrator.py` — +6 lines (confidence auto-approve call)
+**Status**: RESOLVED
+**Verified By**: pytest (280/280 pass), functional test (fluency scores: good=91.3, robotic=39.4, English=38.2), auto-approve test (2 terms promoted, 1 rejected correctly)
+
+
 ### ERROR-053: 7 Output Quality Issues — Credit Lines, Truncation, Archaic Corruptions, Tamil Leak, Dup Headings
 **Date**: 2026-05-02
 **Files**: `src/pipeline/orchestrator.py`, `src/utils/postprocessor.py`, `tests/test_postprocessor.py`
