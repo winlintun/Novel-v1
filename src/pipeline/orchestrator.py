@@ -245,6 +245,13 @@ class TranslationPipeline:
 
             # Chapter label for progress display
             chapter_label = Path(filepath).name
+            
+            # Extract chapter number from filename (needed for meta + context update)
+            import re
+            chapter_num = None
+            m = re.search(r'(\d+)', Path(filepath).stem)
+            if m:
+                chapter_num = int(m.group(1))
 
             # Preprocess
             chunks = self._preprocess(text, chapter_label)
@@ -276,6 +283,21 @@ class TranslationPipeline:
                 self._auto_review(str(output_path), result_text)
             except Exception as e:
                 self.logger.warning(f"Auto-review failed (non-fatal): {e}")
+
+            # Context Update: extract new terms → pending glossary (non-fatal)
+            try:
+                ctx_result = self.context_updater.process_chapter(
+                    original_text=text,
+                    translated_text=result_text,
+                    chapter_num=chapter_num or 0,
+                )
+                if ctx_result and ctx_result.get('new_terms_added', 0) > 0:
+                    self.logger.info(
+                        f"Context update: {ctx_result['new_terms_added']} new terms pending review, "
+                        f"{ctx_result.get('entities_found', 0)} entities found"
+                    )
+            except Exception as e:
+                self.logger.warning(f"Context update failed (non-fatal): {e}")
 
             # Compute summary metrics
             avg_score = 0
@@ -488,6 +510,9 @@ class TranslationPipeline:
 
         # Use smart_chunk directly per need_to_fix.md spec
         from src.utils.chunker import smart_chunk, estimate_tokens
+        
+        # Strip translator/editor metadata lines BEFORE chunking
+        text = self.preprocessor.strip_metadata(text)
         
         # Clean and normalize
         text = self.preprocessor.clean_markdown(text)
@@ -850,7 +875,7 @@ class TranslationPipeline:
         return result
     
     def _save_output(self, input_path: str, text: str, extra_meta: Optional[Dict[str, Any]] = None) -> Path:
-        """Save translated output.
+        """Save translated output and update per-novel cumulative meta.json.
         
         Args:
             input_path: Original input file path
@@ -870,40 +895,61 @@ class TranslationPipeline:
         # Ensure directory exists
         output_path.parent.mkdir(parents=True, exist_ok=True)
         
-        # Add metadata if enabled
-        if self.config.output.add_metadata:
-            from src.utils.file_handler import FileHandler
-            meta_path = output_path.with_suffix('.meta.json')
-            # Extract chapter number from filename
-            import re
-            chapter_num = None
-            m = re.search(r'(\d+)', output_path.stem)
-            if m:
-                chapter_num = int(m.group(1))
+        # Extract chapter number from filename
+        import re
+        chapter_num = None
+        m = re.search(r'(\d+)', output_path.stem)
+        if m:
+            chapter_num = int(m.group(1))
+        
+        # --- Write chapter .mm.md file ---
+        from src.utils.file_handler import FileHandler
+        FileHandler.write_text(str(output_path), text)
+        
+        # --- Update cumulative per-novel meta.json ---
+        # Single file: data/output/{novel}/{novel}.mm.meta.json
+        # Updated cumulatively with each chapter translation
+        if self._current_novel:
+            import json
+            novel_meta_path = output_path.parent / f"{self._current_novel}.mm.meta.json"
             
-            metadata = {
+            # Load existing meta if it exists
+            existing_meta = {}
+            if novel_meta_path.exists():
+                try:
+                    existing_meta = json.loads(FileHandler.read_text(str(novel_meta_path)))
+                except Exception:
+                    existing_meta = {}
+            
+            # Build chapter entry
+            chapter_entry = {
+                "chapter": chapter_num,
                 "translated_at": datetime.now().isoformat(),
                 "source": str(input_path),
                 "pipeline": self.config.translation_pipeline.mode,
-                "output_file": str(output_path.name),
-                "novel": self._current_novel,
-                "chapter": chapter_num,
+                "model": self.config.models.translator,
+                "char_count": len(text) if text else 0,
+                "myanmar_ratio": round(
+                    self._calc_myanmar_ratio(text), 3
+                ) if text else 0.0,
             }
-            # Merge extra metadata (duration, quality, etc.)
             if extra_meta:
-                # Filter out None values
-                metadata.update({k: v for k, v in extra_meta.items() if v is not None})
+                chapter_entry.update({k: v for k, v in extra_meta.items() if v is not None})
+            
+            # Update cumulative meta
+            chapters_meta = existing_meta.get("chapters", {})
+            chapters_meta[str(chapter_num)] = chapter_entry
+            existing_meta["novel"] = self._current_novel
+            existing_meta["last_updated"] = datetime.now().isoformat()
+            existing_meta["total_chapters"] = len(chapters_meta)
+            existing_meta["chapters"] = chapters_meta
             
             try:
-                import json
-                meta_content = json.dumps(metadata, indent=2, ensure_ascii=False)
-                FileHandler.write_text(str(meta_path), meta_content)
+                meta_content = json.dumps(existing_meta, indent=2, ensure_ascii=False)
+                FileHandler.write_text(str(novel_meta_path), meta_content)
+                self.logger.info(f"Updated meta: {novel_meta_path.name} (chapters: {len(chapters_meta)})")
             except Exception as e:
-                self.logger.warning(f"Failed to write metadata sidecar: {e}")
-        
-        # Write file
-        from src.utils.file_handler import FileHandler
-        FileHandler.write_text(str(output_path), text)
+                self.logger.warning(f"Failed to write meta: {e}")
         
         self.logger.info(f"Step 7/7: Saved output to {output_path}")
         

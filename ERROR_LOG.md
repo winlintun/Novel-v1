@@ -7,6 +7,44 @@
 ---
 
 
+### ERROR-053: 7 Output Quality Issues — Credit Lines, Truncation, Archaic Corruptions, Tamil Leak, Dup Headings
+**Date**: 2026-05-02
+**Files**: `src/pipeline/orchestrator.py`, `src/utils/postprocessor.py`, `tests/test_postprocessor.py`
+**Issue Summary**:
+Review of logs/report/ and output files for Ch14/15/16 revealed 7 issues:
+1. Myanmar credit lines (ဘာသာပြန်သူ-...) in output body — source metadata not stripped before chunking
+2. Chunk boundary truncation — sentences cut mid-chunk where next line starts with consonant
+3. Archaic word `\b` regex corrupting compound words (ထိုင်ခိုင်း → အဲဒီင်ခိုင်း)
+4. Tamil script leakage (7 chars in Ch15) — not covered by existing script detection
+5. Duplicate bare `# အခန်း` heading without number in Ch16
+6. BOM character `\ufeff` breaking heading detection in remove_duplicate_headings()
+7. Degraded placeholders `【??】` instead of `【?term?】`
+**Root Cause**:
+1. Orchestrator `_preprocess()` called `clean_markdown()` but never `strip_metadata()` — credit lines survived
+2. `stitch_chunk_boundaries()` only detected medial-character continuations, not consonant starts
+3. Python `\b` treats Myanmar combining marks (Mn) as `\W`, creating false boundaries inside syllables
+4. Postprocessor only had Thai/Bengali/Chinese patterns — no Tamil/Indic block
+5. `remove_duplicate_headings()` tracked bare headings independently from numbered
+6. `line.strip()` doesn't strip BOM which is U+FEFF (not whitespace)
+7. Model outputting degraded `【??】` instead of standard `【?term?】`
+**Fix Applied**:
+1. Added `text = self.preprocessor.strip_metadata(text)` in orchestrator `_preprocess()`
+2. Added Strategy 2: short line (<150 chars) without sentence-ender + next Myanmar line → stitch
+3. Replaced `\b` with Myanmar consonant lookahead/lookbehind. Added `undo_archaic_corruptions()` to fix pre-existing corruptions.
+4. Added `_INDIC_PATTERN` (9 script blocks: Tamil, Telugu, Kannada, Malayalam, Devanagari, Sinhala, Gujarati, Oriya, Gurmukhi). `remove_indic_characters()` strips them.
+5. Bare `# အခန်း` after any numbered heading → treated as duplicate
+6. Changed to `line.strip().lstrip('\ufeff')` for BOM handling
+7. Added `fix_degraded_placeholders()`: `【??】` → `【?term?】`
+8. Added `strip_translated_metadata()` defense-in-depth for Myanmar credit lines
+9. Updated `clean_output()` pipeline and `detect_language_leakage()` / `validate_output()` for Indic chars
+**Files Modified**:
+- `src/pipeline/orchestrator.py` — Added strip_metadata() call
+- `src/utils/postprocessor.py` — 7 function improvements/creations (+110 lines)
+- `tests/test_postprocessor.py` — Updated test for Chinese always-strip behavior
+**Status**: RESOLVED
+**Verified By**: pytest (280/280 pass), output re-cleaning verified (0 corruptions, 0 Tamil, 0 archaic in Ch14/15/16)
+
+
 ### ERROR-052: Smart Paragraph Chunking Implementation — Replaced Fixed-Size Splitting
 **Date**: 2026-05-02
 **Files**: `src/utils/chunker.py` (new), `src/agents/preprocessor.py`, `src/pipeline/orchestrator.py`, `src/agents/translator.py`, `src/config/models.py`, `config/settings.yaml`

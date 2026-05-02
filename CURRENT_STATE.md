@@ -10,6 +10,28 @@
 ## Last Updated
 - Date: 2026-05-02
 - Last task completed:
+  - **FIXED: 7 Output Quality Issues from Log/Report Review** (STATUS: READY_TO_COMMIT):
+    - **Root Cause 1 (Credit lines in output)**: Orchestrator `_preprocess()` never called `strip_metadata()` — only `clean_markdown()`. Translator: Skyfarrow Editor: Skyfarrow lines leaked into chunks and were translated to Myanmar.
+    - **Root Cause 2 (Chunk boundary truncation)**: `stitch_chunk_boundaries()` only stitched when next line started with medial character. Truncation at consonant-starting lines wasn't caught.
+    - **Root Cause 3 (Archaic word corruptions)**: `replace_archaic_words()` used `\b` which treats Myanmar combining marks as `\W`, creating false word boundaries inside compounds like `ထိုင်ခိုင်း` → `အဲဒီင်ခိုင်း`.
+    - **Root Cause 4 (Tamil script leakage)**: Postprocessor only stripped Chinese/Bengali/Thai. Ch15 had 7 Tamil chars (`எண்ணற்ற`).
+    - **Root Cause 5 (Bare heading not deduplicated)**: Ch16 had `# အခန်း` (no number) that survived because bare headings tracked separately from numbered ones.
+    - **Root Cause 6 (BOM breaks heading detection)**: `remove_duplicate_headings()` used `line.strip()` which doesn't strip BOM `\ufeff`.
+    - **Root Cause 7 (Degraded placeholders `【??】`)**: Model outputs degraded `【??】` instead of `【?term?】` standard.
+    - **Fixes Applied**:
+      1. **Orchestrator**: Added `strip_metadata()` call in `_preprocess()` before `clean_markdown()` (1 line)
+      2. **stitch_chunk_boundaries()**: Added Strategy 2 for short truncated lines (< SHORT_LINE_THRESHOLD=150) with no sentence-ender + next Myanmar line → stitch. Added `-> bool` type annotations.
+      3. **replace_archaic_words()**: Replaced `\b` with Myanmar-specific consonant lookbehind `(?<![က-အ])` and lookahead `(?!combining*[က-အ])` — correctly identifies standalone vs compound.
+      4. **undo_archaic_corruptions()**: NEW function to fix pre-existing corruptions from old `\b` regex: `အဲဒီင` → `ထိုင`, `အဲဒီ`+combining → `ထို`.
+      5. **_INDIC_PATTERN**: Added Tamil, Telugu, Kannada, Malayalam, Devanagari, Sinhala, Gujarati, Oriya, Gurmukhi. `remove_indic_characters()` strips them. Updated `detect_language_leakage()` and `validate_output()`.
+      6. **remove_duplicate_headings()**: `line.strip().lstrip('\ufeff')` to handle BOM. Bare `# အခန်း` after any numbered heading → treated as duplicate.
+      7. **fix_degraded_placeholders()**: NEW function: `【??】` → `【?term?】`.
+      8. **strip_translated_metadata()**: NEW function removes Myanmar credit lines (ဘာသာပြန်သူ-..., တည်းဖြတ်သူ-...).
+      9. **clean_output()**: Pipeline updated — always strips Chinese/Bengali/Indic, runs new functions in correct order. Latin stripped only in aggressive mode.
+     10. **test_postprocessor.py**: Updated `test_default_no_aggressive_removal` to reflect new behavior (Chinese always stripped).
+    - **Output files**: Ch14 (99.3% MM, 0 corruptions), Ch15 (98.7% MM, 0 corruptions, 0 Tamil), Ch16 (99.5% MM, 0 corruptions) — all re-cleaned.
+    - **Files Modified**: `src/pipeline/orchestrator.py` (+1 line), `src/utils/postprocessor.py` (+110 lines), `tests/test_postprocessor.py` (5 lines changed)
+    - **Tests**: 280/280 pass
   - **IMPLEMENTED: Smart Paragraph Chunking (per need_to_fix.md) — Token-Aware, No Split, No Overlap** (STATUS: READY_TO_COMMIT):
     - **Spec Source**: `need_to_fix.md` — exact chunking algorithm from v1.0 specification
     - **What was wrong**: Preprocessor used per-paragraph token accumulation with overlap support (overlap_size), chunk boundaries could split mid-sentence, no token budget check before LLM send, no rolling context between chunks

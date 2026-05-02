@@ -78,6 +78,15 @@ _THAI_PATTERN = re.compile(r"[\u0E00-\u0E7F]+")
 # Bengali Unicode range — should never appear in Myanmar output
 _BENGALI_PATTERN = re.compile(r"[\u0980-\u09FF]+")
 
+# Tamil and other Indic scripts — should never appear in Myanmar output
+# Tamil (U+0B80-U+0BFF), Telugu (U+0C00-U+0C7F), Kannada (U+0C80-U+0CFF)
+# Malayalam (U+0D00-U+0D7F), Sinhala (U+0D80-U+0DFF), Devanagari (U+0900-U+097F)
+# Gujarati (U+0A80-U+0AFF), Oriya (U+0B00-U+0B7F), Gurmukhi (U+0A00-U+0A7F)
+_INDIC_PATTERN = re.compile(
+    r"[\u0900-\u097F\u0A00-\u0A7F\u0A80-\u0AFF\u0B00-\u0B7F\u0B80-\u0BFF"
+    r"\u0C00-\u0C7F\u0C80-\u0CFF\u0D00-\u0D7F\u0D80-\u0DFF]+"
+)
+
 # Chinese characters — should not remain in translated output body
 _CHINESE_PATTERN = re.compile(r"[\u4E00-\u9FFF\u3400-\u4DBF]+")
 
@@ -202,11 +211,12 @@ def strip_reasoning_process(text: str) -> str:
 def detect_language_leakage(text: str) -> dict[str, int]:
     """
     Count non-Myanmar language characters in output.
-    Returns counts for Thai, Bengali, Chinese, and English.
+    Returns counts for Thai, Bengali, Indic, Chinese, and English.
     Used for quality logging.
     """
     thai_count = len(_THAI_PATTERN.findall(text))
     bengali_count = len(_BENGALI_PATTERN.findall(text))
+    indic_count = len(_INDIC_PATTERN.findall(text))
     chinese_count = len(_CHINESE_PATTERN.findall(text))
     latin_words = len(_LATIN_WORD_PATTERN.findall(text))
     english_common = len(_ENGLISH_COMMON_WORDS.findall(text))
@@ -214,6 +224,7 @@ def detect_language_leakage(text: str) -> dict[str, int]:
     return {
         "thai_chars": thai_count,
         "bengali_chars": bengali_count,
+        "indic_chars": indic_count,
         "chinese_chars": chinese_count,
         "latin_words": latin_words,
         "english_common_words": english_common,
@@ -238,6 +249,11 @@ def remove_chinese_characters(text: str) -> str:
 def remove_bengali_characters(text: str) -> str:
     """Remove all Bengali characters from text."""
     return _BENGALI_PATTERN.sub("", text)
+
+
+def remove_indic_characters(text: str) -> str:
+    """Remove all Indic-script characters (Tamil, Telugu, Kannada, etc.) from text."""
+    return _INDIC_PATTERN.sub("", text)
 
 
 def remove_latin_words(text: str) -> str:
@@ -305,27 +321,41 @@ def remove_duplicate_headings(text: str) -> str:
 
     Uses prefix matching: '# အခန်း ၁၃: Title A' and '# အခန်း ၁၃'
     are both treated as the same chapter heading block.
+    
+    Also handles bare '# အခန်း' without a number (model truncation).
     """
     seen_chapters: set[str] = set()
+    seen_bare_heading = False
     lines = text.split('\n')
     result: list[str] = []
     in_duplicate_block = False
 
     for line in lines:
-        stripped = line.strip()
+        stripped = line.strip().lstrip('\ufeff')
 
-        # Detect chapter heading (# အခန်း N...)
+        # Detect chapter heading: '# အခန်း N...' or bare '# အခန်း'
         heading_match = re.match(
-            r'^(#\s+အခန်း\s+[\u1040-\u1049\d]+)',
+            r'^(#\s+အခန်း(?:\s+[\u1040-\u1049\d]+)?)',
             stripped
         )
         if heading_match:
             chapter_prefix = heading_match.group(1)
+            # Check if bare heading '# အခန်း' (no number)
+            is_bare = chapter_prefix.rstrip() == '# အခန်း'
+            if is_bare:
+                # If we've already seen ANY chapter heading, bare heading is duplicate
+                if seen_bare_heading or seen_chapters:
+                    in_duplicate_block = True
+                    continue
+                seen_bare_heading = True
+                in_duplicate_block = False
+                result.append(line)
+                continue
+            
             if chapter_prefix in seen_chapters:
-                # Enter skip mode for this heading block
                 in_duplicate_block = True
                 continue
-            # New chapter heading — exit any prior skip mode
+            # New numbered chapter heading
             in_duplicate_block = False
             seen_chapters.add(chapter_prefix)
             result.append(line)
@@ -398,6 +428,111 @@ def detect_potential_hallucinations(text: str, known_terms: Optional[set] = None
     return warnings
 
 
+def replace_archaic_words(text: str) -> str:
+    """Replace archaic Myanmar words with modern alternatives.
+    
+    Archaic → Modern:
+        ဤ (this) → ဒီ
+        ထို (that) → အဲဒီ
+        သင်သည် (you) → မင်း
+    
+    Uses Myanmar-specific word boundaries (not \\b which breaks on
+    combining marks in Unicode Myanmar). Only replaces when the
+    archaic word is NOT followed by another Myanmar consonant letter
+    (possibly with intervening combining marks), meaning it's
+    a standalone word, not part of a compound like ထိုင်ခိုင်း.
+    """
+    if not text:
+        return text
+    
+    # Myanmar consonant range: U+1000-U+1021 (က-အ) + independent vowels U+1023-U+102A
+    # Combining marks: virama U+1039, asat U+103A, vowels U+102C-1032, tones U+1036-1038
+    _MYANMAR_CONSONANT = r'[\u1000-\u1021\u1023-\u102A]'
+    _MYANMAR_COMBINING = r'[\u1039\u103A\u102C-\u1032\u1036-\u1038]*'
+    
+    # Lookbehind: NOT preceded by a Myanmar consonant letter
+    # Lookahead: NOT followed by (combining marks + consonant) — i.e. standalone
+    
+    # ဤ → ဒီ
+    text = re.sub(
+        r'(?<!' + _MYANMAR_CONSONANT + r')ဤ(?!' + _MYANMAR_COMBINING + _MYANMAR_CONSONANT + r')',
+        'ဒီ', text
+    )
+    # ထို → အဲဒီ
+    text = re.sub(
+        r'(?<!' + _MYANMAR_CONSONANT + r')ထို(?!' + _MYANMAR_COMBINING + _MYANMAR_CONSONANT + r')',
+        'အဲဒီ', text
+    )
+    # သင်သည် → မင်း
+    text = re.sub(
+        r'(?<!' + _MYANMAR_CONSONANT + r')သင်သည်(?!' + _MYANMAR_COMBINING + _MYANMAR_CONSONANT + r')',
+        'မင်း', text
+    )
+    return text
+
+
+def undo_archaic_corruptions(text: str) -> str:
+    """Fix corruptions caused by the old \\b-based replace_archaic_words().
+    
+    The old regex corrupted compound words like:
+        ထိုင်၍ → အဲဒီင်၍  (\\bထို\\b matched inside ထိုင်)
+        ထိုင်းပြီး → အဲဒီင်းပြီး
+        စိုထိုင်းပြီး → စိုအဲဒီင်းပြီး
+    
+    Undo: အဲဒီင → ထိုင (restore the original consonant cluster)
+    Also handles အဲဒီ followed directly by combining marks.
+    """
+    if not text:
+        return text
+    
+    # Fix 1: အဲဒီ directly followed by Myanmar combining mark → replace with ထို
+    text = re.sub(r'အဲဒီ(?=[\u1039\u103A\u102C-\u1032\u1036-\u1038])', 'ထို', text)
+    
+    # Fix 2: အဲဒီင → ထိုင (restores ထိုင်, ထိုင်း, etc. from compound corruptions)
+    text = re.sub(r'အဲဒီင', 'ထိုင', text)
+    
+    # Fix 3: အဲဒီဟ → ထိုဟ (for ထိုဟန် etc.)
+    text = re.sub(r'အဲဒီဟ', 'ထိုဟ', text)
+    
+    return text
+
+
+def fix_degraded_placeholders(text: str) -> str:
+    """Fix degraded placeholders: 【??】 → 【?term?】.
+    
+    Also handle variants like 【?】, 【??】, 【???】.
+    """
+    if not text:
+        return text
+    # Replace any degraded 【?*】 pattern with standard 【?term?】
+    text = re.sub(r'【\?+\s*】', '【?term?】', text)
+    return text
+
+
+def strip_translated_metadata(text: str) -> str:
+    """Remove Myanmar-translated translator/editor credit lines from output.
+    
+    The model sometimes translates English credit lines like
+    'Translator: Skyfarrow Editor: Skyfarrow' into Myanmar:
+    'ဘာသာပြန်သူ- ... တည်းဖြတ်သူ- ...'
+    
+    Also handles standalone credit markers.
+    """
+    if not text:
+        return text
+    lines = text.split('\n')
+    result = []
+    for line in lines:
+        stripped = line.strip()
+        # Detect Myanmar credit lines (model-translated metadata)
+        if re.match(r'^ဘာသာပြန်သူ[-:]', stripped, re.IGNORECASE):
+            continue
+        if re.match(r'^တည်းဖြတ်သူ[-:]', stripped, re.IGNORECASE):
+            continue
+        result.append(line)
+    return '\n'.join(result)
+
+
 def ensure_markdown_readability(text: str) -> str:
     """Ensure output has proper paragraph separation for readability.
     
@@ -467,47 +602,43 @@ def stitch_chunk_boundaries(text: str) -> str:
     """Stitch sentences cut at chunk boundaries.
     
     When chunks are joined with '\n\n', a sentence that was split at the
-    chunk boundary (e.g., 'He went to the\n\nold house') gets a paragraph
-    break in the middle. This function detects and joins such fragments.
+    chunk boundary gets a paragraph break in the middle. This function
+    detects and joins such fragments.
 
-    A sentence fragment is a line that ends without a Myanmar sentence-ender
-    and is followed by a continuation line (starts with a Myanmar medial
-    character like vowel sign or asat, indicating mid-word continuation).
+    Two strategies:
+    1. Next line starts with medial character (mid-word continuation)
+    2. Line ends without sentence-ender AND is short (< SHORT_LINE_THRESHOLD → truncation),
+       next line contains Myanmar content AND isn't a heading/separator
     """
-    # Myanmar sentence-enders: full stop, comma, quote markers
-    _MYANMAR_ENDERS = ('။', '၊', '"', '\u201d', "'", '!', '?',
-                        '\u104f',  # ၏ (literary/genitive ender, common in Wuxia)
-                        '\u1000',  # dummy (not an ender, just for set)
-                        )
+    # Threshold below which a line ending without sentence-ender is 
+    # considered likely truncated at a chunk boundary (vs a legit short line)
+    SHORT_LINE_THRESHOLD = 150
+    
     _ENDER_SET = {'။', '၊', '"', '\u201d', "'", '!', '?', '၏'}
-
-    # Separator/marker lines that should never be stitched
     _SEPARATORS = ('---', '***', '===')
+    _MYANMAR_RE = re.compile(r'[\u1000-\u109F]')
+
+    def _has_myanmar(s: str) -> bool:
+        return bool(_MYANMAR_RE.search(s))
 
     def _is_ender(line: str) -> bool:
-        """Check if line ends with a Myanmar sentence-ender."""
         stripped = line.rstrip()
         if not stripped:
             return False
-        last_char = stripped[-1]
-        return last_char in _ENDER_SET
+        return stripped[-1] in _ENDER_SET
 
-    def _is_continuation(line: str) -> bool:
-        """Check if line starts like a mid-word continuation (medial character).
-        
-        Myanmar medial characters include: vowel signs (ၲ-ၰ), asat (ၹ),
-        great sa (ၿ), tone marks that attach to a preceding consonant.
-        A new sentence always starts with a full consonant letter (က-အ).
-        """
+    def _is_medial_continuation(line: str) -> bool:
+        """Line starts with medial/vowel tone that indicates mid-word continuation."""
         if not line:
             return False
-        first_char = line[0]
-        code = ord(first_char)
-        # Myanmar medial/vowel signs that indicate mid-word continuation:
-        # U+1039 virama/asat, U+102C-1032 vowels, U+1036 anusvara,
-        # U+1037 tone, U+1038 visarga, U+103A asat
+        code = ord(line[0])
         return (0x102C <= code <= 0x1032 or
                 code in (0x1036, 0x1037, 0x1038, 0x1039, 0x103A))
+
+    def _is_short_truncated(line: str) -> bool:
+        """Line ends without sentence-ender and is relatively short (< threshold)."""
+        stripped = line.rstrip()
+        return len(stripped) < SHORT_LINE_THRESHOLD and not _is_ender(stripped) and _has_myanmar(stripped)
 
     lines = text.split('\n')
     result: list[str] = []
@@ -517,42 +648,39 @@ def stitch_chunk_boundaries(text: str) -> str:
         line = lines[i]
         stripped = line.strip()
         
-        # Skip blank lines (preserved as-is)
         if not stripped:
             result.append('')
             i += 1
             continue
 
-        # NEVER stitch separator lines (---, ***, ===)
         is_separator = any(stripped.startswith(s) for s in _SEPARATORS)
         if is_separator:
             result.append(stripped)
             i += 1
             continue
 
-        # Check if this line looks like a truncated sentence:
-        # - Does NOT end with a sentence-ender
-        # - Next content line is a continuation (starts with medial char)
+        # Check for truncated sentence at chunk boundary
         if not _is_ender(stripped) and i + 1 < len(lines):
-            # Find next content line, skipping blanks
             j = i + 1
             while j < len(lines) and not lines[j].strip():
                 j += 1
             if j < len(lines):
                 next_content = lines[j].strip()
-                # Only stitch if next line starts like a mid-word continuation
-                # (NOT a heading, separator, number, or new sentence-starting consonant)
                 if (next_content
                     and not next_content.startswith('#')
                     and not any(next_content.startswith(s) for s in _SEPARATORS)
                     and not next_content[0].isdigit()
-                    and not next_content[0] in '*-'
-                    and _is_continuation(next_content)):
-                    # Stitch: join lines, preserving separator blank lines
-                    stitched = stripped + next_content
-                    result.append(stitched)
-                    i = j + 1
-                    continue
+                    and not next_content[0] in '*-'):
+                    # Strategy 1: next line starts with medial character (continuation)
+                    if _is_medial_continuation(next_content):
+                        result.append(stripped + next_content)
+                        i = j + 1
+                        continue
+                    # Strategy 2: line is short and ends without ender (likely truncation)
+                    if _is_short_truncated(stripped) and _has_myanmar(next_content):
+                        result.append(stripped + next_content)
+                        i = j + 1
+                        continue
 
         result.append(stripped)
         i += 1
@@ -566,19 +694,20 @@ def clean_output(raw: str, aggressive: bool = False) -> str:
     1. Strip reasoning tags (<think>, etc.)
     2. Strip reasoning process (model's analysis sections)
     3. Strip header artifacts
-    4. Stitch chunk boundary fragments (join truncated sentences)
-    5. Remove Chinese/Bengali/Latin leakage (aggressive mode only)
-    6. Collapse 3+ blank lines → 2
-    7. Fix chapter heading format (# X ## Y → proper markdown)
-    8. Remove duplicate chapter headings
-    9. Ensure markdown readability (paragraph breaks, heading spacing)
-    10. Strip leading/trailing whitespace
+    4. Strip translated metadata lines (credit: ဘာသာပြန်သူ- etc.)
+    5. Stitch chunk boundary fragments (join truncated sentences)
+    6. Remove Chinese/Bengali leakage (Bengali ALWAYS, Latin only if aggressive)
+    7. Fix degraded placeholders: 【??】 → 【?term?】
+    8. Replace archaic words: ဤ→ဒီ, ထို→အဲဒီ
+    9. Collapse 3+ blank lines → 2
+    10. Fix chapter heading format (# X ## Y → proper markdown)
+    11. Remove duplicate chapter headings
+    12. Ensure markdown readability (paragraph breaks, heading spacing)
+    13. Strip leading/trailing whitespace
     
     Args:
         raw: Raw LLM output
-        aggressive: If True, aggressively remove all Chinese/Latin characters.
-                   If False (default), only strip tags and artifacts to prevent
-                   over-processing that could corrupt Myanmar output (per need_fix.md).
+        aggressive: If True, also remove Latin/English words.
     
     Returns:
         Cleaned text
@@ -587,14 +716,29 @@ def clean_output(raw: str, aggressive: bool = False) -> str:
     text = strip_reasoning_process(text)
     text = strip_header_artifacts(text)
     
-    # Stitch fragments at chunk boundaries BEFORE other processing
+    # Remove Myanmar-translated metadata lines (translator/editor credit)
+    text = strip_translated_metadata(text)
+    
+    # Stitch fragments at chunk boundaries
     text = stitch_chunk_boundaries(text)
     
-    # Fixed: Only aggressively remove Chinese/Latin if explicitly requested
+    # Always strip Chinese, Bengali, and other Indic scripts (unambiguous garbage)
+    text = remove_chinese_characters(text)
+    text = remove_bengali_characters(text)
+    text = remove_indic_characters(text)
+    
+    # Only remove Latin words if aggressive mode
     if aggressive:
-        text = remove_chinese_characters(text)
-        text = remove_bengali_characters(text)
         text = remove_latin_words(text)
+    
+    # Fix degraded placeholders
+    text = fix_degraded_placeholders(text)
+    
+    # Undo corruptions from old \b-based archaic word replacement (pre-existing)
+    text = undo_archaic_corruptions(text)
+    
+    # Replace archaic Myanmar words with modern equivalents
+    text = replace_archaic_words(text)
     
     text = re.sub(r"\n{3,}", "\n\n", text)  # collapse excess blank lines
     text = _split_into_lines_if_needed(text)  # recover structure from collapsed text
@@ -618,10 +762,12 @@ def validate_output(text: str, chapter: int) -> dict:
     leakage = detect_language_leakage(text)
     ratio = myanmar_char_ratio(text)
     
-    # Determine status - Chinese or Bengali characters = automatic REJECT
+    # Determine status - Chinese, Bengali, Indic characters = automatic REJECT
     if leakage.get("thai_chars", 0) > 0:
         status = "REJECTED"
     elif leakage.get("bengali_chars", 0) > 0:
+        status = "REJECTED"
+    elif leakage.get("indic_chars", 0) > 0:
         status = "REJECTED"
     elif leakage.get("chinese_chars", 0) > 0:
         status = "REJECTED"
@@ -637,6 +783,7 @@ def validate_output(text: str, chapter: int) -> dict:
         "myanmar_ratio": round(ratio, 3),
         "thai_chars_leaked": leakage.get("thai_chars", 0),
         "bengali_chars_leaked": leakage.get("bengali_chars", 0),
+        "indic_chars_leaked": leakage.get("indic_chars", 0),
         "chinese_chars_leaked": leakage.get("chinese_chars", 0),
         "latin_words_found": leakage.get("latin_words", 0),
         "english_common_words": leakage.get("english_common_words", 0),

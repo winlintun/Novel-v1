@@ -1,7 +1,24 @@
 {
-  "last_updated": "2026-05-02T00:40:00Z",
+  "last_updated": "2026-05-02T13:00:00Z",
   "lessons": [
     {
+      "date": "2026-05-02",
+      "context": "Python \\b regex corrupts Myanmar compound words",
+      "lesson": "Python re module \\b treats Myanmar combining marks (Unicode Mn category, e.g. ိ U+102D, ု U+102F) as \\W, creating false word boundaries INSIDE syllables. regex \\bထို\\b matches inside compounds like ထိုင်ခိုင်း → အဲဒီင်ခိုင်း. NEVER use \\b for Myanmar text.",
+      "action": "Use Myanmar-consonant-specific lookahead/lookbehind: (?<![က-အ])WORD(?!combining*[က-အ]). Also add undo function for pre-existing corruptions."
+    },
+    {
+      "date": "2026-05-02",
+      "context": "BOM (U+FEFF) not stripped by Python str.strip()",
+      "lesson": "str.strip() only removes whitespace characters. BOM (U+FEFF, Zero Width No-Break Space) is NOT whitespace. Files written with UTF-8-SIG encoding have BOM that breaks heading detection with startswith('#') and regex ^ anchor.",
+      "action": "Always .lstrip('\\ufeff') or .replace('\\ufeff', '') before processing heading lines."
+    },
+    {
+      "date": "2026-05-02",
+      "context": "Tamil/Indic script leakage not caught",
+      "lesson": "padauk-gemma can output Tamil (and potentially other Indic scripts) mixed in Myanmar text. Postprocessor must strip ALL non-Myanmar scripts, not just Chinese/Bengali/Thai.",
+      "action": "Added _INDIC_PATTERN covering 9 Indic script blocks. Always strip in clean_output()."
+    },
       "date": "2026-05-02",
       "context": "Novel: Reverend Insanity — padauk-gemma glossary comparison garbage",
       "lesson": "padauk-gemma at temperature ≥ 0.4 outputs word-by-word glossary comparison junk (*:* \"word\" is . \"other\" is .) mixed with translation. These are NOT caught by existing reasoning-stripping patterns. Temperature 0.2 prevents this behavior.",

@@ -1,27 +1,42 @@
 {
-  "session_id": "2026-05-02-002",
-  "started_at": "2026-05-02T01:00:00Z",
-  "task": "Comprehensive fix: pipeline mode, paragraph breaks, chunk stitching, data cleanup, config simplification, metadata enhancement",
+  "session_id": "2026-05-02-003",
+  "started_at": "2026-05-02T12:00:00Z",
+  "task": "Bug fixes from log/report review: credit lines in body, chunk truncation, archaic words, degraded placeholders, Bengali leakage, duplicate headings",
   "current_step": "Complete",
-  "last_action": "Fixed 6 root causes: pipeline mode single_stage, paragraph breaks, chunk stitching, data folder cleanup (7 files removed), config simplification (settings.english.yaml removed), meta.json enhancement. Saved fixed Ch13 with 37 paragraph breaks. 235/235 tests pass.",
+  "last_action": "Fixed 7 issues: strip_metadata() call in orchestrator (root cause of credit lines in body), improved stitch_chunk_boundaries() with SHORT_LINE_THRESHOLD fallback, replace_archaic_words() with Myanmar-specific consonant boundaries (no \\b), undo_archaic_corruptions() to fix pre-existing corruptions, fix_degraded_placeholders(), strip_translated_metadata(), always-strip Chinese/Bengali/Indic scripts. Re-cleaned Ch14/Ch15/Ch16 output. 280/280 tests pass.",
   "next_action": "None",
   "open_files": [],
   "pending_decisions": [],
   "session_errors": [
     {
-      "step": "Pipeline mode regression",
-      "error": "way1 using 'full' pipeline caused 0 paragraph breaks + 2x slower translation vs 'single_stage' which works perfectly",
-      "resolved_by": "Changed way1 to single_stage in commands.py _apply_workflow_config"
+      "step": "Credit lines in output body",
+      "error": "Translator: Skyfarrow Editor: Skyfarrow translated to Myanmar and appeared in Ch14/15/16 output. Source lines not stripped because orchestrator _preprocess() never called strip_metadata().",
+      "resolved_by": "Added strip_metadata() call in orchestrator _preprocess(). Added strip_translated_metadata() postprocessor defense-in-depth."
     },
     {
-      "step": "Chunk boundary truncation",
-      "error": "Sentences cut at chunk boundaries when chunks joined with \\n\\n",
-      "resolved_by": "Added stitch_chunk_boundaries() to detect truncated sentences and join them"
+      "step": "Chunk boundary truncation at consonant starts",
+      "error": "stitch_chunk_boundaries() only stitched when next line started with medial character. Truncated lines followed by consonant-started lines were not caught.",
+      "resolved_by": "Added Strategy 2: if line < SHORT_LINE_THRESHOLD (150 chars), no sentence-ender, next line has Myanmar → stitch them."
     },
     {
-      "step": "Missing paragraph breaks",
-      "error": "Postprocessor didn't add blank lines between consecutive content paragraphs",
-      "resolved_by": "Added ensure_markdown_readability() that adds blank lines while preserving existing ones"
+      "step": "replace_archaic_words() corrupted compound words",
+      "error": "Python \\b regex treats Myanmar combining marks (Mn category) as \\W, creating false word boundaries inside compound words like ထိုင်ခိုင်း → အဲဒီင်ခိုင်း.",
+      "resolved_by": "Replaced \\b with Myanmar-specific consonant lookahead/lookbehind. Added undo_archaic_corruptions() to fix pre-existing corruptions."
+    },
+    {
+      "step": "Tamil script leakage in Ch15",
+      "error": "Postprocessor only stripped Chinese, Bengali, Thai but not Tamil or other Indic scripts. Ch15 had 7 Tamil characters (எண்ணற்ற).",
+      "resolved_by": "Added _INDIC_PATTERN covering Tamil, Telugu, Kannada, Malayalam, Devanagari, Sinhala. Always stripped in clean_output()."
+    },
+    {
+      "step": "BOM breaking heading detection",
+      "error": "remove_duplicate_headings() used line.strip() which doesn't remove BOM, causing first heading (with BOM) to go unrecognized.",
+      "resolved_by": "Changed to line.strip().lstrip('\\ufeff') to handle BOM characters."
+    },
+    {
+      "step": "Bare # အခန်း heading not deduplicated",
+      "error": "Ch16 had bare # အခန်း (no number) mid-body that survived dedup because bare headings were tracked separately from numbered ones.",
+      "resolved_by": "Bare heading after any numbered heading is now treated as duplicate."
     }
   ]
 }

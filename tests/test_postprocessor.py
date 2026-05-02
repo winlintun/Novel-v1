@@ -194,12 +194,15 @@ More text"""
         self.assertIn("မြန်မာစာ", result)
     
     def test_default_no_aggressive_removal(self):
-        """Test that clean_output does NOT aggressively remove Chinese by default (per need_fix.md)."""
+        """Test that clean_output always strips Chinese/Bengali but preserves Latin by default."""
         raw = "မြန်မာဘာသာ 中文句子 မြန်မာစာ"
         result = clean_output(raw)  # Default: aggressive=False
-        # By default, Chinese characters should be preserved to avoid over-processing
-        self.assertIn("中", result)
-        self.assertIn("文", result)
+        # Chinese is ALWAYS stripped (unambiguous garbage in Myanmar output)
+        self.assertNotIn("中", result)
+        self.assertNotIn("文", result)
+        # Myanmar content preserved
+        self.assertIn("မြန်မာဘာသာ", result)
+        self.assertIn("မြန်မာစာ", result)
 
 
 class TestRemoveChineseCharacters(unittest.TestCase):

@@ -1,6 +1,6 @@
 {
-  "last_updated": "2026-05-02T00:40:00Z",
-  "notes": "ERR-007 through ERR-042 are reserved for future Myanmar-specific translation errors. ERR-050 and ERR-051 are new padauk-gemma-specific errors. Do not reuse these IDs.",
+  "last_updated": "2026-05-02T13:00:00Z",
+  "notes": "ERR-052 through ERR-054 are from May 2 session — postprocessor and pipeline fixes.",
   "errors": [
     {
       "id": "ERR-001",
@@ -161,6 +161,33 @@
       "trigger": "remove_duplicate_headings() uses exact string match but headings vary slightly between chunks (different title text, with/without subtitle)",
       "solution": "Use prefix matching on '# အခန်း N' pattern instead of exact string comparison. Reset in_duplicate_block flag when new chapter heading encountered.",
       "prevention": "Always test deduplication with varied heading formats including minor character differences.",
+      "times_seen": 1,
+      "last_seen": "2026-05-02"
+    },
+    {
+      "id": "ERR-052",
+      "error_type": "MetadataNotStrippedBeforeChunking",
+      "trigger": "Orchestrator _preprocess() calls clean_markdown() but NOT strip_metadata(). Credit lines (Translator: X Editor: Y) survive into chunks and get translated into output body.",
+      "solution": "Add strip_metadata() call in orchestrator _preprocess() before clean_markdown(). Add strip_translated_metadata() postprocessor as defense-in-depth for translated credit lines.",
+      "prevention": "Always strip metadata BEFORE chunking, not after. Test with source files containing Translator:/Editor: lines.",
+      "times_seen": 1,
+      "last_seen": "2026-05-02"
+    },
+    {
+      "id": "ERR-053",
+      "error_type": "ArchaicWordCorruption",
+      "trigger": "replace_archaic_words() using python \\b regex matches Myanmar combining marks (Mn) as \\W, creating false word boundaries inside compounds like ထိုင်ခိုင်း",
+      "solution": "Use Myanmar consonant lookahead/lookbehind: (?<![က-အ])WORD(?!combining*[က-အ]). Add undo_archaic_corruptions() to fix pre-existing corruptions.",
+      "prevention": "NEVER use \\b with Myanmar text. Use Myanmar-specific consonant boundaries.",
+      "times_seen": 1,
+      "last_seen": "2026-05-02"
+    },
+    {
+      "id": "ERR-054",
+      "error_type": "IndicScriptLeak",
+      "trigger": "Tamil or other Indic scripts (U+0B80-U+0DFF) appear in Myanmar output — not caught by existing Chinese/Bengali/Thai detection",
+      "solution": "Add _INDIC_PATTERN covering 9 Indic script blocks. Strip in clean_output() unconditionally. Add to detect_language_leakage() and validate_output().",
+      "prevention": "Always strip ALL non-Myanmar scripts unconditionally — no script other than Myanmar should appear in output.",
       "times_seen": 1,
       "last_seen": "2026-05-02"
     }

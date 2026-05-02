@@ -1,9 +1,9 @@
 {
   "current_phase": "DOC",
-  "task": "Comprehensive fix: pipeline mode, paragraph breaks, chunk stitching, data cleanup, config simplification, metadata enhancement",
+  "task": "Bug fixes: credit lines, chunk truncation, archaic corruptions, Tamil leak, duplicate headings",
   "feature_type": 2,
   "phases": {
-    "PLAN": { "status": "DONE", "runner": "Agent", "requires_human": true },
+    "PLAN": { "status": "DONE", "runner": "Agent", "requires_human": false },
     "BUILD": { "status": "DONE", "runner": "Agent", "requires_human": false },
     "TEST": { "status": "DONE", "runner": "Agent", "requires_human": false },
     "VERIFY": {
@@ -16,5 +16,5 @@
     "AUDIT": { "status": "DONE", "runner": "Gemini", "requires_human": false },
     "DOC": { "status": "DONE", "runner": "Agent", "requires_human": false, "skippable": false }
   },
-  "updated_at": "2026-05-02T01:30:00Z"
+  "updated_at": "2026-05-02T13:00:00Z"
 }
