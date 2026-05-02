@@ -1,10 +1,17 @@
 import streamlit as st
 import os
+import re
 import sys
 import subprocess
 import time
 from datetime import datetime
 from pathlib import Path
+
+# Read CLI hints from environment variables (set by src/main.py --ui)
+if "NOVEL_TRANSLATE_NOVEL" in os.environ and "novel" not in st.session_state:
+    st.session_state["_cli_novel"] = os.environ["NOVEL_TRANSLATE_NOVEL"]
+    st.session_state["_cli_chapter"] = int(os.environ.get("NOVEL_TRANSLATE_CHAPTER", "0"))
+    st.session_state["_cli_all"] = os.environ.get("NOVEL_TRANSLATE_ALL") == "1"
 
 # Add project root to path for imports
 project_root = str(Path(__file__).parent.parent.parent)
@@ -168,23 +175,68 @@ if st.session_state.running:
     st.divider()
     st.subheader("📊 Translation Progress")
 
-    # Find the progress log file
+    # Find progress info from the translation log
     progress_log = Path("logs/translation.log")
     progress_placeholder = st.empty()
+    progress_bar = st.progress(0)
+    metrics_cols = st.columns(4)
 
     try:
+        total_chunks = 0
+        current_chunk = 0
+        quality_score = 0
+        myanmar_ratio = 0.0
+
         if progress_log.exists():
             with open(progress_log, 'r', encoding='utf-8') as f:
-                lines = f.readlines()
-            # Show last 20 lines
-            recent = lines[-20:] if len(lines) > 20 else lines
-            progress_placeholder.code(''.join(recent), language=None)
-        else:
-            progress_placeholder.info("Waiting for progress log...")
-    except Exception:
-        progress_placeholder.info("Reading progress log...")
+                content = f.read()
 
-    # Auto-refresh every 5 seconds
+            # Parse chunk progress: "Chunk N/M" or "Creating chunk N"
+            chunk_matches = re.findall(r'Created\s+(\d+)\s+chunks', content)
+            if chunk_matches:
+                total_chunks = int(chunk_matches[-1])
+
+            # Parse current chunk: "Translating chunk N/M" or "chunk N complete"
+            done_matches = re.findall(r'(?:✓ Chunk|Translating chunk)\s+(\d+)/(\d+)', content)
+            if done_matches:
+                current_chunk = int(done_matches[-1][0])
+                total_chunks = max(total_chunks, int(done_matches[-1][1]))
+
+            # Parse quality score
+            score_matches = re.findall(r'Quality:\s*(\d+)', content)
+            if score_matches:
+                quality_score = int(score_matches[-1])
+
+            # Parse Myanmar ratio
+            ratio_matches = re.findall(r'Ratio:\s*([\d.]+)%', content)
+            if ratio_matches:
+                myanmar_ratio = float(ratio_matches[-1])
+
+            # Show progress bar
+            if total_chunks > 0:
+                pct = min(current_chunk / total_chunks, 1.0)
+                progress_bar.progress(pct, f"Chunk {current_chunk}/{total_chunks}")
+
+            # Show metrics
+            metrics_cols[0].metric("Chunks", f"{current_chunk}/{total_chunks}" if total_chunks > 0 else "—")
+            metrics_cols[1].metric("Quality Score", f"{quality_score}/100" if quality_score > 0 else "—")
+            metrics_cols[2].metric("Myanmar Ratio", f"{myanmar_ratio:.1%}" if myanmar_ratio > 0 else "—")
+            elapsed = (datetime.now() - st.session_state.start_time).total_seconds()
+            eta = (elapsed / current_chunk * total_chunks - elapsed) if current_chunk > 0 and total_chunks > 0 else 0
+            metrics_cols[3].metric("Elapsed", f"{int(elapsed//60)}m {int(elapsed%60)}s")
+
+            # Show last few log lines
+            lines = content.split('\n')
+            recent = [l for l in lines[-15:] if l.strip() and ('Chunk' in l or 'Step' in l or 'Quality' in l or 'complete' in l or 'ERROR' in l or 'WARNING' in l or 'Saved' in l)]
+            if not recent:
+                recent = [l for l in lines[-8:] if l.strip()]
+            progress_placeholder.code('\n'.join(recent[-10:]), language=None)
+        else:
+            progress_placeholder.info("Waiting for translation to start...")
+    except Exception as e:
+        progress_placeholder.warning(f"Reading progress: {e}")
+
+    # Auto-refresh every 3 seconds
     import time as _time
     _time.sleep(3)
     st.rerun()

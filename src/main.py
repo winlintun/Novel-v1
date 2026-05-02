@@ -18,6 +18,7 @@ Usage:
     python -m src.main --test
 """
 
+import os
 import sys
 from pathlib import Path
 
@@ -41,13 +42,14 @@ def main() -> int:
     """Main entry point.
     
     Command priority (descending):
-    1. --ui  (with optional --novel --chapter to translate first)
+    1. --ui → opens Web UI (pass --novel/--chapter as hints via env vars)
     2. --test, --view, --review, --stats, --auto-promote (standalone)
-    3. --generate-glossary (before translation if both specified)
+    3. --generate-glossary (runs before translation if both specified)
     4. Translation pipeline (--novel / --input)
     
-    If --generate-glossary AND --novel --chapter are both given,
-    run glossary generation first, then translation.
+    When --ui is used with --novel/--chapter, the settings are passed
+    as environment variables to the Web UI so it can pre-fill the
+    translation form. Translation itself runs from inside the UI.
     
     Returns:
         Exit code (0 for success, 1 for failure)
@@ -55,12 +57,19 @@ def main() -> int:
     # Parse arguments
     args = parse_arguments()
 
-    # ── UI: if --novel and --chapter also given, translate first ──
+    # ── UI: open UI, pass novel/chapter settings as env hints ──
     if args.ui:
-        if args.novel and (args.chapter or args.all or args.chapter_range):
-            result = _run_translation_with_opts(args)
-            if result != 0:
-                return result
+        # Pass CLI settings to UI via environment variables
+        if args.novel:
+            os.environ["NOVEL_TRANSLATE_NOVEL"] = args.novel
+        if args.chapter:
+            os.environ["NOVEL_TRANSLATE_CHAPTER"] = str(args.chapter)
+        if args.all:
+            os.environ["NOVEL_TRANSLATE_ALL"] = "1"
+        if args.start and args.start > 1:
+            os.environ["NOVEL_TRANSLATE_START"] = str(args.start)
+        if args.generate_glossary:
+            os.environ["NOVEL_TRANSLATE_GEN_GLOSSARY"] = "1"
         return run_ui_launch(args)
 
     # ── Standalone utilities (no translation) ──
