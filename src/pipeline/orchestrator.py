@@ -745,6 +745,26 @@ class TranslationPipeline:
                 "duration": chunk_duration,
             })
 
+            # Per-chunk timeout guard: if a single chunk exceeds 15 min,
+            # log an error and continue to the next chunk. Prevents
+            # 4.8-hour sessions from stuck retry loops (e.g., Ch 15).
+            if chunk_duration > 900:
+                self.logger.error(
+                    f"⚠ Chunk {i+1}/{total} exceeded 15-min timeout ({chunk_duration:.0f}s). "
+                    f"Translation may be degraded. Skipping to next chunk."
+                )
+                chunk_metrics.append({
+                    "chunk": i + 1,
+                    "quality_score": 0,
+                    "quality_passed": False,
+                    "myanmar_ratio": 0.0,
+                    "issues": 99,
+                    "timed_out": True,
+                })
+                translated.append(chunk)  # Keep original untranslated text
+                rolling_context = get_rolling_context("", max_context_tokens=400)
+                continue
+
             chunk_metrics.append({
                 "chunk": i + 1,
                 "quality_score": quality_score,

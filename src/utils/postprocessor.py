@@ -271,20 +271,29 @@ def fix_chapter_heading_format(text: str) -> str:
     """Fix chapter headings that are concatenated on a single line.
     
     The model may output '# အခန်း ၁၂ ## Title text' (H1 + H2 + body
-    all on one line). Split into proper markdown:
+    all on one line). Or '# အခန်း ၁၇: Title' (colon-separated).
+    Split into proper markdown:
         # အခန်း ၁၂
         ## Title
         body text...
     
     Works on both multi-line and single-line (collapsed) text.
     """
-    # Pattern: "# အခန်း N ## subtitle body..." — anywhere on a line
-    # Split H1 to its own line, put H2 on next line with blank line between
+    # Pattern 1: "# အခန်း N ## subtitle body..." — H1 + H2 on one line
     text = re.sub(
         r'(#\s+အခန်း\s+[\u1040-\u1049\d]+.*?)\s*##\s+',
         r'\1\n\n## ',
         text
     )
+
+    # Pattern 2: "# အခန်း N: Title" — colon-separated (no H2 marker)
+    text = re.sub(
+        r'^(#\s+အခန်း\s+[\u1040-\u1049\d]+)\s*:\s*(.+)',
+        r'\1\n\n## \2',
+        text,
+        flags=re.MULTILINE
+    )
+
     return text
 
 

@@ -84,6 +84,15 @@ class MyanmarQualityChecker(BaseAgent):
             issues.extend(unnatural_issues)
             score -= len(unnatural_issues) * 5
 
+        # Check for register mixing within paragraphs
+        tone = self._check_tone(text)
+        if tone.get("register_mixed_paragraphs", 0) > 0:
+            issues.append(
+                f"Register mixing: {tone['register_mixed_paragraphs']} paragraph(s) "
+                f"mix formal (သည်) and casual (တယ်) particles"
+            )
+            score -= tone["register_mixed_paragraphs"] * 5
+
         # Calculate final score
         score = max(0, score)
 
@@ -188,16 +197,35 @@ class MyanmarQualityChecker(BaseAgent):
         return issues
 
     def _check_tone(self, text: str) -> Dict[str, Any]:
-        """Check for tone consistency."""
+        """Check for tone consistency across paragraphs.
+
+        Detects register mixing: uses သည်/၏/ဖြင့် (formal narration) AND
+        တယ်/ဘူး/မှာ (casual narration) within the same narration paragraph.
+        Dialogue paragraphs are allowed to use casual register.
+        """
         # Check for mixed formality
         has_formal = any(p in text for p in ["သည်ကို", "အတွက်", "၏"])
         has_informal = any(p in text for p in ["မင်း", "ဒီ", "အဲဒါ"])
+
+        # Per-paragraph register mixing: detects တယ်/ဘူး (casual)
+        # and သည်/ဖြင့်/ပေသည် (formal) in the same paragraph
+        paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
+        mixed_paragraphs = 0
+        FORMAL_MARKERS = ['သည်', '၏', 'ဖြင့်', 'ပေသည်', 'သော', '၍']
+        CASUAL_MARKERS = ['တယ်', 'ဘူး', 'လို့', 'နဲ့', 'ပါတယ်', 'မယ်']
+
+        for para in paragraphs:
+            has_para_formal = any(m in para for m in FORMAL_MARKERS)
+            has_para_casual = any(m in para for m in CASUAL_MARKERS)
+            if has_para_formal and has_para_casual:
+                mixed_paragraphs += 1
 
         return {
             "has_formal": has_formal,
             "has_informal": has_informal,
             "mixed_tone": has_formal and has_informal,
-            "tone_consistent": not (has_formal and has_informal)
+            "register_mixed_paragraphs": mixed_paragraphs,
+            "tone_consistent": not (has_formal and has_informal) and mixed_paragraphs == 0
         }
 
     def _calculate_naturalness(self, text: str) -> float:
