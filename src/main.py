@@ -35,6 +35,7 @@ from src.cli.commands import (
     run_test,
     run_view_file,
     run_review,
+    run_rebuild_meta,
 )
 
 
@@ -43,7 +44,7 @@ def main() -> int:
     
     Command priority (descending):
     1. --ui → opens Web UI (pass --novel/--chapter as hints via env vars)
-    2. --test, --view, --review, --stats, --auto-promote (standalone)
+    2. --test, --view, --review, --stats, --auto-promote, --rebuild-meta (standalone)
     3. --generate-glossary (runs before translation if both specified)
     4. Translation pipeline (--novel / --input)
     
@@ -56,6 +57,14 @@ def main() -> int:
     """
     # Parse arguments
     args = parse_arguments()
+
+    if args.clean:
+        from src.utils.cache_cleaner import clean_cache_with_report
+        clean_cache_with_report()
+        return 0
+
+    if getattr(args, 'rebuild_meta', False):
+        return run_rebuild_meta(args)
 
     # ── UI: open UI, pass novel/chapter settings as env hints ──
     if args.ui:

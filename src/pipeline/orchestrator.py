@@ -1030,26 +1030,9 @@ class TranslationPipeline:
             except Exception as e:
                 self.logger.warning(f"Failed to write meta: {e}")
 
-        # ── Problem 9: Write per-chapter meta for reviewer ────────────────────
-        # translation_reviewer.py reads output_path.with_suffix('.meta.json')
-        # (e.g. reverend-insanity_chapter_021.mm.meta.json).
-        # Without this file pipeline/model show as "unknown" in review reports.
-        per_chapter_meta = {
-            "chapter": chapter_num,
-            "novel": self._current_novel,
-            "pipeline": self.config.translation_pipeline.mode if self.config else "unknown",
-            "model": self.config.models.translator if self.config else "unknown",
-            "duration_seconds": (extra_meta or {}).get("duration_seconds", 0),
-            "translated_at": datetime.now().isoformat(),
-        }
-        per_chapter_meta_path = output_path.with_suffix('.meta.json')
-        try:
-            FileHandler.write_text(
-                str(per_chapter_meta_path),
-                json.dumps(per_chapter_meta, indent=2, ensure_ascii=False),
-            )
-        except Exception as e:
-            self.logger.warning(f"Failed to write per-chapter meta: {e}")
+        # REMOVED: Per-chapter meta.json is no longer created
+        # All metadata is stored in cumulative {novel}.mm.meta.json
+        # translation_reviewer.py now reads from cumulative file
 
         self.logger.info(f"Step 7/7: Saved output to {output_path}")
 

@@ -304,8 +304,18 @@ def _check_sentence_enders(text: str) -> CheckResult:
 
     # Valid sentence enders: Myanmar punctuation, closing quotes, ! and ?
     # (modern Myanmar prose regularly uses ! and ? alongside ။)
+    # We now strictly check for `။` as the primary ender to detect truncation
     valid_enders = ('\u104B', '\u104F', '\u104A', '"', '\u201d', '!', '?')
-    unended = sum(1 for line in content_lines if line and not line.endswith(valid_enders))
+    
+    # We consider lines strictly missing a formal ender to be potentially truncated
+    unended = 0
+    for line in content_lines:
+        if not line:
+            continue
+        # Even if it ends with quotes, check if there's a formal ender inside the quotes
+        clean_line = line.rstrip('"\'\u201d\u201c ')
+        if not clean_line.endswith(('\u104B', '!', '?')):
+            unended += 1
 
     if unended <= 3:
         return CheckResult("Sentence Enders", True, 0, f"{unended} lines without enders — acceptable")
@@ -435,21 +445,33 @@ def review_translation(
         with open(output_path, 'r', encoding='utf-8') as f:
             text = f.read()
 
-    # Extract info from meta.json if available
-    meta_path = output_path.with_suffix('.meta.json')
+    # Extract info from cumulative novel meta.json
+    # Read from {novel}.mm.meta.json instead of per-chapter meta
     pipeline_mode = "unknown"
     model = "unknown"
     duration_seconds = 0.0
-    if meta_path.exists():
-        try:
-            meta = json.loads(meta_path.read_text(encoding='utf-8-sig'))
-            pipeline_mode = meta.get('pipeline', 'unknown')
-            model = meta.get('model', 'unknown')
-            duration_seconds = meta.get('duration_seconds', 0)
-            chapter = chapter or meta.get('chapter')
-            novel = novel or meta.get('novel')
-        except Exception:
-            pass
+    
+    # Try to find cumulative meta.json in the output directory
+    output_dir = output_path.parent
+    # Extract novel name from path (e.g., data/output/reverend-insanity/)
+    if output_dir.exists():
+        # Look for {novel}.mm.meta.json in the output folder
+        for f in output_dir.glob('*.mm.meta.json'):
+            if f.name.endswith('.mm.meta.json') and '_chapter_' not in f.name:
+                # This is the cumulative meta file
+                try:
+                    meta = json.loads(f.read_text(encoding='utf-8-sig'))
+                    # Get specific chapter data if available
+                    chapters = meta.get('chapters', {})
+                    chapter_key = str(chapter) if chapter else None
+                    if chapter_key and chapter_key in chapters:
+                        chapter_meta = chapters[chapter_key]
+                        pipeline_mode = chapter_meta.get('pipeline', 'unknown')
+                        model = chapter_meta.get('model', 'unknown')
+                        duration_seconds = chapter_meta.get('duration_seconds', 0)
+                    break
+                except Exception:
+                    pass
 
     # Extract chapter from filename if not provided
     if chapter is None:

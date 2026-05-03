@@ -231,6 +231,11 @@ def create_parser() -> argparse.ArgumentParser:
         help="Clear Python cache (__pycache__ and .pyc files) before running"
     )
     utility_group.add_argument(
+        "--rebuild-meta",
+        action="store_true",
+        help="Scan output folder and rebuild meta.json for existing .mm.md files"
+    )
+    utility_group.add_argument(
         "--version",
         action="version",
         version="%(prog)s 2.0.0",

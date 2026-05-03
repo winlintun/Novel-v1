@@ -3,45 +3,23 @@
 # =============================================================================
 
 # ── Environment & Secrets ────────────────────────────────────────────────────
-# Note: .env is NOT ignored - we want to keep it in the repository
-# .env.local and variants are still ignored for local overrides
+# Environment files - NEVER commit secrets!
 .env
 .env.local
 .env.*.local
 *.key
-*.pem
 secrets.json
-
-# ── Python ───────────────────────────────────────────────────────────────────
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-
-# ── Virtual Environments ─────────────────────────────────────────────────────
 venv/
 env/
-ENV/
 env.bak/
 venv.bak/
 .venv/
+
+# API Keys - specific patterns
+*apikey*
+*secret*
+*.pem
+*.key
 
 # ── IDE & Editors ────────────────────────────────────────────────────────────
 .vscode/

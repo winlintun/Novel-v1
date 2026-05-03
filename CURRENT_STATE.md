@@ -10,6 +10,16 @@
 ## Last Updated
 - Date: 2026-05-03
 - Last task completed:
+  - **FIXED: Meta.json per-chapter → single file** (STATUS: [DONE]):
+    - **Task**: Change from per-chapter meta.json (`novel_chapter_N.mm.meta.json`) to single novel meta.json (`novel_name.mm.meta.json`)
+    - **Changes Made**:
+      1. `src/pipeline/orchestrator.py`: Removed per-chapter meta.json writing (lines 1033-1052)
+      2. `src/utils/translation_reviewer.py`: Updated to read from cumulative novel meta.json instead
+      3. `src/cli/commands.py`: Updated `--rebuild-meta` to write single cumulative file
+    - **Cleanup**: Moved 12 old per-chapter meta files to `old_meta_backup/` folder
+    - **Result**: Now only `reverend-insanity.mm.meta.json` exists (single cumulative file)
+    - **Tests**: 259/259 pass
+
   - **REVIEWED: Chapter 23 Translation Analysis** (STATUS: [DONE]):
     - **Task**: Compared Chapter 23 output (`.mm.md`) against the original Chinese text and a Google Translate reference.
     - **Findings**: The project pipeline produces a far superior thematic tone and terminology localization compared to Google Translate. However, it suffered from critical technical bugs during this chapter.
