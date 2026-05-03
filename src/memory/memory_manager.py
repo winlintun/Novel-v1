@@ -16,23 +16,28 @@ def _resolve_glossary_path(novel_name: Optional[str] = None) -> tuple[str, str, 
     """Resolve glossary, context, and pending file paths for a given novel.
     
     Per-novel mode (novel_name provided):
-      data/glossary_{novel_name}.json
-      data/context_memory_{novel_name}.json
-      data/glossary_pending_{novel_name}.json
+      data/output/{novel_name}/glossary/glossary.json
+      data/output/{novel_name}/glossary/context_memory.json
+      data/output/{novel_name}/glossary/glossary_pending.json
     
     Shared fallback (novel_name is None):
-      data/glossary_default.json
-      data/context_memory_default.json
-      data/glossary_pending_default.json
+      data/output/default/glossary/glossary.json
+      data/output/default/glossary/context_memory.json
+      data/output/default/glossary/glossary_pending.json
     """
+    import os
     if novel_name:
         safe_name = novel_name.replace('/', '_').replace('\\', '_').replace(' ', '_')
+        base_dir = f"data/output/{safe_name}/glossary"
+        os.makedirs(base_dir, exist_ok=True)
         return (
-            f"data/glossary_{safe_name}.json",
-            f"data/context_memory_{safe_name}.json",
-            f"data/glossary_pending_{safe_name}.json",
+            f"{base_dir}/glossary.json",
+            f"{base_dir}/context_memory.json",
+            f"{base_dir}/glossary_pending.json",
         )
-    return ("data/glossary_default.json", "data/context_memory_default.json", "data/glossary_pending_default.json")
+    base_dir = "data/output/default/glossary"
+    os.makedirs(base_dir, exist_ok=True)
+    return (f"{base_dir}/glossary.json", f"{base_dir}/context_memory.json", f"{base_dir}/glossary_pending.json")
 
 
 class MemoryManager:
@@ -45,15 +50,15 @@ class MemoryManager:
 
     def __init__(
         self,
-        glossary_path: str = "data/glossary_default.json",
-        context_path: str = "data/context_memory_default.json",
+        glossary_path: str = "data/output/default/glossary/glossary.json",
+        context_path: str = "data/output/default/glossary/context_memory.json",
         novel_name: Optional[str] = None
     ):
         # Resolve novel-specific paths when novel_name is provided
         if novel_name:
             glossary_path, context_path, self.pending_path = _resolve_glossary_path(novel_name)
         else:
-            self.pending_path = "data/glossary_pending_default.json"
+            self.pending_path = "data/output/default/glossary/glossary_pending.json"
 
         self.glossary_path = glossary_path
         self.context_path = context_path

@@ -63,10 +63,10 @@ try:
     for novel in novels:
         print(f"\n  📖 Novel: {novel}")
         
-        # Novel-specific glossary
-        novel_glossary = f"data/glossary_{novel}.json"
-        novel_context = f"data/context_memory_{novel}.json"
-        novel_pending = f"data/glossary_pending_{novel}.json"
+        # Novel-specific glossary (new structure: data/output/{novel}/glossary/)
+        novel_glossary = f"data/output/{novel}/glossary/glossary.json"
+        novel_context = f"data/output/{novel}/glossary/context_memory.json"
+        novel_pending = f"data/output/{novel}/glossary/glossary_pending.json"
         
         # Check glossary
         if os.path.exists(novel_glossary):
@@ -201,43 +201,43 @@ if novels:
         print(f"\n  📖 {novel}:")
         
         # Glossary
-        gl_path = f"data/glossary_{novel}.json"
+        gl_path = f"data/output/{novel}/glossary/glossary.json"
         if os.path.exists(gl_path):
             try:
                 with open(gl_path, 'r', encoding='utf-8-sig') as f:
                     data = json.load(f)
                 count = len(data.get('terms', []))
-                check_result(f"    glossary_{novel}.json", True, f"{count} terms")
+                check_result(f"    glossary.json", True, f"{count} terms")
             except Exception as e:
-                check_result(f"    glossary_{novel}.json", False, str(e))
+                check_result(f"    glossary.json", False, str(e))
         else:
-            check_result(f"    glossary_{novel}.json", False, "Not found")
+            check_result(f"    glossary.json", False, "Not found")
         
         # Pending
-        pend_path = f"data/glossary_pending_{novel}.json"
+        pend_path = f"data/output/{novel}/glossary/glossary_pending.json"
         if os.path.exists(pend_path):
             try:
                 with open(pend_path, 'r', encoding='utf-8-sig') as f:
                     data = json.load(f)
                 count = len(data.get('pending_terms', []))
-                check_result(f"    glossary_pending_{novel}.json", True, f"{count} pending")
+                check_result(f"    glossary_pending.json", True, f"{count} pending")
             except Exception as e:
-                check_result(f"    glossary_pending_{novel}.json", False, str(e))
+                check_result(f"    glossary_pending.json", False, str(e))
         else:
-            check_result(f"    glossary_pending_{novel}.json", False, "Not found")
+            check_result(f"    glossary_pending.json", False, "Not found")
         
         # Context
-        ctx_path = f"data/context_memory_{novel}.json"
+        ctx_path = f"data/output/{novel}/glossary/context_memory.json"
         if os.path.exists(ctx_path):
             try:
                 with open(ctx_path, 'r', encoding='utf-8-sig') as f:
                     data = json.load(f)
                 ch = data.get('current_chapter', 0)
-                check_result(f"    context_memory_{novel}.json", True, f"ch {ch}")
+                check_result(f"    context_memory.json", True, f"ch {ch}")
             except Exception as e:
-                check_result(f"    context_memory_{novel}.json", False, str(e))
+                check_result(f"    context_memory.json", False, str(e))
         else:
-            check_result(f"    context_memory_{novel}.json", False, "Not found")
+            check_result(f"    context_memory.json", False, "Not found")
 else:
     print("  No novels found in data/output/")
 

@@ -10,6 +10,26 @@
 ## Last Updated
 - Date: 2026-05-03
 - Last task completed:
+  - **REFACTORED: Glossary/Context/Pending files → per-novel folder structure** (STATUS: [DONE]):
+    - **Task**: Move glossary files from `data/glossary_{novel}.json` to `data/output/{novel}/glossary/`
+    - **Changes Made**:
+      1. `src/memory/memory_manager.py`: Updated `_resolve_glossary_path()` to return new structure paths
+      2. `src/config/models.py`: Updated default path configs to new structure
+      3. `diagnose.py`: Updated file detection logic for new structure
+    - **Migration**: Existing `reverend-insanity` data moved to `data/output/reverend-insanity/glossary/`
+    - **Verification**: 
+      - Existing novel loads correctly (21 terms, 1 pending, ch25)
+      - New novel creates directories on first use
+      - Default mode works (`data/output/default/glossary/`)
+      - All 259 tests pass
+    - **New Structure**:
+      ```
+      data/output/{novel_name}/glossary/
+      ├── glossary.json
+      ├── glossary_pending.json
+      └── context_memory.json
+      ```
+
   - **FIXED: Meta.json per-chapter → single file** (STATUS: [DONE]):
     - **Task**: Change from per-chapter meta.json (`novel_chapter_N.mm.meta.json`) to single novel meta.json (`novel_name.mm.meta.json`)
     - **Changes Made**:
