@@ -190,6 +190,42 @@
       "prevention": "Always strip ALL non-Myanmar scripts unconditionally — no script other than Myanmar should appear in output.",
       "times_seen": 1,
       "last_seen": "2026-05-02"
+    },
+    {
+      "id": "ERR-055",
+      "error_type": "FalsePositiveParagraphDuplication",
+      "trigger": "_check_paragraph_duplication() using char-set overlap detects false duplicates on Myanmar sentences sharing common particles (သည်/ကို/မည်) — different sentences show 81-86% overlap",
+      "solution": "Replace char-set overlap with SequenceMatcher(None, p1, p2).ratio() for sequence similarity. Threshold 0.85+ is safe for true chunk-boundary duplicates.",
+      "prevention": "NEVER use char-set overlap for Myanmar sentence similarity. SequenceMatcher (sequence-based) is the correct algorithm for detecting duplicate Myanmar text.",
+      "times_seen": 1,
+      "last_seen": "2026-05-03"
+    },
+    {
+      "id": "ERR-056",
+      "error_type": "SentenceEnderFalsePositive",
+      "trigger": "_check_sentence_enders() does not accept ! and ? as valid enders, and counts section-subtitle lines between --- separators as unended content lines",
+      "solution": "Add '!' and '?' to valid_enders tuple. Detect subtitle lines (lone non-heading lines following --- separator) and exclude from content_lines check.",
+      "prevention": "Myanmar modern prose regularly uses ! and ?. Chapter format may include ---\\n<subtitle>\\n--- sections. Both must be handled.",
+      "times_seen": 1,
+      "last_seen": "2026-05-03"
+    },
+    {
+      "id": "ERR-057",
+      "error_type": "KoreanScriptLeak",
+      "trigger": "Korean Hangul characters (U+AC00-U+D7FF) appear in Myanmar output for untranslated terms (e.g. 괴물 = monster)",
+      "solution": "Postprocessor _check_foreign_scripts() already detects Korean. If found in output file, replace with Myanmar equivalent manually or re-translate chunk.",
+      "prevention": "Korean leakage is rare. Quality gate won't block 2 stray characters if overall ratio passes. Consider adding Korean to postprocessor strip list.",
+      "times_seen": 1,
+      "last_seen": "2026-05-03"
+    },
+    {
+      "id": "ERR-058",
+      "error_type": "GarbageChunkTail",
+      "trigger": "Model outputs English garbage (URL fragments, sentence fragments) at end of final chunk — e.g. '– It of .' and '://en..//____'",
+      "solution": "Remove garbage lines from output file manually. The overall Myanmar ratio quality gate (>70%) will catch severe cases but may miss 2-3 garbage lines if rest of chapter is good.",
+      "prevention": "Consider adding a per-chunk English word count detector: if last chunk has >5 English words and <80% Myanmar, flag for review before assembling.",
+      "times_seen": 1,
+      "last_seen": "2026-05-03"
     }
   ]
 }

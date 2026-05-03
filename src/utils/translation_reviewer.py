@@ -226,17 +226,44 @@ def _check_archaic_words(text: str) -> CheckResult:
 
 
 def _check_particle_repetition(text: str) -> CheckResult:
-    """L2: Particle repetition (hallucination sentinel).
-    
-    Detects the SAME particle appearing 3+ times consecutively.
-    Uses backreference to enforce same-particle rule per translation_rules.md L2.
+    """L2: Particle + phrase repetition (hallucination sentinel).
+
+    Detects two types of hallucination loops:
+    1. The SAME Myanmar particle appearing 3+ times consecutively.
+    2. Any phrase (≥10 chars) repeated 5+ times within one paragraph.
     """
-    pattern = re.compile(r'(သည်)\1{2,}|(ကို)\2{2,}|(မှာ)\3{2,}|(အတွက်)\4{2,}|(ဖြင့်)\5{2,}|(၍)\6{2,}')
-    matches = pattern.findall(text)
-    if not matches:
+    # Check 1: particle-level consecutive repetition
+    particle_pattern = re.compile(r'(သည်)\1{2,}|(ကို)\2{2,}|(မှာ)\3{2,}|(အတွက်)\4{2,}|(ဖြင့်)\5{2,}|(၍)\6{2,}')
+    particle_matches = particle_pattern.findall(text)
+
+    # Check 2: phrase-level repetition within any paragraph
+    phrase_loops = []
+    for para in text.split('\n'):
+        if len(para) < 30:
+            continue
+        # Slide a 10-char window and count occurrences
+        for length in (20, 15, 10):
+            found = False
+            for start in range(0, len(para) - length, length // 2):
+                phrase = para[start:start + length]
+                if para.count(phrase) >= 5:
+                    phrase_loops.append(f'"{phrase[:20]}…" ×{para.count(phrase)}')
+                    found = True
+                    break
+            if found:
+                break
+
+    total = len([m for m in particle_matches if any(m)]) + len(phrase_loops)
+    if total == 0:
         return CheckResult("Particle Repetition", True, 0, "No hallucination loops")
+
+    details = []
+    if particle_matches:
+        details.append(f"{len(particle_matches)} particle loop(s)")
+    if phrase_loops:
+        details.append(f"{len(phrase_loops)} phrase loop(s): {'; '.join(phrase_loops[:3])}")
     return CheckResult("Particle Repetition", False, 10,
-                       f"{len(matches)} hallucination loop(s) detected", "CRITICAL")
+                       ", ".join(details), "CRITICAL")
 
 
 def _check_register_consistency(text: str) -> CheckResult:
@@ -247,7 +274,7 @@ def _check_register_consistency(text: str) -> CheckResult:
         return CheckResult("Register Consistency", True, 0, "Single register — consistent")
     # Both formal and colloquial detected = potential mixing
     ratio = min(len(formal), len(colloquial)) / max(len(formal), len(colloquial), 1)
-    if ratio > 0.3:
+    if ratio > 0.5:
         return CheckResult("Register Consistency", False, 10,
                            f"Mixed registers: {len(formal)} formal + {len(colloquial)} casual particles", "WARNING")
     return CheckResult("Register Consistency", True, 0, "Register appears consistent")
@@ -256,14 +283,30 @@ def _check_register_consistency(text: str) -> CheckResult:
 def _check_sentence_enders(text: str) -> CheckResult:
     """L8: Check paragraphs end with proper Myanmar enders."""
     lines = text.split('\n')
+
+    # Detect section-subtitle lines (lone lines between --- separators)
+    subtitle_lines: set = set()
+    prev_was_sep = False
+    for raw_line in lines:
+        stripped = raw_line.strip()
+        if stripped == '---':
+            prev_was_sep = True
+            continue
+        if prev_was_sep and stripped and not stripped.startswith('#'):
+            subtitle_lines.add(stripped)
+        prev_was_sep = False
+
     content_lines = [line.strip() for line in lines
-                     if line.strip() and not line.strip().startswith('#')
-                     and not line.strip().startswith('---')]
-    # Only Myanmar sentence enders: ။ ၏ ၊ and closing Myanmar quotes
-    unended = 0
-    for line in content_lines:
-        if line and not line.endswith(('။', '၏', '၊', '"', '\u201d')):
-            unended += 1
+                     if line.strip()
+                     and not line.strip().startswith('#')
+                     and not line.strip().startswith('---')
+                     and line.strip() not in subtitle_lines]
+
+    # Valid sentence enders: Myanmar punctuation, closing quotes, ! and ?
+    # (modern Myanmar prose regularly uses ! and ? alongside ။)
+    valid_enders = ('\u104B', '\u104F', '\u104A', '"', '\u201d', '!', '?')
+    unended = sum(1 for line in content_lines if line and not line.endswith(valid_enders))
+
     if unended <= 3:
         return CheckResult("Sentence Enders", True, 0, f"{unended} lines without enders — acceptable")
     elif unended <= 8:
@@ -288,10 +331,14 @@ def _check_overlong_sentences(text: str) -> CheckResult:
 
 def _check_paragraph_duplication(text: str) -> CheckResult:
     """Check for duplicated sentences at paragraph boundaries.
-    
+
     Detects when the same sentence appears at the end of one paragraph
     and the start of the next (chunk boundary duplication artifact).
+    Uses sequence similarity (SequenceMatcher) to avoid false positives
+    from Myanmar sentences that share common particles/characters.
     """
+    from difflib import SequenceMatcher
+
     paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
     if len(paragraphs) < 2:
         return CheckResult("Paragraph Duplication", True, 0, "Only one paragraph")
@@ -303,14 +350,10 @@ def _check_paragraph_duplication(text: str) -> CheckResult:
         if prev_sentences and next_sentences:
             prev_last = prev_sentences[-1].strip()
             next_first = next_sentences[0].strip()
-            if prev_last and next_first and len(prev_last) > 10 and len(next_first) > 10:
-                # Check similarity (same Myanmar chars, minor variation)
-                prev_set = set(prev_last)
-                next_set = set(next_first)
-                if prev_set and next_set:
-                    overlap = len(prev_set & next_set) / len(prev_set | next_set)
-                    if overlap > 0.8:
-                        dups += 1
+            if prev_last and next_first and len(prev_last) > 20 and len(next_first) > 20:
+                ratio = SequenceMatcher(None, prev_last, next_first).ratio()
+                if ratio > 0.85:
+                    dups += 1
 
     if dups == 0:
         return CheckResult("Paragraph Duplication", True, 0, "No duplicated paragraphs")

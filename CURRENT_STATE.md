@@ -8,9 +8,39 @@
 ---
 
 ## Last Updated
-- Date: 2026-05-02
+- Date: 2026-05-03
 - Last task completed:
+  - **FIXED: Translation Review Quality Issues — Chapters 13-21 Admin Review** (STATUS: READY_TO_COMMIT):
+    - **Task**: Admin review of chapters 13-21 for reverend-insanity. 9 problems identified, 8 approved for fixing.
+    - **Problem 1 — Ch021 garbled chunk tail**: Removed English garbage lines (`– It of .` and `://en..//____`) from ch021 last chunk output. Root cause: model output garbage for final chunk.
+    - **Problem 2 — Quality gate before save**: Added Myanmar ratio gate in `orchestrator.py` — blocks save if overall ratio < 70% OR any chunk < 40% Myanmar. Returns `success=False` without writing file.
+    - **Problem 3 — Sentence ender false positives**: Fixed `_check_sentence_enders()` in `translation_reviewer.py` — now accepts `!` and `?` as valid enders; excludes section-subtitle lines between `---` separators from count.
+    - **Problem 4 — Korean leakage in ch019**: Removed Korean chars `괴물` (U+AD34/U+BB3C) from ch019. Replaced with `ဆိုးဝါးသောသတ္တဝါ`.
+    - **Problem 5 — Archaic words**: NOT fixed by user decision. System prompt change for ဤ/ထို is excluded.
+    - **Problem 6 — False positive paragraph duplication**: Replaced char-set overlap with `SequenceMatcher` in both `_deduplicate_chunks()` (orchestrator.py, threshold >0.90) and `_check_paragraph_duplication()` (translation_reviewer.py, threshold >0.85). Eliminated false positives on Myanmar text sharing common particles. Ch021 garbled lines also removed (same ticket).
+    - **Problem 7 — Register consistency over-flagging**: Raised threshold from 0.3 → 0.5 in `_check_register_consistency()`. Normal narration+dialogue mix no longer penalized.
+    - **Problem 8 — Title format**: Fixed ch015/016/017 chapter titles from `# Chapter N: subtitle` to `# Chapter N\n## subtitle` format.
+    - **Problem 9 — Per-chapter meta.json**: Added per-chapter `.mm.meta.json` writer in `_save_output()`. Future review reports will show pipeline/model instead of "unknown".
+    - **Post-review scores**: Ch013=85, Ch014=90, Ch015=85, Ch016=90, Ch017=85, Ch018=90, Ch019=80, Ch020=90, Ch021=75 — all PASS (≥70)
+    - **Files Modified**: `src/pipeline/orchestrator.py`, `src/utils/translation_reviewer.py`, `data/output/reverend-insanity/reverend-insanity_chapter_015.mm.md`, `data/output/reverend-insanity/reverend-insanity_chapter_016.mm.md`, `data/output/reverend-insanity/reverend-insanity_chapter_017.mm.md`, `data/output/reverend-insanity/reverend-insanity_chapter_019.mm.md`, `data/output/reverend-insanity/reverend-insanity_chapter_021.mm.md`
+    - **Tests**: 254/254 pass
+  - **FIXED: sailor2-20b missing from ollama list** (STATUS: READY_TO_COMMIT):
+    - **Root Cause**: The `sailor2-20b` model was defined in `Modelfile.sailor2-20b` and the config files, but it was not actually built in Ollama.
+    - **Fix Applied**: Ran `ollama create sailor2-20b -f Modelfile.sailor2-20b` to build the model from the existing GGUF file (`models/Sailor2-L-20B.Q4_K_M.gguf`).
+    - **Verification**: Confirmed `sailor2-20b:latest` now appears in `ollama list`.
   - **FIXED: need_to_fix_bug.md Foundation Bugs — Phase 1-4 Stability + Glossary Pipeline** (STATUS: READY_TO_COMMIT):
+...
+    - **Tests**: 280/280 pass
+  - **IMPLEMENTED: Sailor2-20B Integration — Modelfile + Dedicated Configurations** (STATUS: READY_TO_COMMIT):
+    - **Modelfile.sailor2-20b**: Created with ChatML template and project-standard sampling parameters (temp: 0.2, top_p: 0.95, repeat_penalty: 1.15). Points to `models/Sailor2-L-20B.Q4_K_M.gguf`.
+    - **Config Updates**:
+      - `config/settings.yaml`: Added `sailor2-20b` to translator and refiner `model_roles`.
+      - `config/settings.pivot.yaml`: Added `sailor2-20b` to refiner `model_roles` for high-quality stage 2 translation.
+      - `config/settings.sailor2.yaml`: NEW dedicated configuration file for using Sailor2-20B as the primary model.
+    - **Documentation**: Updated `ollama_model_list.md` with Sailor2-20B specs (13GB, multilingual).
+    - **Files Created**: `Modelfile.sailor2-20b`, `config/settings.sailor2.yaml`
+    - **Files Modified**: `config/settings.yaml`, `config/settings.pivot.yaml`, `ollama_model_list.md`
+  - Previous: **FIXED: need_to_fix_bug.md Foundation Bugs — Phase 1-4 Stability + Glossary Pipeline** (STATUS: READY_TO_COMMIT):
     - **Phase 1 — Stability Foundation**:
       - **Fix 1 — State corruption**: ReflectionAgent no longer mutates `self.client.model` (shared mutable state). Instead uses per-call `model=` parameter on `OllamaClient.chat()`. State is now stateless.
       - **Fix 2 — Timeout enforcement**: Added `"timeout": int(self.timeout)` to every Ollama call (chat, chat_stream, _unload_model, unload_model). Previously stored but never passed.

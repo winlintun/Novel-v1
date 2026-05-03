@@ -1,5 +1,5 @@
 {
-  "last_updated": "2026-05-02T13:00:00Z",
+  "last_updated": "2026-05-03T00:00:00Z",
   "lessons": [
     {
       "date": "2026-05-02",
@@ -19,6 +19,7 @@
       "lesson": "padauk-gemma can output Tamil (and potentially other Indic scripts) mixed in Myanmar text. Postprocessor must strip ALL non-Myanmar scripts, not just Chinese/Bengali/Thai.",
       "action": "Added _INDIC_PATTERN covering 9 Indic script blocks. Always strip in clean_output()."
     },
+    {
       "date": "2026-05-02",
       "context": "Novel: Reverend Insanity — padauk-gemma glossary comparison garbage",
       "lesson": "padauk-gemma at temperature ≥ 0.4 outputs word-by-word glossary comparison junk (*:* \"word\" is . \"other\" is .) mixed with translation. These are NOT caught by existing reasoning-stripping patterns. Temperature 0.2 prevents this behavior.",
@@ -35,6 +36,18 @@
       "context": "Project infrastructure initialization",
       "lesson": ".agent/ directory is the agent brain — must be created before any other operation. All files follow strict schemas defined in AGENTS.md.",
       "action": "Always create .agent/ files with correct schemas on first session"
+    },
+    {
+      "date": "2026-05-03",
+      "context": "Myanmar paragraph similarity — SequenceMatcher vs char-set overlap",
+      "lesson": "Char-set overlap on Myanmar text gives false 80-86% similarity on completely different sentences that share common particles (သည်/ကို/မည်). SequenceMatcher gives true sequence similarity: different sentences score 0.26-0.31, true duplicates score 0.90+.",
+      "action": "ALWAYS use SequenceMatcher for Myanmar sentence similarity. NEVER use char-set overlap. Threshold 0.85+ is safe for duplicate detection."
+    },
+    {
+      "date": "2026-05-03",
+      "context": "Myanmar sentence ender check — modern prose patterns",
+      "lesson": "Modern Myanmar Wuxia/Xianxia prose regularly uses ! and ? alongside ။. Chapter format may include ---\\n<subtitle>\\n--- sectioning where subtitle is not a proper sentence. Both must be excluded from sentence-ender validation.",
+      "action": "Add ! and ? to valid_enders. Detect subtitle_lines between --- separators and exclude from content_lines check."
     }
   ],
   "known_patterns": [

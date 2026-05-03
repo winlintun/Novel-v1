@@ -7,6 +7,42 @@
 ---
 
 
+### ERROR-058: Admin Review — Translation Quality Issues Chapters 13-21
+**Date**: 2026-05-03
+**Files**: `src/pipeline/orchestrator.py`, `src/utils/translation_reviewer.py`, 5 output chapter files
+**Issue Summary**:
+Admin review of chapters 13-21 revealed 9 quality problems across review reports in `logs/report/`:
+1. **Garbled chunk tail in ch021**: Last chunk (12/12) produced English garbage `– It of .` and `://en..//____` — model output entropy spike on final chunk.
+2. **No quality gate before save**: Pipeline saved files even when Myanmar ratio was borderline — no hard block existed.
+3. **Sentence ender false positives**: `_check_sentence_enders()` did not accept `!` and `?`; counted section-subtitle lines between `---` as truncated content.
+4. **Korean script leakage in ch019**: Two Korean characters `괴물` (U+AD34, U+BB3C) appeared in output — model failed to translate this term.
+5. **False positive paragraph duplication**: `_check_paragraph_duplication()` used char-set overlap which gave 81-86% overlap on different Myanmar sentences sharing common particles — not actual duplicates.
+6. **Register check over-flagging**: Threshold 0.3 flagged normal narration+dialogue chapters as "mixed register".
+7. **Chapter title format**: Chapters 015/016/017 had titles formatted as `# Chapter N: subtitle` instead of `# Chapter N\n## subtitle`.
+8. **Per-chapter meta.json missing**: Review reports showed pipeline/model as "unknown" for all chapters.
+**Root Cause**:
+1. padauk-gemma model entropy spike at final chunk — no detection for English garbage in last chunk
+2. Quality gate implemented as reviewer warning, not hard pipeline block
+3. Sentence ender function did not account for modern Myanmar prose using `!`/`?`, or for chapter formatting with `---`-delimited subtitle sections
+4. Model-level failure to translate two-character Korean term
+5. Char-set overlap treats any two Myanmar sentences sharing common particles (မည်, သည်, ကို) as 80%+ similar — false positive
+6. Register threshold 0.3 too sensitive for novel chapters with dialogue
+7. No enforced title format in earlier translation runs
+8. Per-chapter `.meta.json` writer was never added to `_save_output()`
+**Fix Applied**:
+1. Removed garbled lines from ch021 output file manually
+2. Added Myanmar ratio quality gate in orchestrator.py after QA stage — blocks save if overall < 70% OR any chunk < 40%
+3. Fixed `_check_sentence_enders()` — added `!`/`?` to valid_enders, added subtitle_lines detection for `---`-bounded lines
+4. Replaced Korean chars in ch019 with Myanmar translation `ဆိုးဝါးသောသတ္တဝါ`
+5. Replaced char-set overlap with `SequenceMatcher` in both `_deduplicate_chunks()` and `_check_paragraph_duplication()` — sequence similarity correctly identifies true duplicates
+6. Register threshold raised 0.3 → 0.5
+7. Fixed ch015/016/017 titles to `# Chapter N\n## subtitle` format
+8. Added per-chapter `.mm.meta.json` writer in `_save_output()` using `output_path.with_suffix('.meta.json')`
+**Status**: RESOLVED
+**Tests**: 254/254 pass
+
+---
+
 ### ERROR-057: need_to_fix_bug.md Foundation Bugs — State Corruption, Timeout, Glossary Pipeline
 **Date**: 2026-05-02
 **Files**: `src/utils/ollama_client.py`, `src/agents/reflection_agent.py`, `src/agents/refiner.py`, `src/agents/qa_tester.py`, `src/pipeline/orchestrator.py`, `src/memory/memory_manager.py`, `src/agents/checker.py`, `tests/test_memory.py`

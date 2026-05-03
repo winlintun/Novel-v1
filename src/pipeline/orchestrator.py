@@ -12,6 +12,7 @@ Coordinates all translation stages:
 7. QA Review - Final validation
 """
 
+import json
 import time
 import signal
 import logging
@@ -122,6 +123,8 @@ class TranslationPipeline:
                 repeat_penalty=getattr(self.config.processing, 'repeat_penalty', 1.3),
                 max_retries=getattr(self.config.processing, 'max_retries', 2),
                 use_gpu=getattr(self.config.models, 'use_gpu', True),
+                use_generate_endpoint=getattr(self.config.models, 'use_generate_endpoint', False),
+                num_ctx=getattr(self.config.models, 'num_ctx', 8192),
                 gpu_layers=getattr(self.config.models, 'gpu_layers', -1),
                 main_gpu=getattr(self.config.models, 'main_gpu', 0)
             )
@@ -280,6 +283,44 @@ class TranslationPipeline:
                     )
             except Exception as e:
                 self.logger.warning(f"QA validation failed (non-fatal): {e}")
+
+            # ── Problem 2: Myanmar ratio quality gate ──────────────────────────
+            # Block save if assembled output has Myanmar ratio < 70%.
+            # This prevents saving garbage chunks that failed retry.
+            overall_mm_ratio = self._calc_myanmar_ratio(result_text)
+            if overall_mm_ratio < 0.70:
+                self.logger.error(
+                    f"Quality gate FAILED: overall Myanmar ratio {overall_mm_ratio:.1%} < 70%. "
+                    f"File NOT saved. Please retranslate this chapter."
+                )
+                return {
+                    "success": False,
+                    "output_path": None,
+                    "glossary_updates": [],
+                    "errors": [
+                        f"Quality gate: Myanmar ratio {overall_mm_ratio:.1%} < 70% — file not saved"
+                    ],
+                    "metrics": {"myanmar_ratio": overall_mm_ratio},
+                    "chapter": Path(filepath).stem,
+                }
+            # Also block if any chunk produced < 40% Myanmar (severely broken chunk)
+            if chunk_metrics:
+                bad_chunks = [m for m in chunk_metrics if m.get("myanmar_ratio", 1.0) < 0.40]
+                if bad_chunks:
+                    self.logger.error(
+                        f"Quality gate FAILED: {len(bad_chunks)} chunk(s) with Myanmar ratio < 40%. "
+                        f"File NOT saved. Please retranslate."
+                    )
+                    return {
+                        "success": False,
+                        "output_path": None,
+                        "glossary_updates": [],
+                        "errors": [
+                            f"Quality gate: {len(bad_chunks)} chunk(s) with Myanmar ratio < 40%"
+                        ],
+                        "metrics": {"bad_chunks": len(bad_chunks)},
+                        "chapter": Path(filepath).stem,
+                    }
 
             duration = time.time() - start_time
 
@@ -596,8 +637,8 @@ class TranslationPipeline:
 
         # Calculate optimal: 35% of context window, capped by config max
         optimal = min(
-            int(model_ctx * 0.35),       # e.g., 4096*0.35 = 1433
-            min(config_size, 2000),      # never exceed 2000
+            int(model_ctx * 0.35),       # e.g., 8192*0.35 = 2867
+            min(config_size, 2500),      # never exceed 2500
         )
 
         # If source text is very short, just use 1 chunk
@@ -608,7 +649,7 @@ class TranslationPipeline:
 
         # Safety bounds
         optimal = max(optimal, 600)   # minimum 600 tokens
-        optimal = min(optimal, 2000)  # maximum 2000 tokens
+        optimal = min(optimal, 2500)  # maximum 2500 tokens
 
         self.logger.debug(
             f"Auto-detected chunk_size={optimal} "
@@ -849,7 +890,7 @@ class TranslationPipeline:
         detects and removes paragraphs from chunk N+1 that already appeared at the
         end of chunk N, preventing duplicated content in the final output.
         
-        Uses a high-similarity threshold (>0.95) and minimum-length checks to
+        Uses a high-similarity threshold (>0.90) and minimum-length checks to
         avoid false positives on short Myanmar paragraphs.
         
         Args:
@@ -866,15 +907,13 @@ class TranslationPipeline:
             return [p.strip() for p in text.split('\n\n') if p.strip()]
 
         def chars_overlap_ratio(p1: str, p2: str) -> float:
-            """Compute character set overlap ratio between two strings.
-            Only used for boundary-adjacent paragraphs with minimum length."""
-            set1 = set(p1.replace(' ', ''))
-            set2 = set(p2.replace(' ', ''))
-            if not set1 or not set2:
+            """Compute sequence similarity between two strings.
+            Uses SequenceMatcher to avoid false positives from Myanmar
+            sentences that share common particles/characters."""
+            from difflib import SequenceMatcher
+            if not p1 or not p2:
                 return 0.0
-            intersection = set1 & set2
-            union = set1 | set2
-            return len(intersection) / len(union)
+            return SequenceMatcher(None, p1, p2).ratio()
 
         result = [chunks[0]]
 
@@ -895,13 +934,13 @@ class TranslationPipeline:
             # Only attempt deduplication on paragraphs with substantial content (>50 chars)
             # to avoid false positives on short, similar-looking Myanmar sentences
             if len(last_prev) > 50 and len(first_curr) > 50:
-                if chars_overlap_ratio(last_prev, first_curr) > 0.95:
+                if chars_overlap_ratio(last_prev, first_curr) > 0.90:
                     remove_from_curr = 1
                     # Check if more consecutive boundary paragraphs match
                     for k in range(2, min(len(prev_paras), len(curr_paras)) + 1):
                         p = prev_paras[-k]
                         c = curr_paras[k-1]
-                        if len(p) > 50 and len(c) > 50 and chars_overlap_ratio(p, c) > 0.95:
+                        if len(p) > 50 and len(c) > 50 and chars_overlap_ratio(p, c) > 0.90:
                             remove_from_curr = k
                         else:
                             break
@@ -951,7 +990,6 @@ class TranslationPipeline:
         # Single file: data/output/{novel}/{novel}.mm.meta.json
         # Updated cumulatively with each chapter translation
         if self._current_novel:
-            import json
             novel_meta_path = output_path.parent / f"{self._current_novel}.mm.meta.json"
 
             # Load existing meta if it exists
@@ -991,6 +1029,27 @@ class TranslationPipeline:
                 self.logger.info(f"Updated meta: {novel_meta_path.name} (chapters: {len(chapters_meta)})")
             except Exception as e:
                 self.logger.warning(f"Failed to write meta: {e}")
+
+        # ── Problem 9: Write per-chapter meta for reviewer ────────────────────
+        # translation_reviewer.py reads output_path.with_suffix('.meta.json')
+        # (e.g. reverend-insanity_chapter_021.mm.meta.json).
+        # Without this file pipeline/model show as "unknown" in review reports.
+        per_chapter_meta = {
+            "chapter": chapter_num,
+            "novel": self._current_novel,
+            "pipeline": self.config.translation_pipeline.mode if self.config else "unknown",
+            "model": self.config.models.translator if self.config else "unknown",
+            "duration_seconds": (extra_meta or {}).get("duration_seconds", 0),
+            "translated_at": datetime.now().isoformat(),
+        }
+        per_chapter_meta_path = output_path.with_suffix('.meta.json')
+        try:
+            FileHandler.write_text(
+                str(per_chapter_meta_path),
+                json.dumps(per_chapter_meta, indent=2, ensure_ascii=False),
+            )
+        except Exception as e:
+            self.logger.warning(f"Failed to write per-chapter meta: {e}")
 
         self.logger.info(f"Step 7/7: Saved output to {output_path}")
 
