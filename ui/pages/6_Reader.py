@@ -1,12 +1,13 @@
 """
 Markdown Reader — ဘာသာပြန်ဖတ်ရှုသူ
-Comfortable reading of translated .mm.md output files with proper Myanmar rendering.
+Novel reader UI styled after novel_reader React app (same fonts, colors, typography).
 """
 
 import re
+import markdown as md_lib
 import streamlit as st
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 st.set_page_config(
     page_title="Reader | ဘာသာပြန်ဖတ်ရှုသူ",
@@ -14,122 +15,312 @@ st.set_page_config(
     layout="wide",
 )
 
-# --- CSS for comfortable reading ---
-st.markdown("""
+# ── Constants ─────────────────────────────────────────────────────────────────
+OUTPUT_DIR = Path("data/output")
+
+_FONT_FACE = {
+    "myanmarsanpya": (
+        "@font-face{font-family:'MyanmarSanpya';"
+        "src:local('MyanmarSanpya'),"
+        "url('https://cdn.jsdelivr.net/gh/saturngod/myanmar-unicode-fonts@master/docs/KhmerType/MyanmarSanpya.ttf')"
+        "format('truetype');font-display:swap;}"
+    ),
+    "myanmartagu": (
+        "@font-face{font-family:'MyanmarTagu';"
+        "src:local('MyanmarTagu'),"
+        "url('https://cdn.jsdelivr.net/gh/saturngod/myanmar-unicode-fonts@master/docs/KhmerType/MyanmarTagu.ttf')"
+        "format('truetype');font-display:swap;}"
+    ),
+    "masterpiecestadium": (
+        "@font-face{font-family:'MasterpieceStadium';"
+        "src:local('MasterpieceStadium'),"
+        "url('https://cdn.jsdelivr.net/gh/saturngod/myanmar-unicode-fonts@master/docs/masterpiece/MasterpieceStadium.ttf')"
+        "format('truetype');font-display:swap;}"
+    ),
+    "pyidaungsu": (
+        "@font-face{font-family:'Pyidaungsu';"
+        "src:local('Pyidaungsu'),"
+        "url('https://cdn.jsdelivr.net/gh/saturngod/myanmar-unicode-fonts@master/docs/other/Pyidaungsu.ttf')"
+        "format('truetype');font-display:swap;}"
+    ),
+}
+
+_FONT_STACK = {
+    "system":           "system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",
+    "myanmarsanpya":    "'MyanmarSanpya',system-ui,sans-serif",
+    "myanmartagu":      "'MyanmarTagu',system-ui,sans-serif",
+    "masterpiecestadium": "'MasterpieceStadium',system-ui,sans-serif",
+    "pyidaungsu":       "'Pyidaungsu',Georgia,serif",
+}
+
+_FONT_LABELS = {
+    "system":           "System Font",
+    "myanmarsanpya":    "Myanmar Sanpya",
+    "myanmartagu":      "Myanmar Tagu",
+    "masterpiecestadium": "Masterpiece Stadium",
+    "pyidaungsu":       "Pyidaungsu",
+}
+
+_SIZES = {
+    "small":  {"lg": "1rem",    "2xl": "1.25rem", "3xl": "1.5rem"},
+    "medium": {"lg": "1.125rem","2xl": "1.5rem",  "3xl": "1.875rem"},
+    "large":  {"lg": "1.25rem", "2xl": "1.625rem","3xl": "2rem"},
+}
+
+_COLORS = {
+    "light": {
+        "text":         "#1a1a1a",
+        "text_sub":     "#4a4a4a",
+        "text_muted":   "#6b6b6b",
+        "bg":           "#ffffff",
+        "bg_sec":       "#fafafa",
+        "bg_elev":      "#ffffff",
+        "border":       "#e5e5e5",
+        "border_med":   "#d4d4d4",
+        "btn_bg":       "#1a1a1a",
+        "btn_text":     "#ffffff",
+        "btn_hover":    "#333333",
+        "sidebar_bg":   "#fafafa",
+        "sidebar_text": "#1a1a1a",
+    },
+    "dark": {
+        "text":         "#e5e5e5",
+        "text_sub":     "#b5b5b5",
+        "text_muted":   "#949494",
+        "bg":           "#1a1a1a",
+        "bg_sec":       "#0f0f0f",
+        "bg_elev":      "#262626",
+        "border":       "#404040",
+        "border_med":   "#525252",
+        "btn_bg":       "#e5e5e5",
+        "btn_text":     "#1a1a1a",
+        "btn_hover":    "#ffffff",
+        "sidebar_bg":   "#0f0f0f",
+        "sidebar_text": "#e5e5e5",
+    },
+}
+
+
+# ── CSS builder ───────────────────────────────────────────────────────────────
+
+def _build_css(theme: str, font_key: str, size_key: str) -> str:
+    font_face = _FONT_FACE.get(font_key, "")
+    ff = _FONT_STACK.get(font_key, _FONT_STACK["system"])
+    sz = _SIZES.get(size_key, _SIZES["medium"])
+
+    def _theme_block(c: dict) -> str:
+        return f"""
+        .stApp {{
+            background-color: {c["bg"]} !important;
+        }}
+        section[data-testid="stSidebar"] > div:first-child {{
+            background-color: {c["sidebar_bg"]} !important;
+        }}
+        section[data-testid="stSidebar"] .stMarkdown,
+        section[data-testid="stSidebar"] label,
+        section[data-testid="stSidebar"] p,
+        section[data-testid="stSidebar"] span {{
+            color: {c["sidebar_text"]} !important;
+        }}
+        .rd-page {{
+            background-color: {c["bg"]};
+            color: {c["text"]};
+        }}
+        .rd-info {{
+            background-color: {c["bg_elev"]};
+            border-bottom-color: {c["border"]};
+            color: {c["text_muted"]};
+        }}
+        .rd-content h1 {{
+            color: {c["text"]};
+            border-bottom-color: {c["border"]};
+        }}
+        .rd-content h2 {{
+            color: {c["text"]};
+            border-bottom-color: {c["border"]};
+        }}
+        .rd-content h3 {{ color: {c["text"]}; }}
+        .rd-content p   {{ color: {c["text"]}; }}
+        .rd-content em  {{ color: {c["text_sub"]}; }}
+        .rd-content strong {{ color: {c["text"]}; }}
+        .rd-content hr  {{ border-top-color: {c["border"]}; }}
+        .rd-content blockquote {{
+            border-left-color: {c["border_med"]};
+            background: {c["bg_sec"]};
+            color: {c["text_sub"]};
+        }}
+        .rd-nav-btn {{
+            background-color: {c["btn_bg"]} !important;
+            color: {c["btn_text"]} !important;
+            border-color: {c["btn_bg"]} !important;
+        }}
+        .rd-nav-btn:hover {{
+            background-color: {c["btn_hover"]} !important;
+            border-color: {c["btn_hover"]} !important;
+        }}
+        """
+
+    if theme == "system":
+        light_block = _theme_block(_COLORS["light"])
+        dark_block  = _theme_block(_COLORS["dark"])
+        theme_css = f"""
+        {light_block}
+        @media (prefers-color-scheme: dark) {{
+            {dark_block}
+        }}
+        """
+    else:
+        theme_css = _theme_block(_COLORS[theme])
+
+    return f"""
 <style>
-/* Google Fonts fallback for Myanmar */
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Myanmar:wght@400;600;700&display=swap');
+{font_face}
 
-/* Comfortable reading container */
-.reader-container {
-    max-width: 720px;
+/* ── Reader page wrapper ── */
+.rd-page {{
+    max-width: 800px;
     margin: 0 auto;
-    padding: 20px 16px;
-    font-family: 'Noto Sans Myanmar', 'Padauk', 'Myanmar Text', sans-serif;
-    font-size: 17px;
-    line-height: 2.0;
-    color: #1a1a1a;
-}
+    padding: 0 1.25rem 5rem;
+    font-family: {ff};
+    line-height: 1.75;
+}}
 
-.reader-container h1 {
-    font-family: 'Noto Sans Myanmar', 'Padauk', 'Myanmar Text', sans-serif;
-    font-size: 28px;
+/* ── Info bar ── */
+.rd-info {{
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid #e5e5e5;
+    margin-bottom: 1.5rem;
+    font-size: 0.875rem;
+    font-family: {ff};
+}}
+
+/* ── Chapter content ── */
+.rd-content {{
+    font-family: {ff};
+    font-size: {sz["lg"]};
+    line-height: 1.75;
+    word-wrap: break-word;
+}}
+
+.rd-content h1 {{
+    text-align: center;
+    font-size: {sz["3xl"]};
+    margin: 2rem 0 1.5rem;
     font-weight: 700;
-    color: #0d1b2a;
-    text-align: center;
-    margin: 30px 0 10px 0;
-    padding-bottom: 12px;
-    border-bottom: 2px solid #e0c97f;
-}
+    line-height: 1.25;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #e5e5e5;
+    font-family: {ff};
+}}
 
-.reader-container h2 {
-    font-family: 'Noto Sans Myanmar', 'Padauk', 'Myanmar Text', sans-serif;
-    font-size: 22px;
+.rd-content h2 {{
+    font-size: {sz["2xl"]};
+    margin: 0.25rem 0 1.5rem;
     font-weight: 600;
-    color: #2c3e50;
+    line-height: 1.25;
     text-align: center;
-    margin: 8px 0 30px 0;
-}
+    border-bottom: 1px solid #e5e5e5;
+    padding-bottom: 0.75rem;
+    font-family: {ff};
+}}
 
-.reader-container h3 {
-    font-size: 19px;
+.rd-content h3 {{
+    font-size: {sz["lg"]};
+    margin: 1.25rem 0 0.75rem;
     font-weight: 600;
-    margin: 24px 0 12px 0;
-}
+    font-family: {ff};
+}}
 
-.reader-container p {
-    margin: 16px 0;
+.rd-content p {{
+    margin-bottom: 1.25rem;
     text-align: justify;
-}
+    font-size: {sz["lg"]};
+    font-family: {ff};
+}}
 
-.reader-container em, .reader-container i {
-    color: #2c5282;
-}
+.rd-content img {{
+    max-width: 100%;
+    height: auto;
+    margin: 1.25rem auto;
+    display: block;
+    border-radius: 6px;
+}}
 
-.reader-container strong, .reader-container b {
-    color: #1a365d;
-}
-
-.reader-container blockquote {
-    border-left: 3px solid #e0c97f;
-    padding: 10px 16px;
-    margin: 16px 0;
-    background: #fefcfa;
+.rd-content blockquote {{
+    border-left: 3px solid #d4d4d4;
+    padding: 0.75rem 1rem;
+    margin: 1rem 0;
     font-style: italic;
-}
+    border-radius: 0 4px 4px 0;
+}}
 
-div.block-container {
-    padding-top: 2rem;
-}
-
-.nav-bar {
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    background: rgba(255,255,255,0.95);
-    backdrop-filter: blur(8px);
-    padding: 10px 16px;
-    border-bottom: 1px solid #e2e8f0;
-    margin-bottom: 16px;
-}
-
-.reader-container hr {
+.rd-content hr {{
     border: none;
-    border-top: 1px solid #e2e0d5;
-    margin: 24px 0;
-}
+    border-top: 1px solid #e5e5e5;
+    margin: 2rem 0;
+}}
 
-.placeholder-warning {
+/* ── Navigation buttons ── */
+.rd-nav-btn {{
+    display: inline-block;
+    padding: 0.625rem 1.5rem;
+    border-radius: 8px;
+    font-size: {sz["lg"]};
+    font-weight: 500;
+    font-family: {ff};
+    cursor: pointer;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    border: 2px solid transparent;
+    text-decoration: none;
+}}
+
+/* ── Placeholder warning ── */
+.rd-placeholder-warn {{
     background: #fff3cd;
     border: 1px solid #ffc107;
     border-radius: 6px;
     padding: 8px 14px;
-    margin: 12px 0;
-    font-size: 14px;
+    margin: 0 0 1rem;
+    font-size: 0.875rem;
     color: #856404;
-}
+}}
+
+/* ── Streamlit overrides ── */
+div.block-container {{ padding-top: 1rem !important; padding-bottom: 0 !important; }}
+div[data-testid="stHorizontalBlock"] {{ gap: 0.75rem; }}
+
+/* ── Bottom nav Streamlit button override ── */
+div[data-testid="stHorizontalBlock"] button {{
+    border-radius: 8px !important;
+    font-family: {ff} !important;
+    font-size: {sz["lg"]} !important;
+    font-weight: 500 !important;
+    padding: 0.625rem 1rem !important;
+    transition: all 0.15s ease !important;
+}}
+
+{theme_css}
 </style>
-""", unsafe_allow_html=True)
+"""
 
-# --- Constants ---
-OUTPUT_DIR = Path("data/output")
 
+# ── Helper functions ──────────────────────────────────────────────────────────
 
 def discover_novels() -> List[str]:
-    """Find novels with translated output files."""
     if not OUTPUT_DIR.exists():
         return []
-    novels = []
-    for d in OUTPUT_DIR.iterdir():
-        if d.is_dir():
-            mm_files = list(d.glob("*.mm.md"))
-            if mm_files:
-                novels.append(d.name)
-    return sorted(novels)
+    return sorted(
+        d.name for d in OUTPUT_DIR.iterdir()
+        if d.is_dir() and list(d.glob("*.mm.md"))
+    )
 
 
-def discover_chapters(novel: str) -> List[Tuple[int, Path]]:
-    """Get sorted list of (chapter_number, path) for a novel."""
+def discover_chapters(novel: str) -> List[Tuple[int, str, str, Path]]:
+    """Return sorted (num, title, subtitle, path) for every translated chapter."""
     novel_dir = OUTPUT_DIR / novel
     if not novel_dir.exists():
         return []
@@ -137,194 +328,212 @@ def discover_chapters(novel: str) -> List[Tuple[int, Path]]:
     chapters = []
     for f in novel_dir.glob("*.mm.md"):
         stem = f.stem.replace(".mm", "")
-        # Extract chapter number: prefer patterns like _0001, _chapter_001, or trailing digits
-        m = re.search(r'[_\s]*(\d{2,4})$', stem)
+        m = re.search(r'[_\s]*(\d{2,4})$', stem) or re.search(r'(\d+)', stem)
         if not m:
-            m = re.search(r'(\d+)', stem)
-        if m:
-            num = int(m.group(1))
-            chapters.append((num, f))
+            continue
+        num = int(m.group(1))
+        title, subtitle = _extract_headings(f)
+        chapters.append((num, title, subtitle, f))
 
     return sorted(chapters, key=lambda x: x[0])
 
 
-def load_chapter(path: Path) -> str:
-    """Load chapter content with BOM handling and encoding fallback."""
+def _extract_headings(path: Path) -> Tuple[str, str]:
+    """Read the first H1 and H2 from a chapter file."""
     try:
-        with open(path, 'r', encoding='utf-8-sig') as f:
-            return f.read()
+        with open(path, "r", encoding="utf-8-sig") as fh:
+            lines = fh.read().splitlines()
+    except Exception:
+        return "", ""
+
+    title = subtitle = ""
+    for line in lines[:25]:
+        s = line.strip()
+        if not title and s.startswith("# "):
+            title = s[2:].strip()
+        elif not subtitle and s.startswith("## "):
+            subtitle = s[3:].strip()
+        if title and subtitle:
+            break
+    return title, subtitle
+
+
+def _load_chapter(path: Path) -> str:
+    try:
+        with open(path, "r", encoding="utf-8-sig") as fh:
+            return fh.read()
     except UnicodeDecodeError:
-        st.warning(f"Encoding fallback for {path.name}")
-        with open(path, 'r', encoding='utf-8') as f:
-            return f.read()
+        with open(path, "r", encoding="utf-8") as fh:
+            return fh.read()
 
 
-def preprocess_content(content: str) -> str:
-    """Apply postprocessing fixes for clean display.
-    
-    Delegates to src.utils.postprocessor which is the single source of truth
-    for heading deduplication and collapsed text recovery.
-    """
-    from src.utils.postprocessor import (
-        _split_into_lines_if_needed,
-        fix_chapter_heading_format,
-        remove_duplicate_headings,
-    )
-    content = _split_into_lines_if_needed(content)
-    content = fix_chapter_heading_format(content)
-    content = remove_duplicate_headings(content)
+def _preprocess(content: str) -> str:
+    try:
+        from src.utils.postprocessor import (
+            _split_into_lines_if_needed,
+            fix_chapter_heading_format,
+            remove_duplicate_headings,
+        )
+        content = _split_into_lines_if_needed(content)
+        content = fix_chapter_heading_format(content)
+        content = remove_duplicate_headings(content)
+    except Exception:
+        pass
     return content
 
 
-# --- Sidebar: Novel & Chapter selection ---
+def _to_html(content: str) -> str:
+    return md_lib.markdown(
+        content,
+        extensions=["nl2br", "sane_lists", "tables"],
+    )
+
+
+def _chapter_label(num: int, title: str, subtitle: str) -> str:
+    if title:
+        return f"{title}" + (f"  —  {subtitle}" if subtitle else "")
+    return f"အခန်း {num}"
+
+
+# ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("### 📚 ဝတ္ထုရွေးချယ်ရန်")
 
     novels = discover_novels()
     if not novels:
-        st.warning("No translated files found. Translate a chapter first using the **Translate** page.")
+        st.warning("No translated files found. Translate a chapter first.")
         st.stop()
 
-    # Novel selector
-    novel_idx = 0
-    if "reader_novel" in st.session_state:
-        try:
-            novel_idx = novels.index(st.session_state.reader_novel)
-        except ValueError:
-            novel_idx = 0
+    # ── Novel selector ──
+    saved_novel = st.session_state.get("reader_novel", novels[0])
+    novel_idx   = novels.index(saved_novel) if saved_novel in novels else 0
+    selected_novel = st.selectbox("Novel | ဝတ္ထု", novels, index=novel_idx, key="reader_novel")
 
-    selected_novel = st.selectbox(
-        "Novel | ဝတ္ထု",
-        novels,
-        index=novel_idx,
-        key="reader_novel_select"
-    )
-    st.session_state.reader_novel = selected_novel
-
-    # Chapter list
+    # ── Chapter list ──
     chapters = discover_chapters(selected_novel)
     if not chapters:
-        st.warning(f"No translated chapters for '{selected_novel}'")
+        st.warning(f"No translated chapters for **{selected_novel}**.")
         st.stop()
 
-    chapter_labels = [f"အခန်း {num}" for num, _ in chapters]
-    chapter_nums = [num for num, _ in chapters]
+    chapter_nums   = [c[0] for c in chapters]
+    chapter_labels = [_chapter_label(c[0], c[1], c[2]) for c in chapters]
 
-    # Find current chapter index
-    current_chapter = st.session_state.get("reader_chapter", chapter_nums[0])
-    try:
-        current_idx = chapter_nums.index(current_chapter)
-    except ValueError:
-        current_idx = 0
+    saved_ch = st.session_state.get("reader_chapter", chapter_nums[0])
+    cur_idx  = chapter_nums.index(saved_ch) if saved_ch in chapter_nums else 0
 
-    selected_label = st.selectbox(
-        "Chapter | အခန်း",
-        chapter_labels,
-        index=current_idx,
-        key="reader_chapter_select"
+    selected_label = st.selectbox("မာတိကာ", chapter_labels, index=cur_idx, key="reader_chapter_select")
+    sel_idx = chapter_labels.index(selected_label)
+    st.session_state.reader_chapter = chapter_nums[sel_idx]
+    chapter_path = chapters[sel_idx][3]
+
+    # ── Prev / Next ──
+    st.markdown("---")
+    c1, c2 = st.columns(2)
+    with c1:
+        if sel_idx > 0 and st.button("◀ ရှေ့", use_container_width=True):
+            st.session_state.reader_chapter = chapter_nums[sel_idx - 1]
+            st.rerun()
+    with c2:
+        if sel_idx < len(chapters) - 1 and st.button("နောက် ▶", use_container_width=True):
+            st.session_state.reader_chapter = chapter_nums[sel_idx + 1]
+            st.rerun()
+
+    # ── Settings ──
+    st.markdown("---")
+    st.markdown("**⚙️ ဖတ်ရှုမှုဆိုင်ရာ**")
+
+    theme = st.radio(
+        "Theme",
+        ["light", "dark", "system"],
+        format_func=lambda x: {"light": "☀️ Light", "dark": "🌙 Dark", "system": "🖥 System"}[x],
+        index=["light", "dark", "system"].index(
+            st.session_state.get("reader_theme", "light")
+        ),
+        key="reader_theme",
+        horizontal=True,
     )
 
-    selected_idx = chapter_labels.index(selected_label)
-    st.session_state.reader_chapter = chapter_nums[selected_idx]
-    chapter_path = chapters[selected_idx][1]
+    font_key = st.radio(
+        "Font | စာလုံးပုံစံ",
+        list(_FONT_LABELS.keys()),
+        format_func=lambda x: _FONT_LABELS[x],
+        index=list(_FONT_LABELS.keys()).index(
+            st.session_state.get("reader_font_key", "pyidaungsu")
+        ),
+        key="reader_font_key",
+    )
 
-    # Navigation buttons
-    st.markdown("---")
-    col_prev, col_next = st.columns(2)
-    with col_prev:
-        if selected_idx > 0:
-            if st.button("◀ ရှေ့အခန်း", use_container_width=True):
-                st.session_state.reader_chapter = chapter_nums[selected_idx - 1]
-                st.rerun()
-    with col_next:
-        if selected_idx < len(chapters) - 1:
-            if st.button("နောက်အခန်း ▶", use_container_width=True):
-                st.session_state.reader_chapter = chapter_nums[selected_idx + 1]
-                st.rerun()
+    size_key = st.radio(
+        "Font Size | စာလုံးအရွယ်",
+        ["small", "medium", "large"],
+        format_func=lambda x: {"small": "🔡 Small", "medium": "🔤 Medium", "large": "🔠 Large"}[x],
+        index=["small", "medium", "large"].index(
+            st.session_state.get("reader_size_key", "medium")
+        ),
+        key="reader_size_key",
+        horizontal=True,
+    )
 
-    # Chapter info
+    # ── File info ──
     st.markdown("---")
-    file_size = chapter_path.stat().st_size
-    size_str = f"{file_size / 1024:.1f} KB" if file_size > 1024 else f"{file_size} B"
+    fsize = chapter_path.stat().st_size
     st.caption(f"📄 {chapter_path.name}")
-    st.caption(f"📏 {size_str}")
-
-    # Dark mode toggle
-    dark_mode = st.toggle("🌙 Dark Mode", key="reader_dark")
-    font_size = st.slider("Font Size | စာလုံးအရွယ်", 14, 24, 17, key="reader_font_size")
+    st.caption(f"📏 {fsize/1024:.1f} KB" if fsize > 1024 else f"📏 {fsize} B")
 
 
-# --- Dark mode styling ---
-if dark_mode:
-    st.markdown(f"""
-    <style>
-    .reader-container {{
-        background: #1a1a2e;
-        color: #e0e0e0;
-    }}
-    .reader-container h1 {{ color: #e0c97f; border-bottom-color: #e0c97f; }}
-    .reader-container h2 {{ color: #ccc; }}
-    .reader-container strong {{ color: #e0c97f; }}
-    .reader-container em {{ color: #88b4e0; }}
-    .reader-container blockquote {{
-        background: #16213e;
-        border-left-color: #e0c97f;
-    }}
-    .nav-bar {{
-        background: rgba(26,26,46,0.95);
-        border-bottom-color: #333;
-    }}
-    .placeholder-warning {{
-        background: #3d2e00;
-        border-color: #e0c97f;
-        color: #ffd54f;
-    }}
-    </style>
-    """, unsafe_allow_html=True)
+# ── Inject CSS ────────────────────────────────────────────────────────────────
+st.markdown(_build_css(theme, font_key, size_key), unsafe_allow_html=True)
 
 
-# --- Main content: load and render chapter ---
-content = load_chapter(chapter_path)
-content = preprocess_content(content)
+# ── Load & render chapter ─────────────────────────────────────────────────────
+content = _load_chapter(chapter_path)
+content = _preprocess(content)
+html    = _to_html(content)
 
-# Safe novel name for display (no HTML injection)
+ch_num   = chapters[sel_idx][0]
+ch_title = chapters[sel_idx][1] or f"အခန်း {ch_num}"
 safe_novel = selected_novel.replace("<", "&lt;").replace(">", "&gt;")
 
-# Reading nav bar
+# Info bar
 st.markdown(
-    f'<div class="nav-bar" style="display:flex;align-items:center;gap:12px;">'
-    f'<span style="color:#888;font-size:14px;">📖 Chapter {st.session_state.reader_chapter}</span>'
-    f'<span style="color:#aaa;font-size:12px;">— {safe_novel}</span>'
-    f'<span style="flex:1;"></span>'
-    f'<span style="color:#888;font-size:12px;">{len(content):,} chars</span>'
-    f'</div>',
-    unsafe_allow_html=True
+    f'<div class="rd-page">'
+    f'  <div class="rd-info">'
+    f'    <span>📖 {ch_title}</span>'
+    f'    <span style="flex:1"></span>'
+    f'    <span>{len(content):,} chars</span>'
+    f'  </div>',
+    unsafe_allow_html=True,
 )
 
-# Content font size override
-st.markdown(
-    f'<style>'
-    f'.block-container .stMarkdown p {{ font-size:{font_size}px !important; }}'
-    f'.block-container .stMarkdown h1 {{ font-size:{font_size + 10}px !important; }}'
-    f'.block-container .stMarkdown h2 {{ font-size:{font_size + 4}px !important; }}'
-    f'</style>',
-    unsafe_allow_html=True
-)
-
-# Warn if placeholder terms present
-if '【?term?' in content:
-    st.warning(
-        '⚠️ This chapter contains unreviewed **【?term?】** placeholders. '
-        'Review the glossary to replace them with proper translations.'
+# Placeholder warning
+if "【?term?" in content:
+    st.markdown(
+        '<div class="rd-placeholder-warn">'
+        "⚠️ This chapter contains unreviewed <strong>【?term?】</strong> placeholders. "
+        "Review the Glossary page to resolve them."
+        "</div>",
+        unsafe_allow_html=True,
     )
 
-# Render markdown in a centered column for comfortable reading
-_, col_reader, _ = st.columns([1, 3, 1])
-with col_reader:
-    st.markdown(content)
+# Chapter content
+st.markdown(
+    f'<div class="rd-content">{html}</div>'
+    f'</div>',  # closes .rd-page
+    unsafe_allow_html=True,
+)
 
-# Footer
-total_lines = content.count('\n') + 1
-st.caption(f"📄 {total_lines:,} lines | {len(content):,} characters")
+# ── Bottom navigation ─────────────────────────────────────────────────────────
 st.markdown("---")
-st.caption("💡 Use the sidebar to switch novels and chapters. Click ◀ ▶ to navigate.")
+b1, b2 = st.columns(2)
+with b1:
+    if sel_idx > 0:
+        prev_title = chapters[sel_idx - 1][1] or f"အခန်း {chapters[sel_idx-1][0]}"
+        if st.button(f"◀  {prev_title}", use_container_width=True, key="nav_prev_bottom"):
+            st.session_state.reader_chapter = chapter_nums[sel_idx - 1]
+            st.rerun()
+with b2:
+    if sel_idx < len(chapters) - 1:
+        next_title = chapters[sel_idx + 1][1] or f"အခန်း {chapters[sel_idx+1][0]}"
+        if st.button(f"{next_title}  ▶", use_container_width=True, key="nav_next_bottom"):
+            st.session_state.reader_chapter = chapter_nums[sel_idx + 1]
+            st.rerun()
