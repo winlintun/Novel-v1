@@ -10,7 +10,20 @@
 ## Last Updated
 - Date: 2026-05-03
 - Last task completed:
-  - **FIXED: Translation Review Quality Issues — Chapters 13-21 Admin Review** (STATUS: READY_TO_COMMIT):
+  - **REVIEWED: Chapter 23 Translation Analysis** (STATUS: [DONE]):
+    - **Task**: Compared Chapter 23 output (`.mm.md`) against the original Chinese text and a Google Translate reference.
+    - **Findings**: The project pipeline produces a far superior thematic tone and terminology localization compared to Google Translate. However, it suffered from critical technical bugs during this chapter.
+    - **Bugs Identified**: 
+      1. `【?term?】` placeholders leaked into the final output (context_updater/postprocessor failed).
+      2. A crucial explanatory paragraph was dropped completely at the end of the chapter (LLM summarization/skip bug).
+      3. Terminology conflation ("Moonlight Gu" mistakenly translated as "Moon Orchid").
+    - **Action**: Updated `review_project.md` and the Known Issues list with these findings.
+
+  - **FIXED: Centralized Coverage Report** (STATUS: [DONE]):
+    - **Task**: Set up `pytest-cov` for centralized coverage reporting.
+    - **Resolution**: Created `pytest.ini`, installed dependencies, and verified coverage report generation (38% coverage on `src/`). Fixed broken mock test in `test_glossary_sync.py`.
+
+  - **FIXED: Translation Review Quality Issues — Chapters 13-21 Admin Review** (STATUS: [DONE]):
     - **Task**: Admin review of chapters 13-21 for reverend-insanity. 9 problems identified, 8 approved for fixing.
     - **Problem 1 — Ch021 garbled chunk tail**: Removed English garbage lines (`– It of .` and `://en..//____`) from ch021 last chunk output. Root cause: model output garbage for final chunk.
     - **Problem 2 — Quality gate before save**: Added Myanmar ratio gate in `orchestrator.py` — blocks save if overall ratio < 70% OR any chunk < 40% Myanmar. Returns `success=False` without writing file.
@@ -24,14 +37,14 @@
     - **Post-review scores**: Ch013=85, Ch014=90, Ch015=85, Ch016=90, Ch017=85, Ch018=90, Ch019=80, Ch020=90, Ch021=75 — all PASS (≥70)
     - **Files Modified**: `src/pipeline/orchestrator.py`, `src/utils/translation_reviewer.py`, `data/output/reverend-insanity/reverend-insanity_chapter_015.mm.md`, `data/output/reverend-insanity/reverend-insanity_chapter_016.mm.md`, `data/output/reverend-insanity/reverend-insanity_chapter_017.mm.md`, `data/output/reverend-insanity/reverend-insanity_chapter_019.mm.md`, `data/output/reverend-insanity/reverend-insanity_chapter_021.mm.md`
     - **Tests**: 254/254 pass
-  - **FIXED: sailor2-20b missing from ollama list** (STATUS: READY_TO_COMMIT):
+  - **FIXED: sailor2-20b missing from ollama list** (STATUS: [DONE]):
     - **Root Cause**: The `sailor2-20b` model was defined in `Modelfile.sailor2-20b` and the config files, but it was not actually built in Ollama.
     - **Fix Applied**: Ran `ollama create sailor2-20b -f Modelfile.sailor2-20b` to build the model from the existing GGUF file (`models/Sailor2-L-20B.Q4_K_M.gguf`).
     - **Verification**: Confirmed `sailor2-20b:latest` now appears in `ollama list`.
-  - **FIXED: need_to_fix_bug.md Foundation Bugs — Phase 1-4 Stability + Glossary Pipeline** (STATUS: READY_TO_COMMIT):
+  - **FIXED: need_to_fix_bug.md Foundation Bugs — Phase 1-4 Stability + Glossary Pipeline** (STATUS: [DONE]):
 ...
     - **Tests**: 280/280 pass
-  - **IMPLEMENTED: Sailor2-20B Integration — Modelfile + Dedicated Configurations** (STATUS: READY_TO_COMMIT):
+  - **IMPLEMENTED: Sailor2-20B Integration — Modelfile + Dedicated Configurations** (STATUS: [DONE]):
     - **Modelfile.sailor2-20b**: Created with ChatML template and project-standard sampling parameters (temp: 0.2, top_p: 0.95, repeat_penalty: 1.15). Points to `models/Sailor2-L-20B.Q4_K_M.gguf`.
     - **Config Updates**:
       - `config/settings.yaml`: Added `sailor2-20b` to translator and refiner `model_roles`.
@@ -40,7 +53,7 @@
     - **Documentation**: Updated `ollama_model_list.md` with Sailor2-20B specs (13GB, multilingual).
     - **Files Created**: `Modelfile.sailor2-20b`, `config/settings.sailor2.yaml`
     - **Files Modified**: `config/settings.yaml`, `config/settings.pivot.yaml`, `ollama_model_list.md`
-  - Previous: **FIXED: need_to_fix_bug.md Foundation Bugs — Phase 1-4 Stability + Glossary Pipeline** (STATUS: READY_TO_COMMIT):
+  - Previous: **FIXED: need_to_fix_bug.md Foundation Bugs — Phase 1-4 Stability + Glossary Pipeline** (STATUS: [DONE]):
     - **Phase 1 — Stability Foundation**:
       - **Fix 1 — State corruption**: ReflectionAgent no longer mutates `self.client.model` (shared mutable state). Instead uses per-call `model=` parameter on `OllamaClient.chat()`. State is now stateless.
       - **Fix 2 — Timeout enforcement**: Added `"timeout": int(self.timeout)` to every Ollama call (chat, chat_stream, _unload_model, unload_model). Previously stored but never passed.
@@ -60,12 +73,12 @@
       - **Fix 13 — Placeholder check hoisted**: `"【?term?】" in text` check moved outside the loop (runs once, not N times).
     - **Files Modified**: `src/utils/ollama_client.py`, `src/agents/reflection_agent.py`, `src/agents/refiner.py`, `src/agents/qa_tester.py`, `src/pipeline/orchestrator.py`, `src/memory/memory_manager.py`, `src/agents/checker.py`, `tests/test_memory.py`
     - **Tests**: 280/280 pass
-  - Previous: **IMPLEMENTED: Production Polish — Complete requirements.txt + GitHub Actions CI Pipeline** (STATUS: READY_TO_COMMIT):
+  - Previous: **IMPLEMENTED: Production Polish — Complete requirements.txt + GitHub Actions CI Pipeline** (STATUS: [DONE]):
     - **Fix 1 — Complete requirements.txt**: Added missing dependencies (`pydantic>=2.0.0`, `typing_extensions>=4.0.0`, `requests>=2.28.0`). Removed dead dependency `chardet`. Requirements.txt now matches all actually-imported third-party packages.
     - **Fix 2 — Automated CI Pipeline**: Created `.github/workflows/ci.yml` — GitHub Actions workflow with: Python 3.10-3.13 test matrix, dependency install + pytest run (280 tests), Ruff lint check, compile check (syntax validation). Enables automated testing on every push and PR.
     - **Files Created**: `.github/workflows/ci.yml`
     - **Files Modified**: `requirements.txt`
-  - Previous: **IMPLEMENTED: 4 Quality-of-Life Improvements (fluency metrics, quickstart wizard, auto-approve glossary, legal docs)** (STATUS: READY_TO_COMMIT):
+  - Previous: **IMPLEMENTED: 4 Quality-of-Life Improvements (fluency metrics, quickstart wizard, auto-approve glossary, legal docs)** (STATUS: [DONE]):
     - **Fix 1 — Automated Quality Metrics**: Created `src/utils/fluency_scorer.py` — reference-free Burmese fluency heuristic (no BLEU/COMET needed). 7 dimensions: lexical diversity (TTR), particle diversity, sentence flow (length variance + enders), syllable richness (compound word ratio), paragraph rhythm, punctuation health, hallucination repetition penalty. Composite 0-100 score. Integrated into `translation_reviewer.py` as F0 "Fluency Score" check. Works with 280 existing tests.
     - **Fix 2 — CLI Learning Curve / Quickstart Wizard**: Created `ui/pages/0_Quickstart.py` — guided 3-step wizard: (1) Select novel, (2) Configure model, (3) Launch translation. Includes CLI command examples (--novel, --chapter, --all, --view, --review, --ui, --help). Appears as first page in Web UI sidebar.
     - **Fix 3 — Glossary Auto-Approve Confidence Rules**: Added `auto_approve_by_confidence()` to `MemoryManager`. 5 heuristic rules: (1) seen in ≥3 chapters = +0.40, (2) ≥2 chapters = +0.25, (3) category is character/place = +0.20, (4) non-placeholder target = +0.15, (5) proper Myanmar target = +0.10, (6) Chinese name pattern = +0.10. Terms with confidence ≥ 0.75 auto-promoted to approved glossary. Updated `add_pending_term()` to track `chapters_seen` list. Integrated into orchestrator pipeline.
@@ -74,7 +87,7 @@
     - **Files Modified**: `src/utils/translation_reviewer.py` (+30 lines fluency check integration), `src/memory/memory_manager.py` (+95 lines auto-approve + chapter tracking), `src/pipeline/orchestrator.py` (+6 lines confidence auto-approve)
     - **Tests**: 280/280 pass
   - Previous tasks:
-  - **FIXED: 7 Output Quality Issues from Log/Report Review** (STATUS: READY_TO_COMMIT):
+  - **FIXED: 7 Output Quality Issues from Log/Report Review** (STATUS: [DONE]):
     - **Root Cause 1 (Credit lines in output)**: Orchestrator `_preprocess()` never called `strip_metadata()` — only `clean_markdown()`. Translator: Skyfarrow Editor: Skyfarrow lines leaked into chunks and were translated to Myanmar.
     - **Root Cause 2 (Chunk boundary truncation)**: `stitch_chunk_boundaries()` only stitched when next line started with medial character. Truncation at consonant-starting lines wasn't caught.
     - **Root Cause 3 (Archaic word corruptions)**: `replace_archaic_words()` used `\b` which treats Myanmar combining marks as `\W`, creating false word boundaries inside compounds like `ထိုင်ခိုင်း` → `အဲဒီင်ခိုင်း`.
@@ -96,7 +109,7 @@
     - **Output files**: Ch14 (99.3% MM, 0 corruptions), Ch15 (98.7% MM, 0 corruptions, 0 Tamil), Ch16 (99.5% MM, 0 corruptions) — all re-cleaned.
     - **Files Modified**: `src/pipeline/orchestrator.py` (+1 line), `src/utils/postprocessor.py` (+110 lines), `tests/test_postprocessor.py` (5 lines changed)
     - **Tests**: 280/280 pass
-  - **IMPLEMENTED: Smart Paragraph Chunking (per need_to_fix.md) — Token-Aware, No Split, No Overlap** (STATUS: READY_TO_COMMIT):
+  - **IMPLEMENTED: Smart Paragraph Chunking (per need_to_fix.md) — Token-Aware, No Split, No Overlap** (STATUS: [DONE]):
     - **Spec Source**: `need_to_fix.md` — exact chunking algorithm from v1.0 specification
     - **What was wrong**: Preprocessor used per-paragraph token accumulation with overlap support (overlap_size), chunk boundaries could split mid-sentence, no token budget check before LLM send, no rolling context between chunks
     - **New Module**: `src/utils/chunker.py` — canonical location per spec:
@@ -120,7 +133,7 @@
     - **Files Modified**: `src/agents/preprocessor.py`, `src/agents/translator.py`, `src/pipeline/orchestrator.py`, `src/cli/formatters.py`, `src/config/models.py`, `src/core/container.py`, `src/types/definitions.py`, `config/settings.yaml`, `tests/test_integration.py`
     - **Tests**: 280/280 pass
   - Previous tasks:
-  - **ADDED: Translation Quality Review System + Auto-Review Pipeline + Pending Glossary Workflow** (STATUS: READY_TO_COMMIT):
+  - **ADDED: Translation Quality Review System + Auto-Review Pipeline + Pending Glossary Workflow** (STATUS: [DONE]):
     - **Translation Rules File**: Created `working_data/translation_rules.md` — comprehensive quality rules with 10 linguistic checks (L1-L10) and 6 quantitative checks (Q1-Q6), scoring matrix, and report format spec
     - **Review Module**: Created `src/utils/translation_reviewer.py` — runs all quality checks against output files:
       - Q1: Myanmar ratio (≥70% PASS, <30% REJECT)
@@ -150,7 +163,7 @@
     - **Files Modified**: `src/cli/parser.py`, `src/cli/commands.py`, `src/main.py`, `src/pipeline/orchestrator.py`, `src/memory/memory_manager.py`
     - **Tests**: 269/269 pass (235 existing + 34 new)
   - Previous tasks:
-  - **FIXED: Pipeline Mode, Paragraph Breaks, Chunk Stitching, Data Cleanup, Config Simplification, Enhanced Metadata** (STATUS: READY_TO_COMMIT):
+  - **FIXED: Pipeline Mode, Paragraph Breaks, Chunk Stitching, Data Cleanup, Config Simplification, Enhanced Metadata** (STATUS: [DONE]):
     - **Root Cause 1 (CRITICAL)**: Ch12 (single_stage, 99 blank lines, good quality, ~60 min) vs Ch13 (full pipeline, 0 blank lines, terrible quality, ~120 min). The `_apply_workflow_config` was forcing `full` pipeline for way1 (EN→MM), but padauk-gemma works BETTER in `single_stage` mode — `full` adds 2 extra API calls per chunk (3x slower) and refinement/reflection with padauk-gemma collapses all paragraph breaks
     - **Root Cause 2**: No blank lines between paragraphs in Ch13 output — 0 double-newlines vs Ch12's 99
     - **Root Cause 3**: Sentences cut at chunk boundaries (lines 10, 13, 23, 29, 38 end mid-sentence) — `\n\n` between chunks creates paragraph break inside sentences
@@ -170,7 +183,7 @@
     - **Files Deleted**: `config/settings.english.yaml`, 7 data/*.json files
     - **Tests**: 235/235 pass
   - Previous tasks:
-  - **FIXED: Chapter 13 Translation Quality — Garbage Meta-Lines + Duplicate Headings + Temperature** (STATUS: READY_TO_COMMIT):
+  - **FIXED: Chapter 13 Translation Quality — Garbage Meta-Lines + Duplicate Headings + Temperature** (STATUS: [DONE]):
     - **Root Cause 1**: padauk-gemma model outputs glossary comparison garbage lines (`*:* "မြန်မာ" is . "other" is .`) — a new hallucination pattern not caught by existing postprocessor patterns
     - **Root Cause 2**: `remove_duplicate_headings()` used exact string matching, but chapter headings differ slightly between chunks (different Myanmar characters in title, or with/without subtitle suffix) → duplicate headings survived
     - **Root Cause 3**: Temperature was raised from 0.2 to 0.4 in a prior fix — increased randomness caused more padauk-gemma hallucinations
@@ -186,7 +199,7 @@
     - **Files Modified**: `src/utils/postprocessor.py` (+25 lines), `config/settings.yaml` (-2 temp, +1 translator)
     - **Tests**: 235/235 pass
   - Previous tasks:
-  - **ADDED: Live CLI Progress Display for Translation Pipeline** (STATUS: READY_TO_COMMIT):
+  - **ADDED: Live CLI Progress Display for Translation Pipeline** (STATUS: [DONE]):
     - Added `print_progress_event()` to `src/cli/formatters.py` — color-coded per-chunk translation progress with timing, quality scores, Myanmar ratio, and summary
     - Added `set_progress_callback()` / `_report()` to `TranslationPipeline` in `src/pipeline/orchestrator.py` — non-intrusive callback pattern
     - Enhanced `_translate_chunks()` to emit per-stage events (translation, refinement, reflection, quality, consistency) with per-chunk metrics; returns `Tuple[List[str], List[Dict[str, Any]]]`
@@ -197,7 +210,7 @@
     - **Files Modified**: `src/cli/formatters.py` (+135 lines), `src/pipeline/orchestrator.py` (+90 lines), `src/cli/commands.py` (+12 lines), `tests/test_translator.py` (+46 lines)
   - Previous tasks:
   - Previous tasks:
-  - **Infrastructure: Created .agent/ and CHANGELOG.md** (STATUS: READY_TO_COMMIT):
+  - **Infrastructure: Created .agent/ and CHANGELOG.md** (STATUS: [DONE]):
     - Created `.agent/` directory with 4 JSON files (phase_gate.json, session_memory.json, long_term_memory.json, error_library.json) matching AGENTS.md schemas
     - Created `CHANGELOG.md` documenting project history from v0.1.0 to v2.1.0
     - Error library pre-populated with ERR-001 through ERR-006 (preventive) + ERR-047 through ERR-043 (historical, observed)
@@ -229,7 +242,7 @@
       3. Added `detect_potential_hallucinations()` to postprocessor for post-hoc detection
     - **Files Modified**: `src/cli/commands.py`, `src/agents/translator.py`, `src/utils/postprocessor.py`, `tests/test_workflow_routing.py`
     - **Tests**: 229/229 pass
-  - **English Source Pipeline Verification + Markdown Reader Feature** (STATUS: READY_TO_COMMIT):
+  - **English Source Pipeline Verification + Markdown Reader Feature** (STATUS: [DONE]):
     - **Pipeline Verification**: English source uses `en_mm_rules.py`, per-novel glossary/context isolated (`glossary_{novel}.json`, etc.), no cross-contamination
     - **Markdown Reader**: New `ui/pages/6_Reader.py` (Streamlit), `--view` CLI command, DRY imports from postprocessor
     - **Files Created**: `ui/pages/6_Reader.py`
@@ -247,7 +260,7 @@
     - **Files Modified**: `src/utils/postprocessor.py`
     - **Output file fixed**: `data/output/reverend-insanity/reverend-insanity_0012.mm.md` (backup at `.mm.md.bak`)
     - **Tests**: 229/229 pass
-  - **Prompt System Upgrade & Per-Novel Glossary + DRY Refactor** (STATUS: READY_TO_COMMIT):
+  - **Prompt System Upgrade & Per-Novel Glossary + DRY Refactor** (STATUS: [DONE]):
     - **Prompt Integration**: `get_language_prompt()` in translator.py now dynamically builds CN/EN prompts from `cn_mm_rules.build_linguistic_context()` and `en_mm_rules.build_linguistic_context()`
     - **EDITOR_SYSTEM_PROMPT upgraded**: Replaced with comprehensive 10-section prompt from `eng-mm-prompt.md` + `en_mm_rules.py` (Persona, Principles, Dialogue Rules, Confrontation Speech, Vocabulary Precision, Narration Register, Sentence Rhythm, Formatting, Unicode Safety, Output)
     - **TRANSLATOR_SYSTEM_PROMPT enhanced**: Added CN→MM linguistic rules from `cn_mm_rules.py` (SV→SOV, particles, pronouns, cultural adaptation, aspect markers)
@@ -617,7 +630,7 @@
 - [x] Single-stage and two-stage translation modes
 - [x] Glossary consistency checking
 
-- **CODE REVIEW: Postprocessor Bug Fix Verification** (STATUS: READY_TO_COMMIT):
+- **CODE REVIEW: Postprocessor Bug Fix Verification** (STATUS: [DONE]):
   - **Review Scope**: `src/utils/postprocessor.py` — 3 bug fixes verified
   - **Bug 1 (Critical)**: `remove_latin_words` regex `\s+` → `[^\S\n]+` — correctly preserves paragraph breaks while collapsing horizontal whitespace. PASS.
   - **Bug 2**: `fix_chapter_heading_format()` — correctly splits `# X ## Y` into proper H1/H2 on separate lines. PASS.

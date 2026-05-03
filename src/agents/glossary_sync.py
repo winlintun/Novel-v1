@@ -88,7 +88,7 @@ Return ONLY valid JSON. No explanations.
         Returns merge suggestions for human approval.
         """
         pending = []
-        pending_data = FileHandler.read_json("data/glossary_pending.json")
+        pending_data = FileHandler.read_json(self.mm.pending_path)
         if pending_data:
             pending = pending_data.get("pending_terms", [])
 

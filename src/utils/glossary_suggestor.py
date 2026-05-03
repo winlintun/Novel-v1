@@ -105,7 +105,7 @@ class GlossarySuggestor:
 
     def get_pending_suggestions(self) -> List[Dict[str, Any]]:
         """Get all pending term suggestions."""
-        pending_path = Path("data/glossary_pending.json")
+        pending_path = Path(str(self.glossary_path).replace("glossary", "glossary_pending"))
         if pending_path.exists():
             with open(pending_path, 'r', encoding='utf-8-sig') as f:
                 data = json.load(f)

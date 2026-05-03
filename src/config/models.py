@@ -190,11 +190,11 @@ class PathsConfig(BaseModel):
         description="Books directory"
     )
     glossary_file: str = Field(
-        default="data/glossary.json",
+        default="data/glossary_default.json",
         description="Path to glossary file"
     )
     context_memory_file: str = Field(
-        default="data/context_memory.json",
+        default="data/context_memory_default.json",
         description="Path to context memory file"
     )
     log_file: str = Field(

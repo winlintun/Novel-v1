@@ -54,28 +54,6 @@ Thumbs.db
 *.sublime-project
 *.sublime-workspace
 
-# ── Project Specific: Working Data ───────────────────────────────────────────
-# All working_data contents (except .gitkeep)
-working_data/*
-!working_data/.gitkeep
-working_data/checkpoints/*
-!working_data/checkpoints/.gitkeep
-working_data/chunks/*
-!working_data/chunks/.gitkeep
-working_data/translated_chunks/*
-!working_data/translated_chunks/.gitkeep
-working_data/preview/*
-!working_data/preview/.gitkeep
-working_data/readability_reports/*
-!working_data/readability_reports/.gitkeep
-working_data/logs/*
-!working_data/logs/.gitkeep
-working_data/clean/*
-!working_data/clean/.gitkeep
-english_chapters/dao-equaling-the-heavens/*.md
-english_chapters/
-
-
 # ── Project Specific: Input/Output ────────────────────────────────────────────
 # Models
 models/
@@ -83,26 +61,8 @@ models/*
 *.gguf
 
 # Input novels (user files - don't commit)
-data/input/
-data/input/*
-data/input/*/*
+data/input/*.pdf
 
-input_novels/*.txt
-input_novels/*.md
-!input_novels/.gitkeep
-
-# Translated output (generated files)
-translated_novels/*.md
-!translated_novels/.gitkeep
-
-# Chinese chapters (generated from extraction)
-chinese_chapters/*/
-!chinese_chapters/.gitkeep
-
-# Data files
-data_file/*.txt
-data_file/*.md
-!data_file/.gitkeep
 
 # ── Testing ──────────────────────────────────────────────────────────────────
 .pytest_cache/

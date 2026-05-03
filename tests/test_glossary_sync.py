@@ -21,6 +21,7 @@ class TestGlossarySyncAgent(unittest.TestCase):
         """Set up test fixtures."""
         self.memory = Mock(spec=MemoryManager)
         self.memory.get_all_terms.return_value = [{"source": "A", "target": "B"}]
+        self.memory.pending_path = "data/glossary_pending.json"
         self.client = Mock(spec=OllamaClient)
 
     def test_check_consistency(self):
