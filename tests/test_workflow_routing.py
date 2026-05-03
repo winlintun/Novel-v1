@@ -62,5 +62,61 @@ class TestWorkflowRouting(unittest.TestCase):
         self.assertEqual(out.translation_pipeline.mode, "two_stage")
 
 
+class TestGenerateGlossaryRouting(unittest.TestCase):
+    """Tests for --generate-glossary standalone command validation."""
+
+    def _make_args(self, **kwargs) -> argparse.Namespace:
+        defaults = dict(
+            ui=False, test=False, generate_glossary=False,
+            view_file=None, review_file=None, auto_promote=False, stats=False,
+            novel=None, input_file=None,
+            chapter=None, all=False, chapter_range=None,
+            config=None
+        )
+        defaults.update(kwargs)
+        return argparse.Namespace(**defaults)
+
+    def test_generate_glossary_novel_no_chapter_accepted(self):
+        """--novel X --generate-glossary must NOT raise even without --chapter/--all."""
+        from src.cli.parser import validate_arguments
+        args = self._make_args(generate_glossary=True, novel="my-novel")
+        try:
+            validate_arguments(args)
+        except SystemExit as e:
+            self.fail(f"validate_arguments raised SystemExit unexpectedly: {e}")
+
+    def test_novel_without_chapter_and_no_generate_glossary_rejected(self):
+        """--novel X alone (no chapter, no generate-glossary) must still be rejected."""
+        from src.cli.parser import validate_arguments
+        args = self._make_args(novel="my-novel")
+        with self.assertRaises(SystemExit):
+            validate_arguments(args)
+
+    def test_generate_glossary_standalone_does_not_run_translation(self):
+        """When --generate-glossary is standalone (no chapter/all), main() must not reach translation."""
+        # Patch run_glossary_generation to succeed and run_translation_pipeline to detect if called
+        import unittest.mock as mock
+        import importlib
+        import src.main as main_mod
+        importlib.reload(main_mod)
+
+        with mock.patch("src.main.run_glossary_generation", return_value=0) as mock_gen, \
+             mock.patch("src.main._run_translation_with_opts") as mock_trans, \
+             mock.patch("src.main.parse_arguments") as mock_parse, \
+             mock.patch("src.main.validate_arguments"):
+
+            mock_parse.return_value = argparse.Namespace(
+                clean=False, rebuild_meta=False, ui=False, test=False,
+                view_file=None, review_file=None, auto_promote=False, stats=False,
+                generate_glossary=True, novel="my-novel",
+                chapter=None, all=False, chapter_range=None, input_file=None,
+                config=None, model=None, mode=None, output_dir=None
+            )
+            main_mod.main()
+
+        mock_gen.assert_called_once()
+        mock_trans.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()

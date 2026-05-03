@@ -268,7 +268,8 @@ def validate_arguments(args: argparse.Namespace) -> None:
         SystemExit: If validation fails
     """
     # Check for required arguments when not running utility commands
-    utility_commands = [args.ui, args.test, args.generate_glossary and not args.novel, args.view_file, args.review_file, args.auto_promote, args.stats]
+    # --generate-glossary --novel X is a standalone command (no chapter required)
+    utility_commands = [args.ui, args.test, args.generate_glossary, args.view_file, args.review_file, args.auto_promote, args.stats]
 
     if not any(utility_commands):
         if not args.novel and not args.input_file:

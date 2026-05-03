@@ -97,15 +97,18 @@ def main() -> int:
     if args.stats:
         return run_stats(args)
 
-    # ── Translation commands (with optional glossary generation) ──
-    # Validate arguments for translation
-    validate_arguments(args)
-
-    # Generate glossary BEFORE translation if requested
+    # ── Glossary generation (standalone or pre-translation) ──
     if args.generate_glossary:
         result = run_glossary_generation(args)
         if result != 0:
             return result
+        # Standalone glossary run — no chapter/all specified, stop here
+        if not (args.chapter or args.all or getattr(args, 'chapter_range', None) or args.input_file):
+            return result
+
+    # ── Translation commands ──
+    # Validate arguments for translation (chapter/all required)
+    validate_arguments(args)
 
     # Run translation pipeline
     return _run_translation_with_opts(args)

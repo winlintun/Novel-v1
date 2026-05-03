@@ -10,6 +10,32 @@
 ## Last Updated
 - Date: 2026-05-04
 - Last task completed:
+  - **FIXED: --generate-glossary Command — 3 Bugs Found and Fixed** (STATUS: [DONE]):
+    - **Task**: Verify that `python -m src.main --novel X --generate-glossary` auto-creates all 3 files (glossary.json, glossary_pending.json, context_memory.json) with data.
+    - **Bug 1 — validate_arguments blocks standalone --generate-glossary**:
+      - Root cause: `validate_arguments()` treated `--generate-glossary` as a utility ONLY when `--novel` was absent. With `--novel X --generate-glossary` (no `--chapter`/`--all`), it raised SystemExit.
+      - Fix: Changed `utility_commands` list to treat `args.generate_glossary` as always-standalone (removed `and not args.novel` condition).
+      - File: `src/cli/parser.py`
+    - **Bug 2 — glossary.json + context_memory.json never written**:
+      - Root cause: `run_glossary_generation()` never called `memory.save_memory()`. Only `glossary_pending.json` was written (via `add_pending_term()`). The other two files were never created for new novels.
+      - Fix: Added `memory.save_memory()` call after chapter loop in `run_glossary_generation()`.
+      - File: `src/cli/commands.py`
+    - **Bug 3 — translation pipeline fires after standalone glossary gen**:
+      - Root cause: In `main.py`, after `run_glossary_generation()`, code fell through to `_run_translation_with_opts()` unconditionally.
+      - Fix: Return early after glossary generation when no chapter/all/input_file is specified.
+      - File: `src/main.py`
+    - **Tests Added** (3 new in `tests/test_workflow_routing.py`):
+      - `test_generate_glossary_novel_no_chapter_accepted` — validate_arguments allows --novel X --generate-glossary
+      - `test_novel_without_chapter_and_no_generate_glossary_rejected` — original rejection still works
+      - `test_generate_glossary_standalone_does_not_run_translation` — main() returns after glossary gen, never calls translation
+    - **Verification**:
+      - `--novel X --generate-glossary` now accepted by validator ✓
+      - `glossary.json` auto-created (empty schema) ✓
+      - `context_memory.json` auto-created (empty schema) ✓
+      - `glossary_pending.json` auto-created (with extracted terms from LLM) ✓
+      - Translation pipeline does NOT fire for standalone glossary runs ✓
+      - 282/282 tests pass ✓
+    - **Files Modified**: `src/cli/parser.py`, `src/cli/commands.py`, `src/main.py`, `tests/test_workflow_routing.py`
   - **VERIFIED: Universal Blueprint + Dual-Layer Glossary Integrity Check** (STATUS: [DONE]):
     - **Task**: Verify universal blueprints work correctly for all novels (each isolated), add dual-layer tests, restore data integrity, and commit.
     - **Issues Found & Fixed**:

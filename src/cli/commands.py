@@ -287,6 +287,9 @@ def run_glossary_generation(args: argparse.Namespace) -> int:
             else:
                 logger.warning(f"Chapter file not found: {chapter_file}")
 
+        # Always persist glossary.json + context_memory.json so all 3 files
+        # exist after glossary generation, even when the novel is brand new.
+        memory.save_memory()
         logger.info("Glossary generation completed")
         return 0
 
