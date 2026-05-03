@@ -1,7 +1,7 @@
 ﻿{
   "novel": "reverend-insanity",
-  "last_updated": "2026-05-02T13:59:15.045028",
-  "total_chapters": 4,
+  "last_updated": "2026-05-03T16:39:13.400339",
+  "total_chapters": 8,
   "chapters": {
     "14": {
       "translated_at": "2026-05-02T05:01:32.746377",
@@ -56,6 +56,54 @@
       "duration_seconds": 5369.6,
       "chunk_count": 16,
       "avg_quality_score": 93.7
+    },
+    "18": {
+      "chapter": 18,
+      "translated_at": "2026-05-03T06:32:41.733425",
+      "source": "data/input/reverend-insanity/reverend-insanity_chapter_018.md",
+      "pipeline": "single_stage",
+      "model": "padauk-gemma:q8_0",
+      "char_count": 18489,
+      "myanmar_ratio": 0.99,
+      "duration_seconds": 6240.3,
+      "chunk_count": 21,
+      "avg_quality_score": 93.1
+    },
+    "19": {
+      "chapter": 19,
+      "translated_at": "2026-05-03T14:35:38.515973",
+      "source": "data/input/reverend-insanity/reverend-insanity_chapter_019.md",
+      "pipeline": "single_stage",
+      "model": "padauk-gemma:q8_0",
+      "char_count": 8365,
+      "myanmar_ratio": 0.986,
+      "duration_seconds": 28954.8,
+      "chunk_count": 12,
+      "avg_quality_score": 86.8
+    },
+    "20": {
+      "chapter": 20,
+      "translated_at": "2026-05-03T15:36:47.212715",
+      "source": "data/input/reverend-insanity/reverend-insanity_chapter_020.md",
+      "pipeline": "single_stage",
+      "model": "padauk-gemma:q8_0",
+      "char_count": 9710,
+      "myanmar_ratio": 0.989,
+      "duration_seconds": 3647.3,
+      "chunk_count": 12,
+      "avg_quality_score": 94.7
+    },
+    "21": {
+      "chapter": 21,
+      "translated_at": "2026-05-03T16:39:13.397871",
+      "source": "data/input/reverend-insanity/reverend-insanity_chapter_021.md",
+      "pipeline": "single_stage",
+      "model": "padauk-gemma:q8_0",
+      "char_count": 9596,
+      "myanmar_ratio": 0.983,
+      "duration_seconds": 3397.9,
+      "chunk_count": 12,
+      "avg_quality_score": 93.1
     }
   }
 }

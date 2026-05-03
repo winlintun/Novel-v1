@@ -19,15 +19,20 @@ from src.agents.prompt_patch import TRANSLATOR_SYSTEM_PROMPT
 logger = logging.getLogger(__name__)
 
 
-def get_language_prompt(source_lang: str) -> str:
+def get_language_prompt(source_lang: str, model_name: str = "") -> str:
     """Get system prompt based on source language with full translation rules.
 
     Incorporates cn_mm_rules.py (CN→MM) and en_mm_rules.py (EN→MM)
     linguistic transformation rules for comprehensive prompt generation.
+    
+    Args:
+        source_lang: Source language ("chinese" or "english")
+        model_name: Model name for prompt optimization (fast prompt for padauk-gemma)
     """
     from src.agents.prompt_patch import LANGUAGE_GUARD
 
     source_lower = source_lang.lower() if source_lang else "english"
+    is_padauk = "padauk" in model_name.lower()
 
     if source_lower == "chinese":
         try:
@@ -77,8 +82,11 @@ Text to translate:"""
         except ImportError:
             ling_rules = _fallback_en_rules()
 
-        return LANGUAGE_GUARD + f"""
+        # Fast prompt for padauk-gemma: skip verbose rules (model is natively Burmese)
+        if is_padauk:
+            return FAST_EN_MM_PROMPT
 
+        return LANGUAGE_GUARD + f"""
 You are a master literary translator, specializing in converting English-language novels into rich, idiomatic Myanmar (Burmese) language. You are not a machine; you are a linguistic artist. Your goal is to produce a translation that reads as if it were originally written in Burmese.
 
 {ling_rules}
@@ -135,12 +143,26 @@ def _fallback_en_rules() -> str:
     return """
 [LINGUISTIC RULES — English → Myanmar]
 1. STRUCTURE: English SVO → Myanmar SOV.
-   EN: He [S] struck [V] the enemy [O] → MM: သူ [S] ရန်သူကို [O] ထိုးလိုက်တယ် [V]
+    EN: He [S] struck [V] the enemy [O] → MM: သူ [S] ရန်သူကို [O] ထိုးလိုက်တယ် [V]
 2. DIALOGUE FORMAT: "speech" လို့ [character] [verb]တယ် — NEVER "speech" ဟု ... လေသည်
 3. PRONOUNS: Enemy → နင်, Equal → မင်း, Formal → ခင်ဗျ/ရှင်, Self → ငါ/ကျွန်တော်
 4. TENSE: Past = ခဲ့တယ်, Vivid accusation = drop ခဲ့, Continuous = နေတယ်
 5. EMOTIONS: Show physically (not abstract labels)
 """
+
+# Fast prompt for native Burmese models (padauk-gemma) — 6× faster than full prompt
+FAST_EN_MM_PROMPT = """You are a literary translator. Translate this English novel into natural, high-quality Myanmar (Burmese) language.
+
+Key rules:
+- Show emotions through physical sensations, not abstract labels
+- Use natural Myanmar sentence structure (SOV order)
+- For dialogue: match character status with proper pronouns (မင်း/ရှင်/ကျွန်တော်)
+- Translate every sentence completely, do not skip or summarize
+- Use 【?term?】 for unknown terms, never guess names
+- Preserve original Markdown formatting
+- Output ONLY Myanmar text, no English, no preamble, no explanations
+
+Text to translate:"""
 
 
 
@@ -169,7 +191,8 @@ class Translator(BaseAgent):
         """Get system prompt based on source language (chinese or english)."""
         if self._custom_system_prompt:
             return self._custom_system_prompt
-        return get_language_prompt(source_lang)
+        model_name = getattr(self.ollama, 'model', '') if self.ollama else ''
+        return get_language_prompt(source_lang, model_name=model_name)
 
     def build_prompt(self, text: str, rolling_context: str = "") -> str:
         """Build translation prompt with memory context and rolling translation context.
@@ -272,7 +295,7 @@ class Translator(BaseAgent):
         needs_retry = False
         retry_reason = ""
 
-        if leakage.get("has_english", False) and leakage.get("latin_words", 0) > 3:
+        if leakage.get("has_english", False) and leakage.get("latin_words", 0) > 8:
             needs_retry = True
             retry_reason = f"English ({leakage['latin_words']} words)"
 

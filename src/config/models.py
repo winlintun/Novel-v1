@@ -99,6 +99,17 @@ class ModelsConfig(BaseModel):
         default=True,
         description="Enable GPU acceleration for model inference"
     )
+    # Context & endpoint configuration
+    num_ctx: int = Field(
+        default=8192,
+        ge=512,
+        le=32768,
+        description="Context window size in tokens"
+    )
+    use_generate_endpoint: bool = Field(
+        default=False,
+        description="Use /api/generate endpoint instead of /api/chat (for models without chat templates)"
+    )
     gpu_layers: int = Field(
         default=-1,
         ge=-1,

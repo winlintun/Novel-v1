@@ -1,5 +1,5 @@
 fast_config:
-  checker: qwen:7b
+  checker: sailor2:8b
   chunk_size: 1200
   editor: padauk-gemma:q8_0
   enabled: false
@@ -9,13 +9,13 @@ fast_config:
   temperature: 0.2
   translator: padauk-gemma:q8_0
 model_roles:
-  translator: [padauk-gemma:q8_0]
-  refiner: [padauk-gemma:q8_0, yxchia/seallms-v3-7b:Q4_K_M]
+  translator: [padauk-gemma:q8_0, sailor2-20b]
+  refiner: [padauk-gemma:q8_0, sailor2-20b, yxchia/seallms-v3-7b:Q4_K_M]
   checker: [qwen:7b]
   glossary_sync: [qwen:7b]
   qa_final: [qwen:7b]
 models:
-  checker: qwen:7b
+  checker: sailor2:8b
   editor: padauk-gemma:q8_0
   num_ctx: 4096
   ollama_base_url: http://localhost:11434
@@ -46,16 +46,16 @@ output:
   preserve_formatting: true
 paths:
   books_dir: books
-  context_memory_file: data/context_memory.json
-  glossary_file: data/glossary.json
+  context_memory_file: data/context_memory_{novel_name}.json
+  glossary_file: data/glossary_{novel_name}.json
   input_dir: data/input
   log_file: logs/translation.log
   output_dir: data/output
   templates_dir: templates
 processing:
-  chunk_size: 2000
+  chunk_size: 2500
   max_retries: 2
-  repeat_penalty: 1.15
+  repeat_penalty: 1.3
   request_timeout: 300
   stream: true
   temperature: 0.2

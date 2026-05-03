@@ -173,7 +173,7 @@ output:
 # Fixed: Model roles per need_fix.md
 model_roles:
   translator: ["alibayram/hunyuan:7b"]
-  refiner: ["padauk-gemma:q8_0", "yxchia/seallms-v3-7b:Q4_K_M"]
+  refiner: ["padauk-gemma:q8_0", "sailor2-20b", "yxchia/seallms-v3-7b:Q4_K_M"]
   checker: ["qwen:7b"]          # JSON and logic checking only
   glossary_sync: ["qwen:7b"]
   qa_final: ["qwen:7b"]

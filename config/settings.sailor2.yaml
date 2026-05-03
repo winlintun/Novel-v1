@@ -1,0 +1,55 @@
+# Sailor2-20B Configuration - High Performance Multilingual
+# Optimized for high-quality translation using Sailor2-20B
+# =====================================================
+
+project:
+  name: "novel_translation"
+  source_language: "en-US"
+  target_language: "my-MM"
+  novel_genre: "Xianxia/Cultivation"
+
+models:
+  provider: "ollama"
+  translator: "sailor2-20b"
+  editor: "sailor2-20b"
+  refiner: "sailor2-20b"
+  checker: "qwen:7b"
+  ollama_base_url: "http://localhost:11434"
+  timeout: 600
+  use_gpu: true
+  gpu_layers: -1
+  num_ctx: 8192
+
+processing:
+  chunk_size: 1500
+  temperature: 0.2
+  top_p: 0.95
+  repeat_penalty: 1.15
+  max_retries: 3
+  stream: true
+  keep_alive: "15m"
+
+translation_pipeline:
+  mode: "single_stage"
+  stage1_model: "sailor2-20b"
+  stage2_model: "sailor2-20b"
+  reflection_model: "sailor2-20b"
+  use_reflection: true
+
+myanmar_readability:
+  enabled: true
+  min_myanmar_ratio: 0.75
+  flag_on_fail: true
+  block_on_fail: false
+
+qa_testing:
+  enabled: true
+  markdown_strict: true
+  min_myanmar_ratio: 0.75
+
+model_roles:
+  translator: ["sailor2-20b", "padauk-gemma:q8_0"]
+  refiner: ["sailor2-20b", "padauk-gemma:q8_0"]
+  checker: ["qwen:7b"]
+  glossary_sync: ["qwen:7b"]
+  qa_final: ["qwen:7b"]

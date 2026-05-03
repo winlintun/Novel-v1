@@ -189,6 +189,34 @@ class OllamaClient:
         except Exception as e:
             logger.error(f"Error unloading all models: {e}")
 
+    @staticmethod
+    def _extract_generate_response(response) -> str:
+        """Extract text from generate response (dict or GenerateResponse object)."""
+        # ollama >= 0.5 returns GenerateResponse object
+        if hasattr(response, 'response'):
+            return (getattr(response, 'response', '') or
+                    getattr(response, 'thinking', ''))
+        # older ollama returns dict
+        if isinstance(response, dict):
+            return response.get('response', '') or response.get('thinking', '')
+        return str(response) if response else ''
+
+    @staticmethod
+    def _extract_chat_response(response) -> str:
+        """Extract text from chat response (dict or ChatResponse object)."""
+        # ollama >= 0.5 returns ChatResponse object
+        if hasattr(response, 'message'):
+            msg = getattr(response, 'message', None)
+            if msg is not None:
+                return (getattr(msg, 'content', '') or
+                        getattr(msg, 'thinking', ''))
+        # older ollama returns dict
+        if isinstance(response, dict):
+            msg = response.get('message', {})
+            if isinstance(msg, dict):
+                return msg.get('content', '') or msg.get('thinking', '')
+        return str(response) if response else ''
+
     def chat(
         self,
         prompt: str,
@@ -251,10 +279,8 @@ class OllamaClient:
                         options=options,
                         keep_alive=self.keep_alive
                     )
-                    # Defensive parse: padauk-gemma outputs in 'thinking' field, fallback
-                    raw_response = ""
-                    if isinstance(response, dict):
-                        raw_response = response.get('response', '') or response.get('thinking', '')
+                    # Parse response: handles both dict (old) and object (ollama>=0.5)
+                    raw_response = self._extract_generate_response(response)
                     return raw_response
                 else:
                     messages = []
@@ -268,12 +294,29 @@ class OllamaClient:
                         options=options,
                         keep_alive=self.keep_alive
                     )
-                    # Defensive parse: handle missing keys and thinking fallback
-                    raw_content = ""
-                    if isinstance(response, dict):
-                        msg = response.get('message', {})
-                        if isinstance(msg, dict):
-                            raw_content = msg.get('content', '') or msg.get('thinking', '')
+                    # Parse response: handles both dict (old) and object (ollama>=0.5)
+                    raw_content = self._extract_chat_response(response)
+
+                    # Auto-fallback: if chat endpoint returns empty, retry with generate endpoint
+                    if not raw_content and not self.use_generate_endpoint:
+                        logger.warning(
+                            f"Chat endpoint returned empty content for {effective_model}. "
+                            f"Model may lack chat template. Auto-falling back to /api/generate..."
+                        )
+                        full_prompt = ""
+                        if system_prompt:
+                            full_prompt = f"{system_prompt}\n\n"
+                        full_prompt += prompt
+                        fallback_resp = self.client.generate(
+                            model=effective_model,
+                            prompt=full_prompt,
+                            options=options,
+                            keep_alive=self.keep_alive
+                        )
+                        raw_content = self._extract_generate_response(fallback_resp)
+                        if raw_content:
+                            logger.info(f"Auto-fallback to /api/generate succeeded for {effective_model}")
+
                     return raw_content
 
             except (ConnectionError, ConnectionAbortedError, ConnectionRefusedError) as e:
@@ -360,12 +403,12 @@ class OllamaClient:
             )
 
             for chunk in stream:
-                if isinstance(chunk, dict) and 'message' in chunk:
-                    msg = chunk.get('message', {})
-                    if isinstance(msg, dict):
-                        content = msg.get('content', '') or msg.get('thinking', '')
-                        if content:
-                            yield content
+                try:
+                    content = self._extract_chat_response(chunk)
+                    if content:
+                        yield content
+                except Exception:
+                    continue
 
         except (ConnectionError, ConnectionAbortedError, ConnectionRefusedError) as e:
             logger.error(f"Ollama streaming connection error: {e}")
@@ -378,13 +421,22 @@ class OllamaClient:
         """Check if the configured model is available."""
         try:
             models = self.client.list()
-            model_list = models.get('models', [])
+            # Handle both dict (old) and ListResponse object (ollama>=0.5)
+            if hasattr(models, 'models'):
+                model_list = getattr(models, 'models', [])
+            elif isinstance(models, dict):
+                model_list = models.get('models', [])
+            else:
+                model_list = []
 
-            # Handle different API response formats
             available = []
             for m in model_list:
-                # Try 'model' key first (newer API), then 'name' (older API)
-                model_name = m.get('model') or m.get('name')
+                if hasattr(m, 'model'):
+                    model_name = getattr(m, 'model', '') or getattr(m, 'name', '')
+                elif isinstance(m, dict):
+                    model_name = m.get('model') or m.get('name')
+                else:
+                    model_name = str(m)
                 if model_name:
                     available.append(model_name)
 

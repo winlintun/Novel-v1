@@ -10,3 +10,4 @@
 | qwen:7b                     | 8.1 GB  |
 | aya:8b                      | 4.8 GB  |
 | padauk-gemma:q8_0           | 8.0 GB  |
+| sailor2-20b                 | 13 GB   | (high quality multilingual)

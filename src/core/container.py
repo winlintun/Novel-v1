@@ -24,12 +24,13 @@ from src.config import AppConfig
 @dataclass
 class Container:
     """Dependency injection container.
-    
+
     Manages the lifecycle of all application components
     and provides factory methods for creating instances.
     """
 
     config: AppConfig
+    novel_name: Optional[str] = field(default=None)
 
     # Cached instances (singletons)
     _ollama_client: Optional[Any] = field(default=None, repr=False)
@@ -51,23 +52,39 @@ class Container:
                 base_url=self.config.models.ollama_base_url,
                 timeout=self.config.models.timeout,
                 use_gpu=getattr(self.config.models, 'use_gpu', True),
+                use_generate_endpoint=getattr(self.config.models, 'use_generate_endpoint', False),
+                num_ctx=getattr(self.config.models, 'num_ctx', 8192),
                 gpu_layers=getattr(self.config.models, 'gpu_layers', -1),
                 main_gpu=getattr(self.config.models, 'main_gpu', 0)
             )
         return self._ollama_client
 
-    def get_memory_manager(self) -> Any:
+    def get_memory_manager(self, novel_name: Optional[str] = None) -> Any:
         """Get or create MemoryManager instance.
-        
-        Returns:
-            MemoryManager instance
+
+        If novel_name is provided (or detectable from config paths), paths are
+        resolved per-novel. Config paths containing '{novel_name}' are treated
+        as templates and resolved automatically.
         """
         if self._memory_manager is None:
             from src.memory.memory_manager import MemoryManager
-            self._memory_manager = MemoryManager(
-                glossary_path=self.config.paths.glossary_file,
-                context_path=self.config.paths.context_memory_file
-            )
+
+            glossary_path = self.config.paths.glossary_file
+            context_path = self.config.paths.context_memory_file
+
+            # Caller arg takes priority, then container-level novel_name
+            effective_novel = novel_name or self.novel_name
+
+            # Detect template placeholders — resolve via novel_name
+            has_template = "{novel_name}" in glossary_path or "{novel_name}" in context_path
+
+            if has_template or effective_novel:
+                self._memory_manager = MemoryManager(novel_name=effective_novel)
+            else:
+                self._memory_manager = MemoryManager(
+                    glossary_path=glossary_path,
+                    context_path=context_path,
+                )
         return self._memory_manager
 
     def get_translator(self) -> Any:
@@ -80,7 +97,7 @@ class Container:
             from src.agents.translator import Translator
             self._translator = Translator(
                 ollama_client=self.get_ollama_client(),
-                memory_manager=self.get_memory_manager(),
+                memory_manager=self.get_memory_manager(self.novel_name),
                 config=self.config.dict()
             )
         return self._translator
@@ -95,7 +112,7 @@ class Container:
             from src.agents.refiner import Refiner
             self._refiner = Refiner(
                 ollama_client=self.get_ollama_client(),
-                memory_manager=self.get_memory_manager(),
+                memory_manager=self.get_memory_manager(self.novel_name),
                 config=self.config.dict()
             )
         return self._refiner
@@ -109,7 +126,7 @@ class Container:
         if self._checker is None:
             from src.agents.checker import Checker
             self._checker = Checker(
-                memory_manager=self.get_memory_manager(),
+                memory_manager=self.get_memory_manager(self.novel_name),
                 config=self.config.dict()
             )
         return self._checker
@@ -155,13 +172,14 @@ class Container:
         self._checker = None
 
 
-def create_container(config: AppConfig) -> Container:
+def create_container(config: AppConfig, novel_name: Optional[str] = None) -> Container:
     """Create a new container with the given configuration.
-    
+
     Args:
         config: Application configuration
-        
+        novel_name: Novel name for per-novel glossary/context file resolution
+
     Returns:
         Configured Container instance
     """
-    return Container(config)
+    return Container(config=config, novel_name=novel_name)

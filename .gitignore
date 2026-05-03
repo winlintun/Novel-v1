@@ -150,7 +150,6 @@ need_fix_another.md
 *.pdf
 data/input/*/*.md
 data/input/*.pdf
-data/output/*/*.md
 Novel-Step.md
 design
 design/*
