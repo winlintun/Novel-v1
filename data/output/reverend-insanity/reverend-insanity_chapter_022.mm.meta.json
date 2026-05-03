@@ -1,8 +1,0 @@
-﻿{
-  "chapter": 22,
-  "novel": "reverend-insanity",
-  "pipeline": "single_stage",
-  "model": "padauk-gemma:q8_0",
-  "duration_seconds": 4971.6,
-  "translated_at": "2026-05-03T19:16:51.302538"
-}

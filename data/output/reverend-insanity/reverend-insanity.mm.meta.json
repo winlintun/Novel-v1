@@ -1,133 +1,115 @@
 ﻿{
   "novel": "reverend-insanity",
-  "last_updated": "2026-05-03T20:42:30.283283",
-  "total_chapters": 10,
+  "last_updated": "2026-05-03T23:06:30.144434",
+  "total_chapters": 13,
   "chapters": {
-    "14": {
-      "translated_at": "2026-05-02T05:01:32.746377",
-      "source": "data/input/reverend-insanity/reverend-insanity_chapter_014.md",
-      "pipeline": "single_stage",
-      "output_file": "reverend-insanity_chapter_014.mm.md",
-      "novel": "reverend-insanity",
-      "chapter": 14,
-      "duration_seconds": 5025.1,
-      "model": "padauk-gemma:q8_0",
-      "chunk_count": 15,
-      "myanmar_ratio": 0.995,
-      "char_count": 12633,
-      "avg_quality_score": 92.5
-    },
     "15": {
-      "translated_at": "2026-05-02T09:48:48.306002",
-      "source": "data/input/reverend-insanity/reverend-insanity_chapter_015.md",
-      "pipeline": "single_stage",
-      "output_file": "reverend-insanity_chapter_015.mm.md",
-      "novel": "reverend-insanity",
       "chapter": 15,
-      "duration_seconds": 17234.8,
+      "translated_at": "2026-05-03T22:27:01.219515",
+      "pipeline": "Rebuilt",
       "model": "padauk-gemma:q8_0",
-      "chunk_count": 11,
-      "myanmar_ratio": 0.988,
-      "char_count": 9937,
-      "avg_quality_score": 92.8
+      "char_count": 28005,
+      "myanmar_ratio": 0.85
     },
     "16": {
-      "translated_at": "2026-05-02T11:03:45.269906",
-      "source": "data/input/reverend-insanity/reverend-insanity_chapter_016.md",
-      "pipeline": "single_stage",
-      "output_file": "reverend-insanity_chapter_016.mm.md",
-      "novel": "reverend-insanity",
       "chapter": 16,
-      "duration_seconds": 4496.2,
+      "translated_at": "2026-05-03T22:27:01.219608",
+      "pipeline": "Rebuilt",
       "model": "padauk-gemma:q8_0",
-      "chunk_count": 12,
-      "myanmar_ratio": 0.995,
-      "char_count": 9889,
-      "avg_quality_score": 93.1
-    },
-    "17": {
-      "chapter": 17,
-      "translated_at": "2026-05-02T13:59:15.039370",
-      "source": "data/input/reverend-insanity/reverend-insanity_chapter_017.md",
-      "pipeline": "single_stage",
-      "model": "padauk-gemma:q8_0",
-      "char_count": 12685,
-      "myanmar_ratio": 0.994,
-      "duration_seconds": 5369.6,
-      "chunk_count": 16,
-      "avg_quality_score": 93.7
+      "char_count": 26678,
+      "myanmar_ratio": 0.85
     },
     "18": {
       "chapter": 18,
-      "translated_at": "2026-05-03T06:32:41.733425",
-      "source": "data/input/reverend-insanity/reverend-insanity_chapter_018.md",
-      "pipeline": "single_stage",
+      "translated_at": "2026-05-03T22:27:01.219663",
+      "pipeline": "Rebuilt",
       "model": "padauk-gemma:q8_0",
-      "char_count": 18489,
-      "myanmar_ratio": 0.99,
-      "duration_seconds": 6240.3,
-      "chunk_count": 21,
-      "avg_quality_score": 93.1
-    },
-    "19": {
-      "chapter": 19,
-      "translated_at": "2026-05-03T14:35:38.515973",
-      "source": "data/input/reverend-insanity/reverend-insanity_chapter_019.md",
-      "pipeline": "single_stage",
-      "model": "padauk-gemma:q8_0",
-      "char_count": 8365,
-      "myanmar_ratio": 0.986,
-      "duration_seconds": 28954.8,
-      "chunk_count": 12,
-      "avg_quality_score": 86.8
-    },
-    "20": {
-      "chapter": 20,
-      "translated_at": "2026-05-03T15:36:47.212715",
-      "source": "data/input/reverend-insanity/reverend-insanity_chapter_020.md",
-      "pipeline": "single_stage",
-      "model": "padauk-gemma:q8_0",
-      "char_count": 9710,
-      "myanmar_ratio": 0.989,
-      "duration_seconds": 3647.3,
-      "chunk_count": 12,
-      "avg_quality_score": 94.7
-    },
-    "21": {
-      "chapter": 21,
-      "translated_at": "2026-05-03T16:39:13.397871",
-      "source": "data/input/reverend-insanity/reverend-insanity_chapter_021.md",
-      "pipeline": "single_stage",
-      "model": "padauk-gemma:q8_0",
-      "char_count": 9596,
-      "myanmar_ratio": 0.983,
-      "duration_seconds": 3397.9,
-      "chunk_count": 12,
-      "avg_quality_score": 93.1
-    },
-    "22": {
-      "chapter": 22,
-      "translated_at": "2026-05-03T19:16:51.294524",
-      "source": "data/input/reverend-insanity/reverend-insanity_chapter_022.md",
-      "pipeline": "single_stage",
-      "model": "padauk-gemma:q8_0",
-      "char_count": 13851,
-      "myanmar_ratio": 0.995,
-      "duration_seconds": 4971.6,
-      "chunk_count": 16,
-      "avg_quality_score": 94.9
+      "char_count": 52176,
+      "myanmar_ratio": 0.85
     },
     "23": {
       "chapter": 23,
-      "translated_at": "2026-05-03T20:42:30.280230",
-      "source": "data/input/reverend-insanity/reverend-insanity_chapter_023.md",
+      "translated_at": "2026-05-03T22:27:01.219692",
+      "pipeline": "Rebuilt",
+      "model": "padauk-gemma:q8_0",
+      "char_count": 38732,
+      "myanmar_ratio": 0.85
+    },
+    "20": {
+      "chapter": 20,
+      "translated_at": "2026-05-03T22:27:01.219711",
+      "pipeline": "Rebuilt",
+      "model": "padauk-gemma:q8_0",
+      "char_count": 27465,
+      "myanmar_ratio": 0.85
+    },
+    "13": {
+      "chapter": 13,
+      "translated_at": "2026-05-03T22:27:01.219728",
+      "pipeline": "Rebuilt",
+      "model": "padauk-gemma:q8_0",
+      "char_count": 25919,
+      "myanmar_ratio": 0.85
+    },
+    "21": {
+      "chapter": 21,
+      "translated_at": "2026-05-03T22:27:01.219745",
+      "pipeline": "Rebuilt",
+      "model": "padauk-gemma:q8_0",
+      "char_count": 26959,
+      "myanmar_ratio": 0.85
+    },
+    "14": {
+      "chapter": 14,
+      "translated_at": "2026-05-03T22:27:01.219758",
+      "pipeline": "Rebuilt",
+      "model": "padauk-gemma:q8_0",
+      "char_count": 35788,
+      "myanmar_ratio": 0.85
+    },
+    "24": {
+      "chapter": 24,
+      "translated_at": "2026-05-03T22:27:01.219775",
+      "pipeline": "Rebuilt",
+      "model": "padauk-gemma:q8_0",
+      "char_count": 37717,
+      "myanmar_ratio": 0.85
+    },
+    "19": {
+      "chapter": 19,
+      "translated_at": "2026-05-03T22:27:01.219789",
+      "pipeline": "Rebuilt",
+      "model": "padauk-gemma:q8_0",
+      "char_count": 23558,
+      "myanmar_ratio": 0.85
+    },
+    "17": {
+      "chapter": 17,
+      "translated_at": "2026-05-03T22:27:01.219804",
+      "pipeline": "Rebuilt",
+      "model": "padauk-gemma:q8_0",
+      "char_count": 35988,
+      "myanmar_ratio": 0.85
+    },
+    "22": {
+      "chapter": 22,
+      "translated_at": "2026-05-03T22:27:01.219824",
+      "pipeline": "Rebuilt",
+      "model": "padauk-gemma:q8_0",
+      "char_count": 39382,
+      "myanmar_ratio": 0.85
+    },
+    "25": {
+      "chapter": 25,
+      "translated_at": "2026-05-03T23:06:30.140353",
+      "source": "data/input/reverend-insanity/reverend-insanity_chapter_025.md",
       "pipeline": "single_stage",
       "model": "padauk-gemma:q8_0",
-      "char_count": 13681,
-      "myanmar_ratio": 0.992,
-      "duration_seconds": 5114.4,
-      "chunk_count": 18,
-      "avg_quality_score": 93.2
+      "char_count": 10319,
+      "myanmar_ratio": 0.99,
+      "duration_seconds": 3530.3,
+      "chunk_count": 11,
+      "avg_quality_score": 96.5
     }
   }
 }
