@@ -1,12 +1,12 @@
 #!/bin/bash
 #
-# Auto-clean and run translation for Linux/Mac
-# This script clears Python cache and old logs before running to ensure fresh execution
+# run.sh - Auto-clean and run translation for Linux/Mac
+# Cleans: Python cache, test cache, coverage, linter cache, temp files
 # 
 # Usage: ./run.sh [arguments]
-#        ./run.sh --input path/to/file.md
 #        ./run.sh --novel "novel_name" --chapter 1
-#        ./run.sh (no arguments shows help)
+#        ./run.sh --novel "novel_name" --all
+#        ./run.sh --help
 #
 
 set -e  # Exit on error
@@ -27,51 +27,80 @@ if ! command -v python3 &> /dev/null; then
     exit 1
 fi
 
-# Step 1: Clean Python cache
-echo "Step 1: Cleaning Python cache..."
+# Function to count files/dirs
+count_files() {
+    find . -type f "$1" 2>/dev/null | wc -l
+}
+count_dirs() {
+    find . -type d -name "$1" 2>/dev/null | wc -l
+}
+
+# ===================== Step 1: Comprehensive Cache Cleaning =====================
+echo "Step 1: Cleaning Python Cache..."
 echo "----------------------------------------------------------------------"
 
-# Count before cleaning
-DIRS_BEFORE=$(find . -type d -name "__pycache__" 2>/dev/null | wc -l)
-FILES_BEFORE=$(find . -type f \( -name "*.pyc" -o -name "*.pyo" \) 2>/dev/null | wc -l)
+# Python cache
+BEFORE_PYC_DIRS=$(count_dirs "__pycache__")
+BEFORE_PYC_FILES=$(count_files "\( -name '*.pyc' -o -name '*.pyo' -o -name '*.pyd' \)")
 
-# Remove all __pycache__ directories
 find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+find . -type f \( -name "*.pyc" -o -name "*.pyo" -o -name "*.pyd" \) -delete 2>/dev/null || true
 
-# Remove all .pyc and .pyo files
-find . -type f \( -name "*.pyc" -o -name "*.pyo" \) -delete 2>/dev/null || true
+echo "  Python cache: $BEFORE_PYC_DIRS dirs, $BEFORE_PYC_FILES files"
 
-# Count after cleaning
-DIRS_AFTER=$(find . -type d -name "__pycache__" 2>/dev/null | wc -l)
-FILES_AFTER=$(find . -type f \( -name "*.pyc" -o -name "*.pyo" \) 2>/dev/null | wc -l)
+# Test cache
+find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true
+find . -type d -name ".hypothesis" -exec rm -rf {} + 2>/dev/null || true
 
-DIRS_REMOVED=$((DIRS_BEFORE - DIRS_AFTER))
-FILES_REMOVED=$((FILES_BEFORE - FILES_AFTER))
+# Coverage
+find . -type f \( -name "coverage.xml" -o -name ".coverage" -o -name "*.cover" \) -delete 2>/dev/null || true
+find . -type d -name "htmlcov" -exec rm -rf {} + 2>/dev/null || true
 
-echo "  Directories removed: $DIRS_REMOVED"
-echo "  Files removed: $FILES_REMOVED"
+# Type checkers
+find . -type d -name ".mypy_cache" -exec rm -rf {} + 2>/dev/null || true
+find . -type f -name "dmypy.json" -delete 2>/dev/null || true
+find . -type d -name ".pyre" -exec rm -rf {} + 2>/dev/null || true
+
+# Linters
+find . -type d -name ".ruff_cache" -exec rm -rf {} + 2>/dev/null || true
+
+# Jupyter
+find . -type d -name ".ipynb_checkpoints" -exec rm -rf {} + 2>/dev/null || true
+
+# IDE
+find . -type d -name ".vscode" -exec rm -rf {} + 2>/dev/null || true
+find . -type d -name ".idea" -exec rm -rf {} + 2>/dev/null || true
+find . -type f -name "*.swp" -delete 2>/dev/null || true
+find . -type f -name "*.swo" -delete 2>/dev/null || true
+
+# Temp files
+find . -type f \( -name "*.tmp" -o -name "*.bak" -o -name "*.orig" \) -delete 2>/dev/null || true
+
+AFTER_PYC_DIRS=$(count_dirs "__pycache__")
+AFTER_PYC_FILES=$(count_files "\( -name '*.pyc' -o -name '*.pyo' \)")
+
+echo "  Remaining: $AFTER_PYC_DIRS dirs, $AFTER_PYC_FILES files"
 echo "  ✅ Cache cleaned!"
 echo ""
 
-# Step 2: Clean old log files (keep last one and server logs)
+# ===================== Step 2: Clean old log files =====================
 echo "Step 2: Cleaning old log files..."
 echo "----------------------------------------------------------------------"
 
 LOGS_REMOVED=0
 
-# Clean old translation logs - keep only the most recent one
 if [ -d "logs" ]; then
     cd logs 2>/dev/null || true
     
-    # Simple approach: list files sorted by time, skip first (newest), delete rest
-    ls -t translation_*.log 2>/dev/null | tail -n +2 | while read file; do
+    # Keep last 5 translation logs
+    ls -t translation_*.log 2>/dev/null | tail -n +6 | while read file; do
         rm -f "$file" 2>/dev/null && LOGS_REMOVED=$((LOGS_REMOVED + 1))
     done
     
-    # Clean old progress logs - keep last 10
-    if [ -d "progress" ]; then
-        cd progress 2>/dev/null || true
-        ls -t progress_*.md 2>/dev/null | tail -n +11 | while read file; do
+    # Clean old review reports - keep last 10
+    if [ -d "report" ]; then
+        cd report 2>/dev/null || true
+        ls -t *.md 2>/dev/null | tail -n +11 | while read file; do
             rm -f "$file" 2>/dev/null && LOGS_REMOVED=$((LOGS_REMOVED + 1))
         done
         cd .. 2>/dev/null || true
@@ -81,52 +110,48 @@ if [ -d "logs" ]; then
 fi
 
 echo "  Old log files removed: $LOGS_REMOVED"
-echo "  ✅ Logs cleaned (kept: most recent translation log, web_server.log)"
+echo "  ✅ Logs cleaned (kept: 5 recent translation logs, 10 review reports)"
 echo ""
 
-# Step 3: If no arguments, show help and exit
+# ===================== Step 3: Show help if no args =====================
 if [ $# -eq 0 ]; then
     echo "======================================================================"
     echo "  📚 Novel Translation Pipeline"
     echo "======================================================================"
     echo ""
     echo "Usage:"
-    echo "  ./run.sh --input path/to/file.md"
     echo "  ./run.sh --novel \"novel_name\" --chapter 1"
     echo "  ./run.sh --novel \"novel_name\" --all"
+    echo "  ./run.sh --novel \"novel_name\" --generate-glossary"
     echo ""
     echo "Common Options:"
-    echo "  --input FILE       Translate a single file"
     echo "  --novel NAME       Translate a novel (use with --chapter or --all)"
     echo "  --chapter NUM      Translate specific chapter"
+    echo "  --chapter-range N-M  Translate chapters N to M"
     echo "  --all              Translate all chapters"
+    echo "  --generate-glossary  Generate glossary from chapters"
     echo "  --workflow way1    Force EN->MM direct translation"
     echo "  --workflow way2    Force CN->EN->MM pivot translation"
+    echo "  --ui               Launch web UI"
     echo ""
     echo "Cache and logs have been cleaned."
     echo "Use one of the commands above to translate."
     echo ""
-    echo "For full help: ./run.sh --help"
+    echo "For full help: python -m src.main --help"
     echo ""
     exit 0
 fi
 
-# Step 4: Run the translation with all arguments
+# ===================== Step 4: Run the translation =====================
 echo "======================================================================"
 echo "  🚀 Starting Translation"
 echo "======================================================================"
 echo ""
 
-# Run the main module directly (cache already cleaned above)
-# Use --no-clean flag to skip redundant cleaning in Python
 cd "$SCRIPT_DIR"
-python3 -c "
-import sys
-sys.path.insert(0, '.')
-from src.main import main
-sys.argv = ['src.main'] + ['--no-clean'] + sys.argv[1:]
-sys.exit(main())
-" "$@"
+
+# Run the main module
+python3 -m src.main "$@"
 
 # Get the exit code
 EXIT_CODE=$?
@@ -136,7 +161,6 @@ if [ $EXIT_CODE -ne 0 ]; then
     echo "======================================================================"
     echo "  ❌ Translation failed with error code $EXIT_CODE"
     echo "======================================================================"
-    read -p "Press Enter to continue..."
 else
     echo ""
     echo "======================================================================"
