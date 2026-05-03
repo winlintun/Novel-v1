@@ -1,0 +1,60 @@
+{
+  "metadata": {
+    "schema_version": "3.2.1",
+    "pipeline_compatible": ["novel_translation_project", "v2.0"],
+    "project_name": "<INSERT_NOVEL_TITLE>",
+    "current_translating_chapter": "<e.g., 21>",
+    "last_updated": "<YYYY-MM-DDTHH:MM:SSZ>",
+    "max_memory_window_chapters": 5,
+    "auto_compress": true,
+    "description": "Dynamic memory file to track plot progression, character states, and environmental context for the AI."
+  },
+  "story_progress": {
+    "current_timeline": "<e.g., 3 days after the Awakening Ceremony>",
+    "current_location": "<e.g., Gu Yue Village - Academy>",
+    "immediate_goal": "<e.g., Protagonist needs to pass the first academy test>"
+  },
+  "environmental_context": {
+    "time_of_day": "<e.g., Morning / Midnight>",
+    "weather": "<e.g., Sunny / Heavy Rain>",
+    "atmosphere": "<e.g., Tense and competitive>",
+    "scene_tone_for_glossary": "<e.g., formal / hostile / casual>"
+  },
+  "rolling_summaries": [
+    {
+      "chapter_range": "16-20",
+      "summary": "<e.g., Fang Yuan successfully refined the Liquor worm using the Spring Autumn Cicada's aura. He completely broke ties with his brother Fang Zheng.>"
+    }
+  ],
+  "active_plot_threads": [
+    {
+      "thread_id": "plot_001",
+      "title": "<e.g., The Academy Assessment>",
+      "status": "ongoing",
+      "involved_characters": ["char_001", "char_002"],
+      "details": "<e.g., The academy elder will test the students' primeval essence usage today.>",
+      "last_updated_chapter": 20
+    }
+  ],
+  "dynamic_character_states": [
+    {
+      "char_id": "char_001",
+      "glossary_id": "char_001",
+      "target_name": "Fang Yuan",
+      "current_power_level": "<e.g., Rank 1 Initial Stage>",
+      "physical_condition": "<e.g., Exhausted from staying up all night>",
+      "mental_condition": "<e.g., Calm and confident>",
+      "pronoun_trigger_state": "casual",
+      "inventory": ["17 Primeval Stones", "Liquor Worm (Refined)"],
+      "recent_actions": "<e.g., Refined the Liquor worm, scolded Fang Zheng>"
+    }
+  ],
+  "translation_flow_buffer": [
+    "<e.g., Previous 3 translated paragraphs in Myanmar for immediate continuity>"
+  ],
+  "memory_management": {
+    "max_tracked_characters": 5,
+    "compression_trigger_chapters": 10,
+    "next_update_trigger": "end_of_chapter"
+  }
+}

@@ -121,6 +121,14 @@ CHECKPOINT SAFETY
 [ ] On startup, orchestrator checks for an incomplete checkpoint before starting
 [ ] If checkpoint found → resume from that chunk, skip already-completed chunks
 [ ] Partial output is never overwritten — append mode or indexed files only
+
+MYANMAR TEXT SAFETY (production-proven rules)
+[ ] No regex uses \b with Myanmar text — use consonant lookahead/lookbehind instead
+[ ] All file heading detection uses .lstrip('﻿') to strip BOM before startswith('#')
+[ ] Postprocessor strips ALL 9 Indic script blocks (not just Bengali U+0980-U+09FF)
+[ ] Paragraph similarity uses SequenceMatcher(None,p1,p2).ratio() — never char-set overlap
+[ ] Degraded placeholders 【??】 are normalized to 【?term?】 before quality checks
+[ ] padauk-gemma temperature is ≤ 0.2 in all config files
 ```
  
 ---
@@ -217,6 +225,63 @@ class Translator:
     def translate(self, text: str) -> str:
         glossary = self.memory.get_top_n(n=20)  # fetch fresh every call
         ...
+
+
+# ❌ PATTERN 7 — \b word boundary on Myanmar text (DISCOVERED IN PRODUCTION)
+re.sub(r'\bထို\b', 'အဲဒီ', text)
+# \b treats Myanmar combining marks (ိ U+102D, ု U+102F) as \W
+# This creates false word boundaries INSIDE syllables:
+# ထိုင်ခိုင်း → အဲဒီင်ခိုင်း  (CORRUPTED — compound broken mid-syllable)
+
+# ✅ FIX — Myanmar consonant-specific boundary
+re.sub(r'(?<![က-အ])ထို(?![ါ-ှ]*[က-အ])', 'အဲဒီ', text)
+
+
+# ❌ PATTERN 8 — BOM not stripped before heading detection
+if line.strip().startswith('#'):   # FAILS if file has UTF-8-SIG BOM (U+FEFF)
+    ...
+
+# ✅ FIX
+if line.strip().lstrip('﻿').startswith('#'):
+    ...
+
+
+# ❌ PATTERN 9 — Only strip Bengali, miss other Indic scripts
+FOREIGN_PATTERN = re.compile(r'[ঀ-৿]+')  # Bengali only
+# padauk-gemma also outputs Tamil (U+0B80), Telugu (U+0C00), Kannada (U+0C80), etc.
+
+# ✅ FIX — Strip ALL 9 Indic script blocks unconditionally
+_INDIC_PATTERN = re.compile(
+    r'[ऀ-ॿ'   # Devanagari
+    r'ঀ-৿'    # Bengali
+    r'਀-੿'    # Gurmukhi
+    r'઀-૿'    # Gujarati
+    r'଀-୿'    # Oriya
+    r'஀-௿'    # Tamil
+    r'ఀ-౿'    # Telugu
+    r'ಀ-೿'    # Kannada
+    r'ഀ-ൿ]+'  # Malayalam
+)
+
+
+# ❌ PATTERN 10 — char-set overlap for Myanmar similarity
+overlap = len(set(p1) & set(p2)) / len(set(p1) | set(p2))
+if overlap > 0.80:  # False positive: different sentences sharing particles score 81-86%
+    mark_as_duplicate()
+
+# ✅ FIX — SequenceMatcher gives true sequence similarity
+from difflib import SequenceMatcher
+ratio = SequenceMatcher(None, p1, p2).ratio()
+if ratio > 0.85:   # Safe threshold: true duplicates score 0.90+, different sentences 0.26-0.31
+    mark_as_duplicate()
+
+
+# ❌ PATTERN 11 — Degraded placeholder not caught
+if '【?term?】' in text:  # misses degraded form 【??】 that model sometimes outputs
+    pass
+
+# ✅ FIX — normalize degraded form before checking
+text = re.sub(r'【\??\?】', '【?term?】', text)  # fix_degraded_placeholders()
 ```
  
 ---
@@ -434,9 +499,14 @@ Add this block to `CURRENT_STATE.md` and keep it updated:
 | No unbounded retry loops | ❌ / ✅ | YYYY-MM-DD | |
 | No hidden state copies in agents | ❌ / ✅ | YYYY-MM-DD | |
 | Checkpoint saved per chunk | ❌ / ✅ | YYYY-MM-DD | |
-| tests/test_stability.py all pass | ❌ / ✅ | YYYY-MM-DD | (or equivalent coverage in existing tests) |
+| Myanmar regex uses consonant boundary not \b | ❌ / ✅ | YYYY-MM-DD | Pattern 7 |
+| BOM stripped with .lstrip('﻿') | ❌ / ✅ | YYYY-MM-DD | Pattern 8 |
+| Indic scripts stripped (all 9 blocks) | ❌ / ✅ | YYYY-MM-DD | Pattern 9 |
+| SequenceMatcher used for Myanmar similarity | ❌ / ✅ | YYYY-MM-DD | Pattern 10 |
+| 259 tests pass (pytest tests/ -v) | ❌ / ✅ | YYYY-MM-DD | |
 | src/exceptions.py exists | ❌ / ✅ | YYYY-MM-DD | |
 | src/utils/ollama_client.py exists | ❌ / ✅ | YYYY-MM-DD | |
+| src/utils/chunker.py exists | ❌ / ✅ | YYYY-MM-DD | smart_chunk() canonical |
 ```
  
 **Rule:** Any row that is ❌ = the system is NOT stable.
@@ -520,49 +590,66 @@ Novel translated end-to-end with:
 
 ## Project Overview
 
-This project is an advanced, AI-powered **Chinese-to-Myanmar (Burmese) novel translation system** specializing in Wuxia/Xianxia novels. It uses a multi-stage agent pipeline to translate web novels while preserving tone, style, literary depth, and strict terminology consistency.
+This project is an AI-powered **novel translation system** (primarily English→Myanmar, with Chinese→English→Myanmar pivot support) specializing in Wuxia/Xianxia novels. It uses a multi-stage agent pipeline to translate web novels while preserving tone, style, literary depth, and strict terminology consistency.
 
 ---
 
 ## 🏗 System Architecture & Pipeline
 
-The translation process follows a strict 6-stage pipeline orchestrated by `src/pipeline/orchestrator.py`:
+### Two-Workflow System (Auto-Detected)
+
+```
+way1 — English→Myanmar direct       (settings.yaml,       padauk-gemma:q8_0)
+way2 — Chinese→English→Myanmar pivot (settings.pivot.yaml, hunyuan:7b → padauk-gemma:q8_0)
+
+Auto-detection in src/cli/commands.py:
+  Chinese chars > 10   → way2 (pivot)
+  ASCII letters > 100  → way1 (direct)
+```
+
+### Full Pipeline Flow
 
 ```
 src/main.py (thin dispatcher)
   → src/cli/parser.py (parse arguments)
-  → src/cli/commands.py (route to command)
+  → src/cli/commands.py (route + auto-detect way1/way2)
   → src/pipeline/orchestrator.py (TranslationPipeline)
     → Load config/settings.yaml (via src/config/loader.py)
-    → Initialize MemoryManager (load glossary.json, context_memory.json)
-    → Preprocessor.load_and_preprocess()  → Chunks
-    → Translator.translate_chunks()        → Stage 1: Raw translation
-    → Refiner.refine_full_text()           → Stage 2: Literary editing
-    → ReflectionAgent.reflect_and_improve() → Stage 3: Self-correction
-    → MyanmarQualityChecker.check_quality() → Stage 4: Linguistic validation
-    → Checker.check_chapter()             → Stage 5: Consistency check
-    → QA Review                           → Stage 6: Final QA
-    → TermExtractor (post-chapter)        → Extract new terms → glossary_pending.json
-    → GlossaryGenerator (optional/pre)    → Auto-extract terms from novel source
-    → FileHandler.write_text()            → Save to data/output/
-    → ContextUpdater.process_chapter()    → Update glossary.json, context_memory.json
+    → Initialize MemoryManager (load per-novel glossary.json, context_memory.json)
+    → Preprocessor.load_and_preprocess()         → strip_metadata() + smart_chunk()
+    → [way2 only] PivotTranslator.translate_cn_en() → Stage 0: CN→EN
+    → Translator.translate_chunks()               → Stage 1: EN→MM raw translation
+    → Refiner.refine_full_text()                  → Stage 2: Literary editing
+    → ReflectionAgent.reflect_and_improve()       → Stage 3: Self-correction
+    → MyanmarQualityChecker.check_quality()       → Stage 4: Linguistic validation
+    → Checker.check_chapter()                     → Stage 5: Consistency check
+    → QATesterAgent.validate_output()             → Stage 6: Final QA
+    → QualityGate: myanmar_ratio ≥ 70% per chunk  → blocks save if fails
+    → Postprocessor.clean_output()                → strip scripts, fix headings, dedup
+    → TranslationReviewer._auto_review()          → auto quality report
+    → TermExtractor (post-chapter)                → Extract new terms → glossary_pending.json
+    → MemoryManager.auto_approve_by_confidence()  → promote confident pending terms
+    → FileHandler.write_text()                    → Save to data/output/{novel}/
+    → ContextUpdater.process_chapter()            → Update per-novel glossary + context
 ```
 
-**Note:** As of v2.0, the monolithic `main.py` has been refactored into modular components under `src/cli/`, `src/pipeline/`, `src/config/`, `src/core/`, and `src/types/`.
+**Note:** `single_stage` mode (default for way1) runs Stage 1 only — fastest, best for padauk-gemma. Full 6-stage mode adds refinement/reflection but is 3× slower.
 
-1. **Preprocess:** Clean and normalize input text, split into paragraph-safe chunks with `smart_chunk()` (no overlap).
+1. **Preprocess:** `strip_metadata()` removes credit lines, then `smart_chunk()` splits at `\n\n` paragraph boundaries only (no overlap, no mid-paragraph splits).
 2. **Context & Glossary Loading:**
-   - `MemoryManager`: 3-tier memory system (Glossary → Context → Session rules).
-   - `data/glossary.json`: Enforces strict terminology consistency.
-   - `data/context_memory.json`: Remembers ongoing story and character relationships.
-3. **Translate (Stage 1):** Translator Agent produces an accurate, literal translation.
-4. **Edit (Stage 2):** Editor Agent rewrites for natural flow and literary quality.
-5. **Reflection (Stage 3):** Reflection Agent performs self-critique and improves the translation iteratively.
-6. **Myanmar Quality Check (Stage 4):** Custom checker validates tone, naturalness, and particle accuracy.
-7. **Consistency Check (Stage 5):** Consistency Checker verifies all terms against the glossary.
+   - `MemoryManager`: 3-tier memory (Glossary → Context → Session rules).
+   - Glossary lives at `data/output/{novel}/glossary/glossary.json` — per-novel, isolated.
+   - Rolling context: tail of previous translated chunk (≤400 tokens, paragraph-complete).
+3. **Translate (Stage 1):** Translator Agent produces accurate translation. Uses rolling context from previous chunk, top-20 glossary terms injected per call.
+4. **Edit (Stage 2):** Refiner rewrites for natural flow and literary quality. Glossary injected to prevent name drift.
+5. **Reflection (Stage 3):** ReflectionAgent performs self-critique. Glossary injected with "NEVER change character names" rule.
+6. **Myanmar Quality Check (Stage 4):** Validates tone, naturalness, and particle accuracy.
+7. **Consistency Check (Stage 5):** Verifies all terms against the per-novel glossary.
 8. **QA Review (Stage 6):** Final Reviewer validates logical flow, tone, and formatting.
-9. **Term Extraction (Post-Chapter):** Term Extractor scans for new proper nouns and routes them to `glossary_pending.json` for human review.
-10. **Assemble:** Save to `data/output/`.
+9. **Quality Gate:** Myanmar ratio checked per-chunk (< 40% = block save) and overall (< 70% = block save). Returns `success=False` without writing file if fails.
+10. **Auto-Review:** `TranslationReviewer` runs 10 linguistic + 6 quantitative checks. Report saved to `logs/report/`.
+11. **Term Extraction (Post-Chapter):** Scans for new proper nouns → `glossary_pending.json`. Terms with confidence ≥ 0.75 auto-promoted.
+12. **Assemble:** Save to `data/output/{novel}/{novel}_chapter_{NNNN}.mm.md`.
 
 ---
 
@@ -787,11 +874,60 @@ Score ≤ 49  → STOP → alert user → do not save
 
 | Tier | Name | Storage | Scope |
 |------|------|---------|-------|
-| 1 | Glossary | `data/glossary.json` | Persistent across all chapters |
-| 2 | Context | `data/context_memory.json` + FIFO buffer | Slides per chapter |
+| 1 | Glossary | `data/output/{novel}/glossary/glossary.json` | Persistent, per-novel |
+| 2 | Context | `data/output/{novel}/glossary/context_memory.json` + FIFO buffer | Slides per chapter |
 | 3 | Session Rules | Runtime only | Current session only |
 
-### Glossary Schema (`data/glossary.json`)
+**Important:** Glossary and context are per-novel. Each novel gets its own isolated folder created automatically on first run. Never share glossary between novels.
+
+**Auto-approval:** `auto_approve_by_confidence()` promotes pending terms with confidence ≥ 0.75. Confidence is scored by: seen in ≥3 chapters (+0.40), character/place category (+0.20), proper Myanmar target (+0.10), Chinese name pattern (+0.10).
+
+### Chunker (`src/utils/chunker.py`) — Canonical Chunking Module
+
+```python
+smart_chunk(text: str, max_tokens: int = 1500) -> list[str]
+    # Splits ONLY at \n\n paragraph boundaries. Never inside a paragraph.
+    # Oversized single paragraphs become their own chunk.
+    # overlap is always 0. Token estimate: len(text) * 1.5.
+
+get_rolling_context(prev_chunk: str, max_context_tokens: int = 400) -> str
+    # Returns tail of previous translated chunk as rolling context.
+    # Token-limited, paragraph-complete, never mid-paragraph.
+    # Returns "" for first chunk (chunk index 0).
+
+estimate_tokens(text: str) -> int
+    # len(text) * 1.5 — works for both Myanmar and Chinese.
+```
+
+Token budget enforcement per Ollama call:
+```
+system(800) + rolling_context(≤400) + chunk(≤1500) ≤ 2600 tokens
+Context is truncated if budget exceeded before sending to LLM.
+```
+
+### Translation Reviewer (`src/utils/translation_reviewer.py`) — Auto Quality Checks
+
+Runs automatically after each translation via `_auto_review()` in orchestrator. Reports saved to `logs/report/{novel}_chapter_{N}_review_{timestamp}.md`.
+
+**Quantitative checks (Q1-Q6):**
+- Q1: Myanmar ratio (≥70% PASS, <30% REJECT)
+- Q2: Foreign script leakage (Chinese, Bengali, Tamil, Korean)
+- Q3: English/Latin word leakage
+- Q4: Markdown structure (H1 count, bold balance)
+- Q5: Content completeness (char count, placeholders)
+- Q6: Paragraph structure (blank lines, readability)
+
+**Linguistic checks (L1-L10, rule-based):**
+- L1: Archaic words (သင်သည်, ဤ, ထို, သည်သည်ကို)
+- L2: Particle repetition (same particle ≥3× consecutively)
+- L4: Register consistency (formal vs colloquial mix)
+- L7: Overlong sentences (>50 words)
+- L8: Sentence enders (proper ။, !, ? ending)
+- Paragraph duplication (SequenceMatcher ≥ 0.85 threshold)
+
+**Fluency Score (F0):** `src/utils/fluency_scorer.py` — 7-dimension reference-free Myanmar fluency heuristic (lexical diversity, particle diversity, sentence flow, syllable richness, paragraph rhythm, punctuation health, hallucination repetition penalty). Composite 0-100 score.
+
+### Glossary Schema (`data/output/{novel}/glossary/glossary.json`)
 
 ```json
 {
@@ -810,7 +946,7 @@ Score ≤ 49  → STOP → alert user → do not save
 }
 ```
 
-### Pending Glossary Schema (`data/glossary_pending.json`)
+### Pending Glossary Schema (`data/output/{novel}/glossary/glossary_pending.json`)
 
 ```json
 {
@@ -835,7 +971,7 @@ Score ≤ 49  → STOP → alert user → do not save
 - **Place Names:** Hybrid approach (e.g., 天龙城 → ထျန်လုံမြို့)
 - **Unknown Terms:** Use `【?term?】` placeholder until reviewed — never guess
 
-### Context Manager (`data/context_memory.json`)
+### Context Manager (`data/output/{novel}/glossary/context_memory.json`)
 
 ```json
 {
@@ -852,21 +988,50 @@ Score ≤ 49  → STOP → alert user → do not save
 
 ## 🎛 Model Configuration (`config/settings.yaml`)
 
+### ⚠️ MODEL WARNINGS — Read Before Changing Any Model Setting
+
+```
+padauk-gemma:q8_0  → PRIMARY Myanmar output model. The ONLY model proven to output Myanmar.
+                     Temperature MUST be ≤ 0.2. Above 0.2 causes glossary-comparison garbage
+                     output (*:* "word" is . "other" is .) mixed into translation.
+
+sailor2-20b        → Alternative Myanmar output model. Available as padauk-gemma backup.
+
+alibayram/hunyuan:7b → CN→EN pivot Stage 1 ONLY. Good Chinese comprehension.
+                       Does NOT output Myanmar. Use for way2 Stage 1 only.
+
+qwen2.5:14b        → CN→EN pivot only. Outputs Chinese/Japanese, NOT Myanmar.
+                     NEVER use as translator. Validation and CN→EN only.
+
+qwen:7b            → Outputs English, NOT Myanmar. Use for validation/checking ONLY.
+                     Using as translator causes 0% Myanmar ratio (REJECTED output).
+```
+
+### way1 — English→Myanmar Direct (default: `config/settings.yaml`)
+
 ```yaml
 models:
-  translator: "padauk-gemma:q8_0"   # Primary MM output model (current default)
-  editor: "padauk-gemma:q8_0"       # Current default
-  checker: "qwen:7b"                # Fast validation
+  translator: "padauk-gemma:q8_0"   # Only model that outputs Myanmar
+  editor: "padauk-gemma:q8_0"
+  checker: "sailor2:8b"             # Quality validation (qwen:7b outputs English — not usable)
   ollama_base_url: "http://localhost:11434"
   timeout: 300
 
 processing:
-  chunk_size: 1500
+  chunk_size: 2500
   max_retries: 2
-  temperature: 0.2            # Current stable setting for padauk-gemma
+  temperature: 0.2            # MUST stay ≤ 0.2 — padauk-gemma hallucinates at higher temps
   top_p: 0.95
   top_k: 40
   repeat_penalty: 1.15
+```
+
+### way2 — Chinese→English→Myanmar Pivot (`config/settings.pivot.yaml`)
+
+```yaml
+# Stage 1 (CN→EN): alibayram/hunyuan:7b   ← good Chinese comprehension
+# Stage 2 (EN→MM): padauk-gemma:q8_0      ← Myanmar output
+# Checker:         qwen:7b                ← English validation only
 ```
 
 ---
@@ -881,53 +1046,107 @@ novel_translation_project/
 │   ├── long_term_memory.json     # Long-term: lessons learned across sessions
 │   └── error_library.json        # Known errors + proven solutions (consult before retry)
 ├── config/
-│   └── settings.yaml
+│   ├── settings.yaml             # Standard config (EN→MM direct, padauk-gemma)
+│   ├── settings.pivot.yaml       # CN→EN→MM pivot (hunyuan:7b + padauk-gemma)
+│   ├── settings.fast.yaml        # Fast mode config
+│   ├── settings.sailor2.yaml     # Sailor2-20B dedicated config
+│   └── error_recovery.yaml       # Error recovery policy
 ├── data/
-│   ├── input/                    # Chinese chapter files (*.md)
-│   ├── output/                   # Myanmar translations (*.md)
-│   ├── glossary.json             # Approved terminology database
-│   ├── glossary_pending.json     # New terms awaiting human review
-│   └── context_memory.json       # Dynamic chapter context
+│   ├── input/                    # Source chapter files (*.md)
+│   └── output/
+│       └── {novel_name}/         # ★ Per-novel output folder (created on first run)
+│           ├── glossary/
+│           │   ├── glossary.json           # Approved terminology (per-novel)
+│           │   ├── glossary_pending.json   # New terms awaiting human review
+│           │   └── context_memory.json     # Dynamic chapter context
+│           ├── {novel}_chapter_{NNNN}.mm.md   # Myanmar chapter output
+│           └── {novel}.mm.meta.json           # Cumulative chapter metadata
 ├── logs/
-│   └── translation.log
+│   ├── translation.log
+│   └── report/                   # Auto-review reports: {novel}_chapter_{N}_review_{ts}.md
 ├── src/
 │   ├── agents/
+│   │   ├── base_agent.py         # BaseAgent superclass
 │   │   ├── preprocessor.py       # Chunking and markdown cleaning
-│   │   ├── translator.py         # Stage 1: CN→MM translation
+│   │   ├── translator.py         # Stage 1: EN→MM or CN→MM translation
+│   │   ├── pivot_translator.py   # CN→EN→MM two-stage pivot (way2)
+│   │   ├── fast_translator.py    # Optimized translator (large chunks, streaming)
 │   │   ├── refiner.py            # Stage 2: Literary editing
-│   │   ├── checker.py            # Stage 3 & 4: QA validation
+│   │   ├── fast_refiner.py       # Batch refiner (5 paragraphs per call)
+│   │   ├── checker.py            # Consistency + QA validation
 │   │   ├── reflection_agent.py   # Self-correction agent
 │   │   ├── myanmar_quality_checker.py  # Linguistic validation
 │   │   ├── qa_tester.py          # QA validation agent
-│   │   └── context_updater.py    # Term extraction and memory updates
-│   ├── cli/                      # NEW: CLI module (refactored from main.py)
+│   │   ├── context_updater.py    # Term extraction and memory updates
+│   │   ├── glossary_generator.py # Pre-translation terminology extraction
+│   │   ├── glossary_sync.py      # Glossary synchronization agent
+│   │   ├── prompt_patch.py       # Hardened prompts with LANGUAGE_GUARD
+│   │   └── prompts/
+│   │       ├── cn_mm_rules.py    # CN→MM linguistic rules module
+│   │       └── en_mm_rules.py    # EN→MM linguistic rules module
+│   ├── cli/
 │   │   ├── parser.py             # Argument parsing
-│   │   ├── formatters.py         # Output formatting
-│   │   └── commands.py           # Command handlers
-│   ├── config/                   # NEW: Configuration module
+│   │   ├── formatters.py         # Output formatting + progress display
+│   │   └── commands.py           # Command handlers + workflow routing (way1/way2)
+│   ├── config/
 │   │   ├── models.py             # Pydantic config models
 │   │   └── loader.py             # Config loading with validation
-│   ├── core/                     # NEW: Core functionality
+│   ├── core/
 │   │   └── container.py          # Dependency injection container
 │   ├── memory/
 │   │   └── memory_manager.py     # 3-tier memory system
-│   ├── pipeline/                 # NEW: Pipeline orchestration
+│   ├── pipeline/
 │   │   └── orchestrator.py       # TranslationPipeline coordinator
-│   ├── types/                    # NEW: Type definitions
+│   ├── types/
 │   │   └── definitions.py        # TypedDict for data structures
 │   ├── utils/
-│   │   ├── ollama_client.py      # Ollama API wrapper
+│   │   ├── ollama_client.py      # OllamaClient class — retry + timeout gateway
 │   │   ├── file_handler.py       # File I/O (UTF-8-SIG, atomic writes)
-│   │   └── postprocessor.py      # Output cleaning
-│   ├── web/                      # NEW: Web UI launcher
-│   │   └── launcher.py           # Streamlit launcher
-│   ├── exceptions.py             # NEW: Exception hierarchy
+│   │   ├── postprocessor.py      # Output cleaning + all script leak removal
+│   │   ├── chunker.py            # smart_chunk() + get_rolling_context() — canonical
+│   │   ├── translation_reviewer.py  # 10 linguistic + 6 quantitative quality checks
+│   │   ├── fluency_scorer.py     # Reference-free Myanmar fluency metric (7 dimensions)
+│   │   ├── json_extractor.py     # Safe JSON parsing with fallback
+│   │   ├── glossary_matcher.py   # Dynamic term extraction for prompt injection
+│   │   ├── glossary_suggestor.py # Glossary suggestion heuristics
+│   │   ├── progress_logger.py    # Real-time translation progress tracking
+│   │   ├── performance_logger.py # Pipeline performance metrics
+│   │   ├── ram_monitor.py        # Memory / VRAM monitoring
+│   │   └── cache_cleaner.py      # Python cache cleanup utility
+│   ├── web/
+│   │   └── launcher.py           # Streamlit launcher (subprocess)
+│   ├── exceptions.py             # Exception hierarchy (ModelError, GlossaryError, etc.)
 │   └── main.py                   # Entry point (thin dispatcher)
-├── tests/
+├── ui/                           # ★ Streamlit Web UI (lives here, not src/web/)
+│   ├── streamlit_app.py          # Multi-page app entry point
+│   ├── pages/                    # Individual UI pages (Quickstart, Translate, Glossary…)
+│   └── utils/                    # UI utility helpers
+├── tests/                        # 259 tests passing (pytest tests/ -v)
+│   ├── test_agents.py
+│   ├── test_chunker.py
+│   ├── test_cn_mm_rules.py
+│   ├── test_config.py
+│   ├── test_container.py
+│   ├── test_glossary_sync.py
+│   ├── test_integration.py
+│   ├── test_json_extractor.py
+│   ├── test_memory.py
+│   ├── test_novel_v1.py
+│   ├── test_pivot_stage2_guard.py
+│   ├── test_pivot_translator.py
+│   ├── test_postprocessor.py
+│   ├── test_progress_logger.py
+│   ├── test_prompt_patch.py
+│   ├── test_qa_tester.py
+│   ├── test_quality.py
+│   ├── test_regression.py
+│   ├── test_translation_reviewer.py
 │   ├── test_translator.py
 │   ├── test_workflow_routing.py
-│   └── test_integration.py
+│   └── test_translate/
+│       └── test_ch_en_mm_translation.py
 ├── requirements.txt
+├── pytest.ini
 └── README.md
 ```
 
@@ -1055,6 +1274,10 @@ Accumulates lessons across all sessions. Never reset. Written at DOC phase.
  
 ### Error Library — `.agent/error_library.json`
 Known errors and their proven solutions. Agent checks this BEFORE retrying anything.
+
+> **⚠️ DISK FILE IS AUTHORITATIVE.** The examples below are the initial schema only.
+> The real file on disk currently has errors up to ERR-058. Always read `.agent/error_library.json`
+> directly — do NOT rely on the template below for current error state.
  
 ```json
 {
@@ -1188,19 +1411,32 @@ class GlossaryTerm(TypedDict):
  
 ### 3. Automated Tests (Write test before or with code)
  
-**Structure:**
+**Structure (259 tests, all passing — run `pytest tests/ -v --tb=short`):**
 ```
 tests/
-├── test_translator.py       # Translator.translate_paragraph()
-├── test_refiner.py          # Refiner.refine_paragraph()
-├── test_checker.py          # Checker.check_chapter(), quality score
-├── test_memory_manager.py   # add_term(), get_term(), FIFO buffer
-├── test_context_updater.py  # extract_entities(), pending glossary routing
-├── test_file_handler.py     # atomic write, UTF-8-SIG, .bak backup
-├── test_workflow_routing.py # way1/way2 workflow resolution
-├── test_config.py           # Config loading and validation (add me)
-├── test_pipeline.py         # Pipeline orchestration (add me)
-└── test_integration.py      # End-to-end: input → output file
+├── test_agents.py                   # Agent initialization and interface
+├── test_chunker.py                  # smart_chunk(), get_rolling_context(), overlap=0
+├── test_cn_mm_rules.py              # CN→MM linguistic rules
+├── test_config.py                   # Config loading and validation
+├── test_container.py                # Dependency injection container
+├── test_glossary_sync.py            # Glossary sync agent
+├── test_integration.py              # End-to-end: input → output file
+├── test_json_extractor.py           # Safe JSON parsing
+├── test_memory.py                   # add_term(), get_term(), FIFO, auto-approve
+├── test_novel_v1.py                 # Full novel v1 workflow
+├── test_pivot_stage2_guard.py       # EN guard — prevents English leaking into MM output
+├── test_pivot_translator.py         # CN→EN→MM pivot workflow
+├── test_postprocessor.py            # Script stripping, heading dedup, BOM handling
+├── test_progress_logger.py          # Progress tracking
+├── test_prompt_patch.py             # LANGUAGE_GUARD prompts
+├── test_qa_tester.py                # QA validation agent
+├── test_quality.py                  # Quality scoring
+├── test_regression.py               # Regression suite
+├── test_translation_reviewer.py     # 10+6 quality checks, fluency scorer
+├── test_translator.py               # Translator.translate_paragraph()
+├── test_workflow_routing.py         # way1/way2 auto-detection routing
+└── test_translate/
+    └── test_ch_en_mm_translation.py # Full chapter CN→EN→MM with log display
 ```
  
 **Minimum test per function:**
@@ -1319,15 +1555,33 @@ STEP 6: SESSION UPDATE
 ## 🖥 CLI Usage
 
 ```bash
-# Translate a single chapter
-python -m src.main --novel 古道仙鸿 --chapter 1
+# Translate a single chapter (auto-detects way1 or way2)
+python -m src.main --novel reverend-insanity --chapter 1
 
 # Translate all chapters
-python -m src.main --novel 古道仙鸿 --all
+python -m src.main --novel reverend-insanity --all
 
 # Translate from a specific chapter onwards
-python -m src.main --novel 古道仙鸿 --all --start 5
+python -m src.main --novel reverend-insanity --all --start 5
 
-# Skip Stage 2 refinement (faster, lower quality)
-python -m src.main --novel 古道仙鸿 --chapter 1 --skip-refinement
+# Translate a chapter range
+python -m src.main --novel reverend-insanity --chapter-range 9-15
+
+# Run quality review on an existing translated file
+python -m src.main --novel reverend-insanity --review data/output/reverend-insanity/reverend-insanity_chapter_0001.mm.md
+
+# View a translated file in the terminal (Markdown reader)
+python -m src.main --novel reverend-insanity --view data/output/reverend-insanity/reverend-insanity_chapter_0001.mm.md
+
+# Rebuild the cumulative meta.json from all chapter files
+python -m src.main --novel reverend-insanity --rebuild-meta
+
+# Launch Streamlit Web UI
+python -m src.main --ui
+
+# Clean Python cache (if model behaves unexpectedly after code changes)
+python -m src.main --clean
+
+# Force way2 (CN→EN→MM pivot) explicitly
+python -m src.main --novel reverend-insanity --chapter 1 --config config/settings.pivot.yaml
 ```

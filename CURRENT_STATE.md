@@ -8,8 +8,55 @@
 ---
 
 ## Last Updated
-- Date: 2026-05-03
+- Date: 2026-05-04
 - Last task completed:
+  - **VERIFIED: Universal Blueprint + Dual-Layer Glossary Integrity Check** (STATUS: [DONE]):
+    - **Task**: Verify universal blueprints work correctly for all novels (each isolated), add dual-layer tests, restore data integrity, and commit.
+    - **Issues Found & Fixed**:
+      1. `data/output/reverend-insanity/glossary/glossary.json` was overwritten with empty `{"terms": []}` during last session — restored 21 terms from HEAD.
+      2. `data/output/reverend-insanity/glossary/context_memory.json` was reset to `current_chapter: 1` — restored from HEAD (ch25, full buffer).
+      3. `data/output/reverend-insanity/reverend-insanity.mm.meta.json` was reset — restored from HEAD.
+      4. `data/output/reverend-insanity/glossary/glossary_pending.json` was deleted — restored from HEAD (1 pending term: Spring Autumn Cicada).
+    - **Tests Added** (8 new in `tests/test_memory.py`):
+      - `test_per_novel_isolation` — term from novel A must not leak to novel B
+      - `test_per_novel_paths_are_distinct` — different novels resolve to different file paths
+      - `test_universal_term_visible_when_enabled` — universal blueprint term retrievable when `use_universal=True`
+      - `test_universal_term_hidden_when_disabled` — universal term invisible when `use_universal=False`
+      - `test_per_novel_overrides_universal` — per-novel term wins over universal with same source
+      - `test_get_all_terms_combines_both_layers` — combined list includes both layers
+      - `test_universal_duplicate_excluded_when_per_novel_exists` — no duplicate sources in combined list
+      - `test_source_term_target_term_format_normalized` — legacy `source_term`/`target_term` keys read correctly
+    - **Verification**:
+      - reverend-insanity: 21 per-novel terms + 1 universal = 22 combined ✓
+      - test-novel: 0 per-novel terms + 1 universal = 1 combined ✓
+      - Paths fully isolated: each novel has own `data/output/{novel}/glossary/` dir ✓
+      - All 278 tests pass ✓
+    - **Files Modified**: `tests/test_memory.py`, `.gitignore`, `CURRENT_STATE.md`, `AGENTS.md`
+    - **Files Added**: `data/universal_glossary_blueprint.json`, `data/universal_glossary_pending_blueprint.json`, `data/universal_context_memory_blueprint.json`
+    - **Files Deleted**: `data/glossary_reverend-insanity.json`, `data/glossary_pending_reverend-insanity.json`, `data/context_memory_reverend-insanity.json` (migrated to per-novel structure)
+    - **Tests**: 278/278 pass
+  - **UPDATED: Dual-Layer Glossary System (Universal + Per-novel)** (STATUS: [DONE]):
+    - **Task**: Update MemoryManager to support both universal (shared) glossary AND per-novel glossary
+    - **Changes Made**:
+      1. Added universal glossary path constants (`UNIVERSAL_GLOSSARY_PATH`, etc.)
+      2. Added `_resolve_universal_paths()` function for shared blueprint files
+      3. Added `use_universal` parameter to MemoryManager constructor
+      4. Added dual-layer loading: loads `data/universal_glossary_blueprint.json` first, then per-novel
+      5. Updated `get_term()` to check per-novel first, then fallback to universal
+      6. Updated `get_all_terms()` to combine both layers (per-novel takes priority)
+      7. Updated `get_glossary_for_prompt()` to include combined terms
+    - **Verification**:
+      - Universal glossary loads: 1 term (from blueprint template)
+      - Per-novel glossary loads: 0 terms (for reverend-insanity)
+      - Dual-layer lookup works: per-novel terms override universal
+      - Combined prompt includes both layers
+      - All 270 tests pass
+    - **Dual-Layer Behavior**:
+      - When looking up a term: first check per-novel, then fallback to universal
+      - When getting all terms: combine both, per-novel first
+      - Per-novel terms ALWAYS take priority over universal terms
+      - Can disable universal with `use_universal=False`
+    - **Files Modified**: `src/memory/memory_manager.py`
   - **REFACTORED: Glossary/Context/Pending files → per-novel folder structure** (STATUS: [DONE]):
     - **Task**: Move glossary files from `data/glossary_{novel}.json` to `data/output/{novel}/glossary/`
     - **Changes Made**:

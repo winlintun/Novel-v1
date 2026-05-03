@@ -1,9 +1,13 @@
 """
 Memory Manager Module
 Handles 3-tier memory system: Glossary and Context Memory.
+Supports per-novel glossary (primary) + optional universal reference (read-only).
+
+NOTE: Universal blueprint files are READ-ONLY reference templates.
+They are NOT written to - only used as optional read-only fallback.
 """
 
-import logging
+import os
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 from collections import deque
@@ -11,9 +15,31 @@ from src.utils.file_handler import FileHandler
 
 logger = logging.getLogger(__name__)
 
+# Universal blueprint files (READ-ONLY reference templates - NOT written to)
+UNIVERSAL_GLOSSARY_REF = "data/universal_glossary_blueprint.json"
+UNIVERSAL_PENDING_REF = "data/universal_glossary_pending_blueprint.json"
+UNIVERSAL_CONTEXT_REF = "data/universal_context_memory_blueprint.json"
+
+
+def _resolve_universal_ref_paths() -> tuple[str, str, str]:
+    """Resolve universal (shared) reference paths.
+    
+    These are READ-ONLY reference templates - NOT written to.
+    Only used as optional read-only fallback for lookup.
+    """
+    return (
+        UNIVERSAL_GLOSSARY_REF,
+        UNIVERSAL_PENDING_REF,
+        UNIVERSAL_CONTEXT_REF,
+    )
+
 
 def _resolve_glossary_path(novel_name: Optional[str] = None) -> tuple[str, str, str]:
     """Resolve glossary, context, and pending file paths for a given novel.
+    
+    Dual-layer system:
+    - Universal: data/universal_glossary_blueprint.json (shared across all novels)
+    - Per-novel: data/output/{novel_name}/glossary/glossary.json (novel-specific)
     
     Per-novel mode (novel_name provided):
       data/output/{novel_name}/glossary/glossary.json
@@ -25,7 +51,6 @@ def _resolve_glossary_path(novel_name: Optional[str] = None) -> tuple[str, str, 
       data/output/default/glossary/context_memory.json
       data/output/default/glossary/glossary_pending.json
     """
-    import os
     if novel_name:
         safe_name = novel_name.replace('/', '_').replace('\\', '_').replace(' ', '_')
         base_dir = f"data/output/{safe_name}/glossary"
@@ -42,17 +67,21 @@ def _resolve_glossary_path(novel_name: Optional[str] = None) -> tuple[str, str, 
 
 class MemoryManager:
     """
-    3-Tier Memory Management System:
-    - Tier 1: Global Glossary (Persistent)
+    3-Tier Memory Management System with Dual-Layer Glossary:
+    - Tier 1a: Universal Glossary (shared across all novels)
+    - Tier 1b: Per-novel Glossary (novel-specific)
     - Tier 2: Chapter Context (FIFO sliding window)
     - Tier 3: Session Rules (Dynamic corrections)
+    
+    Glossary lookup order: Per-novel → Universal (per-novel terms take priority)
     """
 
     def __init__(
         self,
         glossary_path: str = "data/output/default/glossary/glossary.json",
         context_path: str = "data/output/default/glossary/context_memory.json",
-        novel_name: Optional[str] = None
+        novel_name: Optional[str] = None,
+        use_universal: bool = True
     ):
         # Resolve novel-specific paths when novel_name is provided
         if novel_name:
@@ -63,8 +92,14 @@ class MemoryManager:
         self.glossary_path = glossary_path
         self.context_path = context_path
         self.novel_name = novel_name
+        self.use_universal = use_universal
 
-        # Tier 1: Global Glossary
+        # Dual-layer glossary support
+        self.universal_glossary: Dict[str, Any] = {}
+        self.universal_pending: Dict[str, Any] = {}
+        self.universal_context: Dict[str, Any] = {}
+        
+        # Tier 1: Per-novel Glossary
         self.glossary: Dict[str, Any] = {}
 
         # Tier 2: Context Memory
@@ -78,8 +113,37 @@ class MemoryManager:
         self._load_memory()
 
     def _load_memory(self):
-        """Load all memory files."""
-        # Load glossary
+        """Load all memory files including universal (shared) glossary."""
+        
+        # Load Universal (shared) glossary first if enabled
+        if self.use_universal:
+            self.universal_glossary = FileHandler.read_json(UNIVERSAL_GLOSSARY_PATH)
+            if not self.universal_glossary:
+                self.universal_glossary = {
+                    "metadata": {"schema_version": "3.2.1"},
+                    "terms": []
+                }
+            else:
+                logger.info(f"Loaded universal glossary: {len(self.universal_glossary.get('terms', []))} terms")
+            
+            # Load universal pending terms
+            self.universal_pending = FileHandler.read_json(UNIVERSAL_PENDING_PATH)
+            if not self.universal_pending:
+                self.universal_pending = {
+                    "metadata": {"schema_version": "3.2.1-pending"},
+                    "pending_terms": []
+                }
+            
+            # Load universal context
+            self.universal_context = FileHandler.read_json(UNIVERSAL_CONTEXT_PATH)
+            if not self.universal_context:
+                self.universal_context = {
+                    "metadata": {"schema_version": "3.2.1"},
+                    "dynamic_character_states": [],
+                    "translation_flow_buffer": []
+                }
+        
+        # Load per-novel glossary
         self.glossary = FileHandler.read_json(self.glossary_path)
         if not self.glossary:
             self.glossary = {
@@ -294,14 +358,27 @@ class MemoryManager:
         return False
 
     def get_term(self, source: str) -> Optional[str]:
-        """Get target translation for a source term."""
+        """Get target translation for a source term.
+        
+        Dual-layer lookup:
+        1. First check per-novel glossary
+        2. Fall back to universal glossary (shared terms)
+        """
+        # First: Check per-novel glossary
         terms = self.glossary.get("terms", [])
-
         for term in terms:
             term_source = term.get("source") or term.get("source_term", "")
             if term_source == source:
                 return term.get("target") or term.get("target_term")
-
+        
+        # Second: Check universal glossary (fallback)
+        if self.use_universal:
+            universal_terms = self.universal_glossary.get("terms", [])
+            for term in universal_terms:
+                term_source = term.get("source_term") or term.get("source", "")
+                if term_source == source:
+                    return term.get("target_term") or term.get("target")
+        
         return None
 
     def get_glossary_for_prompt(self, limit: int = 20) -> str:
@@ -309,15 +386,17 @@ class MemoryManager:
 
         Sorts terms by chapter_last_seen (most recent first) so freshest
         terms stay in the window as the glossary grows past `limit`.
+        
+        Includes both per-novel and universal glossary terms.
         """
-        terms = self.glossary.get("terms", [])
+        all_terms = self.get_all_terms()
 
-        if not terms:
+        if not all_terms:
             return "No glossary entries yet."
 
         # Sort by chapter_last_seen descending, then take top `limit`
         sorted_terms = sorted(
-            terms,
+            all_terms,
             key=lambda t: t.get("chapter_last_seen", 0) or 0,
             reverse=True
         )
@@ -326,8 +405,13 @@ class MemoryManager:
 
         for term in sorted_terms[:limit]:
             verified = "✓" if term.get("verified") else "○"
-            source = self._sanitize_for_prompt(term.get("source") or term.get("source_term", ""))
-            target = self._sanitize_for_prompt(term.get("target") or term.get("target_term", ""))
+            # Handle both novel and universal term formats
+            source = self._sanitize_for_prompt(
+                term.get("source") or term.get("source_term", "")
+            )
+            target = self._sanitize_for_prompt(
+                term.get("target") or term.get("target_term", "")
+            )
             category = self._sanitize_for_prompt(term.get('category', 'general'))
             lines.append(
                 f"  [{verified}] {source} = {target} "
@@ -337,8 +421,27 @@ class MemoryManager:
         return "\n".join(lines)
 
     def get_all_terms(self) -> List[Dict[str, Any]]:
-        """Get all glossary terms."""
-        return self.glossary.get("terms", [])
+        """Get all glossary terms (per-novel + universal).
+        
+        Returns combined list with per-novel terms first,
+        then universal terms.
+        """
+        combined = []
+        
+        # Add per-novel terms first (takes priority)
+        per_novel = self.glossary.get("terms", [])
+        combined.extend(per_novel)
+        
+        # Add universal terms (skip duplicates)
+        if self.use_universal:
+            per_novel_sources = {t.get("source") or t.get("source_term", "") for t in per_novel}
+            universal = self.universal_glossary.get("terms", [])
+            for term in universal:
+                source = term.get("source_term") or term.get("source", "")
+                if source not in per_novel_sources:
+                    combined.append(term)
+        
+        return combined
 
     def _sanitize_for_prompt(self, text: str) -> str:
         """Sanitize text for safe use in LLM prompts."""

@@ -1,0 +1,41 @@
+{
+  "metadata": {
+    "schema_version": "3.2.1-pending",
+    "pipeline_compatible": ["ovel_translation_project", "Term_Extractor_Agent", "v2.0"],
+    "project_name": "<INSERT_NOVEL_TITLE>",
+    "last_updated": "<YYYY-MM-DDTHH:MM:SSZ>",
+    "description": "Holding area for newly discovered terms awaiting review before merging into main glossary."
+  },
+  "settings": {
+    "allowed_categories": ["character", "location", "organization", "item_artifact", "power_level", "cultivation_concept", "event", "technique", "title_honorific"],
+    "auto_approve_threshold": 0.95,
+    "status_options": ["pending", "approved", "rejected", "needs_context"],
+    "merge_rules": {
+      "id_prefix": "pending",
+      "auto_assign_glossary_id": true,
+      "required_for_merge": ["source_term", "target_term", "category", "translation_rule", "status"]
+    }
+  },
+  "pending_terms": [
+    {
+      "id": "pending_001",
+      "source_term": "<NEW_TERM>",
+      "aliases_cn": [],
+      "aliases_en": [],
+      "target_term": "<AI_SUGGESTED_MYANMAR>",
+      "category": "character",
+      "translation_rule": "transliterate",
+      "priority": 2,
+      "discovered_in_chapter": 22,
+      "confidence_score": 0.85,
+      "context_snippet": {
+        "source": "<e.g., 'Suddenly, Tie Ruo Nan appeared from the shadows.'>",
+        "target": "<e.g., 'ရုတ်တရက်၊ ထျဲရိုနန်သည် အရိပ်ထဲမှ ထွက်ပေါ်လာသည်။'>"
+      },
+      "status": "pending",
+      "extraction_agent": "Term_Extractor_v1",
+      "editor_notes": "",
+      "merge_status": "awaiting_review"
+    }
+  ]
+}

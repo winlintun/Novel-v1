@@ -102,3 +102,8 @@ err_log.log
 
 need_fix_bug.md
 need_to_fix_bug.md
+backup
+backup/*
+
+# Runtime progress logs (transient per-run artifacts)
+logs/progress/

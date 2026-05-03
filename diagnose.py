@@ -51,7 +51,7 @@ try:
 except Exception as e:
     check_result("Config loaded", False, str(e))
 
-# Check 2: Memory Manager (Enhanced)
+# Check 2: Memory Manager (Dual-Layer System)
 print_section("MEMORY SYSTEM CHECK")
 try:
     from src.memory.memory_manager import MemoryManager
@@ -63,10 +63,33 @@ try:
     for novel in novels:
         print(f"\n  📖 Novel: {novel}")
         
+        # Create MemoryManager to test dual-layer loading
+        mm = MemoryManager(novel_name=novel)
+        
+        # Check universal glossary (shared)
+        universal_terms = len(mm.universal_glossary.get('terms', []))
+        universal_pending = len(mm.universal_pending.get('pending_terms', []))
+        check_result(f"  Universal Glossary", True, f"{universal_terms} terms")
+        if universal_pending > 0:
+            check_result(f"  Universal Pending", True, f"{universal_pending} pending")
+        
         # Novel-specific glossary (new structure: data/output/{novel}/glossary/)
         novel_glossary = f"data/output/{novel}/glossary/glossary.json"
         novel_context = f"data/output/{novel}/glossary/context_memory.json"
         novel_pending = f"data/output/{novel}/glossary/glossary_pending.json"
+        
+        # Check glossary
+        if os.path.exists(novel_glossary):
+            try:
+                with open(novel_glossary, 'r', encoding='utf-8-sig') as f:
+                    glossary_data = json.load(f)
+                term_count = len(glossary_data.get('terms', []))
+                verified_count = sum(1 for t in glossary_data.get('terms', []) if t.get('verified', False))
+                check_result(f"  Per-novel Glossary", True, f"{term_count} terms ({verified_count} verified)")
+            except Exception as e:
+                check_result(f"  Per-novel Glossary", False, str(e))
+        else:
+            check_result(f"  Per-novel Glossary", False, "Not found")
         
         # Check glossary
         if os.path.exists(novel_glossary):
@@ -169,15 +192,15 @@ check_result("__pycache__ dirs", cache_count == 0, f"Found {cache_count} (run cl
 # Check 7: Glossary Files (Enhanced)
 print_section("GLOSSARY FILES CHECK")
 
-# Check root-level glossary files
-root_glossary_files = [
-    ("data/glossary.json", "Global approved terms"),
-    ("data/glossary_pending.json", "Global pending terms"),
-    ("data/context_memory.json", "Global context"),
+# Check universal (shared) glossary files
+universal_files = [
+    ("data/universal_glossary_blueprint.json", "Universal approved terms"),
+    ("data/universal_glossary_pending_blueprint.json", "Universal pending terms"),
+    ("data/universal_context_memory_blueprint.json", "Universal context"),
 ]
 
-print("  Root-level files:")
-for filepath, desc in root_glossary_files:
+print("  Universal (shared) files:")
+for filepath, desc in universal_files:
     if os.path.exists(filepath):
         try:
             with open(filepath, 'r', encoding='utf-8-sig') as f:
@@ -186,12 +209,14 @@ for filepath, desc in root_glossary_files:
                 check_result(f"  {filepath}", True, f"{len(data['terms'])} terms")
             elif 'pending_terms' in data:
                 check_result(f"  {filepath}", True, f"{len(data['pending_terms'])} pending")
+            elif 'dynamic_character_states' in data:
+                check_result(f"  {filepath}", True, "OK")
             else:
                 check_result(f"  {filepath}", True, "OK")
         except Exception as e:
             check_result(f"  {filepath}", False, str(e))
     else:
-        check_result(f"  {filepath}", False, "Not found (may use per-novel)")
+        check_result(f"  {filepath}", False, "Not found (blueprint template)")
 
 # Check per-novel glossary files
 print("\n  Per-novel files:")

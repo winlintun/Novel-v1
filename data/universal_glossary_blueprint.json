@@ -1,0 +1,73 @@
+{
+  "metadata": {
+    "schema_version": "3.2.1",
+    "pipeline_compatible": ["novel_translation_project", "v2.0"],
+    "project_name": "<INSERT_NOVEL_TITLE>",
+    "source_language": "Chinese/English",
+    "target_language": "Myanmar",
+    "last_updated": "<YYYY-MM-DD>",
+    "max_context_size_kb": 48,
+    "description": "Universal glossary with dynamic pronoun resolution & AI injection rules."
+  },
+  "settings": {
+    "allowed_categories": [
+      "character", "location", "organization",
+      "item_artifact", "power_level", "cultivation_concept",
+      "event", "technique", "title_honorific"
+    ],
+    "translation_rules_valid": ["transliterate", "translate", "fixed", "pattern_match", "context_adapt"],
+    "default_pronoun_rules": {
+      "to_elder": { "self": "ကျွန်တော်/ကျွန်မ", "target": "ခင်ဗျား/အရှင်", "honorific": "အကြီးအကဲ" },
+      "to_peer":  { "self": "ငါ",                "target": "မင်း",            "honorific": "" },
+      "to_enemy": { "self": "ငါ",                "target": "နင်",             "honorific": "မိစ္ဆာကောင်" }
+    },
+    "ai_injection_limit": {
+      "max_terms_per_prompt": 60,
+      "priority_cutoff": 2,
+      "fallback_placeholder": "【?term?】",
+      "scene_tone_keys": ["formal", "casual", "hostile", "pleading", "intimate"]
+    }
+  },
+  "terms": [
+    {
+      "id": "char_001",
+      "source_term": "<MAIN_CHARACTER>",
+      "target_term": "<MYANMAR_NAME>",
+      "aliases_en": [],
+      "aliases_cn": [],
+      "category": "character",
+      "gender": "male",
+      "affiliation": [],
+      "translation_rule": "transliterate",
+      "priority": 1,
+      "status": "approved",
+      "usage_frequency": "high",
+      "chapter_first_seen": 1,
+      "description": "Brief personality & role context for AI tone matching.",
+      "context_variants": {
+        "formal":   { "self": "ကျွန်တော်", "target": "ခင်ဗျား", "honorific": "ဆရာ" },
+        "casual":   { "self": "ငါ",        "target": "မင်း",     "honorific": "" },
+        "hostile":  { "self": "ငါ",        "target": "နင်",      "honorific": "မိစ္ဆာကောင်" },
+        "pleading": { "self": "ကျွန်တော်", "target": "အရှင်",   "honorific": "ကျေးဇူးပြု၍" },
+        "intimate": { "self": "ငါ",        "target": "မင်း",     "honorific": "ချစ်သူ" }
+      },
+      "relationships": [
+        {
+          "target_id": "char_002",
+          "relation_type": "younger_brother",
+          "attitude": "indifferent_manipulative",
+          "default_address": "casual",
+          "override_conditions": [
+            { "condition": "public_ceremony", "apply_variant": "formal" },
+            { "condition": "battle_scene",    "apply_variant": "hostile" }
+          ]
+        }
+      ],
+      "usage_example": {
+        "source": "\"You dare challenge me?\"",
+        "target": "\"ငါ့ကို စိန်ခေါ်ရဲလား နင်။\""
+      },
+      "notes": "Always maintain flat, emotionless tone in dialogue."
+    }
+  ]
+}
