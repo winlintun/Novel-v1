@@ -113,13 +113,21 @@ class TestDualLayerGlossary(unittest.TestCase):
     def _make_mm(self, glossary_path: str, use_universal: bool = False,
                   universal_path: str = "") -> MemoryManager:
         """Helper: create MemoryManager with optional patched universal path."""
-        import unittest.mock as mock
         context_path = glossary_path.replace("glossary.json", "context.json")
         mm = MemoryManager(glossary_path, context_path, use_universal=False)
         if use_universal and universal_path:
-            # Patch the universal glossary directly after init
+            raw_data = FileHandler.read_json(universal_path) or {"terms": []}
+            # Apply same placeholder filter as _load_memory()
+            raw_terms = raw_data.get("terms", [])
+            raw_data["terms"] = [
+                t for t in raw_terms
+                if not (
+                    (t.get("source_term") or t.get("source", "")).startswith("<")
+                    and (t.get("source_term") or t.get("source", "")).endswith(">")
+                )
+            ]
             mm.use_universal = True
-            mm.universal_glossary = FileHandler.read_json(universal_path) or {"terms": []}
+            mm.universal_glossary = raw_data
         return mm
 
     def test_per_novel_isolation(self):
@@ -211,6 +219,46 @@ class TestDualLayerGlossary(unittest.TestCase):
         self.assertEqual(spirit_gu_terms[0].get("target") or spirit_gu_terms[0].get("target_term"),
                          "ဝိညာဉ်ကြောင် (custom)",
                          "The per-novel term value must win the dedup")
+
+    def test_template_placeholders_filtered_from_universal(self):
+        """Blueprint template placeholders like <MAIN_CHARACTER> must never appear in prompts."""
+        glossary_path = os.path.join(self.novel_a_dir, "glossary.json")
+        # Simulate the actual blueprint file (has template placeholder term)
+        blueprint_with_placeholder = {
+            "metadata": {"schema_version": "3.2.1"},
+            "terms": [
+                {
+                    "id": "char_001",
+                    "source_term": "<MAIN_CHARACTER>",
+                    "target_term": "<MYANMAR_NAME>",
+                    "category": "character"
+                },
+                {
+                    "id": "char_002",
+                    "source_term": "Real Term",
+                    "target_term": "စစ်မှန်သောစကား",
+                    "category": "character"
+                }
+            ]
+        }
+        with open(self.universal_path, "w", encoding="utf-8") as f:
+            json.dump(blueprint_with_placeholder, f)
+
+        mm = self._make_mm(glossary_path, use_universal=True,
+                           universal_path=self.universal_path)
+
+        # Placeholder must be gone
+        all_terms = mm.get_all_terms()
+        sources = [t.get("source_term") or t.get("source", "") for t in all_terms]
+        self.assertNotIn("<MAIN_CHARACTER>", sources,
+                         "<MAIN_CHARACTER> placeholder must be filtered from combined terms")
+        self.assertIn("Real Term", sources,
+                      "Non-placeholder universal term must still be included")
+
+        # Prompt must not contain template strings
+        prompt = mm.get_glossary_for_prompt(limit=60)
+        self.assertNotIn("<MAIN_CHARACTER>", prompt)
+        self.assertNotIn("<MYANMAR_NAME>", prompt)
 
     def test_source_term_target_term_format_normalized(self):
         """Glossary using source_term/target_term keys is normalized on load."""

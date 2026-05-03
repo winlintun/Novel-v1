@@ -7,6 +7,7 @@ NOTE: Universal blueprint files are READ-ONLY reference templates.
 They are NOT written to - only used as optional read-only fallback.
 """
 
+import logging
 import os
 from typing import Dict, List, Any, Optional
 from datetime import datetime
@@ -67,13 +68,13 @@ def _resolve_glossary_path(novel_name: Optional[str] = None) -> tuple[str, str, 
 
 class MemoryManager:
     """
-    3-Tier Memory Management System with Dual-Layer Glossary:
-    - Tier 1a: Universal Glossary (shared across all novels)
-    - Tier 1b: Per-novel Glossary (novel-specific)
+    3-Tier Memory Management System:
+    - Tier 1: Per-novel Glossary (novel-specific, PRIMARY - all writes go here)
     - Tier 2: Chapter Context (FIFO sliding window)
     - Tier 3: Session Rules (Dynamic corrections)
     
-    Glossary lookup order: Per-novel → Universal (per-novel terms take priority)
+    OPTIONAL: Universal blueprint files can be used as READ-ONLY reference.
+    Set use_universal=True to enable read-only lookup from blueprint files.
     """
 
     def __init__(
@@ -81,7 +82,7 @@ class MemoryManager:
         glossary_path: str = "data/output/default/glossary/glossary.json",
         context_path: str = "data/output/default/glossary/context_memory.json",
         novel_name: Optional[str] = None,
-        use_universal: bool = True
+        use_universal: bool = False  # Default: disabled (per-novel only)
     ):
         # Resolve novel-specific paths when novel_name is provided
         if novel_name:
@@ -117,17 +118,27 @@ class MemoryManager:
         
         # Load Universal (shared) glossary first if enabled
         if self.use_universal:
-            self.universal_glossary = FileHandler.read_json(UNIVERSAL_GLOSSARY_PATH)
+            self.universal_glossary = FileHandler.read_json(UNIVERSAL_GLOSSARY_REF)
             if not self.universal_glossary:
                 self.universal_glossary = {
                     "metadata": {"schema_version": "3.2.1"},
                     "terms": []
                 }
             else:
+                # Strip template placeholder terms (e.g. <MAIN_CHARACTER> / <MYANMAR_NAME>)
+                # so blueprint files can exist as reference docs without polluting prompts.
+                raw = self.universal_glossary.get("terms", [])
+                self.universal_glossary["terms"] = [
+                    t for t in raw
+                    if not (
+                        (t.get("source_term") or t.get("source", "")).startswith("<")
+                        and (t.get("source_term") or t.get("source", "")).endswith(">")
+                    )
+                ]
                 logger.info(f"Loaded universal glossary: {len(self.universal_glossary.get('terms', []))} terms")
             
             # Load universal pending terms
-            self.universal_pending = FileHandler.read_json(UNIVERSAL_PENDING_PATH)
+            self.universal_pending = FileHandler.read_json(UNIVERSAL_PENDING_REF)
             if not self.universal_pending:
                 self.universal_pending = {
                     "metadata": {"schema_version": "3.2.1-pending"},
@@ -135,7 +146,7 @@ class MemoryManager:
                 }
             
             # Load universal context
-            self.universal_context = FileHandler.read_json(UNIVERSAL_CONTEXT_PATH)
+            self.universal_context = FileHandler.read_json(UNIVERSAL_CONTEXT_REF)
             if not self.universal_context:
                 self.universal_context = {
                     "metadata": {"schema_version": "3.2.1"},
