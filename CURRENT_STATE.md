@@ -8,8 +8,42 @@
 ---
 
 ## Last Updated
-- Date: 2026-05-04
+- Date: 2026-05-05
 - Last task completed:
+  - **UPDATED: --generate-glossary --all and --chapter-range support** (STATUS: [DONE]):
+    - Task: Allow --generate-glossary to accept --all (all chapters) and --chapter-range (custom range)
+    - Changes Made:
+      1. Added `_discover_chapters(novel_dir)` helper to find all available chapters in input folder
+      2. Modified `run_glossary_generation()` to check `args.all` flag and use _discover_chapters() when --all is used
+      3. --chapter-range already handled by existing get_chapter_list() - verified working
+    - Files Modified: src/cli/commands.py
+    - Behavior:
+      - `--generate-glossary` → chapters 1-5 (default, unchanged)
+      - `--generate-glossary --chapter-range 1-10` → chapters 1-10
+      - `--generate-glossary --all` → ALL chapters (1066 for wayfarer)
+    - Tests: test_workflow_routing.py 10/10 passed
+
+  - **FIXED: diagnose.py Dual-Layer Glossary Support** (STATUS: [DONE]):
+    - Task: Make diagnose.py work with MemoryManager's dual-layer (universal + per-novel) system
+    - Changes Made:
+      1. Import MemoryManager with use_universal=True to populate universal glossary
+      2. Fixed duplicate "Per-novel Glossary" check code
+      3. Fixed variable path issues (novel_glossary → glossary_path)
+      4. Fixed encoding for meta.json (utf-8 → utf-8-sig) to handle BOM
+      5. Added exception handling when no novels found
+    - Files Modified: diagnose.py
+    - Tests: Verify script runs ✓
+
+  - Previous:
+  - **ADDED: Korean Character Strip (U+AC00-U+D7AF)** (STATUS: [DONE]):
+    - Task: Add Korean Hangul character removal to postprocessor
+    - Changes Made:
+      1. Added `_KOREAN_PATTERN` regex for Korean Hangul (U+AC00-U+D7AF, U+1100-U+11FF)
+      2. Added `remove_korean_characters()` function
+      3. Added to `clean_output()` pipeline (line 746)
+    - Files Modified: `src/utils/postprocessor.py`
+    - Tests: 30/30 pass
+
   - **IMPLEMENTED: LLM Retry/Fallback, Context Memory Population, Paragraph Buffer Auto-Update** (STATUS: [DONE]):
     - **Task**: Implement 3 approved features (2, 4, 5)
     - **Features Implemented**:

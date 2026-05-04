@@ -27,6 +27,44 @@ WORKING_DIR = "working_data"
 LOG_DIR = "logs"
 
 
+def _discover_chapters(novel_dir: Path) -> List[int]:
+    """Discover all available chapter files in a novel directory.
+    
+    Args:
+        novel_dir: Path to the novel's input directory
+        
+    Returns:
+        Sorted list of chapter numbers found
+    """
+    import re
+    chapters = set()
+    
+    if not novel_dir.exists():
+        return []
+    
+    for file_path in novel_dir.glob("*.md"):
+        filename = file_path.stem
+        
+        # Pattern 1: {novel_name}_chapter_{XXX}.md (e.g., wayfarer_chapter_001.md)
+        match = re.match(r".+_chapter_(\d+)", filename)
+        if match:
+            chapters.add(int(match.group(1)))
+            continue
+            
+        # Pattern 2: chapter_{XXX}.md (e.g., chapter_001.md)
+        match = re.match(r"chapter_(\d+)", filename)
+        if match:
+            chapters.add(int(match.group(1)))
+            continue
+            
+        # Pattern 3: {XXX}.md (e.g., 001.md)
+        match = re.match(r"(\d+)", filename)
+        if match:
+            chapters.add(int(match.group(1)))
+    
+    return sorted(chapters)
+
+
 def setup_logging(log_file: Optional[str] = None) -> logging.Logger:
     """Configure logging with file and console handlers.
     
@@ -250,9 +288,20 @@ def run_glossary_generation(args: argparse.Namespace) -> int:
             return 1
 
         # Get chapter range
-        chapters = get_chapter_list(args)
-        if not chapters:
-            chapters = list(range(1, 6))  # Default to first 5 chapters
+        # Handle --all flag for glossary generation (like translation does)
+        if getattr(args, 'all', False):
+            # Discover all chapters in the input folder
+            novel_dir = Path(INPUT_DIR) / args.novel
+            if novel_dir.exists():
+                chapters = _discover_chapters(novel_dir)
+                logger.info(f"--all flag detected: will scan {len(chapters)} chapters")
+            else:
+                logger.warning(f"Novel directory not found: {novel_dir}")
+                chapters = []
+        else:
+            chapters = get_chapter_list(args)
+            if not chapters:
+                chapters = list(range(1, 6))  # Default to first 5 chapters
 
         from src.agents.glossary_generator import GlossaryGenerator
         from src.utils.ollama_client import OllamaClient
