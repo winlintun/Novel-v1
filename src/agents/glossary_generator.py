@@ -69,6 +69,7 @@ class GlossaryGenerator(BaseAgent):
     def process_files(self, file_paths: List[str], source_lang: str = "Chinese") -> List[Dict[str, Any]]:
         """
         Process multiple files to generate a comprehensive glossary.
+        Uses single sample per file for speed - duplicate terms across files are deduped.
         """
         all_terms = {} # Use dict to deduplicate by source term
 
@@ -78,21 +79,14 @@ class GlossaryGenerator(BaseAgent):
                 with open(path, 'r', encoding='utf-8-sig') as f:
                     content = f.read()
 
-                # Take samples from beginning, middle and end for better coverage
-                samples = []
-                if len(content) > 10000:
-                    samples.append(content[:4000])
-                    samples.append(content[len(content)//2:len(content)//2 + 4000])
-                    samples.append(content[-4000:])
-                else:
-                    samples.append(content)
-
-                for sample in samples:
-                    terms = self.extract_terms(sample, source_lang)
-                    for term in terms:
-                        source = term.get("source")
-                        if source and source not in all_terms:
-                            all_terms[source] = term
+                # Single sample from the first 4000 chars - fast extraction
+                # Duplicate detection across multiple files provides coverage
+                sample = content[:4000]
+                terms = self.extract_terms(sample, source_lang)
+                for term in terms:
+                    source = term.get("source")
+                    if source and source not in all_terms:
+                        all_terms[source] = term
 
             except Exception as e:
                 self.log_error(f"Error reading {path}: {e}")

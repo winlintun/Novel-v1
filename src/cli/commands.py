@@ -14,6 +14,7 @@ import logging
 from pathlib import Path
 import argparse
 from typing import Optional, List
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from src.config import AppConfig, load_config
 from src.cli.parser import get_chapter_list
@@ -25,6 +26,7 @@ INPUT_DIR = "data/input"
 OUTPUT_DIR = "data/output"
 WORKING_DIR = "working_data"
 LOG_DIR = "logs"
+MAX_GLOSSARY_WORKERS = 4  # Parallel threads for glossary extraction
 
 
 def _discover_chapters(novel_dir: Path) -> List[int]:
@@ -270,7 +272,7 @@ def run_translation_pipeline(args: argparse.Namespace) -> int:
 
 
 def run_glossary_generation(args: argparse.Namespace) -> int:
-    """Run glossary generation for a novel.
+    """Run glossary generation for a novel with parallel processing.
     
     Args:
         args: Parsed command line arguments
@@ -303,20 +305,8 @@ def run_glossary_generation(args: argparse.Namespace) -> int:
             if not chapters:
                 chapters = list(range(1, 6))  # Default to first 5 chapters
 
-        from src.agents.glossary_generator import GlossaryGenerator
-        from src.utils.ollama_client import OllamaClient
-        from src.memory.memory_manager import MemoryManager
-
-        client = OllamaClient(
-            model=config.models.translator,
-            base_url=config.models.ollama_base_url
-        )
-        memory = MemoryManager(novel_name=args.novel)
-
-        generator = GlossaryGenerator(client, memory, config.dict())
-
-        logger.info(f"Generating glossary for {args.novel} from chapters {chapters}")
-
+        # Resolve chapter file paths first (outside thread pool)
+        chapter_files = []
         for chapter_num in chapters:
             # Try multiple file naming formats
             # Format 1: {novel_name}_chapter_{XXX}.md (e.g., 古道仙鸿_chapter_001.md)
@@ -331,15 +321,52 @@ def run_glossary_generation(args: argparse.Namespace) -> int:
                 chapter_file = Path(INPUT_DIR) / args.novel / f"chapter_{chapter_num:03d}.md"
 
             if chapter_file.exists():
-                logger.info(f"Processing chapter {chapter_num}: {chapter_file}")
-                generator.generate_from_chapter(str(chapter_file), chapter_num)
+                chapter_files.append((chapter_num, chapter_file))
             else:
-                logger.warning(f"Chapter file not found: {chapter_file}")
+                logger.warning(f"Chapter file not found for chapter {chapter_num}")
+
+        if not chapter_files:
+            logger.error("No valid chapter files found")
+            return 1
+
+        logger.info(f"Processing {len(chapter_files)} chapters in parallel (max {MAX_GLOSSARY_WORKERS} workers)")
+
+        # Process chapters in parallel
+        from src.agents.glossary_generator import GlossaryGenerator
+        from src.utils.ollama_client import OllamaClient
+        from src.memory.memory_manager import MemoryManager
+
+        client = OllamaClient(
+            model=config.models.translator,
+            base_url=config.models.ollama_base_url
+        )
+        memory = MemoryManager(novel_name=args.novel)
+        generator = GlossaryGenerator(client, memory, config.dict())
+
+        def process_chapter(chapter_num_and_file):
+            """Process a single chapter - thread worker function."""
+            ch_num, ch_file = chapter_num_and_file
+            return generator.generate_from_chapter(str(ch_file), ch_num)
+
+        # Use ThreadPoolExecutor for parallel processing
+        completed = 0
+        total_terms = 0
+        with ThreadPoolExecutor(max_workers=MAX_GLOSSARY_WORKERS) as executor:
+            futures = {executor.submit(process_chapter, cf): cf for cf in chapter_files}
+            for future in as_completed(futures):
+                ch_num, ch_file = futures[future]
+                try:
+                    terms_count = future.result()
+                    completed += 1
+                    total_terms += terms_count
+                    logger.info(f"Progress: {completed}/{len(chapter_files)} chapters done (extracted {total_terms} terms total)")
+                except Exception as e:
+                    logger.error(f"Chapter {ch_num} failed: {e}")
 
         # Always persist glossary.json + context_memory.json so all 3 files
         # exist after glossary generation, even when the novel is brand new.
         memory.save_memory()
-        logger.info("Glossary generation completed")
+        logger.info(f"Glossary generation completed: {completed} chapters processed, {total_terms} terms extracted")
         return 0
 
     except Exception as e:
