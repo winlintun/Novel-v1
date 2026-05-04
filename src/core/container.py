@@ -98,7 +98,7 @@ class Container:
             self._translator = Translator(
                 ollama_client=self.get_ollama_client(),
                 memory_manager=self.get_memory_manager(self.novel_name),
-                config=self.config.dict()
+                config=self.config.model_dump()
             )
         return self._translator
 
@@ -113,7 +113,7 @@ class Container:
             self._refiner = Refiner(
                 ollama_client=self.get_ollama_client(),
                 memory_manager=self.get_memory_manager(self.novel_name),
-                config=self.config.dict()
+                config=self.config.model_dump()
             )
         return self._refiner
 
@@ -127,7 +127,7 @@ class Container:
             from src.agents.checker import Checker
             self._checker = Checker(
                 memory_manager=self.get_memory_manager(self.novel_name),
-                config=self.config.dict()
+                config=self.config.model_dump()
             )
         return self._checker
 

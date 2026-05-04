@@ -7,7 +7,7 @@ enforcement of constraints, and clear error messages for misconfiguration.
 """
 
 from typing import List, Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ProcessingConfig(BaseModel):
@@ -395,8 +395,8 @@ class AppConfig(BaseModel):
         description="Fast mode configuration"
     )
 
-    class Config:
-        """Pydantic configuration."""
-        env_prefix = "NOVEL_"
-        case_sensitive = False
-        validate_assignment = True
+    model_config = ConfigDict(
+        env_prefix="NOVEL_",
+        case_sensitive=False,
+        validate_assignment=True
+    )
