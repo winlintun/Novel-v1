@@ -226,6 +226,15 @@
       "prevention": "Consider adding a per-chunk English word count detector: if last chunk has >5 English words and <80% Myanmar, flag for review before assembling.",
       "times_seen": 1,
       "last_seen": "2026-05-03"
+    },
+    {
+      "id": "ERR-059",
+      "error_type": "ChapterHeadingNotStandard",
+      "trigger": "Translation output missing proper Myanmar chapter heading format (# အခန်း N)",
+      "solution": "Postprocessor must inject proper heading. If missing, add fix in postprocessor.clean_output(). For existing files, run fix_dao_output.py or manually add '# အခန်း N' at start.",
+      "prevention": "Postprocessor.clean_output() should check for and inject proper chapter heading from filename before saving.",
+      "times_seen": 1,
+      "last_seen": "2026-05-05"
     }
   ]
 }

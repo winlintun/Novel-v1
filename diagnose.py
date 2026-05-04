@@ -12,16 +12,19 @@ import json
 from pathlib import Path
 sys.path.insert(0, '.')
 
+
 def print_section(title):
     print(f"\n{'='*70}")
     print(f"  {title}")
     print(f"{'='*70}")
+
 
 def check_result(name, passed, details=""):
     icon = "✅" if passed else "❌"
     print(f"{icon} {name}")
     if details:
         print(f"   {details}")
+
 
 def get_novel_dirs(base_path="data/output"):
     """Get list of novel directories from data/output"""
@@ -30,8 +33,11 @@ def get_novel_dirs(base_path="data/output"):
         for d in os.listdir(base_path):
             novel_path = os.path.join(base_path, d)
             if os.path.isdir(novel_path):
-                novels.append(d)
+                # Skip non-novel directories like 'default', 'report', etc.
+                if d not in ('default', 'report'):
+                    novels.append(d)
     return novels
+
 
 print(f"\n{'='*70}")
 print(f"  🔍 NOVEL TRANSLATION SETUP DIAGNOSTIC")
@@ -42,7 +48,7 @@ print_section("CONFIGURATION CHECK")
 try:
     from src.config import load_config
     config = load_config()
-    check_result("Config loaded", True, f"config/settings.yaml")
+    check_result("Config loaded", True, "config/settings.yaml")
     print(f"  Translator: {config.models.translator}")
     print(f"  Editor: {config.models.editor}")
     print(f"  Checker: {config.models.checker}")
@@ -60,28 +66,31 @@ try:
     novels = get_novel_dirs()
     print(f"  Found {len(novels)} novel(s) in data/output/")
     
+    if not novels:
+        print("  No novels found. Run translation to create memory files.")
+    
     for novel in novels:
         print(f"\n  📖 Novel: {novel}")
         
-        # Create MemoryManager to test dual-layer loading
-        mm = MemoryManager(novel_name=novel)
+        # Create MemoryManager WITH universal enabled to test dual-layer loading
+        mm = MemoryManager(novel_name=novel, use_universal=True)
         
-        # Check universal glossary (shared)
+        # Check universal glossary (shared) - must enable use_universal=True to populate
         universal_terms = len(mm.universal_glossary.get('terms', []))
         universal_pending = len(mm.universal_pending.get('pending_terms', []))
         check_result(f"  Universal Glossary", True, f"{universal_terms} terms")
         if universal_pending > 0:
             check_result(f"  Universal Pending", True, f"{universal_pending} pending")
         
-        # Novel-specific glossary (new structure: data/output/{novel}/glossary/)
-        novel_glossary = f"data/output/{novel}/glossary/glossary.json"
-        novel_context = f"data/output/{novel}/glossary/context_memory.json"
-        novel_pending = f"data/output/{novel}/glossary/glossary_pending.json"
+        # Novel-specific glossary paths (new structure: data/output/{novel}/glossary/)
+        glossary_path = f"data/output/{novel}/glossary/glossary.json"
+        context_path = f"data/output/{novel}/glossary/context_memory.json"
+        pending_path = f"data/output/{novel}/glossary/glossary_pending.json"
         
         # Check glossary
-        if os.path.exists(novel_glossary):
+        if os.path.exists(glossary_path):
             try:
-                with open(novel_glossary, 'r', encoding='utf-8-sig') as f:
+                with open(glossary_path, 'r', encoding='utf-8-sig') as f:
                     glossary_data = json.load(f)
                 term_count = len(glossary_data.get('terms', []))
                 verified_count = sum(1 for t in glossary_data.get('terms', []) if t.get('verified', False))
@@ -91,23 +100,10 @@ try:
         else:
             check_result(f"  Per-novel Glossary", False, "Not found")
         
-        # Check glossary
-        if os.path.exists(novel_glossary):
-            try:
-                with open(novel_glossary, 'r', encoding='utf-8-sig') as f:
-                    glossary_data = json.load(f)
-                term_count = len(glossary_data.get('terms', []))
-                verified_count = sum(1 for t in glossary_data.get('terms', []) if t.get('verified', False))
-                check_result(f"  Glossary", True, f"{term_count} terms ({verified_count} verified)")
-            except Exception as e:
-                check_result(f"  Glossary", False, str(e))
-        else:
-            check_result(f"  Glossary", False, "Not found")
-        
         # Check pending
-        if os.path.exists(novel_pending):
+        if os.path.exists(pending_path):
             try:
-                with open(novel_pending, 'r', encoding='utf-8-sig') as f:
+                with open(pending_path, 'r', encoding='utf-8-sig') as f:
                     pending_data = json.load(f)
                 pending_count = len(pending_data.get('pending_terms', []))
                 check_result(f"  Pending Terms", True, f"{pending_count} pending")
@@ -117,9 +113,9 @@ try:
             check_result(f"  Pending Terms", False, "Not found")
         
         # Check context
-        if os.path.exists(novel_context):
+        if os.path.exists(context_path):
             try:
-                with open(novel_context, 'r', encoding='utf-8-sig') as f:
+                with open(context_path, 'r', encoding='utf-8-sig') as f:
                     context_data = json.load(f)
                 current_ch = context_data.get('current_chapter', 0)
                 check_result(f"  Context", True, f"Current chapter: {current_ch}")
@@ -132,7 +128,7 @@ try:
         novel_meta = f"data/output/{novel}/{novel}.mm.meta.json"
         if os.path.exists(novel_meta):
             try:
-                with open(novel_meta, 'r', encoding='utf-8') as f:
+                with open(novel_meta, 'r', encoding='utf-8-sig') as f:
                     meta_data = json.load(f)
                 total_ch = meta_data.get('total_chapters', 0)
                 check_result(f"  Meta.json", True, f"{total_ch} chapters tracked")
@@ -146,7 +142,7 @@ try:
         if os.path.isdir(output_dir):
             chapter_files = [f for f in os.listdir(output_dir) if f.endswith('.mm.md')]
             check_result(f"  Chapters", True, f"{len(chapter_files)} translated")
-        
+
 except Exception as e:
     check_result("Memory Manager", False, str(e))
 
@@ -300,6 +296,6 @@ Common fixes:
   - Import errors: Run clean_cache.sh and retry
   - Glossary missing: Run --generate-glossary --novel <name>
   - Meta missing: Run --rebuild-meta --novel <name>
-  
+   
 For help: python -m src.main --help
 """)
