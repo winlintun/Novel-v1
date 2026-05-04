@@ -1,4 +1,3 @@
-import pytest
 from src.core.container import Container
 from src.config.models import AppConfig
 

@@ -146,9 +146,9 @@ class TestDualLayerGlossary(unittest.TestCase):
     def test_per_novel_paths_are_distinct(self):
         """Two novels must resolve to different glossary file paths."""
         from src.memory.memory_manager import _resolve_glossary_path
-        import tempfile, os
+        import tempfile
         # Temporarily create dirs so makedirs doesn't fail
-        with tempfile.TemporaryDirectory() as d:
+        with tempfile.TemporaryDirectory() as _:
             # _resolve_glossary_path uses a relative path — we just verify names differ
             pass
         path_a_glossary, _, _ = _resolve_glossary_path("novel-alpha")

@@ -1,5 +1,4 @@
 import pytest
-from pathlib import Path
 from src.config.loader import load_config_from_dict, get_default_config
 from src.config.models import AppConfig
 from src.exceptions import ConfigurationError

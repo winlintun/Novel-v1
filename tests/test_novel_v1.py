@@ -7,9 +7,7 @@ Run with: python3 test_novel_v1.py
 """
 
 import sys
-import os
 import subprocess
-import json
 from pathlib import Path
 from datetime import datetime
 
@@ -237,7 +235,6 @@ def test_enhanced_display_functions():
         from src.main import (
             print_box,
             print_pipeline_status,
-            print_translation_header
         )
         
         print_test("print_box function", "PASS", "Defined in main.py")
@@ -275,13 +272,11 @@ def test_ui_pages_structure():
             with open(page_path, 'r') as f:
                 content = f.read()
             
-            page_passed = True
             for element in required_elements:
                 if element in content:
                     print_test(f"{page_path} - {element}", "PASS")
                 else:
                     print_test(f"{page_path} - {element}", "FAIL", "Not found")
-                    page_passed = False
                     all_passed = False
             
             # Check for path fix (not needed for main streamlit_app.py)
@@ -358,9 +353,9 @@ def test_memory_manager():
         
         print_test("MemoryManager creation", "PASS")
         
-        # Test glossary access
-        glossary = memory.get_glossary_for_prompt(limit=10)
-        print_test("get_glossary_for_prompt() method", "PASS", f"Glossary retrieved")
+        # Test glossary access (call to verify method works)
+        memory.get_glossary_for_prompt(limit=10)
+        print_test("get_glossary_for_prompt() method", "PASS", "Glossary retrieved")
         
         # Test term retrieval
         test_term = memory.get_term("测试")
