@@ -10,6 +10,24 @@
 ## Last Updated
 - Date: 2026-05-04
 - Last task completed:
+  - **IMPLEMENTED: LLM Retry/Fallback, Context Memory Population, Paragraph Buffer Auto-Update** (STATUS: [DONE]):
+    - **Task**: Implement 3 approved features (2, 4, 5)
+    - **Features Implemented**:
+      1. Feature 2: Enhanced LLM retry & fallback logic (ollama_client.py)
+         - Added timeout-specific error detection
+         - Added OOM error detection with model fallback chain
+         - Added rate limit handling with exponential backoff
+         - Added `_get_fallback_model()` for automatic model switching
+      2. Feature 4: Populate context_memory.json fields (memory_manager.py)
+         - Added `_generate_summary_from_text()` for auto-summary generation
+         - Added `_update_active_characters()` to extract characters from glossary
+         - Added `_update_recent_events()` to extract key events from translated text
+         - Enhanced `update_chapter_context()` to accept translated_text and auto-populate
+      3. Feature 5: Paragraph Buffer Auto-Update trigger (orchestrator.py)
+         - Added `push_to_buffer()` call after each chunk translation
+         - Added chapter-level `update_chapter_context()` call at end of translation
+    - **Files Modified**: src/utils/ollama_client.py, src/memory/memory_manager.py, src/pipeline/orchestrator.py
+    - **Review**: Both Reviewer A (PASS) and Reviewer B (PASS) after fixing try/except issues
   - **FIXED: Translation Quality Issues for dao-equaling-the-heavens** (STATUS: [DONE]):
     - **Task**: Fix 6 translation quality issues identified by user review.
     - **Issues Fixed**:
