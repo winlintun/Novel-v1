@@ -189,6 +189,26 @@ class OllamaClient:
         except Exception as e:
             logger.error(f"Error unloading all models: {e}")
 
+    def _get_fallback_model(self, current_model: str) -> Optional[str]:
+        """
+        Get a smaller/faster fallback model when primary model fails (OOM, timeout).
+        
+        Returns:
+            Fallback model name or None if no fallback available
+        """
+        fallback_map = {
+            "padauk-gemma:q8_0": "padauk-gemma:2b",
+            "padauk-gemma:2b": "qwen:7b",
+            "sailor2:20b": "sailor2:8b",
+            "sailor2:8b": "qwen:7b",
+            "qwen2.5:14b": "qwen:7b",
+            "qwen2.5:7b": "qwen:7b",
+            "qwen:14b": "qwen:7b",
+            "alibayram/hunyuan:7b": "qwen:7b",
+        }
+        
+        return fallback_map.get(current_model)
+
     @staticmethod
     def _extract_generate_response(response) -> str:
         """Extract text from generate response (dict or GenerateResponse object)."""
@@ -326,7 +346,13 @@ class OllamaClient:
             except Exception as e:
                 error_msg = str(e).lower()
 
-                # Check for rate limit errors (429 Too Many Requests)
+                # Check for specific error types
+                is_timeout = (
+                    'timeout' in error_msg or
+                    'timed out' in error_msg or
+                    'request timeout' in error_msg
+                )
+
                 is_rate_limit = (
                     '429' in error_msg or
                     'rate limit' in error_msg or
@@ -334,11 +360,33 @@ class OllamaClient:
                     'request limit' in error_msg
                 )
 
-                # Calculate wait time with jitter
+                is_oom = (
+                    'memory' in error_msg or
+                    'out of memory' in error_msg or
+                    'oom' in error_msg or
+                    'cuda error' in error_msg
+                )
+
+                # Handle OOM - switch to smaller model immediately
+                if is_oom and attempt < self.max_retries - 1:
+                    fallback_model = self._get_fallback_model(effective_model)
+                    if fallback_model and fallback_model != effective_model:
+                        logger.warning(f"OOM detected with {effective_model}. Falling back to {fallback_model}...")
+                        effective_model = fallback_model
+                        attempt += 1
+                        if attempt < self.max_retries:
+                            logger.info(f"Retrying with fallback model in {2**(attempt-1):.1f}s...")
+                            time.sleep(2 ** (attempt - 1) + random.uniform(0.5, 1.5))
+                        continue
+
+                # Calculate wait time with jitter based on error type
                 if is_rate_limit:
                     base_wait = 2 ** attempt * 2
                     wait_time = base_wait + random.uniform(1, 3)
                     logger.warning(f"Rate limit hit (attempt {attempt + 1}/{self.max_retries}). Waiting {wait_time:.1f}s...")
+                elif is_timeout:
+                    wait_time = 2 ** attempt + random.uniform(1, 2)
+                    logger.warning(f"Timeout detected (attempt {attempt + 1}/{self.max_retries}). Waiting {wait_time:.1f}s...")
                 else:
                     wait_time = 2 ** attempt + random.uniform(0.5, 1.5)
                     logger.warning(f"Ollama call failed (attempt {attempt + 1}/{self.max_retries}): {e}")

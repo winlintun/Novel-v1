@@ -469,15 +469,92 @@ class MemoryManager:
     # Tier 2: Context Memory Operations
     # -------------------------------------------------------------------------
 
-    def update_chapter_context(self, chapter_num: int, summary: str = ""):
-        """Update context after chapter translation."""
+    def update_chapter_context(self, chapter_num: int, translated_text: str = "", summary: str = ""):
+        """Update context after chapter translation.
+        
+        Args:
+            chapter_num: Current chapter number
+            translated_text: Full translated text for extracting characters/events
+            summary: Optional pre-generated summary
+        """
         self.context_memory["last_translated_chapter"] = self.context_memory.get("current_chapter", 0)
         self.context_memory["current_chapter"] = chapter_num
 
         if summary:
             self.context_memory["summary"] = summary
+        elif translated_text:
+            self.context_memory["summary"] = self._generate_summary_from_text(translated_text)
+
+        if translated_text:
+            try:
+                self._update_active_characters(translated_text)
+            except Exception as e:
+                logger.warning(f"Active characters update failed: {e}")
+            try:
+                self._update_recent_events(translated_text, chapter_num)
+            except Exception as e:
+                logger.warning(f"Recent events update failed: {e}")
 
         self.save_memory()
+
+    def _generate_summary_from_text(self, text: str, max_length: int = 500) -> str:
+        """Generate a brief summary from translated text."""
+        sentences = text.replace('\n', ' ').split('။')
+        if sentences:
+            summary = '။'.join(sentences[:3])
+            if len(summary) > max_length:
+                summary = summary[:max_length] + "..."
+            return summary
+        return text[:max_length] if len(text) > max_length else text
+
+    def _update_active_characters(self, text: str):
+        """Extract and update active characters from translated text."""
+        glossary_terms = self.get_all_terms()
+        characters = {}
+        
+        for term in glossary_terms:
+            if term.get('category') == 'character':
+                target = term.get('target', '')
+                if target and target in text:
+                    source = term.get('source', '')
+                    if source not in characters:
+                        characters[source] = {
+                            'target': target,
+                            'chapters_active': []
+                        }
+                    if self.context_memory.get('current_chapter'):
+                        characters[source]['chapters_active'].append(
+                            self.context_memory['current_chapter']
+                        )
+        
+        self.context_memory["active_characters"] = characters
+
+    def _update_recent_events(self, text: str, chapter_num: int):
+        """Extract recent events from translated text.
+        
+        Events are key plot points, dialogue highlights, or important actions.
+        """
+        events = self.context_memory.get("recent_events", [])
+        
+        event_indicators = ['သည်', 'ဖြစ်သည်', 'ဖြစ်ပွား', 'ဖြစ်ခဲ့', 'သွားသည်', 'လာသည်', 'ပြောလိုက်', 'ပါတယ်']
+        
+        sentences = text.replace('\n', ' ').split('။')
+        key_events = []
+        
+        for sent in sentences[-5:]:
+            sent = sent.strip()
+            if len(sent) > 30 and any(indicator in sent for indicator in event_indicators):
+                key_events.append(sent[:100])
+        
+        new_event = {
+            'chapter': chapter_num,
+            'description': '; '.join(key_events[:2]) if key_events else f"Chapter {chapter_num} translated"
+        }
+        
+        events.append(new_event)
+        events = events[-10:]
+        
+        self.context_memory["recent_events"] = events
 
     def push_to_buffer(self, translated_text: str):
         """Add translated paragraph to FIFO buffer."""

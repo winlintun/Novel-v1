@@ -359,6 +359,17 @@ class TranslationPipeline:
             except Exception as e:
                 self.logger.warning(f"Context update failed (non-fatal): {e}")
 
+            # Update context_memory.json with chapter data
+            try:
+                if self.memory_manager:
+                    self.memory_manager.update_chapter_context(
+                        chapter_num=chapter_num or 0,
+                        translated_text=result_text
+                    )
+                    self.logger.debug(f"Context memory updated for chapter {chapter_num or 0}")
+            except Exception as e:
+                self.logger.warning(f"Context memory update failed (non-fatal): {e}")
+
             # Compute summary metrics
             avg_score = 0
             total_issues = 0
@@ -821,6 +832,13 @@ class TranslationPipeline:
                 f"✓ Chunk {i+1}/{total} complete in {chunk_duration:.0f}s. "
                 f"Quality: {quality_score}, Ratio: {mm_ratio:.1%}, Issues: {total_issues}"
             )
+
+            # Auto-update paragraph buffer for context memory
+            if self._memory_manager:
+                try:
+                    self._memory_manager.push_to_buffer(translated_chunk)
+                except Exception as e:
+                    self.logger.debug(f"Buffer push failed (non-fatal): {e}")
 
             # Advance rolling context: tail of this chunk for next iteration
             rolling_context = get_rolling_context(translated_chunk, max_context_tokens=400)
