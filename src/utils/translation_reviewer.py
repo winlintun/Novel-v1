@@ -305,7 +305,6 @@ def _check_sentence_enders(text: str) -> CheckResult:
     # Valid sentence enders: Myanmar punctuation, closing quotes, ! and ?
     # (modern Myanmar prose regularly uses ! and ? alongside ။)
     # We now strictly check for `။` as the primary ender to detect truncation
-    valid_enders = ('\u104B', '\u104F', '\u104A', '"', '\u201d', '!', '?')
     
     # We consider lines strictly missing a formal ender to be potentially truncated
     unended = 0

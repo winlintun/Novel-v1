@@ -776,7 +776,6 @@ def run_rebuild_meta(args: argparse.Namespace) -> int:
     """Scan output folder and rebuild single novel_name.mm.meta.json file."""
     import json
     import os
-    import logging
     from pathlib import Path
     from datetime import datetime
     
