@@ -1,19 +1,19 @@
 ﻿# Translation Quality Report
 
 ## 📋 File Info
-- **Output file**: `data/output/reverend-insanity/reverend-insanity_chapter_018.mm.md`
-- **Novel**: reverend-insanity
-- **Chapter**: 18
+- **Output file**: `data/output/dao-equaling-the-heavens/dao-equaling-the-heavens_chapter_005.mm.md`
+- **Novel**: dao-equaling-the-heavens
+- **Chapter**: 5
 - **Pipeline**: unknown
 - **Model**: unknown
 - **Duration**: 0s
-- **Reviewed at**: 2026-05-03T06:32:41.807950
+- **Reviewed at**: 2026-05-04T05:13:02.031252
 
 ## 📊 Overall Score: 80/100
 
 | Status | Count |
 |--------|-------|
-| ✅ Passed | 16 |
+| ✅ Passed | 15 |
 | ⚠️ Warnings | 1 |
 | 🔴 Critical | 1 |
 
@@ -21,52 +21,50 @@
 
 | Check | Result | Deduction | Details |
 |-------|--------|-----------|---------|
-| Fluency Score | ✅ | -0 | 96/100 — Excellent |
-| Myanmar Ratio | ✅ | -0 | 99.0% — PASS |
+| Fluency Score | ✅ | -0 | 95/100 — Excellent |
+| Myanmar Ratio | ✅ | -0 | 99.2% — PASS |
 | Chinese Leakage | ✅ | -0 | No leakage |
 | Bengali Leakage | ✅ | -0 | No leakage |
 | Thai Leakage | ✅ | -0 | No leakage |
 | Korean Leakage | ✅ | -0 | No leakage |
 | Latin/English Leakage | ✅ | -0 | 0 words — acceptable |
-| H1 Count | ✅ | -0 | 1 heading |
+| H1 Count | 🔴 | -10 | No chapter heading found |
 | Bold Balance | ✅ | -0 | Even ** count |
-| Chapter Title Format | ✅ | -0 | Proper format |
-| Content Completeness | ✅ | -0 | 18489 chars, no errors |
-| Paragraph Structure | ✅ | -0 | 106 breaks, 106 content lines |
-| Archaic Words | ⚠️ | -10 | Found: ဤ(2), ထို(7) — use modern alternatives |
+| Content Completeness | ✅ | -0 | 12024 chars, no errors |
+| Paragraph Structure | ✅ | -0 | 69 breaks, 69 content lines |
+| Archaic Words | ⚠️ | -10 | Found: ဤ(2), ထို(15) — use modern alternatives |
 | Particle Repetition | ✅ | -0 | No hallucination loops |
 | Register Consistency | ✅ | -0 | Register appears consistent |
 | Sentence Length | ✅ | -0 | No overlong sentences |
-| Sentence Enders | 🔴 | -10 | 9 lines without sentence-enders — significant truncation |
+| Sentence Enders | ✅ | -0 | 2 lines without enders — acceptable |
 | Paragraph Duplication | ✅ | -0 | No duplicated paragraphs |
 
 ## 🔴 CRITICAL ISSUES (Must Fix)
-- [ ] 9 lines without sentence-enders — significant truncation
+- [ ] No chapter heading found
 
 ## 🟡 WARNINGS (Should Fix)
-- [ ] Found: ဤ(2), ထို(7) — use modern alternatives
+- [ ] Found: ဤ(2), ထို(15) — use modern alternatives
 
 ## 🟢 PASSED CHECKS
-- Fluency Score: 96/100 — Excellent
-- Myanmar Ratio: 99.0% — PASS
+- Fluency Score: 95/100 — Excellent
+- Myanmar Ratio: 99.2% — PASS
 - Chinese Leakage: No leakage
 - Bengali Leakage: No leakage
 - Thai Leakage: No leakage
 - Korean Leakage: No leakage
 - Latin/English Leakage: 0 words — acceptable
-- H1 Count: 1 heading
 - Bold Balance: Even ** count
-- Chapter Title Format: Proper format
-- Content Completeness: 18489 chars, no errors
-- Paragraph Structure: 106 breaks, 106 content lines
+- Content Completeness: 12024 chars, no errors
+- Paragraph Structure: 69 breaks, 69 content lines
 - Particle Repetition: No hallucination loops
 - Register Consistency: Register appears consistent
 - Sentence Length: No overlong sentences
+- Sentence Enders: 2 lines without enders — acceptable
 - Paragraph Duplication: No duplicated paragraphs
 
 ## 📝 AGENT TODO
 🔴 Fix critical issues first:
-  - 9 lines without sentence-enders — significant truncation
+  - No chapter heading found
 🟡 Address warnings:
-  - Found: ဤ(2), ထို(7) — use modern alternatives
+  - Found: ဤ(2), ထို(15) — use modern alternatives
 ✅ Overall score 80/100 — PASS

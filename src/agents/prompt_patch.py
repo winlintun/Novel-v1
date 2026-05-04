@@ -76,10 +76,24 @@ LINGUISTIC RULES — Chinese → Myanmar:
    Hostile/contempt: နင် (2nd), ဒီကောင် (3rd)
 
 4. CULTURAL ADAPTATION:
-   Chinese idioms → Myanmar equivalents (not literal)
-   Names → Phonetic transliteration: 李云龙 → လီယွန်လုံ
-   Cultivation terms → Pinyin gloss: 金丹 (ကျင့်ဒန် - Golden Core)
-   Measure words → Myanmar classifiers: ဦး (animals), ယောက် (people), ခု (objects)
+    Chinese idioms → Myanmar equivalents (not literal)
+    Names → Phonetic transliteration: 李云龙 → လီယွန်လုံ
+    Cultivation terms → Pinyin gloss: 金丹 (ကျင့်ဒန် - Golden Core)
+    Measure words → Myanmar classifiers: ဦး (animals), ယောက် (people), ခု (objects)
+
+5. GENDER-AWARE SPEECH PARTICLES (CRITICAL FOR DIALOGUE):
+   MALE speakers MUST use: ခင်ဗျာ / မင်း (informal), အရှင်း (formal address)
+   FEMALE speakers MUST use: ရှင် / မင်း (informal)
+   NEVER use ရှင် for male speakers — it's exclusively female
+   NEVER use ခင်ဗျာ for female speakers in formal contexts
+   Example: Male Gu Wen says "မင်းသား၊ ကျွန်တော် လမ်းဘေးမှာ ငတ်ပြတ်ပါတယ်ခင်ဗျာ"
+   Example: Female says "မင်းရဲ့ ကျေးဇူးက ကျွန်မ နှလုံးထဲမှာ ရှိပါရှင်"
+
+6. FOREIGN CHARACTER PROHIBITION:
+   - NEVER inject Korean, Japanese, Chinese characters into Burmese output
+   - Example WRONG: "တစ္ဆေတွေနဲ့ 괴물တွေ" (Korean leaked in)
+   - Example CORRECT: "တစ္ဆေတွေနဲ့ မှောက်သူများ"
+   - If original text contains foreign words, translate them to Burmese, never copy
 
 5. TENSE & REGISTER:
    Past (standard): ခဲ့တယ် / ခဲ့သည်
@@ -138,6 +152,13 @@ PRONOUNS by relationship:
   Self (formal)        → ကျွန်တော် / ကျွန်မ
   Third person formal  → သူ / သူမ / သူတို့
   Third contemptuous   → ဒီကောင် / အဲဒီကောင်
+
+GENDER-AWARE SPEECH PARTICLES (CRITICAL):
+  MALE speakers MUST end with: ခင်ဗျာ / မင်း (informal), အရှင်း (formal)
+  FEMALE speakers MUST end with: ရှင် / မင်း (informal)
+  NEVER use ရှင် for male characters — it's exclusively female ending
+  Example: Male says "...ပါတယ်ခင်ဗျာ" (correct)
+  Example: Female says "...ပါရှင်" (correct)
 
 ## 4. CONFRONTATION SPEECH PATTERN (Xianxia/Wuxia critical)
 - Vivid tense: DROP ခဲ့ particle — accusation speeches use present-tense intensity

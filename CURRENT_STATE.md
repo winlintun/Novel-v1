@@ -10,6 +10,22 @@
 ## Last Updated
 - Date: 2026-05-04
 - Last task completed:
+  - **FIXED: Translation Quality Issues for dao-equaling-the-heavens** (STATUS: [DONE]):
+    - **Task**: Fix 6 translation quality issues identified by user review.
+    - **Issues Fixed**:
+      1. Added "Golden Core" → "ရွှေရောင်အမြုတေ" to glossary (term_028)
+      2. Added "Bianjing capital" → "ဧကရာဇ်မြို့တော်" to glossary (term_029)
+      3. Added "Ninth Prince" → "နဝမ မင်းသား" to glossary (term_030) - ensure it's used
+      4. Added GENDER-AWARE SPEECH PARTICLES rule to TRANSLATOR_SYSTEM_PROMPT (prompt_patch.py:71-83)
+      5. Added FOREIGN CHARACTER PROHIBITION rule to TRANSLATOR_SYSTEM_PROMPT (prompt_patch.py:84-92)
+      6. Added GENDER-AWARE rules to EDITOR_SYSTEM_PROMPT (prompt_patch.py:142-149)
+      7. Added `check_foreign_characters()` method to Checker (checker.py:122-165)
+      8. Added `check_incomplete_sentences()` method to Checker (checker.py:167-217)
+    - **Files Modified**:
+      - `data/output/dao-equaling-the-heavens/glossary/glossary.json` (added 3 new terms)
+      - `src/agents/prompt_patch.py` (added gender & foreign char rules)
+      - `src/agents/checker.py` (added new validation methods)
+    - **Verification**: Code compiles ✓ (python -c import test passed)
   - **FIXED: --generate-glossary Command — 3 Bugs Found and Fixed** (STATUS: [DONE]):
     - **Task**: Verify that `python -m src.main --novel X --generate-glossary` auto-creates all 3 files (glossary.json, glossary_pending.json, context_memory.json) with data.
     - **Bug 1 — validate_arguments blocks standalone --generate-glossary**:

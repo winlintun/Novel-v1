@@ -1,0 +1,312 @@
+﻿{
+  "version": "1.0",
+  "terms": [
+    {
+      "id": "term_001",
+      "source": "Gu Wen",
+      "target": "ဂူဝမ်",
+      "category": "character",
+      "chapter_first_seen": 5,
+      "chapter_last_seen": 5,
+      "verified": true,
+      "added_at": "2026-05-04T02:17:35.291704",
+      "auto_approved": true
+    },
+    {
+      "id": "term_002",
+      "source": "Zhao Feng",
+      "target": "ဇောင်းဖုန်း",
+      "category": "character",
+      "chapter_first_seen": 5,
+      "chapter_last_seen": 5,
+      "verified": true,
+      "added_at": "2026-05-04T02:17:35.293578",
+      "auto_approved": true
+    },
+    {
+      "id": "term_003",
+      "source": "Daqian",
+      "target": "ဒါချီယန်",
+      "category": "place",
+      "chapter_first_seen": 5,
+      "chapter_last_seen": 5,
+      "verified": true,
+      "added_at": "2026-05-04T02:17:35.294230",
+      "auto_approved": true
+    },
+    {
+      "id": "term_004",
+      "source": "Bianjing",
+      "target": "ဘီယန်ကျင်း",
+      "category": "place",
+      "chapter_first_seen": 5,
+      "chapter_last_seen": 5,
+      "verified": true,
+      "added_at": "2026-05-04T02:17:35.294879",
+      "auto_approved": true
+    },
+    {
+      "id": "term_005",
+      "source": "Dragon Bridge",
+      "target": "နဂါးတံတား",
+      "category": "place",
+      "chapter_first_seen": 5,
+      "chapter_last_seen": 5,
+      "verified": true,
+      "added_at": "2026-05-04T02:17:35.296282",
+      "auto_approved": true
+    },
+    {
+      "id": "term_006",
+      "source": "Royal mansion",
+      "target": "ဘုရင်မင်းကြီး၏ နန်းတော်",
+      "category": "place",
+      "chapter_first_seen": 2,
+      "chapter_last_seen": 2,
+      "verified": false,
+      "added_at": "2026-05-04T12:13:00.446530"
+    },
+    {
+      "id": "term_007",
+      "source": "Jade pendant",
+      "target": "ကျောက်စိမ်းဆွဲကြိုး",
+      "category": "item",
+      "chapter_first_seen": 2,
+      "chapter_last_seen": 2,
+      "verified": false,
+      "added_at": "2026-05-04T12:13:00.447193"
+    },
+    {
+      "id": "term_008",
+      "source": "Water House",
+      "target": "ရေပေါ်အိမ်",
+      "category": "place",
+      "chapter_first_seen": 3,
+      "chapter_last_seen": 3,
+      "verified": false,
+      "added_at": "2026-05-04T12:13:00.449854"
+    },
+    {
+      "id": "term_009",
+      "source": "immortal cultivators",
+      "target": "ထာဝရကျင့်ကြံသူများ",
+      "category": "level",
+      "chapter_first_seen": 3,
+      "chapter_last_seen": 3,
+      "verified": false,
+      "added_at": "2026-05-04T12:13:00.451087"
+    },
+    {
+      "id": "term_010",
+      "source": "Jiang Fugui",
+      "target": "ကျန်းဖူဂွီ",
+      "category": "character",
+      "chapter_first_seen": 5,
+      "chapter_last_seen": 5,
+      "verified": false,
+      "added_at": "2026-05-04T12:13:00.451697"
+    },
+    {
+      "id": "term_011",
+      "source": "Zuixian Building",
+      "target": "ဇူရှီယန် အဆောက်အအုံ",
+      "category": "place",
+      "chapter_first_seen": 4,
+      "chapter_last_seen": 4,
+      "verified": false,
+      "added_at": "2026-05-04T12:13:00.452393"
+    },
+    {
+      "id": "term_012",
+      "source": "Xiangyu Pavilion",
+      "target": "ရှန်ယူ ခန်းမ",
+      "category": "place",
+      "chapter_first_seen": 4,
+      "chapter_last_seen": 4,
+      "verified": false,
+      "added_at": "2026-05-04T12:13:00.453146"
+    },
+    {
+      "id": "term_013",
+      "source": "Qianjing County",
+      "target": "ချီယင်း ခရိုင်",
+      "category": "place",
+      "chapter_first_seen": 4,
+      "chapter_last_seen": 4,
+      "verified": false,
+      "added_at": "2026-05-04T12:13:00.453857"
+    },
+    {
+      "id": "term_014",
+      "source": "Ninth Prince",
+      "target": "နဝမ မင်းသား",
+      "category": "character",
+      "chapter_first_seen": 5,
+      "chapter_last_seen": 5,
+      "verified": false,
+      "added_at": "2026-05-04T12:13:00.454511"
+    },
+    {
+      "id": "term_015",
+      "source": "Dragon Bridge night market",
+      "target": "နဂါးတံတား ညဈေး",
+      "category": "place",
+      "chapter_first_seen": 5,
+      "chapter_last_seen": 5,
+      "verified": false,
+      "added_at": "2026-05-04T12:13:00.455137"
+    },
+    {
+      "id": "term_016",
+      "source": "Yuehua Building",
+      "target": "ယွီဟွာ အဆောက်အအုံ",
+      "category": "place",
+      "chapter_first_seen": 5,
+      "chapter_last_seen": 5,
+      "verified": false,
+      "added_at": "2026-05-04T12:13:00.455809"
+    },
+    {
+      "id": "term_017",
+      "source": "Spiritual energy",
+      "target": "ဝိညာဉ် စွမ်းအင်",
+      "category": "level",
+      "chapter_first_seen": 5,
+      "chapter_last_seen": 5,
+      "verified": false,
+      "added_at": "2026-05-04T12:13:00.456443"
+    },
+    {
+      "id": "term_018",
+      "source": "Immortal",
+      "target": "ထာဝရ",
+      "category": "level",
+      "chapter_first_seen": 5,
+      "chapter_last_seen": 5,
+      "verified": false,
+      "added_at": "2026-05-04T12:13:00.456992"
+    },
+    {
+      "id": "term_019",
+      "source": "Spiritual Energy",
+      "target": "ဝိညာဉ်စွမ်းအင်",
+      "category": "item",
+      "chapter_first_seen": 5,
+      "chapter_last_seen": 5,
+      "verified": false,
+      "added_at": "2026-05-04T12:13:00.457735"
+    },
+    {
+      "id": "term_020",
+      "source": "Nine Heavens",
+      "target": "ကိုးကောင်းကင်",
+      "category": "item",
+      "chapter_first_seen": 5,
+      "chapter_last_seen": 5,
+      "verified": false,
+      "added_at": "2026-05-04T12:13:00.458483"
+    },
+    {
+      "id": "term_021",
+      "source": "Lord Qingtian!",
+      "target": "ချင်းထျန်",
+      "category": "character",
+      "chapter_first_seen": 5,
+      "chapter_last_seen": 5,
+      "verified": false,
+      "added_at": "2026-05-04T12:13:00.459151"
+    },
+    {
+      "id": "term_022",
+      "source": "Spring God",
+      "target": "နွေဦးဘုရား",
+      "category": "character",
+      "chapter_first_seen": 5,
+      "chapter_last_seen": 5,
+      "verified": false,
+      "added_at": "2026-05-04T12:13:00.459842"
+    },
+    {
+      "id": "term_023",
+      "source": "royal mansion",
+      "target": "ဘုရင်မင်းကြီး၏နန်းတော်",
+      "category": "place",
+      "chapter_first_seen": 5,
+      "chapter_last_seen": 5,
+      "verified": false,
+      "added_at": "2026-05-04T12:13:00.460522"
+    },
+    {
+      "id": "term_024",
+      "source": "Ninth Prince's residence",
+      "target": "နဝမ မင်းသား၏နေအိမ်",
+      "category": "place",
+      "chapter_first_seen": 5,
+      "chapter_last_seen": 5,
+      "verified": false,
+      "added_at": "2026-05-04T12:13:00.461267"
+    },
+    {
+      "id": "term_025",
+      "source": "Daoist robe",
+      "target": "တာအိုဝတ်ရုံ",
+      "category": "item",
+      "chapter_first_seen": 5,
+      "chapter_last_seen": 5,
+      "verified": false,
+      "added_at": "2026-05-04T12:13:00.462041"
+    },
+    {
+      "id": "term_026",
+      "source": "Jade Pendant",
+      "target": "ကျောက်စိမ်းဆွဲကြိုး",
+      "category": "item",
+      "chapter_first_seen": 5,
+      "chapter_last_seen": 5,
+      "verified": false,
+      "added_at": "2026-05-04T12:13:00.462751"
+    },
+    {
+      "id": "term_027",
+      "source": "Zhao family",
+      "target": "ကျောက်မျိုးနွယ်",
+      "category": "character",
+      "chapter_first_seen": 5,
+      "chapter_last_seen": 5,
+      "verified": false,
+      "added_at": "2026-05-04T12:13:00.463772"
+    },
+    {
+      "id": "term_028",
+      "source": "Golden Core",
+      "target": "ရွှေရောင်အမြုတေ",
+      "category": "level",
+      "chapter_first_seen": 13,
+      "chapter_last_seen": 13,
+      "verified": true,
+      "added_at": "2026-05-04T12:30:00.000000"
+    },
+    {
+      "id": "term_029",
+      "source": "Bianjing capital",
+      "target": "ဧကရာဇ်မြို့တော်",
+      "category": "place",
+      "chapter_first_seen": 1,
+      "chapter_last_seen": 1,
+      "verified": true,
+      "added_at": "2026-05-04T12:30:00.000000"
+    },
+    {
+      "id": "term_030",
+      "source": "Ninth Prince",
+      "target": "နဝမ မင်းသား",
+      "category": "character",
+      "chapter_first_seen": 2,
+      "chapter_last_seen": 2,
+      "verified": true,
+      "added_at": "2026-05-04T12:30:00.000000"
+    }
+  ],
+  "total_terms": 30,
+  "last_updated": "2026-05-04T12:13:00.463777"
+}

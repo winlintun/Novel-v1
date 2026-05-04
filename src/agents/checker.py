@@ -119,6 +119,76 @@ class Checker(BaseAgent):
 
         return issues
 
+    def check_foreign_characters(self, text: str) -> List[Dict[str, str]]:
+        """
+        Check for foreign script leakage (Korean, Japanese, Chinese, etc.)
+        except Bengali which is handled separately.
+        
+        Returns list of issues found.
+        """
+        issues = []
+        
+        # Korean Hangul (U+AC00-U+D7AF, U+1100-U+11FF, U+3130-U+318F)
+        korean_chars = re.findall(r'[ᄀ-ᇿᰀ-ᱏ]', text)
+        if korean_chars:
+            issues.append({
+                'type': 'foreign_language',
+                'language': 'Korean',
+                'found': ''.join(korean_chars[:10]),  # First 10 chars
+                'expected': 'Translate to Burmese'
+            })
+        
+        # Japanese Katakana (U+30A0-U+30FF)
+        japanese_chars = re.findall(r'[Ꭰ-Ꮟ]', text)
+        if japanese_chars:
+            issues.append({
+                'type': 'foreign_language',
+                'language': 'Japanese',
+                'found': ''.join(japanese_chars[:10]),
+                'expected': 'Translate to Burmese'
+            })
+        
+        # Chinese characters (already checked by LANGUAGE_GUARD but double-check)
+        chinese_chars = re.findall(r'[\u4e00-\u9fff]', text)
+        if chinese_chars:
+            issues.append({
+                'type': 'foreign_language',
+                'language': 'Chinese',
+                'found': ''.join(chinese_chars[:10]),
+                'expected': 'Translate to Burmese'
+            })
+        
+        return issues
+
+    def check_incomplete_sentences(self, text: str) -> List[Dict[str, str]]:
+        """
+        Check for incomplete sentences (abrupt cutoffs).
+        
+        Looks for sentences that end mid-word or without proper ending.
+        """
+        issues = []
+        
+        # Split by sentence endings
+        sentences = re.split(r'[။၊!?\n]+', text)
+        
+        for i, sent in enumerate(sentences):
+            sent = sent.strip()
+            if not sent:
+                continue
+                
+            # Check if sentence ends abruptly (no proper ending, just cut off)
+            # Pattern: ends with consonant + virama (္) without final character
+            if re.search(r'[က-အ်ျြှၚၛၜၝၡၥၦၧၨၩၪၫၬၭၮၯၰၱၲၳၴၵၶၷၸၹၺၻၼၽၾၿႀႁႂႃႄႅႆႇႈႉႊႋႌႍႎႏ႐႑႒႓႔႕႖႗႘႙ႚႛႜႝ႞႟ႠႡႢႣႤႥႦႧႨႩႪႫႬႭႮႯႰႱႲႳႴႵႶႷႸႹႺႻႼႽႾႿჀჁჂჃჄჅ჆Ⴧ჈჉჊჋჌Ⴭ჎჏აბგდევზთიკლმნოპჟრსტუფქღყშჩცძწჭხჯჰჱჲჳჴჵჶჷჸჹჺ჻ჼჽჾჿᄀᄁᄂᄃᄄᄅᄆᄇᄈᄉᄊᄋᄌᄍᄎᄏᄐᄑᄒᄓᄔᄕᄖᄗᄘᄙᄚᄛᄜᄝᄞᄟᄠᄡᄢᄣᄤᄥᄦᄧᄨᄩᄪᄫᄬᄭᄮᄯᄰᄱᄲᄳᄴᄵᄶᄷᄸᄹᄺᄻᄼᄽᄾᄿᅀᅁᅂᅃᅄᅅᅆᅇᅈᅉᅊᅋᅌᅍᅎᅏᅐᅑᅒᅓᅔᅕᅖᅗᅘᅙᅚᅛᅜᅝᅞᅟᅠᅡᅢᅣᅤᅥᅦᅧᅨᅩᅪᅫᅬᅭᅮᅯᅰᅱᅲᅳᅴᅵᅶᅷᅸᅹᅺᅻᅼᅽᅾᅿᆀᆁᆂᆃᆄᆅᆆᆇᆈᆉᆊᆋᆌᆍᆎᆏᆐᆑᆒᆓᆔᆕᆖᆗᆘᆙᆚᆛᆜᆝᆞᆟᆠᆡᆢᆣᆤᆥᆦᆧᆨᆩᆪᆫᆬᆭᆮᆯᆰᆱᆲᆳᆴᆵᆶᆷᆸᆹᆺᆻᆼᆽᆾᆿᇀᇁᇂᇃᇄᇅᇆᇇᇈᇉᇊᇋᇌᇍᇎᇏᇐᇑᇒᇓᇔᇕᇖᇗᇘᇙᇚᇛᇜᇝᇞᇟᇠᇡᇢᇣᇤᇥᇦᇧᇨᇩᇪᇫᇬᇭᇮᇯᇰᇱᇲᇳᇴᇵᇶᇷᇸᇹᇺᇻᇼᇽᇾᇿሀሁሂሃሄህሆሇለሉሊላሌልሎሏሐሑሒሓሔሕሖሗመሙሚማሜምሞሟሠሡሢሣሤሥሦሧረሩሪራሬርሮሯሰሱሲሳሴስሶሷሸሹሺሻሼሽሾሿቀቁቂቃቄቅቆቇቈ቉ቊቋቌቍ቎቏ቐቑቒቓቔቕቖ቗ቘ቙ቚቛቜቝ቞቟በቡቢባቤብቦቧቨቩቪቫቬቭቮቯተቱቲታቴትቶቷቸቹቺቻቼችቾቿኀኁኂኃኄኅኆኇኈ኉ኊኋኌኍ኎኏ነኑኒናኔንኖኗኘኙኚኛኜኝኞኟአኡኢኣኤእኦኧከኩኪካኬክኮኯኰ኱ኲኳኴኵ኶኷ኸኹኺኻኼኽኾ኿ዀ዁ዂዃዄዅ዆዇ወዉዊዋዌውዎዏዐዑዒዓዔዕዖ዗ዘዙዚዛዜዝዞዟዠዡዢዣዤዥዦዧየዩዪያዬይዮዯደዱዲዳዴድዶዷዸዹዺዻዼዽዾዿጀጁጂጃጄጅጆጇገጉጊጋጌግጎጏጐ጑ጒጓጔጕ጖጗ጘጙጚጛጜጝጞጟጠጡጢጣጤጥጦጧጨጩጪጫጬጭጮጯጰጱጲጳጴጵጶጷጸጹጺጻጼጽጾጿፀፁፂፃፄፅፆፇፈፉፊፋፌፍፎፏፐፑፒፓፔፕፖፗፘፙፚ፛፜፝፞፟፠፡።፣፤፥፦፧፨፩፪፫፬፭፮፯፰፱፲፳፴፵፶፷፸፹፺፻፼ᎀᎁᎂᎃᎄᎅᎆᎇᎈᎉᎊᎋᎌᎍᎎᎏ᎐᎑᎒᎓᎔᎕᎖᎗᎘᎙]+$', sent):
+                # Check if it's too short to be a valid sentence ending
+                if len(sent) < 10 and not re.search(r'[။၊!?]$', sent):
+                    issues.append({
+                        'type': 'incomplete_sentence',
+                        'position': i,
+                        'text': sent[:30] + '...' if len(sent) > 30 else sent
+                    })
+        
+        return issues
+
     def calculate_quality_score(self, text: str) -> float:
         """
         Calculate basic quality score (0-100).
@@ -183,6 +253,30 @@ class Checker(BaseAgent):
         unicode_issues = self.check_myanmar_unicode(translated)
         issues.extend(unicode_issues)
 
+        # Foreign character leakage check
+        foreign_issues_count = 0
+        try:
+            foreign_issues = self.check_foreign_characters(translated)
+            foreign_issues_count = len(foreign_issues)
+            issues.extend([
+                f"Foreign ({i['language']}): {i['found'][:20]}..."
+                for i in foreign_issues if i.get('found')
+            ])
+        except Exception as e:
+            logger.warning(f"Foreign char check failed: {e}")
+
+        # Incomplete sentences check
+        incomplete_issues_count = 0
+        try:
+            incomplete_issues = self.check_incomplete_sentences(translated)
+            incomplete_issues_count = len(incomplete_issues)
+            issues.extend([
+                f"Incomplete sentence: {i['text'][:30]}..."
+                for i in incomplete_issues
+            ])
+        except Exception as e:
+            logger.warning(f"Incomplete sentence check failed: {e}")
+
         # Calculate score
         score = self.calculate_quality_score(translated)
 
@@ -196,7 +290,9 @@ class Checker(BaseAgent):
             'issues': issues,
             'glossary_issues': len(glossary_issues),
             'format_issues': len(format_issues),
-            'unicode_issues': len(unicode_issues)
+            'unicode_issues': len(unicode_issues),
+            'foreign_issues': foreign_issues_count,
+            'incomplete_issues': incomplete_issues_count
         }
 
     def generate_report(self, chapter_num: int, result: Dict) -> str:

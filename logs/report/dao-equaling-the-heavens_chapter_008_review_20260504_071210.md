@@ -1,61 +1,61 @@
 ﻿# Translation Quality Report
 
 ## 📋 File Info
-- **Output file**: `data/output/reverend-insanity/reverend-insanity_chapter_023.mm.md`
-- **Novel**: reverend-insanity
-- **Chapter**: 23
-- **Pipeline**: single_stage
-- **Model**: padauk-gemma:q8_0
-- **Duration**: 5114s
-- **Reviewed at**: 2026-05-03T20:42:30.317541
+- **Output file**: `data/output/dao-equaling-the-heavens/dao-equaling-the-heavens_chapter_008.mm.md`
+- **Novel**: dao-equaling-the-heavens
+- **Chapter**: 8
+- **Pipeline**: unknown
+- **Model**: unknown
+- **Duration**: 0s
+- **Reviewed at**: 2026-05-04T07:12:10.701461
 
 ## 📊 Overall Score: 85/100
 
 | Status | Count |
 |--------|-------|
-| ✅ Passed | 16 |
-| ⚠️ Warnings | 2 |
-| 🔴 Critical | 0 |
+| ✅ Passed | 15 |
+| ⚠️ Warnings | 1 |
+| 🔴 Critical | 1 |
 
 ## 📋 Detailed Checks
 
 | Check | Result | Deduction | Details |
 |-------|--------|-----------|---------|
-| Fluency Score | ✅ | -0 | 95/100 — Excellent |
-| Myanmar Ratio | ✅ | -0 | 99.2% — PASS |
+| Fluency Score | ✅ | -0 | 94/100 — Excellent |
+| Myanmar Ratio | ✅ | -0 | 99.3% — PASS |
 | Chinese Leakage | ✅ | -0 | No leakage |
 | Bengali Leakage | ✅ | -0 | No leakage |
 | Thai Leakage | ✅ | -0 | No leakage |
 | Korean Leakage | ✅ | -0 | No leakage |
-| Latin/English Leakage | ✅ | -0 | 4 words — acceptable |
-| H1 Count | ✅ | -0 | 1 heading |
+| Latin/English Leakage | ✅ | -0 | 0 words — acceptable |
+| H1 Count | 🔴 | -10 | No chapter heading found |
 | Bold Balance | ✅ | -0 | Even ** count |
-| Chapter Title Format | ✅ | -0 | Proper format |
-| Content Completeness | ⚠️ | -5 | 4 placeholders |
-| Paragraph Structure | ✅ | -0 | 80 breaks, 80 content lines |
-| Archaic Words | ⚠️ | -10 | Found: ဤ(1), ထို(5) — use modern alternatives |
+| Content Completeness | ✅ | -0 | 6422 chars, no errors |
+| Paragraph Structure | ✅ | -0 | 44 breaks, 44 content lines |
+| Archaic Words | ⚠️ | -5 | Found: ထို(2) — use modern alternatives |
 | Particle Repetition | ✅ | -0 | No hallucination loops |
 | Register Consistency | ✅ | -0 | Register appears consistent |
 | Sentence Length | ✅ | -0 | No overlong sentences |
 | Sentence Enders | ✅ | -0 | 2 lines without enders — acceptable |
 | Paragraph Duplication | ✅ | -0 | No duplicated paragraphs |
 
+## 🔴 CRITICAL ISSUES (Must Fix)
+- [ ] No chapter heading found
+
 ## 🟡 WARNINGS (Should Fix)
-- [ ] 4 placeholders
-- [ ] Found: ဤ(1), ထို(5) — use modern alternatives
+- [ ] Found: ထို(2) — use modern alternatives
 
 ## 🟢 PASSED CHECKS
-- Fluency Score: 95/100 — Excellent
-- Myanmar Ratio: 99.2% — PASS
+- Fluency Score: 94/100 — Excellent
+- Myanmar Ratio: 99.3% — PASS
 - Chinese Leakage: No leakage
 - Bengali Leakage: No leakage
 - Thai Leakage: No leakage
 - Korean Leakage: No leakage
-- Latin/English Leakage: 4 words — acceptable
-- H1 Count: 1 heading
+- Latin/English Leakage: 0 words — acceptable
 - Bold Balance: Even ** count
-- Chapter Title Format: Proper format
-- Paragraph Structure: 80 breaks, 80 content lines
+- Content Completeness: 6422 chars, no errors
+- Paragraph Structure: 44 breaks, 44 content lines
 - Particle Repetition: No hallucination loops
 - Register Consistency: Register appears consistent
 - Sentence Length: No overlong sentences
@@ -63,7 +63,8 @@
 - Paragraph Duplication: No duplicated paragraphs
 
 ## 📝 AGENT TODO
+🔴 Fix critical issues first:
+  - No chapter heading found
 🟡 Address warnings:
-  - 4 placeholders
-  - Found: ဤ(1), ထို(5) — use modern alternatives
+  - Found: ထို(2) — use modern alternatives
 ✅ Overall score 85/100 — PASS
