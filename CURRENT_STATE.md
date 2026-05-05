@@ -6,7 +6,7 @@
 
 ## Last Updated
 - Date: 2026-05-06
-- Last task completed: Refactored web UI from Streamlit to Flask - new Flask app with 6 templates, updated launcher to support both Flask and Streamlit, added Flask to requirements.txt
+- Last task completed: Added --flask/--streamlit/--port CLI flags for web UI selection, updated launcher to read env vars, fixed test mock
 
 ## In Progress
 - None

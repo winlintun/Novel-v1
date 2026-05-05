@@ -1,11 +1,11 @@
 {
-  "session_id": "2026-05-06-003",
-  "started_at": "2026-05-06T13:00:00Z",
-  "task": "Refactor web UI from Streamlit to Flask - new Flask app with templates",
+  "session_id": "2026-05-06-004",
+  "started_at": "2026-05-06T14:00:00Z",
+  "task": "Add --flask/--streamlit/--port CLI flags for web UI selection",
   "current_step": "Complete",
-  "last_action": "Created Flask app (flask_app.py), 6 HTML templates, CSS styles, updated launcher to support both Flask and Streamlit, added Flask to requirements.txt",
+  "last_action": "Added --flask, --streamlit, --port arguments to parser.py; updated main.py to set NOVEL_TRANSLATE_UI and NOVEL_TRANSLATE_PORT env vars; updated launcher.py to read these env vars; fixed test_workflow_routing.py mock to include new args",
   "next_action": "None",
-  "open_files": ["src/web/flask_app.py", "src/web/launcher.py", "src/web/templates/"],
+  "open_files": ["src/cli/parser.py", "src/main.py", "src/web/launcher.py"],
   "pending_decisions": [],
   "session_errors": []
 }
