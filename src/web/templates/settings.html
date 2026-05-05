@@ -130,14 +130,19 @@ function updateTemperature() {
     const descriptions = {
         'padauk-gemma:q8_0': 'Best Myanmar output - recommended for EN→MM and CN→MM',
         'padauk-gemma:q4_0': 'Smaller padauk-gemma - good for limited resources',
-        'sailor2-20b': 'Alternative Myanmar model (20B parameters)',
+        'sailor2-20b:latest': 'BEST Myanmar model - 20B parameters, best quality',
+        'sailor2:8b': 'Smaller sailor model - 8B parameters, faster',
+        'burmese-gpt:7b': 'Burmese GPT - 7B parameters for Myanmar',
+        'yxchia/seallms-v3-7b:Q4_K_M': 'SEAL LMS v3 - Myanmar language model',
+        'translategemma:12b': 'TranslateGemma - 12B translation model',
         'qwen2.5:14b': 'CN→EN pivot only - NOT for Myanmar output',
         'qwen2.5:7b': 'CN→EN pivot only - NOT for Myanmar output',
         'qwen2.5:7b-instruct': 'CN→EN pivot only - NOT for Myanmar output',
         'alibayram/hunyuan:7b': 'Good Chinese comprehension for CN→EN pivot',
         'qwen:7b': 'English output only - validation only',
-        'llama3:8b': 'General purpose - not tested for Myanmar',
-        'mistral:7b': 'General purpose - not tested for Myanmar'
+        'gemma:7b': 'Google Gemma - not tested for Myanmar',
+        'aya:8b': 'Cohere Aya - multilingual, not tested for Myanmar',
+        'kimi-k2.6:cloud': 'Kimi Cloud - experimental CN support'
     };
     
     const desc = descriptions[modelName] || 'Not tested for Myanmar translation';

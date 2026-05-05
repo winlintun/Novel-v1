@@ -60,10 +60,34 @@ MODEL_RECOMMENDATIONS = {
         "description": "Smaller version of padauk-gemma",
         "category": "myanmar"
     },
-    "sailor2-20b": {
+    "sailor2-20b:latest": {
         "temp": 0.35,
         "use_case": "EN→MM, CN→MM",
-        "description": "Alternative Myanmar model (20B)",
+        "description": "Best Myanmar model - 20B parameters",
+        "category": "myanmar"
+    },
+    "sailor2:8b": {
+        "temp": 0.3,
+        "use_case": "EN→MM, CN→MM",
+        "description": "Smaller sailor model - 8B parameters",
+        "category": "myanmar"
+    },
+    "burmese-gpt:7b": {
+        "temp": 0.25,
+        "use_case": "EN→MM, CN→MM",
+        "description": "Burmese GPT - 7B parameters",
+        "category": "myanmar"
+    },
+    "yxchia/seallms-v3-7b:Q4_K_M": {
+        "temp": 0.25,
+        "use_case": "EN→MM, CN→MM",
+        "description": "SEAL LMS v3 - Myanmar language model",
+        "category": "myanmar"
+    },
+    "translategemma:12b": {
+        "temp": 0.3,
+        "use_case": "EN→MM, CN→MM",
+        "description": "TranslateGemma - 12B translation model",
         "category": "myanmar"
     },
     # CN→EN pivot models (Stage 1 only)
@@ -97,18 +121,24 @@ MODEL_RECOMMENDATIONS = {
         "description": "Outputs English only - validation only",
         "category": "pivot"
     },
-    # Other models
-    "llama3:8b": {
+    # Other models (not tested for Myanmar)
+    "gemma:7b": {
         "temp": 0.3,
         "use_case": "General",
-        "description": "General purpose - not tested for Myanmar",
+        "description": "Google Gemma - not tested for Myanmar",
         "category": "other"
     },
-    "mistral:7b": {
+    "aya:8b": {
         "temp": 0.3,
         "use_case": "General",
-        "description": "General purpose - not tested for Myanmar",
+        "description": "Cohere Aya - multilingual, not tested for Myanmar",
         "category": "other"
+    },
+    "kimi-k2.6:cloud": {
+        "temp": 0.4,
+        "use_case": "CN→EN (experimental)",
+        "description": "Kimi Cloud - experimental CN support",
+        "category": "pivot"
     },
 }
 
