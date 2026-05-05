@@ -8,100 +8,14 @@
     <p class="page-subtitle">Monitor translation progress across all novels</p>
 </div>
 
-<!-- Real-time progress indicator - AT TOP -->
-<div id="realtimeStatus" class="card" style="margin-bottom: 1.5rem; display: none; border: 2px solid #007bff;">
+<!-- Real-time progress indicator - AT TOP (always visible) -->
+<div id="realtimeStatus" class="card" style="margin-bottom: 1.5rem; border: 2px solid #007bff;">
     <h3 class="card-header" style="background: #007bff; color: white;">⚡ Live Translation Progress 
         <button onclick="clearProgress()" class="btn btn-sm btn-light" style="float: right;">Clear</button>
     </h3>
-    <div id="liveProgress" class="alert alert-info" style="margin-bottom: 0;">
-        <strong>Checking for active translation...</strong>
+    <div id="liveProgress" class="alert" style="margin-bottom: 0;">
+        <strong id="liveStatusText">Loading...</strong>
     </div>
-</div>
-
-{% if not novel_stats %}
-<div class="alert alert-warning">
-    <strong>No novels found!</strong> Add novel folders to <code>data/input/</code> to track progress.
-</div>
-{% else %}
-<div class="grid">
-    {% for novel in novel_stats %}
-    <div class="card">
-        <h2 class="card-header">
-            📚 {{ novel.name }}
-            <span class="badge badge-primary">{{ novel.percentage }}%</span>
-        </h2>
-        
-        <div class="grid grid-3" style="margin-bottom: 1rem;">
-            <div class="stat">
-                <div class="stat-value">{{ novel.total }}</div>
-                <div class="stat-label">Total Chapters</div>
-            </div>
-            <div class="stat">
-                <div class="stat-value">{{ novel.translated }}</div>
-                <div class="stat-label">Translated</div>
-            </div>
-            <div class="stat">
-                <div class="stat-value">{{ novel.total - novel.translated }}</div>
-                <div class="stat-label">Remaining</div>
-            </div>
-        </div>
-        
-        <div class="progress">
-            <div class="progress-bar" style="width: {{ novel.percentage }}%">{{ novel.percentage }}%</div>
-        </div>
-        
-        {% if novel.chapters %}
-        <div style="margin-top: 1rem;">
-            <strong>Translated Chapters:</strong>
-            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem;">
-                {% for ch in novel.chapters %}
-                <span class="badge badge-success">{{ ch }}</span>
-                {% endfor %}
-            </div>
-        </div>
-        {% endif %}
-        
-        <div style="margin-top: 1rem;">
-            <a href="/translate?novel={{ novel.name }}&all=true" class="btn btn-primary btn-sm">
-                Continue Translation →
-            </a>
-        </div>
-    </div>
-    {% endfor %}
-</div>
-
-<div class="card" style="margin-top: 2rem;">
-    <h2 class="card-header">📈 Overall Statistics</h2>
-    
-    {% set total_chapters = namespace(value=0) %}
-    {% set total_translated = namespace(value=0) %}
-    
-    {% for novel in novel_stats %}
-        {% set total_chapters.value = total_chapters.value + novel.total %}
-        {% set total_translated.value = total_translated.value + novel.translated %}
-    {% endfor %}
-    
-    <div class="grid grid-3">
-        <div class="stat">
-            <div class="stat-value">{{ novel_stats|length }}</div>
-            <div class="stat-label">Total Novels</div>
-        </div>
-        <div class="stat">
-            <div class="stat-value">{{ total_chapters.value }}</div>
-            <div class="stat-label">Total Chapters</div>
-        </div>
-        <div class="stat">
-            <div class="stat-value">{{ total_translated.value }}</div>
-            <div class="stat-label">Total Translated</div>
-        </div>
-    </div>
-    
-    {% if total_chapters.value > 0 %}
-    {% set overall_pct = (total_translated.value / total_chapters.value * 100)|round|int %}
-    <div class="progress" style="margin-top: 1rem;">
-        <div class="progress-bar" style="width: {{ overall_pct }}%">{{ overall_pct }}% Overall Progress</div>
-    </div>
-    {% endif %}
 </div>
 
 <script>
@@ -119,24 +33,25 @@ async function checkProgress() {
         
         const statusDiv = document.getElementById('realtimeStatus');
         const progressDiv = document.getElementById('liveProgress');
+        const statusText = document.getElementById('liveStatusText');
         
-        if (data.status === 'idle' || data.status === 'completed') {
-            statusDiv.style.display = 'none';
+        if (data.status === 'idle') {
+            statusText.textContent = 'No translation in progress';
+            progressDiv.className = 'alert alert-secondary';
+            statusDiv.style.borderColor = '#6c757d';
+        } else if (data.status === 'completed') {
+            statusText.textContent = '✅ Translation completed!';
+            progressDiv.className = 'alert alert-success';
+            statusDiv.style.borderColor = '#28a745';
+            alert('✅ Translation completed! Refresh to see updated progress.');
             if (pollInterval) {
                 clearInterval(pollInterval);
                 pollInterval = null;
             }
-            
-            // Show completion message if just finished
-            if (data.status === 'completed') {
-                alert('✅ Translation completed! Refresh to see updated progress.');
-            }
         } else {
-            statusDiv.style.display = 'block';
+            statusDiv.style.borderColor = '#007bff';
             
-            // Update progress display
-            let html = `<strong>🔄 ${data.novel || 'Unknown'}</strong><br>`;
-            html += `Chapter: ${data.chapter || '...'}<br>`;
+            let html = `<strong>🔄 ${data.novel || 'Unknown'}</strong> - Chapter ${data.chapter || '...'}<br>`;
             html += `Model: ${data.model || 'padauk-gemma:q8_0'}<br>`;
             html += `<em>${data.message || 'Translating...'}</em>`;
             
@@ -148,7 +63,7 @@ async function checkProgress() {
             }
             
             progressDiv.innerHTML = html;
-            progressDiv.className = data.status === 'translating' ? 'alert alert-warning' : 'alert alert-info';
+            progressDiv.className = 'alert alert-warning';
         }
     } catch (err) {
         console.error('Progress poll error:', err);
