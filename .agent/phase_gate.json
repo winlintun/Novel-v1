@@ -1,15 +1,30 @@
 {
   "current_phase": "DOC",
-  "task": "",
-  "feature_type": 1,
+  "task": "Migrate wayfarer glossary from JSON to SQLite database",
+  "feature_type": 2,
   "phases": {
-    "PLAN":   { "status": "PENDING", "runner": "Agent",  "requires_human": false },
-    "BUILD":  { "status": "PENDING", "runner": "Agent",  "requires_human": false },
-    "TEST":   { "status": "PENDING", "runner": "Agent",  "requires_human": false },
-    "VERIFY": { "status": "PENDING", "runner": "Ollama", "requires_human": false },
-    "AUDIT":  { "status": "PENDING", "runner": "Gemini", "requires_human": false },
-    "DOC":    { "status": "PENDING", "runner": "Agent",  "requires_human": false,
-                "skippable": false }
+    "PLAN":   { "status": "DONE",        "runner": "Agent",  "requires_human": false },
+    "BUILD":  { "status": "DONE",        "runner": "Agent",  "requires_human": false },
+    "TEST":   { "status": "DONE",        "runner": "Agent",  "requires_human": false },
+    "VERIFY": { "status": "DONE",        "runner": "Ollama", "requires_human": false,
+                 "score": 95, "retry_count": 0 },
+    "AUDIT":  { "status": "DONE",        "runner": "Gemini", "requires_human": false },
+    "DOC":    { "status": "DONE",        "runner": "Agent",  "requires_human": false,
+                 "skippable": false }
   },
-  "updated_at": "2026-05-05T12:00:00Z"
+  "updated_at": "2026-05-06T22:00:00Z",
+  "summary": {
+    "files_created": 1,
+    "files_modified": 1,
+    "terms_migrated": 166,
+    "approved_terms": 13,
+    "pending_terms": 153,
+    "code_review_score": "PASS",
+    "features_added": [
+      "JSON to SQLite glossary migration script",
+      "Automatic status mapping (verified→approved)",
+      "Category preservation",
+      "Duplicate detection"
+    ]
+  }
 }

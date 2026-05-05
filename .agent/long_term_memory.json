@@ -1,6 +1,18 @@
 {
-  "last_updated": "2026-05-03T00:00:00Z",
+  "last_updated": "2026-05-06T22:00:00Z",
   "lessons": [
+    {
+      "date": "2026-05-06",
+      "context": "Wayfarer glossary migration from JSON to SQLite",
+      "lesson": "Migrating legacy glossary data requires careful field mapping. The JSON format uses 'source'/'target' while database uses 'source_term'/'target_term'. Verified status in JSON (verified=true or auto_approved=true) maps to database status='approved', otherwise status='pending'. Confidence scores should be higher for verified terms (0.95) vs pending (0.7).",
+      "action": "Always create a dedicated migration script with proper field mapping. Check for existing terms before insertion to avoid duplicates. Log migration statistics for verification."
+    },
+    {
+      "date": "2026-05-06",
+      "context": "Versioning and Change Tracking System Implementation",
+      "lesson": "Building a version control system on top of SQLite requires careful separation of concerns: VersionManager coordinates operations while repositories handle data access. File snapshots must use unique filenames (timestamp with microseconds) to prevent collisions during rapid successive snapshots. Glossary sync jobs need explicit chapter selection (not just auto-detect from usage records) for predictable test behavior.",
+      "action": "Always include microseconds in version filenames. Support explicit chapter_nums parameter in sync job creation. Keep VersionManager stateless - all state in database."
+    },
     {
       "date": "2026-05-02",
       "context": "Python \\b regex corrupts Myanmar compound words",
