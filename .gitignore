@@ -121,3 +121,7 @@ Modelfile.*
 Modelfile.sailor2-20b
 Modelfile.burmese-gpt
 fore-do.md
+
+# Generated output (translation results)
+data/output/
+logs/report/
