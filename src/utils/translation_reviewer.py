@@ -5,6 +5,10 @@ Translation Quality Reviewer — Post-translation quality analysis module.
 Reads a translated .mm.md output file and its associated log file,
 then runs all quality checks defined in working_data/translation_rules.md.
 Generates a structured report in logs/report/ for AI agent consumption.
+
+Note: Some functions duplicate logic from postprocessor.py (e.g., Myanmar ratio calculation).
+This is intentional — translation_reviewer uses numeric ranges for quality scoring
+while postprocessor uses regex for text cleaning. They serve different purposes.
 """
 
 import os
@@ -15,6 +19,11 @@ from pathlib import Path
 from datetime import datetime
 from typing import List, Optional, Tuple
 from dataclasses import dataclass, field
+
+# Import patterns from postprocessor_patterns where applicable
+from src.utils.postprocessor_patterns import (
+    ENGLISH_COMMON_WORDS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -113,10 +122,10 @@ def _check_foreign_scripts(text: str) -> List[CheckResult]:
 
 def _check_latin_leakage(text: str) -> CheckResult:
     """Q3: English/Latin word leakage check."""
-    latin_words = re.findall(r"[a-zA-Z]{3,}", text)
-    common_english = re.findall(
-        r'\b(the|and|for|are|but|not|you|all|can|had|her|was|one|our|out|day|get|has|him|his|how|its|may|new|now|old|see|two|who|boy|did|she|use|way|many|oil|sit|set|run|eat|far|sea|eye|ago|off|too|any|say|man|try|ask|end|why|let|put|tell|very|when|much|would|there|their|what|said|each|which|will|about|could|other|after|first|never|these|think|where|being|every|great|might|shall|still|those|while|this|that|with|from|they|have|were|been|time|than|them|into|just|like|over|also|back|only|know|take|year|good|some|come|make|well|look|down|most|long|find|here|both|made|part|even|more|such|work|life|right)\b',
-        text, re.IGNORECASE)
+    # Import patterns from postprocessor_patterns for deduplication
+    from src.utils.postprocessor_patterns import LATIN_WORD_PATTERN
+    latin_words = LATIN_WORD_PATTERN.findall(text)
+    common_english = ENGLISH_COMMON_WORDS.findall(text)
 
     total_words = len(latin_words) + len(common_english)
 

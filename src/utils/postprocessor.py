@@ -7,101 +7,33 @@ Strips: <think>, <answer>, HTML comments, non-Myanmar language leakage.
 import re
 from typing import Optional, List
 
-
-# Myanmar Unicode range: \u1000-\u109F (basic) + \uAA60-\uAA7F (extended)
-_MYANMAR_PATTERN = re.compile(r"[\u1000-\u109F\uAA60-\uAA7F]")
-
-# Tags from reasoning models (DeepSeek, Hunyuan, Qwen-thinking, etc.)
-_TAG_PATTERNS: List[re.Pattern] = [
-    re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE),
-    re.compile(r"</?think>", re.IGNORECASE),
-    re.compile(r"<answer>", re.IGNORECASE),
-    re.compile(r"</answer>", re.IGNORECASE),
-    re.compile(r"<!--.*?-->", re.DOTALL),               # HTML comments (metadata block)
-]
-
-# Stray header artifacts left by models
-_HEADER_ARTIFACTS: List[re.Pattern] = [
-    re.compile(r"^MYANMAR TRANSLMENT:.*$", re.MULTILINE),
-    re.compile(r"^MYANMAR TRANSLATION:.*$", re.MULTILINE),
-    re.compile(r"^TEXT TO TRANSLATE:.*$", re.MULTILINE),
-    re.compile(r"^INPUT TEXT.*?:.*$", re.MULTILINE),
-    re.compile(r"^Translation Progress:.*$", re.MULTILINE),
-]
-
-# Model reasoning/thinking process patterns (NOT actual translation output)
-_REASONING_PATTERNS: List[re.Pattern] = [
-    # Match "Here's a thinking process..." sections (common in Qwen outputs)
-    re.compile(r"Here's a thinking process.*?(?=^\d+\s+\*\*Analyze|$)", re.DOTALL | re.MULTILINE),
-    re.compile(r"Here's a thinking process.*?^(?=\d+\.|Here is|\*\*Burmese Draft|\*\*Myanmar Draft|# |\[|^[^\*a-zA-Z])", re.DOTALL | re.MULTILINE),
-    # Match "Analyze the Request and Constraints" sections
-    re.compile(r"^\d+\.\s+\*\*Analyze the Request and Constraints:\*\*.*?^(?=\d+\.|\*\*|$)", re.DOTALL | re.MULTILINE),
-    # Match "Analyze the Glossary" sections
-    re.compile(r"^\d+\.\s+\*\*Analyze the Glossary:\*\*.*?^(?=\d+\.|\*\*|$)", re.DOTALL | re.MULTILINE),
-    # Match "Analyze the Source Text" sections
-    re.compile(r"^\d+\.\s+\*\*Analyze the Source Text.*?\*\*.*?^(?=\d+\.|\*\*|$)", re.DOTALL | re.MULTILINE),
-    # Match "Segment and Translate" sections (the analysis part, not the draft)
-    re.compile(r"^\d+\.\s+\*\*Segment and Translate.*?\*\*.*?^(?=\*\*Burmese Draft|\*\*Myanmar Draft|\d+\.|Here is|$)", re.DOTALL | re.MULTILINE),
-    # Match "Refinement" and "Drafting" analysis sections
-    re.compile(r"^\s*\*\*(Refinement|Drafting|Drafting Focus|Focus):\*\*.*?^(?=\*\*Burmese|\*\*Myanmar|\d+\.|Here is|$)", re.DOTALL | re.MULTILINE),
-    # Remove all lines starting with analysis markup
-    re.compile(r"^\s*\*\s+\*Original:\*.*?$", re.MULTILINE),
-    re.compile(r"^\s*\*\s+\*Key.*?\*.*?$", re.MULTILINE),
-    re.compile(r"^\s*\*\s+\*Tone.*?\*.*?$", re.MULTILINE),
-    re.compile(r"^\s*\*\s+\*Key elements.*?\*.*?$", re.MULTILINE),
-    # Remove glossary checkboxes like "[○] Luo Qing = ..."
-    re.compile(r"^\s*\[.\]\s+\w+\s+=.*?$", re.MULTILINE),
-    # NEW: Remove "Glossary Check & Term Mapping" sections (padauk-gemma format)
-    re.compile(r"^\d+\.\s+\*\*Glossary Check & Term Mapping:\*\*.*?^(?=\d+\.|\*\*|$)", re.DOTALL | re.MULTILINE),
-    # NEW: Remove "Translation Strategy" sections
-    re.compile(r"^\d+\.\s+\*\*Translation Strategy.*?\*\*.*?^(?=\d+\.|\*\*|$)", re.DOTALL | re.MULTILINE),
-    # NEW: Remove bullet points with term mappings like "*   Fang Yuan = ..."
-    re.compile(r"^\s*\*\s+\w+\s+=\s+.*?(?:\(.*?\))*$", re.MULTILINE),
-    # NEW: Remove "Drafting:" and "Refinement:" inline markers
-    re.compile(r"\*Drafting:\*|\*Refinement:\*", re.MULTILINE),
-    # NEW: Remove parenthetical notes like "(This is already provided...)"
-    re.compile(r"\(This is.*?\)", re.MULTILINE | re.IGNORECASE),
-    # NEW: Remove lines with only bullet markers and no Myanmar
-    re.compile(r"^\s*\*\s*$", re.MULTILINE),
-    # PADAUK-GEMMA: Glossary comparison garbage lines
-    # Pattern: *:* A . "မြန်မာစကားလုံး" is . "နောက်ထပ်" is .
-    re.compile(r"^\s*\*[\s:]*\*.*?\"[\u1000-\u109F]+\".*?(?:is|be|of|on|a|an|the)\b.*$", re.MULTILINE),
-    # Pattern: * :* , .  or  * :* . .  (short garbage fragments)
-    re.compile(r"^\s*\*[\s:]*\*[\s,.]*$", re.MULTILINE),
-    # Pattern: *:* to /. "word" is ...
-    re.compile(r"^\s*\*[\s:]*\*.*?to\s*/\.\s*.*$", re.MULTILINE),
-]
-
-# Thai Unicode range — should never appear in Myanmar output
-_THAI_PATTERN = re.compile(r"[\u0E00-\u0E7F]+")
-
-# Bengali Unicode range — should never appear in Myanmar output
-_BENGALI_PATTERN = re.compile(r"[\u0980-\u09FF]+")
-
-# Tamil and other Indic scripts — should never appear in Myanmar output
-# Tamil (U+0B80-U+0BFF), Telugu (U+0C00-U+0C7F), Kannada (U+0C80-U+0CFF)
-# Malayalam (U+0D00-U+0D7F), Sinhala (U+0D80-U+0DFF), Devanagari (U+0900-U+097F)
-# Gujarati (U+0A80-U+0AFF), Oriya (U+0B00-U+0B7F), Gurmukhi (U+0A00-U+0A7F)
-_INDIC_PATTERN = re.compile(
-    r"[\u0900-\u097F\u0A00-\u0A7F\u0A80-\u0AFF\u0B00-\u0B7F\u0B80-\u0BFF"
-    r"\u0C00-\u0C7F\u0C80-\u0CFF\u0D00-\u0D7F\u0D80-\u0DFF]+"
+# Import patterns from submodule (extracted for better organization)
+from src.utils.postprocessor_patterns import (
+    MYANMAR_PATTERN,
+    TAG_PATTERNS,
+    HEADER_ARTIFACTS,
+    REASONING_PATTERNS,
+    THAI_PATTERN,
+    BENGALI_PATTERN,
+    INDIC_PATTERN,
+    KOREAN_PATTERN,
+    CHINESE_PATTERN,
+    LATIN_WORD_PATTERN,
+    ENGLISH_COMMON_WORDS,
 )
 
-# Korean Hangul characters — should not appear in Myanmar output
-_KOREAN_PATTERN = re.compile(r"[\uAC00-\uD7AF\u1100-\u11FF\u3000-\u303F]+")
-
-# Chinese characters — should not remain in translated output body
-_CHINESE_PATTERN = re.compile(r"[\u4E00-\u9FFF\u3400-\u4DBF]+")
-
-# English/Latin characters — should be minimized in Myanmar output
-# Allows markdown syntax (*, _, #, etc.) but detects words
-_LATIN_WORD_PATTERN = re.compile(r"[a-zA-Z]{3,}")  # 3+ letter Latin words
-
-# English common words that indicate language drift
-_ENGLISH_COMMON_WORDS = re.compile(
-    r'\b(the|and|for|are|but|not|you|all|can|had|her|was|one|our|out|day|get|has|him|his|how|its|may|new|now|old|see|two|who|boy|did|she|use|her|way|many|oil|sit|set|run|eat|far|sea|eye|ago|off|too|any|say|man|try|ask|end|why|let|put|far|few|did|she|try|way|own|say|too|old|tell|very|when|much|would|there|their|what|said|each|which|will|about|could|other|after|first|never|these|think|where|being|every|great|might|shall|still|those|while|this|that|with|from|they|have|were|been|time|than|them|into|just|like|over|also|back|only|know|take|year|good|some|come|make|well|look|down|most|long|find|here|both|made|part|even|more|such|work|life|right|through|during|before|between|should|however|something|someone|because|without|another|nothing|everything|everyone|really|always|around|another|within|another|himself|herself|itself|myself|yourself|themselves|yourselves|ourselves)\b',
-    re.IGNORECASE
-)
+# Backward compatibility: alias old underscore names for internal use
+_MYANMAR_PATTERN = MYANMAR_PATTERN
+_TAG_PATTERNS = TAG_PATTERNS
+_HEADER_ARTIFACTS = HEADER_ARTIFACTS
+_REASONING_PATTERNS = REASONING_PATTERNS
+_THAI_PATTERN = THAI_PATTERN
+_BENGALI_PATTERN = BENGALI_PATTERN
+_INDIC_PATTERN = INDIC_PATTERN
+_KOREAN_PATTERN = KOREAN_PATTERN
+_CHINESE_PATTERN = CHINESE_PATTERN
+_LATIN_WORD_PATTERN = LATIN_WORD_PATTERN
+_ENGLISH_COMMON_WORDS = ENGLISH_COMMON_WORDS
 
 
 def strip_reasoning_tags(text: str) -> str:
@@ -287,6 +219,14 @@ def fix_chapter_heading_format(text: str) -> str:
     
     Works on both multi-line and single-line (collapsed) text.
     """
+    # NEW: Clean broken/empty headings BEFORE fixing format
+    # Pattern: "# [ ]" or "# [ ] " with nothing after (corrupted from chunk boundary)
+    text = re.sub(r'^#\s*\[\s*\]\s*$', '', text, flags=re.MULTILINE)
+    # Pattern: Empty ## heading with nothing after
+    text = re.sub(r'^##\s*$', '', text, flags=re.MULTILINE)
+    # Pattern: ## with only whitespace
+    text = re.sub(r'^##\s+\s*$', '', text, flags=re.MULTILINE)
+    
     # Pattern 1: "# အခန်း N ## subtitle body..." — H1 + H2 on one line
     text = re.sub(
         r'(#\s+အခန်း\s+[\u1040-\u1049\d]+.*?)\s*##\s+',
