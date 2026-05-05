@@ -6,8 +6,8 @@ Extracted from postprocessor.py for better organization.
 import re
 from typing import List, Pattern
 
-# Myanmar Unicode range: U+1000-U+109F (basic) + U+AA60-U+AA7F (extended)
-MYANMAR_PATTERN = re.compile(r"[\u1000-\u109F\uAA60-\uAA7F]")
+# Myanmar Unicode range: U+1000-U+109F (basic) + U+AA60-U+AA7F (Extended-A) + U+A9E0-U+A9FF (Extended-B)
+MYANMAR_PATTERN = re.compile(r"[\u1000-\u109F\uAA60-\uAA7F\uA9E0-\uA9FF]")
 
 # Tags from reasoning models (DeepSeek, Hunyuan, Qwen-thinking, etc.)
 TAG_PATTERNS: List[Pattern] = [

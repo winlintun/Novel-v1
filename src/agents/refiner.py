@@ -75,11 +75,12 @@ class Refiner(BaseAgent):
         if glossary_block:
             glossary_prefix = glossary_block + "\n\n"
 
-        prompt = f"""{glossary_prefix}Refine this Myanmar text for better flow and literary quality:
+        prompt = f"""{glossary_prefix}Refine this Myanmar text for better flow and literary quality.
+⚠️ CRITICAL: Output MUST be Myanmar Unicode script. DO NOT output English.
 
 {text}
 
-REFINED TEXT:"""
+REFINED MYANMAR TEXT:"""
 
         raw = self.ollama.chat(
             prompt=prompt,
@@ -112,12 +113,14 @@ REFINED TEXT:"""
         if glossary_block:
             glossary_prefix = glossary_block + "\n\n"
 
-        prompt = f"""{glossary_prefix}Refine these {len(paragraphs)} Myanmar paragraphs.
+        prompt = f"""{glossary_prefix}Refine these {len(paragraphs)} Myanmar paragraphs into better Myanmar translation.
+⚠️ CRITICAL: Your output MUST be in Myanmar Unicode script (U+1000-U+109F). DO NOT output English.
+DO NOT re-translate the original English content - only refine the existing Myanmar translation.
 Separate output with: {separator}
 
 {combined}
 
-REFINED TEXT:"""
+REFINED MYANMAR TEXT:"""
 
         try:
             raw = self.ollama.chat(
