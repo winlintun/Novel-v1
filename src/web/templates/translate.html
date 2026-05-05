@@ -51,9 +51,12 @@
                 <div class="form-group">
                     <label class="form-label">Translation Model</label>
                     <select name="model" class="form-control">
-                        {% for model in models %}
-                        <option value="{{ model }}" {% if current_model == model %}selected{% endif %}>
-                            {{ model }}
+                        {% for m in models %}
+                        <option value="{{ m.name }}" 
+                                {% if current_model == m.name %}selected{% endif %}
+                                {% if m.installed == false %}disabled{% endif %}>
+                            {{ m.name }}
+                            {% if m.installed == false %} (not installed){% endif %}
                         </option>
                         {% endfor %}
                     </select>
@@ -127,22 +130,20 @@
                 <thead>
                     <tr>
                         <th>Model</th>
-                        <th>Description</th>
+                        <th>Use Case</th>
+                        <th>Temp</th>
                     </tr>
                 </thead>
                 <tbody>
+                    {% for m in models %}
+                    {% if m.category == 'myanmar' %}
                     <tr>
-                        <td>padauk-gemma:q8_0</td>
-                        <td>⭐ Recommended - Best Myanmar output</td>
+                        <td>{{ m.name }}</td>
+                        <td>{{ m.description }}</td>
+                        <td>{{ m.temp }}</td>
                     </tr>
-                    <tr>
-                        <td>qwen2.5:14b</td>
-                        <td>CN→EN pivot only - not for Myanmar</td>
-                    </tr>
-                    <tr>
-                        <td>sailor2-20b</td>
-                        <td>Alternative Myanmar model</td>
-                    </tr>
+                    {% endif %}
+                    {% endfor %}
                 </tbody>
             </table>
         </div>
