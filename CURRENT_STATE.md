@@ -6,7 +6,7 @@
 
 ## Last Updated
 - Date: 2026-05-06
-- Last task completed: Fixed chapter 003 translation failure - Myanmar ratio detection missing Extended-B range (U+A9E0-U+A9FF), refiner prompts strengthened to prevent English output
+- Last task completed: Refactored web UI from Streamlit to Flask - new Flask app with 6 templates, updated launcher to support both Flask and Streamlit, added Flask to requirements.txt
 
 ## In Progress
 - None
