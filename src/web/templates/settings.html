@@ -20,13 +20,13 @@
                 <div class="form-group">
                     <label class="form-label">Translation Model</label>
                     <select name="model" id="modelSelect" class="form-control" onchange="updateTemperature()">
-                        {% for model in models %}
-                        <option value="{{ model.name }}" 
-                                data-temp="{{ model.temp }}"
-                                data-category="{{ model.category }}"
-                                {% if current_model == model.name %}selected{% endif %}>
-                            {{ model.name }}
-                            {% if model.installed == False %} (not installed){% endif %}
+                        {% for m in models %}
+                        <option value="{{ m.name }}" 
+                                data-temp="{{ m.temp }}"
+                                data-category="{{ m.category }}"
+                                {% if current_model == m.name %}selected{% endif %}>
+                            {{ m.name }}
+                            {% if m.installed == false %} (not installed){% endif %}
                         </option>
                         {% endfor %}
                     </select>
