@@ -583,12 +583,43 @@ def static_files(filename):
 @app.route('/api/progress')
 def api_progress():
     """API endpoint for real-time translation progress"""
+    import subprocess
+    import time
+    
     progress_file = Path("logs/progress_current.json")
     
     if progress_file.exists():
         try:
             with open(progress_file, 'r', encoding='utf-8') as f:
-                return jsonify(json.load(f))
+                data = json.load(f)
+            
+            # Check if translation process is still running
+            novel = data.get('novel', '')
+            chapter = data.get('chapter', 1)
+            
+            # Check if output file exists (translation completed)
+            output_dir = Path("data/output") / novel
+            if output_dir.exists():
+                # Check for recent output files
+                recent_files = list(output_dir.glob(f"{novel}_chapter_*.mm.md"))
+                recent_files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+                
+                if recent_files:
+                    latest = recent_files[0]
+                    # If file was modified in last 30 seconds, translation might still be running
+                    if time.time() - latest.stat().st_mtime < 30:
+                        data['status'] = 'translating'
+                        data['message'] = f'Translating chapter...'
+                    else:
+                        # Check if it's the expected chapter
+                        expected_ch = f"chapter_{int(chapter):04d}"
+                        if expected_ch in latest.name:
+                            data['status'] = 'completed'
+                            data['message'] = f'Translation completed!'
+                            # Clean up progress file
+                            progress_file.unlink(missing_ok=True)
+            
+            return jsonify(data)
         except Exception:
             pass
     

@@ -120,6 +120,11 @@ async function checkProgress() {
                 clearInterval(pollInterval);
                 pollInterval = null;
             }
+            
+            // Show completion message if just finished
+            if (data.status === 'completed') {
+                alert('✅ Translation completed! Refresh to see updated progress.');
+            }
         } else {
             statusDiv.style.display = 'block';
             
@@ -137,7 +142,7 @@ async function checkProgress() {
             }
             
             progressDiv.innerHTML = html;
-            progressDiv.className = 'alert alert-warning';
+            progressDiv.className = data.status === 'translating' ? 'alert alert-warning' : 'alert alert-info';
         }
     } catch (err) {
         console.error('Progress poll error:', err);
