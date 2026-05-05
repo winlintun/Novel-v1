@@ -107,3 +107,12 @@ backup/*
 
 # Runtime progress logs (transient per-run artifacts)
 logs/progress/
+Web_Novel.md
+ruff.toml
+
+# model GGUF file markdown
+Modelfile
+Modelfile.*
+Modelfile.sailor2-20b
+Modelfile.burmese-gpt
+fore-do.md

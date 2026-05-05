@@ -1,0 +1,31 @@
+﻿{
+  "novel": "wayfarer",
+  "last_updated": "2026-05-05T14:09:14.414105",
+  "total_chapters": 2,
+  "chapters": {
+    "1": {
+      "chapter": 1,
+      "translated_at": "2026-05-05T14:09:14.408549",
+      "source": "data/input/wayfarer/wayfarer_chapter_001.md",
+      "pipeline": "single_stage",
+      "model": "padauk-gemma:q8_0",
+      "char_count": 14440,
+      "myanmar_ratio": 0.986,
+      "duration_seconds": 4762.3,
+      "chunk_count": 17,
+      "avg_quality_score": 92.7
+    },
+    "2": {
+      "chapter": 2,
+      "translated_at": "2026-05-05T11:44:49.189637",
+      "source": "data/input/wayfarer/wayfarer_chapter_002.md",
+      "pipeline": "single_stage",
+      "model": "padauk-gemma:q8_0",
+      "char_count": 13127,
+      "myanmar_ratio": 0.982,
+      "duration_seconds": 4918.3,
+      "chunk_count": 16,
+      "avg_quality_score": 94.6
+    }
+  }
+}

@@ -1,16 +1,15 @@
 {
   "current_phase": "DOC",
-  "task": "Fix diagnose.py dual-layer glossary support",
+  "task": "",
   "feature_type": 1,
   "phases": {
-    "PLAN":   { "status": "DONE",        "runner": "Agent",  "requires_human": false },
-    "BUILD":  { "status": "DONE",        "runner": "Agent",  "requires_human": false },
-    "TEST":   { "status": "DONE",        "runner": "Agent",  "requires_human": false },
-    "VERIFY": { "status": "DONE",        "runner": "Ollama", "requires_human": false,
-                "score": null, "retry_count": 0 },
-    "AUDIT":  { "status": "DONE",        "runner": "Gemini", "requires_human": false },
-    "DOC":    { "status": "DONE",        "runner": "Agent",  "requires_human": false,
+    "PLAN":   { "status": "PENDING", "runner": "Agent",  "requires_human": false },
+    "BUILD":  { "status": "PENDING", "runner": "Agent",  "requires_human": false },
+    "TEST":   { "status": "PENDING", "runner": "Agent",  "requires_human": false },
+    "VERIFY": { "status": "PENDING", "runner": "Ollama", "requires_human": false },
+    "AUDIT":  { "status": "PENDING", "runner": "Gemini", "requires_human": false },
+    "DOC":    { "status": "PENDING", "runner": "Agent",  "requires_human": false,
                 "skippable": false }
   },
-  "updated_at": "2026-05-05T10:00:00Z"
+  "updated_at": "2026-05-05T12:00:00Z"
 }

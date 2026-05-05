@@ -222,7 +222,7 @@ novel_translation_project/
 │       ├── translation_reviewer.py  # Auto quality review
 │       └── fluency_scorer.py  # Myanmar fluency scoring
 │
-├── tests/                      # 282 tests (41% coverage)
+├── tests/                      # 365 tests (49% coverage)
 ├── logs/
 │   └── report/                 # Auto-generated quality reports
 │       └── {novel}_chapter_{N}_review_{timestamp}.md
@@ -355,7 +355,7 @@ streamlit run ui/streamlit_app.py
 |--------|-------|
 | Python Code | ~15,000 lines |
 | Test Files | 21 |
-| Tests | 282 (all passing) |
+| Tests | 365 (all passing) |
 | Test Coverage | 41% |
 | Config Files | 5 |
 | Agent Modules | 16 |

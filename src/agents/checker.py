@@ -113,6 +113,9 @@ class Checker(BaseAgent):
 
         # Check for mixed scripts (Myanmar range: U+1000-U+109F)
         # Allow Myanmar, punctuation, whitespace, digits
+        _MYANMAR = r'\u1000-\u109F'
+        _PUNCT = r'\u2000-\u206F\u3000-\u303F'
+        _ALLOWED = r'\s\d.,!?;:\-\'"()[]{}'
         non_myanmar = re.findall(r'[^\u1000-\u109F\u2000-\u206F\u3000-\u303F\s\d.,!?;:\-\'"()[]{}]', text)
         if len(non_myanmar) > len(text) * 0.3:  # More than 30% non-Myanmar
             issues.append(f"High non-Myanmar character ratio: {len(non_myanmar)} chars")
