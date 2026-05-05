@@ -5,8 +5,8 @@
 ---
 
 ## Last Updated
-- Date: 2026-05-05
-- Last task completed: Refactored postprocessor.py and translation_reviewer.py - extracted regex patterns to submodule
+- Date: 2026-05-06
+- Last task completed: Fixed chapter 003 translation failure - Myanmar ratio detection missing Extended-B range (U+A9E0-U+A9FF), refiner prompts strengthened to prevent English output
 
 ## In Progress
 - None
@@ -17,7 +17,7 @@
 ## Architecture Decisions
 - Extracted regex patterns from postprocessor.py to src/utils/postprocessor_patterns.py for better organization
 - Added pattern imports to translation_reviewer.py to reduce duplication
-- All 365 tests pass, 50% coverage
+- All 412 tests pass, 53% coverage
 
 ---
 

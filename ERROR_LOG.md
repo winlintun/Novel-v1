@@ -6,6 +6,128 @@
 
 ---
 
+### ERROR-063: Chapter 003 Translation Failure — Myanmar Ratio 0% After Refinement
+**Date**: 2026-05-05
+**Files**: `src/utils/postprocessor_patterns.py`, `src/agents/refiner.py`
+**Issue Summary**:
+1. Chapter 003 translation failed quality gate — 2 chunks (5 and 7) showed 0% Myanmar ratio after refinement
+2. Translation went from 94.6% (chunk 4) → 0% (chunk 5) after Step 3 (Refiner)
+3. Quality gate blocked saving — "Quality gate FAILED: 2 chunk(s) with Myanmar ratio < 40%"
+4. Additionally, Thai character false positive detected — 1 Thai char flagged but was actually Myanmar Extended-B
+
+**Root Cause**:
+1. MYANMAR_PATTERN in postprocessor_patterns.py was missing Extended-B range (U+A9E0-U+A9FF) — valid Myanmar characters detected as Thai
+2. Refiner prompts lacked explicit Myanmar language guard — model output English instead of Myanmar for certain chunks
+3. MyanmarQualityChecker doesn't validate Myanmar ratio — high quality scores (85-87) on English output because English is grammatically correct
+
+**Fix Applied**:
+1. Updated MYANMAR_PATTERN to include all 3 Myanmar Unicode blocks: `r"[\u1000-\u109F\uAA60-\uAA7F\uA9E0-\uA9FF]"`
+2. Strengthened refiner.py prompts with explicit language guard: "⚠️ CRITICAL: Your output MUST be in Myanmar Unicode script. DO NOT output English."
+3. Changed output label from "REFINED TEXT" to "REFINED MYANMAR TEXT" for clarity
+
+**Files Modified**:
+- `src/utils/postprocessor_patterns.py` — Added U+A9E0-U+A9FF to MYANMAR_PATTERN
+- `src/agents/refiner.py` — Added explicit Myanmar language guard to refine_paragraph() and refine_batch()
+
+**Status**: RESOLVED
+**Verified By**: pytest 412/412 pass, Reviewer A PASS, Reviewer B PASS
+
+---
+
+### ERROR-062: Pipeline Mode Auto-Detection Not Working for --novel Flag
+**Date**: 2026-05-06
+**Files**: `src/cli/parser.py`, `src/cli/commands.py`
+**Issue Summary**:
+1. `--mode full` pipeline ran even for EN→MM translations (way1 workflow)
+2. Translation quality was terrible - chunks going from 94% to 0% Myanmar ratio after refinement
+3. Quality gate blocked saving - "File NOT saved"
+4. Two root causes:
+   - CLI parser only had `["full", "lite", "fast"]` choices, missing `single_stage`
+   - `_resolve_workflow()` only detected language from `--input` flag, not from `--novel` flag
+
+**Root Cause**:
+1. Parser choices didn't include `single_stage` which is the recommended mode for EN→MM
+2. When using `--novel wayfarer --chapter 3`, the workflow detection returned `None` because it only checked `args.input_file`
+3. Without workflow detection, `_apply_workflow_config()` was never called, so mode stayed at default "full"
+4. Full pipeline (6-stage) with padauk-gemma's refiner destroys translation quality
+
+**Fix Applied**:
+1. Added `single_stage` to CLI parser choices in `src/cli/parser.py` line 155
+2. Updated `_resolve_workflow()` in `src/cli/commands.py` to also detect from `--novel` flag by resolving the chapter file path
+
+**Files Modified**:
+- `src/cli/parser.py` — added single_stage to --mode choices
+- `src/cli/commands.py` — added novel/chapter detection in _resolve_workflow()
+
+**Status**: RESOLVED
+
+---
+
+### ERROR-061: AGENTS.md Memory Schemas Mismatch
+**Date**: 2026-05-05
+**Files**: `AGENTS.md`
+**Issue Summary**:
+AGENTS.md memory schemas didn't match actual files:
+1. **long_term_memory.json**: Schema showed `known_patterns: []` which doesn't exist in actual file
+2. **error_library.json**: Schema was missing `notes` field and didn't show full error object structure
+3. Error count showed ERR-059 but current is ERR-060
+**Root Cause**:
+Documentation schemas not kept in sync with actual JSON file structures
+**Fix Applied**:
+1. Removed `known_patterns` from long_term_memory.json schema (doesn't exist)
+2. Added `notes` field to error_library.json schema
+3. Added complete error object structure (id, error_type, trigger, solution, prevention, times_seen, last_seen)
+4. Updated error count to ERR-060
+**Files Modified**:
+- `AGENTS.md` — memory schema sync
+**Status**: RESOLVED
+
+---
+
+### ERROR-060: AGENTS.md Phase Gate Schema Mismatch
+**Date**: 2026-05-05
+**Files**: `AGENTS.md`
+**Issue Summary**:
+AGENTS.md phase_gate.json schema was outdated and didn't match the actual `.agent/phase_gate.json` file:
+1. Schema was missing `feature_type`, `runner`, `requires_human` fields
+2. Schema was missing the `AUDIT` phase
+3. Error count comment showed ERR-058 but current is ERR-059
+**Root Cause**:
+Schema in documentation wasn't kept in sync with actual JSON file
+**Fix Applied**:
+1. Updated phase_gate.json schema to include all fields from actual file
+2. Added missing AUDIT phase
+3. Updated error count to ERR-059
+4. Removed duplicate empty lines between sections
+**Files Modified**:
+- `AGENTS.md` — schema sync + error count update
+**Status**: RESOLVED
+
+---
+
+### ERROR-059: AGENTS.md Cleanup — Duplicate Work and Typo Fixes
+**Date**: 2026-05-05
+**Files**: `AGENTS.md`, `.agent/post_implementation_workflow.md`
+**Issue Summary**:
+AGENTS.md had multiple issues preventing proper agent workflow:
+1. **Duplicate STEP numbering in Session End**: Steps were all labeled "STEP 1" instead of STEP 1-8
+2. **Duplicate content**: Full markdown templates for CURRENT_STATE.md and ERROR_LOG.md existed alongside the Expectations sections
+3. **Duplicate Testing section**: Testing commands appeared in both Quick Commands and Testing sections
+4. **Typo in filename**: `.agent/post_implemention_workflow.md` spelled incorrectly (implemention → implementation)
+**Root Cause**:
+AGENTS.md was not properly maintained - duplicates accumulated over time, filenames had typos
+**Fix Applied**:
+1. Fixed Session End STEP numbering to sequential STEP 1-8
+2. Removed duplicate CURRENT_STATE.md and ERROR_LOG.md template sections
+3. Removed duplicate Testing section (commands already in Quick Commands)
+4. Renamed `.agent/post_implemention_workflow.md` → `.agent/post_implementation_workflow.md`
+5. Updated AGENTS.md references to use correct filename
+**Files Modified**:
+- `AGENTS.md` — fixed STEP numbering, removed duplicates, fixed filename reference
+- `.agent/post_implemention_workflow.md` — renamed to `.agent/post_implementation_workflow.md`
+**Status**: RESOLVED
+
+---
 
 ### ERROR-058: Admin Review — Translation Quality Issues Chapters 13-21
 **Date**: 2026-05-03
