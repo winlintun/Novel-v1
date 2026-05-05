@@ -67,7 +67,7 @@ class TestGenerateGlossaryRouting(unittest.TestCase):
 
     def _make_args(self, **kwargs) -> argparse.Namespace:
         defaults = dict(
-            ui=False, test=False, generate_glossary=False,
+            ui=False, test=False, generate_glossary=False, approve_glossary=False,
             view_file=None, review_file=None, auto_promote=False, stats=False,
             novel=None, input_file=None,
             chapter=None, all=False, chapter_range=None,
@@ -108,7 +108,7 @@ class TestGenerateGlossaryRouting(unittest.TestCase):
             mock_parse.return_value = argparse.Namespace(
                 clean=False, rebuild_meta=False, ui=False, test=False,
                 view_file=None, review_file=None, auto_promote=False, stats=False,
-                generate_glossary=True, novel="my-novel",
+                generate_glossary=True, approve_glossary=False, novel="my-novel",
                 chapter=None, all=False, chapter_range=None, input_file=None,
                 config=None, model=None, mode=None, output_dir=None
             )

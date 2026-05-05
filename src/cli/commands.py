@@ -710,6 +710,59 @@ def run_glossary_promotion(args: argparse.Namespace) -> int:
     return 0
 
 
+def run_glossary_approval(args: argparse.Namespace) -> int:
+    """Bulk approve ALL pending glossary terms and add to glossary.json.
+
+    This command:
+    1. Reads glossary_pending.json
+    2. Adds all "pending" status terms to glossary.json
+    3. Removes approved terms from pending list
+
+    Args:
+        args: Parsed command line arguments (must have --novel)
+
+    Returns:
+        Exit code (0 for success, 1 for failure)
+    """
+    logger = setup_logging()
+
+    if not args.novel:
+        logger.error("--novel is required for --approve-glossary")
+        return 1
+
+    from src.memory.memory_manager import MemoryManager
+
+    memory = MemoryManager(novel_name=args.novel)
+
+    # Show pending count before approval
+    pending_before = memory.get_pending_terms()
+    logger.info(
+        f"Loaded glossary for '{args.novel}': "
+        f"{memory.glossary.get('total_terms', 0)} approved, "
+        f"{len(pending_before)} pending"
+    )
+
+    # Bulk approve all pending terms
+    approved_count = memory.bulk_approve_all_pending()
+
+    # Show results
+    pending_after = memory.get_pending_terms()
+    print(f"\n{'='*50}")
+    print(f"  Glossary Approval — {args.novel}")
+    print(f"{'='*50}")
+    print(f"  Pending before:   {len(pending_before)}")
+    print(f"  Approved:        {approved_count}")
+    print(f"  Pending after:   {len(pending_after)}")
+    print(f"{'='*50}")
+
+    if approved_count > 0:
+        print(f"✅ Successfully approved {approved_count} terms!")
+    else:
+        print("ℹ️  No terms to approve")
+
+    return 0
+
+
 def run_stats(args: argparse.Namespace) -> int:
     """Aggregate per-chapter quality review reports and show score trends.
 

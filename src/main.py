@@ -30,6 +30,7 @@ from src.cli.commands import (
     run_translation_pipeline,
     run_glossary_generation,
     run_glossary_promotion,
+    run_glossary_approval,
     run_stats,
     run_ui_launch,
     run_test,
@@ -93,6 +94,9 @@ def main() -> int:
 
     if args.auto_promote:
         return run_glossary_promotion(args)
+
+    if args.approve_glossary:
+        return run_glossary_approval(args)
 
     if args.stats:
         return run_stats(args)

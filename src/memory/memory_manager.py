@@ -768,6 +768,58 @@ class MemoryManager:
         logger.info(f"Rejected pending term: {source}")
         return True
 
+    def bulk_approve_all_pending(self) -> int:
+        """Bulk approve ALL pending terms regardless of confidence.
+
+        This is the --approve-glossary workflow:
+        1. Read all pending terms
+        2. Change status from "pending" to "approved"
+        3. Add each to glossary.json
+        4. Remove from pending list
+
+        Returns:
+            Number of terms promoted to glossary
+        """
+        pending_data = FileHandler.read_json(self.pending_path)
+        if not pending_data:
+            logger.info("No pending glossary file found")
+            return 0
+
+        pending_terms = pending_data.get("pending_terms", [])
+        if not pending_terms:
+            logger.info("No pending terms to approve")
+            return 0
+
+        approved_count = 0
+        remaining = []
+
+        for term in pending_terms:
+            source = term.get("source", "")
+            target = term.get("target", "")
+            category = term.get("category", "general")
+
+            if not source or not target:
+                remaining.append(term)
+                continue
+
+            # Add to approved glossary
+            if self.add_term(source, target, category, term.get("extracted_from_chapter", 0)):
+                approved_count += 1
+                logger.info(f"Approved: {source} → {target}")
+            else:
+                logger.warning(f"Failed to approve (validation failed): {source}")
+                remaining.append(term)
+
+        # Update pending file with remaining terms
+        pending_data["pending_terms"] = remaining
+        FileHandler.write_json(self.pending_path, pending_data)
+
+        # Save glossary
+        self.save_memory()
+
+        logger.info(f"Bulk approval complete: {approved_count} terms added to glossary")
+        return approved_count
+
     def auto_approve_pending_terms(self) -> int:
         """Automatically promote pending terms with status 'approved'.
 

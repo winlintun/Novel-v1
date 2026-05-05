@@ -221,6 +221,11 @@ def create_parser() -> argparse.ArgumentParser:
         help="Auto-promote high-confidence pending glossary terms to approved glossary"
     )
     utility_group.add_argument(
+        "--approve-glossary",
+        action="store_true",
+        help="Bulk approve ALL pending glossary terms and add to glossary.json"
+    )
+    utility_group.add_argument(
         "--stats",
         action="store_true",
         help="Show per-chapter quality score trends for a novel"
@@ -269,7 +274,7 @@ def validate_arguments(args: argparse.Namespace) -> None:
     """
     # Check for required arguments when not running utility commands
     # --generate-glossary --novel X is a standalone command (no chapter required)
-    utility_commands = [args.ui, args.test, args.generate_glossary, args.view_file, args.review_file, args.auto_promote, args.stats]
+    utility_commands = [args.ui, args.test, args.generate_glossary, args.approve_glossary, args.view_file, args.review_file, args.auto_promote, args.stats]
 
     if not any(utility_commands):
         if not args.novel and not args.input_file:
