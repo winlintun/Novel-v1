@@ -34,19 +34,19 @@ ollama pull alibayram/hunyuan:7b   # CN→EN pivot (optional for Chinese)
 
 ```bash
 # Translate single chapter
-python -m src.main --novel reverend-insanity --chapter 1
+python -m src.main --novel novel_name --chapter 1
 
 # Translate chapter range (e.g., 1-10)
-python -m src.main --novel reverend-insanity --chapter-range 1-10
+python -m src.main --novel novel_name --chapter-range 1-10
 
 # Translate all chapters
-python -m src.main --novel reverend-insanity --all
+python -m src.main --novel novel_name --all
 
 # Start from chapter 5
-python -m src.main --novel reverend-insanity --all --start 5
+python -m src.main --novel novel_name --all --start 5
 
 # Translate single input file
-python -m src.main --input data/input/reverend-insanity/ch001.md
+python -m src.main --input data/input/novel_name/ch001.md
 
 # Launch Web UI
 python -m src.main --ui
@@ -314,22 +314,22 @@ ruff check src/ tests/ --select=E,F
 
 ```bash
 # 1. way1 - English→Myanmar direct
-python -m src.main --novel reverend-insanity --chapter 1
+python -m src.main --novel novel_name --chapter 1
 
 # 2. way2 - Chinese→English→Myanmar pivot
-python -m src.main --novel dao-equaling-the-heavens --chapter 1 --config config/settings.pivot.yaml
+python -m src.main --novel novel_name --chapter 1 --config config/settings.pivot.yaml
 
 # 3. Review translated file
-python -m src.main --review data/output/reverend-insanity/reverend-insanity_chapter_001.mm.md
+python -m src.main --review data/output/novel_name/novel_name_chapter_001.mm.md
 
 # 4. Show quality stats
-python -m src.main --stats --novel reverend-insanity
+python -m src.main --stats --novel novel_name
 
 # 5. View file in terminal
-python -m src.main --view data/output/reverend-insanity/reverend-insanity_chapter_001.mm.md
+python -m src.main --view data/output/novel_name/novel_name_chapter_001.mm.md
 
 # 6. Generate glossary
-python -m src.main --novel reverend-insanity --generate-glossary --chapter-range 1-5
+python -m src.main --novel novel_name --generate-glossary --chapter-range 1-5
 
 # 7. Launch Web UI
 python -m src.main --ui
@@ -382,4 +382,4 @@ python -m src.main --version
 
 ---
 
-**Happy translating! 🙏**
+**Happy translating!**

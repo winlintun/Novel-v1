@@ -4,7 +4,6 @@ Tests for GlossaryGenerator agent.
 
 import unittest
 from unittest.mock import MagicMock, patch, mock_open
-from pathlib import Path
 
 
 class TestGlossaryGenerator(unittest.TestCase):
@@ -30,7 +29,7 @@ class TestGlossaryGenerator(unittest.TestCase):
         self.assertIsNotNone(generator)
 
     def test_extract_terms_returns_list(self):
-        """extract_terms returns list of terms."""
+        """extract_terms returns list of terms (v3.2.1 schema)."""
         from src.agents.glossary_generator import GlossaryGenerator
         
         generator = GlossaryGenerator(
@@ -39,8 +38,9 @@ class TestGlossaryGenerator(unittest.TestCase):
             config=self.mock_config
         )
         
+        # v3.2.1 schema format
         self.mock_ollama.chat.return_value = {
-            "message": {"content": '{"new_terms": []}'}
+            "message": {"content": '{"extraction_meta": {"schema_version": "3.2.1", "source_language": "Chinese", "total_terms_found": 0, "overall_confidence": "high"}, "terms": []}'}
         }
         
         result = generator.extract_terms("test text", source_lang="Chinese")
@@ -67,7 +67,7 @@ class TestGlossaryGenerator(unittest.TestCase):
         self.assertEqual(result, [])
 
     def test_extract_terms_with_chinese(self):
-        """extract_terms works with Chinese source."""
+        """extract_terms works with Chinese source (v3.2.1 schema)."""
         from src.agents.glossary_generator import GlossaryGenerator
         
         generator = GlossaryGenerator(
@@ -77,7 +77,7 @@ class TestGlossaryGenerator(unittest.TestCase):
         )
         
         self.mock_ollama.chat.return_value = {
-            "message": {"content": '{"new_terms": []}'}
+            "message": {"content": '{"extraction_meta": {"schema_version": "3.2.1", "source_language": "Chinese", "total_terms_found": 0, "overall_confidence": "high"}, "terms": []}'}
         }
         
         result = generator.extract_terms("中文测试", source_lang="Chinese")
@@ -85,7 +85,7 @@ class TestGlossaryGenerator(unittest.TestCase):
         self.assertIsInstance(result, list)
 
     def test_extract_terms_with_english(self):
-        """extract_terms works with English source."""
+        """extract_terms works with English source (v3.2.1 schema)."""
         from src.agents.glossary_generator import GlossaryGenerator
         
         generator = GlossaryGenerator(
@@ -95,7 +95,7 @@ class TestGlossaryGenerator(unittest.TestCase):
         )
         
         self.mock_ollama.chat.return_value = {
-            "message": {"content": '{"new_terms": []}'}
+            "message": {"content": '{"extraction_meta": {"schema_version": "3.2.1", "source_language": "English", "total_terms_found": 0, "overall_confidence": "high"}, "terms": []}'}
         }
         
         result = generator.extract_terms("English test", source_lang="English")
@@ -103,7 +103,7 @@ class TestGlossaryGenerator(unittest.TestCase):
         self.assertIsInstance(result, list)
 
     def test_process_files_returns_list(self):
-        """process_files returns list of extracted terms."""
+        """process_files returns list of extracted terms (v3.2.1 schema)."""
         from src.agents.glossary_generator import GlossaryGenerator
         
         generator = GlossaryGenerator(
@@ -113,7 +113,7 @@ class TestGlossaryGenerator(unittest.TestCase):
         )
         
         self.mock_ollama.chat.return_value = {
-            "message": {"content": '{"new_terms": []}'}
+            "message": {"content": '{"extraction_meta": {"schema_version": "3.2.1", "source_language": "Chinese", "total_terms_found": 0, "overall_confidence": "high"}, "terms": []}'}
         }
         
         result = generator.process_files(["test.md"])
@@ -121,7 +121,7 @@ class TestGlossaryGenerator(unittest.TestCase):
         self.assertIsInstance(result, list)
 
     def test_save_to_pending_calls_memory(self):
-        """save_to_pending saves terms to memory manager."""
+        """save_to_pending saves terms to memory manager (v3.2.1 schema)."""
         from src.agents.glossary_generator import GlossaryGenerator
         
         generator = GlossaryGenerator(
@@ -130,7 +130,8 @@ class TestGlossaryGenerator(unittest.TestCase):
             config=self.mock_config
         )
         
-        terms = [{"source": "test", "target": "စမ်း", "category": "character"}]
+        # v3.2.1 schema fields
+        terms = [{"source_term": "test", "target_term": "စမ်း", "category": "character"}]
         generator.save_to_pending(terms, chapter_num=1)
         
         self.mock_memory.add_pending_term.assert_called_once()
@@ -145,8 +146,9 @@ class TestGlossaryGenerator(unittest.TestCase):
             config=self.mock_config
         )
         
+        # v3.2.1 schema
         self.mock_ollama.chat.return_value = {
-            "message": {"content": '{"new_terms": [{"source": "t", "target": "တ", "category": "c"}]}'}
+            "message": {"content": '{"extraction_meta": {"schema_version": "3.2.1", "source_language": "English", "total_terms_found": 1, "overall_confidence": "high"}, "terms": [{"source_term": "t", "target_term": "တ", "category": "character"}]}'}
         }
         
         with patch("builtins.open", mock_open(read_data="test")):

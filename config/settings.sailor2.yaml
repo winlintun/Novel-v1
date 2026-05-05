@@ -11,9 +11,9 @@ project:
 models:
   provider: "ollama"
   translator: "sailor2-20b"
-  editor: "sailor2-20b"
-  refiner: "sailor2-20b"
-  checker: "qwen:7b"
+  editor: "padauk-gemma:q8_0"
+  refiner: "padauk-gemma:q8_0"
+  checker: "padauk-gemma:q8_0"
   ollama_base_url: "http://localhost:11434"
   timeout: 600
   use_gpu: true
@@ -49,7 +49,7 @@ qa_testing:
 
 model_roles:
   translator: ["sailor2-20b", "padauk-gemma:q8_0"]
-  refiner: ["sailor2-20b", "padauk-gemma:q8_0"]
-  checker: ["qwen:7b"]
-  glossary_sync: ["qwen:7b"]
-  qa_final: ["qwen:7b"]
+  refiner: ["padauk-gemma:q8_0", "padauk-gemma:q8_0"]
+  checker: ["padauk-gemma:q8_0"]
+  glossary_sync: ["padauk-gemma:q8_0"]
+  qa_final: ["padauk-gemma:q8_0"]

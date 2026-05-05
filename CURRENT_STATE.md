@@ -10,6 +10,27 @@
 ## Last Updated
 - Date: 2026-05-05
 - Last task completed:
+  - **ADDED: --approve-glossary CLI command** (STATUS: [DONE]):
+    - Task: Bulk approve all pending glossary terms in one command
+    - Changes Made:
+      1. Added --approve-glossary argument in src/cli/parser.py
+      2. Added bulk_approve_all_pending() method in src/memory/memory_manager.py
+      3. Added run_glossary_approval() handler in src/cli/commands.py
+      4. Added routing in src/main.py
+    - Files Modified: src/cli/parser.py, src/cli/commands.py, src/memory/memory_manager.py, src/main.py, tests/test_workflow_routing.py
+    - Usage: python -m src.main --novel wayfarer --approve-glossary
+    - Result: Approved 153 pending terms for wayfarer novel
+
+  - **OPTIMIZED: Glossary extraction parallel processing** (STATUS: [DONE]):
+    - Task: Speed up glossary generation for large novels (1066 chapters)
+    - Changes Made:
+      1. Added ThreadPoolExecutor with MAX_GLOSSARY_WORKERS=4 for parallel chapter processing
+      2. Reduced samples per chapter from 3 to 1 (LLM calls: 3x → 1x per chapter)
+      3. Added progress logging showing completed/total and total terms extracted
+    - Files Modified: src/cli/commands.py, src/agents/glossary_generator.py
+    - Speed improvement: ~5 min/chapter → ~1.25 min/chapter (4x faster)
+    - For 1066 chapters: ~89 hours → ~22 hours
+
   - **UPDATED: --generate-glossary --all and --chapter-range support** (STATUS: [DONE]):
     - Task: Allow --generate-glossary to accept --all (all chapters) and --chapter-range (custom range)
     - Changes Made:

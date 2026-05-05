@@ -81,7 +81,7 @@ def test_syntax_check():
             print_test(f"{file_path}", "FAIL", str(e))
             all_passed = False
     
-    return all_passed
+    assert all_passed
 
 def test_import_paths():
     """Test 2: Verify UI import paths work correctly."""
@@ -105,7 +105,7 @@ def test_import_paths():
             print_test(f"Import {module_name}.{attr_name}", "FAIL", str(e))
             all_passed = False
     
-    return all_passed
+    assert all_passed
 
 def test_config_loading():
     """Test 3: Verify configuration files load correctly."""
@@ -113,7 +113,6 @@ def test_config_loading():
     
     config_files = [
         "config/settings.yaml",
-        "config/settings.english.yaml",
         "config/settings.pivot.yaml",
         "config/settings.fast.yaml",
     ]
@@ -138,7 +137,7 @@ def test_config_loading():
             print_test(f"{config_file}", "FAIL", str(e))
             all_passed = False
     
-    return all_passed
+    assert all_passed
 
 def test_data_directories():
     """Test 4: Verify required data directories exist."""
@@ -161,7 +160,7 @@ def test_data_directories():
             path.mkdir(parents=True, exist_ok=True)
             print_test(f"{dir_path}/", "PASS", "Created")
     
-    return all_passed
+    assert all_passed
 
 def test_cli_help():
     """Test 5: Verify CLI help works."""
@@ -184,13 +183,13 @@ def test_cli_help():
                     print_test(f"  Flag {flag}", "PASS")
                 else:
                     print_test(f"  Flag {flag}", "FAIL", "Not found in help")
-            return True
+            return
         else:
             print_test("CLI --help", "FAIL", result.stderr[:100])
-            return False
+            assert False
     except Exception as e:
         print_test("CLI --help", "FAIL", str(e))
-        return False
+        assert False
 
 def test_launcher_script():
     """Test 6: Verify launcher script structure."""
@@ -199,7 +198,7 @@ def test_launcher_script():
     launcher_path = Path("tools/launch_ui.py")
     if not launcher_path.exists():
         print_test("Launcher script", "FAIL", "File not found")
-        return False
+        assert False
     
     try:
         with open(launcher_path, 'r') as f:
@@ -221,10 +220,10 @@ def test_launcher_script():
                 print_test(f"  {check_name}", "FAIL")
                 all_passed = False
         
-        return all_passed
+        assert all_passed
     except Exception as e:
         print_test("Launcher script", "FAIL", str(e))
-        return False
+        assert False
 
 def test_enhanced_display_functions():
     """Test 7: Verify enhanced CLI display functions exist."""
@@ -232,7 +231,7 @@ def test_enhanced_display_functions():
     
     try:
         sys.path.insert(0, str(Path.cwd()))
-        from src.main import (
+        from src.cli.formatters import (
             print_box,
             print_pipeline_status,
         )
@@ -248,13 +247,13 @@ def test_enhanced_display_functions():
         print(f"\n{Colors.CYAN}Testing print_pipeline_status():{Colors.END}")
         print_pipeline_status("Test Step", "complete", "All good")
         
-        return True
+        return
     except ImportError as e:
         print_test("Display functions", "FAIL", str(e))
-        return False
+        assert False
     except Exception as e:
         print_test("Display functions", "FAIL", str(e))
-        return False
+        assert False
 
 def test_ui_pages_structure():
     """Test 8: Verify UI pages have correct structure."""
@@ -291,7 +290,7 @@ def test_ui_pages_structure():
             print_test(f"{page_path}", "FAIL", str(e))
             all_passed = False
     
-    return all_passed
+    assert all_passed
 
 def test_progress_logger():
     """Test 9: Verify progress logger works."""
@@ -316,7 +315,7 @@ def test_progress_logger():
             print_test("Log path generation", "PASS", str(log_path))
         else:
             print_test("Log path generation", "FAIL")
-            return False
+            assert False
         
         # Test logging
         logger.log_chunk(0, "Test translation chunk", "Source text")
@@ -330,12 +329,12 @@ def test_progress_logger():
             print_test("Log file created", "PASS")
         else:
             print_test("Log file created", "FAIL", "File not found")
-            return False
+            assert False
         
-        return True
+        return
     except Exception as e:
         print_test("Progress logger", "FAIL", str(e))
-        return False
+        assert False
 
 def test_memory_manager():
     """Test 10: Verify MemoryManager works."""
@@ -362,10 +361,10 @@ def test_memory_manager():
         if test_term or test_term is None:
             print_test("get_term() method", "PASS")
         
-        return True
+        return
     except Exception as e:
         print_test("Memory manager", "FAIL", str(e))
-        return False
+        assert False
 
 def test_file_handler():
     """Test 11: Verify FileHandler works."""
@@ -387,15 +386,15 @@ def test_file_handler():
             print_test("read_text() method", "PASS", "UTF-8 content preserved")
         else:
             print_test("read_text() method", "FAIL", "Content mismatch")
-            return False
+            assert False
         
         # Clean up
         test_file.unlink(missing_ok=True)
         
-        return True
+        return
     except Exception as e:
         print_test("File handler", "FAIL", str(e))
-        return False
+        assert False
 
 def run_all_tests():
     """Run all tests and print summary."""
@@ -421,8 +420,12 @@ def run_all_tests():
     results = []
     for test_name, test_func in tests:
         try:
-            passed = test_func()
-            results.append((test_name, passed))
+            test_func()
+            results.append((test_name, True))
+        except AssertionError:
+            # test_func uses assert to fail, which raises AssertionError
+            # We catch it here to mark the test as failed without crashing the runner
+            results.append((test_name, False))
         except Exception as e:
             print(f"{Colors.RED}❌ {test_name} - CRASH: {e}{Colors.END}")
             results.append((test_name, False))

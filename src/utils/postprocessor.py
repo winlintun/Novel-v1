@@ -87,6 +87,9 @@ _INDIC_PATTERN = re.compile(
     r"\u0C00-\u0C7F\u0C80-\u0CFF\u0D00-\u0D7F\u0D80-\u0DFF]+"
 )
 
+# Korean Hangul characters — should not appear in Myanmar output
+_KOREAN_PATTERN = re.compile(r"[\uAC00-\uD7AF\u1100-\u11FF\u3000-\u303F]+")
+
 # Chinese characters — should not remain in translated output body
 _CHINESE_PATTERN = re.compile(r"[\u4E00-\u9FFF\u3400-\u4DBF]+")
 
@@ -254,6 +257,11 @@ def remove_bengali_characters(text: str) -> str:
 def remove_indic_characters(text: str) -> str:
     """Remove all Indic-script characters (Tamil, Telugu, Kannada, etc.) from text."""
     return _INDIC_PATTERN.sub("", text)
+
+
+def remove_korean_characters(text: str) -> str:
+    """Remove all Korean Hangul characters from text."""
+    return _KOREAN_PATTERN.sub("", text)
 
 
 def remove_latin_words(text: str) -> str:
@@ -735,6 +743,7 @@ def clean_output(raw: str, aggressive: bool = False) -> str:
     text = remove_chinese_characters(text)
     text = remove_bengali_characters(text)
     text = remove_indic_characters(text)
+    text = remove_korean_characters(text)
 
     # Only remove Latin words if aggressive mode
     if aggressive:

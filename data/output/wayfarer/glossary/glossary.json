@@ -1,0 +1,1680 @@
+﻿{
+  "version": "1.0",
+  "terms": [
+    {
+      "id": "term_001",
+      "source": "Xiao Nanfeng",
+      "target": "ရှောင်နန်ဖုန်း",
+      "category": "character",
+      "chapter_first_seen": 32,
+      "chapter_last_seen": 32,
+      "verified": true,
+      "added_at": "2026-05-05T08:45:51.748372",
+      "auto_approved": true
+    },
+    {
+      "id": "term_002",
+      "source": "Ye Dafu",
+      "target": "တံငါသည်",
+      "category": "character",
+      "chapter_first_seen": 32,
+      "chapter_last_seen": 32,
+      "verified": true,
+      "added_at": "2026-05-05T08:45:51.748755",
+      "auto_approved": true
+    },
+    {
+      "id": "term_003",
+      "source": "Taiqing Island",
+      "target": "ထိုင်ချင်းကျွန်း",
+      "category": "place",
+      "chapter_first_seen": 23,
+      "chapter_last_seen": 23,
+      "verified": true,
+      "added_at": "2026-05-05T08:45:51.751508",
+      "auto_approved": true
+    },
+    {
+      "id": "term_004",
+      "source": "Zhang Lingjun",
+      "target": "ကျန်းလင်ကျွန်း",
+      "category": "character",
+      "chapter_first_seen": 10,
+      "chapter_last_seen": 10,
+      "verified": true,
+      "added_at": "2026-05-05T08:45:51.752064",
+      "auto_approved": true
+    },
+    {
+      "id": "term_005",
+      "source": "Dong Lin",
+      "target": "တုန်းလင်း",
+      "category": "character",
+      "chapter_first_seen": 10,
+      "chapter_last_seen": 10,
+      "verified": true,
+      "added_at": "2026-05-05T08:45:51.752540",
+      "auto_approved": true
+    },
+    {
+      "id": "term_006",
+      "source": "Zhao Yuanjiao",
+      "target": "ကျောက်ယွမ်ကျောက်",
+      "category": "character",
+      "chapter_first_seen": 32,
+      "chapter_last_seen": 32,
+      "verified": true,
+      "added_at": "2026-05-05T08:45:51.753089",
+      "auto_approved": true
+    },
+    {
+      "id": "term_007",
+      "source": "Taiqing",
+      "target": "ထိုင်ချင်း",
+      "category": "place",
+      "chapter_first_seen": 27,
+      "chapter_last_seen": 27,
+      "verified": true,
+      "added_at": "2026-05-05T08:45:51.753595",
+      "auto_approved": true
+    },
+    {
+      "id": "term_008",
+      "source": "Nanfeng",
+      "target": "နန်ဖုန်း",
+      "category": "character",
+      "chapter_first_seen": 28,
+      "chapter_last_seen": 28,
+      "verified": true,
+      "added_at": "2026-05-05T08:45:51.754125",
+      "auto_approved": true
+    },
+    {
+      "id": "term_009",
+      "source": "Taiqing sect",
+      "target": "ထိုင်ချင်းဂိုဏ်း",
+      "category": "place",
+      "chapter_first_seen": 32,
+      "chapter_last_seen": 32,
+      "verified": true,
+      "added_at": "2026-05-05T08:45:51.754777",
+      "auto_approved": true
+    },
+    {
+      "id": "term_010",
+      "source": "Yu'er",
+      "target": "ယွီအာ",
+      "category": "character",
+      "chapter_first_seen": 32,
+      "chapter_last_seen": 32,
+      "verified": true,
+      "added_at": "2026-05-05T08:45:51.755329",
+      "auto_approved": true
+    },
+    {
+      "id": "term_011",
+      "source": "Tang",
+      "target": "ထန်",
+      "category": "character",
+      "chapter_first_seen": 27,
+      "chapter_last_seen": 27,
+      "verified": true,
+      "added_at": "2026-05-05T08:45:51.755828",
+      "auto_approved": true
+    },
+    {
+      "id": "term_012",
+      "source": "sect",
+      "target": "ဂိုဏ်း",
+      "category": "place",
+      "chapter_first_seen": 30,
+      "chapter_last_seen": 30,
+      "verified": true,
+      "added_at": "2026-05-05T08:45:51.756299",
+      "auto_approved": true
+    },
+    {
+      "id": "term_013",
+      "source": "Chen Hai",
+      "target": "ချန်ဟိုင်",
+      "category": "character",
+      "chapter_first_seen": 27,
+      "chapter_last_seen": 27,
+      "verified": true,
+      "added_at": "2026-05-05T08:45:51.756795",
+      "auto_approved": true
+    },
+    {
+      "id": "term_014",
+      "source": "Xiao manor",
+      "target": "ရှောင်အိမ်တော်",
+      "category": "place",
+      "chapter_first_seen": 1,
+      "chapter_last_seen": 1,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.259426"
+    },
+    {
+      "id": "term_015",
+      "source": "Inner courtyard",
+      "target": "အတွင်းဆောင်",
+      "category": "place",
+      "chapter_first_seen": 3,
+      "chapter_last_seen": 3,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.260261"
+    },
+    {
+      "id": "term_016",
+      "source": "Groom's attire",
+      "target": "သတို့သားဝတ်စုံ",
+      "category": "item",
+      "chapter_first_seen": 1,
+      "chapter_last_seen": 1,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.262942"
+    },
+    {
+      "id": "term_017",
+      "source": "Scroll",
+      "target": "စာလိပ်",
+      "category": "item",
+      "chapter_first_seen": 1,
+      "chapter_last_seen": 1,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.263706"
+    },
+    {
+      "id": "term_018",
+      "source": "Xiao clan",
+      "target": "ရှောင်မျိုးနွယ်",
+      "category": "place",
+      "chapter_first_seen": 1,
+      "chapter_last_seen": 1,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.264466"
+    },
+    {
+      "id": "term_019",
+      "source": "fifth stage of Acquisition",
+      "target": "ဟောက်ထျန် ပဉ္စမအဆင့်",
+      "category": "level",
+      "chapter_first_seen": 1,
+      "chapter_last_seen": 1,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.265065"
+    },
+    {
+      "id": "term_020",
+      "source": "cultivation techniques",
+      "target": "ကျင့်ကြံခြင်း နည်းစနစ်များ",
+      "category": "level",
+      "chapter_first_seen": 4,
+      "chapter_last_seen": 4,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.265671"
+    },
+    {
+      "id": "term_021",
+      "source": "Marquis",
+      "target": "မြို့စားမင်း",
+      "category": "character",
+      "chapter_first_seen": 1,
+      "chapter_last_seen": 1,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.266422"
+    },
+    {
+      "id": "term_022",
+      "source": "Blackie",
+      "target": "ဘလက်ဘီ",
+      "category": "item",
+      "chapter_first_seen": 2,
+      "chapter_last_seen": 2,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.267067"
+    },
+    {
+      "id": "term_023",
+      "source": "spiritbeast lair",
+      "target": "ဝိညာဉ်သားရဲတွင်း",
+      "category": "place",
+      "chapter_first_seen": 1,
+      "chapter_last_seen": 1,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.267888"
+    },
+    {
+      "id": "term_024",
+      "source": "Elder",
+      "target": "အကြီးအကဲ",
+      "category": "character",
+      "chapter_first_seen": 2,
+      "chapter_last_seen": 2,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.268618"
+    },
+    {
+      "id": "term_025",
+      "source": "Poison",
+      "target": "အဆိပ်",
+      "category": "item",
+      "chapter_first_seen": 2,
+      "chapter_last_seen": 2,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.269305"
+    },
+    {
+      "id": "term_026",
+      "source": "Scrolls",
+      "target": "စာလိပ်များ",
+      "category": "item",
+      "chapter_first_seen": 29,
+      "chapter_last_seen": 29,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.270030"
+    },
+    {
+      "id": "term_027",
+      "source": "Antidote",
+      "target": "ဖြေဆေး",
+      "category": "item",
+      "chapter_first_seen": 1,
+      "chapter_last_seen": 1,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.273009"
+    },
+    {
+      "id": "term_028",
+      "source": "Young Master",
+      "target": "လူငယ်သခင်",
+      "category": "character",
+      "chapter_first_seen": 3,
+      "chapter_last_seen": 3,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.273805"
+    },
+    {
+      "id": "term_029",
+      "source": "Dagger",
+      "target": "ဓားမြှောင်",
+      "category": "item",
+      "chapter_first_seen": 2,
+      "chapter_last_seen": 2,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.274562"
+    },
+    {
+      "id": "term_030",
+      "source": "Spiritual Power",
+      "target": "ဝိညာဉ်စွမ်းအား",
+      "category": "level",
+      "chapter_first_seen": 31,
+      "chapter_last_seen": 31,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.275432"
+    },
+    {
+      "id": "term_031",
+      "source": "Spiritual Suppression",
+      "target": "ဝိညာဉ်ဖိနှိပ်မှု",
+      "category": "level",
+      "chapter_first_seen": 2,
+      "chapter_last_seen": 2,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.276310"
+    },
+    {
+      "id": "term_032",
+      "source": "Chief Steward",
+      "target": "အိမ်တော်ထိန်းချုပ်",
+      "category": "character",
+      "chapter_first_seen": 3,
+      "chapter_last_seen": 3,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.277250"
+    },
+    {
+      "id": "term_033",
+      "source": "Body Double",
+      "target": "ကိုယ်ပွား",
+      "category": "item",
+      "chapter_first_seen": 2,
+      "chapter_last_seen": 2,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.278263"
+    },
+    {
+      "id": "term_034",
+      "source": "Study",
+      "target": "စာကြည့်ဆောင်",
+      "category": "place",
+      "chapter_first_seen": 2,
+      "chapter_last_seen": 2,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.279235"
+    },
+    {
+      "id": "term_035",
+      "source": "Manor",
+      "target": "အိမ်တော်",
+      "category": "place",
+      "chapter_first_seen": 3,
+      "chapter_last_seen": 3,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.280092"
+    },
+    {
+      "id": "term_036",
+      "source": "Spiritual Cultivation Manual",
+      "target": "ဝိညာဉ်ကျင့်ကြံခြင်း ကျမ်းစာ",
+      "category": "item",
+      "chapter_first_seen": 3,
+      "chapter_last_seen": 3,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.280911"
+    },
+    {
+      "id": "term_037",
+      "source": "Technique",
+      "target": "နည်းစနစ်",
+      "category": "level",
+      "chapter_first_seen": 6,
+      "chapter_last_seen": 6,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.281821"
+    },
+    {
+      "id": "term_038",
+      "source": "Tianshu Empire",
+      "target": "ထျန်ရှူ အင်ပါယာ",
+      "category": "place",
+      "chapter_first_seen": 7,
+      "chapter_last_seen": 7,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.282901"
+    },
+    {
+      "id": "term_039",
+      "source": "Immortal sect",
+      "target": "ထာဝရရှင်သန်ခြင်းဂိုဏ်း",
+      "category": "place",
+      "chapter_first_seen": 13,
+      "chapter_last_seen": 13,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.283761"
+    },
+    {
+      "id": "term_040",
+      "source": "Taiqing Immortal Sect",
+      "target": "ထိုင်ချင်း ထာဝရရှင်သန်ခြင်းဂိုဏ်း",
+      "category": "place",
+      "chapter_first_seen": 28,
+      "chapter_last_seen": 28,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.284559"
+    },
+    {
+      "id": "term_041",
+      "source": "Tael of gold",
+      "target": "ရွှေတစ်တျန်",
+      "category": "item",
+      "chapter_first_seen": 4,
+      "chapter_last_seen": 4,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.285604"
+    },
+    {
+      "id": "term_042",
+      "source": "Taoist scriptures",
+      "target": "တာအိုကျမ်းစာများ",
+      "category": "item",
+      "chapter_first_seen": 31,
+      "chapter_last_seen": 31,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.286732"
+    },
+    {
+      "id": "term_043",
+      "source": "Cultivation",
+      "target": "ကျင့်ကြံခြင်း",
+      "category": "level",
+      "chapter_first_seen": 31,
+      "chapter_last_seen": 31,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.287933"
+    },
+    {
+      "id": "term_044",
+      "source": "Immanence",
+      "target": "ရှန်းထျန်",
+      "category": "level",
+      "chapter_first_seen": 9,
+      "chapter_last_seen": 9,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.288942"
+    },
+    {
+      "id": "term_045",
+      "source": "wooden token",
+      "target": "သစ်သားအမိန့်ပြား",
+      "category": "item",
+      "chapter_first_seen": 5,
+      "chapter_last_seen": 5,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.290160"
+    },
+    {
+      "id": "term_046",
+      "source": "taels of gold",
+      "target": "ရွှေတန်",
+      "category": "item",
+      "chapter_first_seen": 29,
+      "chapter_last_seen": 29,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.291137"
+    },
+    {
+      "id": "term_047",
+      "source": "Ye clan",
+      "target": "ယဲ့မျိုးနွယ်",
+      "category": "place",
+      "chapter_first_seen": 9,
+      "chapter_last_seen": 9,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.292287"
+    },
+    {
+      "id": "term_048",
+      "source": "qualification token",
+      "target": "အရည်အချင်းစစ် အမိန့်ပြား",
+      "category": "item",
+      "chapter_first_seen": 5,
+      "chapter_last_seen": 5,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.293374"
+    },
+    {
+      "id": "term_049",
+      "source": "Acquisition-stage",
+      "target": "ဟောက်ထျန်အဆင့်",
+      "category": "level",
+      "chapter_first_seen": 5,
+      "chapter_last_seen": 5,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.294643"
+    },
+    {
+      "id": "term_050",
+      "source": "fifth stage",
+      "target": "ပဉ္စမအဆင့်",
+      "category": "level",
+      "chapter_first_seen": 5,
+      "chapter_last_seen": 5,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.295725"
+    },
+    {
+      "id": "term_051",
+      "source": "Golden eel",
+      "target": "ရွှေရောင်မြွေငါး",
+      "category": "item",
+      "chapter_first_seen": 29,
+      "chapter_last_seen": 29,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.297021"
+    },
+    {
+      "id": "term_052",
+      "source": "Spirit eel",
+      "target": "ဝိညာဉ်ငါး",
+      "category": "item",
+      "chapter_first_seen": 6,
+      "chapter_last_seen": 6,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.298161"
+    },
+    {
+      "id": "term_053",
+      "source": "Spiritual energy",
+      "target": "ဝိညာဉ်စွမ်းအင်",
+      "category": "energy",
+      "chapter_first_seen": 7,
+      "chapter_last_seen": 7,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.299372"
+    },
+    {
+      "id": "term_054",
+      "source": "Sledgehammer",
+      "target": "သံတူကြီး",
+      "category": "item",
+      "chapter_first_seen": 6,
+      "chapter_last_seen": 6,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.300467"
+    },
+    {
+      "id": "term_055",
+      "source": "Taels",
+      "target": "တျန်",
+      "category": "item",
+      "chapter_first_seen": 29,
+      "chapter_last_seen": 29,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.301537"
+    },
+    {
+      "id": "term_056",
+      "source": "Third-floor restaurant",
+      "target": "တတိယထပ် စားသောက်ဆိုင်",
+      "category": "place",
+      "chapter_first_seen": 6,
+      "chapter_last_seen": 6,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.302890"
+    },
+    {
+      "id": "term_057",
+      "source": "spirit fish",
+      "target": "ဝိညာဉ်ငါး",
+      "category": "item",
+      "chapter_first_seen": 7,
+      "chapter_last_seen": 7,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.304258"
+    },
+    {
+      "id": "term_058",
+      "source": "fifth-stage Acquisition",
+      "target": "ဟောက်ထျန် ပဉ္စမအဆင့်",
+      "category": "level",
+      "chapter_first_seen": 7,
+      "chapter_last_seen": 7,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.305284"
+    },
+    {
+      "id": "term_059",
+      "source": "Yin pearl",
+      "target": "ယင်ပုလဲ",
+      "category": "item",
+      "chapter_first_seen": 28,
+      "chapter_last_seen": 28,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.306425"
+    },
+    {
+      "id": "term_060",
+      "source": "Yin body",
+      "target": "ယင်ကိုယ်ခန္ဓာ",
+      "category": "level",
+      "chapter_first_seen": 9,
+      "chapter_last_seen": 9,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.307892"
+    },
+    {
+      "id": "term_061",
+      "source": "Spiritual matter",
+      "target": "ဝိညာဉ်ပစ္စည်း",
+      "category": "level",
+      "chapter_first_seen": 8,
+      "chapter_last_seen": 8,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.309425"
+    },
+    {
+      "id": "term_062",
+      "source": "Soulspace",
+      "target": "ဝိညာဉ်နယ်ပယ်",
+      "category": "place",
+      "chapter_first_seen": 28,
+      "chapter_last_seen": 28,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.310940"
+    },
+    {
+      "id": "term_063",
+      "source": "Host",
+      "target": "အိမ်ရှင်",
+      "category": "item",
+      "chapter_first_seen": 9,
+      "chapter_last_seen": 9,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.312107"
+    },
+    {
+      "id": "term_064",
+      "source": "Cultivator",
+      "target": "ကျင့်ကြံသူ",
+      "category": "level",
+      "chapter_first_seen": 9,
+      "chapter_last_seen": 9,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.313415"
+    },
+    {
+      "id": "term_065",
+      "source": "Body of Yin",
+      "target": "ယင်ကိုယ်ခန္ဓာ",
+      "category": "item",
+      "chapter_first_seen": 9,
+      "chapter_last_seen": 9,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.314950"
+    },
+    {
+      "id": "term_066",
+      "source": "Superior Yin Pearl",
+      "target": "မြင့်မြတ်သော ယင်ပုလဲ",
+      "category": "item",
+      "chapter_first_seen": 9,
+      "chapter_last_seen": 9,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.316122"
+    },
+    {
+      "id": "term_067",
+      "source": "pearl",
+      "target": "ပုလဲ",
+      "category": "item",
+      "chapter_first_seen": 9,
+      "chapter_last_seen": 9,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.317300"
+    },
+    {
+      "id": "term_068",
+      "source": "superior yin",
+      "target": "မြင့်မြတ်သော ယင်",
+      "category": "level",
+      "chapter_first_seen": 9,
+      "chapter_last_seen": 9,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.318853"
+    },
+    {
+      "id": "term_069",
+      "source": "qi",
+      "target": "ချီ",
+      "category": "energy",
+      "chapter_first_seen": 31,
+      "chapter_last_seen": 31,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.319867"
+    },
+    {
+      "id": "term_070",
+      "source": "Xiao estate",
+      "target": "ရှောင်အိမ်တော်",
+      "category": "place",
+      "chapter_first_seen": 10,
+      "chapter_last_seen": 10,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.321004"
+    },
+    {
+      "id": "term_071",
+      "source": "Demonic sect",
+      "target": "နတ်ဆိုးဂိုဏ်း",
+      "category": "group",
+      "chapter_first_seen": 25,
+      "chapter_last_seen": 25,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.322630"
+    },
+    {
+      "id": "term_072",
+      "source": "Hall of Immortal Recruitment",
+      "target": "ထာဝရရှင်သန်သူများ ခေါ်ယူရေး ခန်းမ",
+      "category": "place",
+      "chapter_first_seen": 15,
+      "chapter_last_seen": 15,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.323743"
+    },
+    {
+      "id": "term_073",
+      "source": "Ascended Senior Brother",
+      "target": "အတွင်းစည်း အစ်ကိုကြီး",
+      "category": "title",
+      "chapter_first_seen": 12,
+      "chapter_last_seen": 12,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.325050"
+    },
+    {
+      "id": "term_074",
+      "source": "Acquisition",
+      "target": "ဟောက်ထျန်",
+      "category": "level",
+      "chapter_first_seen": 32,
+      "chapter_last_seen": 32,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.326420"
+    },
+    {
+      "id": "term_075",
+      "source": "Mortal division",
+      "target": "သာမန်တပည့်ဌာန",
+      "category": "level",
+      "chapter_first_seen": 21,
+      "chapter_last_seen": 21,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.328206"
+    },
+    {
+      "id": "term_076",
+      "source": "techniques",
+      "target": "နည်းစနစ်များ",
+      "category": "cultivation",
+      "chapter_first_seen": 31,
+      "chapter_last_seen": 31,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.329796"
+    },
+    {
+      "id": "term_077",
+      "source": "disciples",
+      "target": "တပည့်များ",
+      "category": "level",
+      "chapter_first_seen": 21,
+      "chapter_last_seen": 21,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.331173"
+    },
+    {
+      "id": "term_078",
+      "source": "nature",
+      "target": "သဘာဝ",
+      "category": "level",
+      "chapter_first_seen": 13,
+      "chapter_last_seen": 13,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.332329"
+    },
+    {
+      "id": "term_079",
+      "source": "will",
+      "target": "ဆန္ဒ",
+      "category": "level",
+      "chapter_first_seen": 13,
+      "chapter_last_seen": 13,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.333517"
+    },
+    {
+      "id": "term_080",
+      "source": "illusory realm",
+      "target": "ပုံရိပ်ယောင်နယ်ပယ်",
+      "category": "item",
+      "chapter_first_seen": 26,
+      "chapter_last_seen": 26,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.335163"
+    },
+    {
+      "id": "term_081",
+      "source": "Elder Ku",
+      "target": "အကြီးအကဲ ခု",
+      "category": "character",
+      "chapter_first_seen": 32,
+      "chapter_last_seen": 32,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.336789"
+    },
+    {
+      "id": "term_082",
+      "source": "master",
+      "target": "ဆရာ",
+      "category": "level",
+      "chapter_first_seen": 27,
+      "chapter_last_seen": 27,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.337912"
+    },
+    {
+      "id": "term_083",
+      "source": "Trial",
+      "target": "စမ်းသပ်မှု",
+      "category": "level",
+      "chapter_first_seen": 14,
+      "chapter_last_seen": 14,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.339481"
+    },
+    {
+      "id": "term_084",
+      "source": "third trial",
+      "target": "တတိယမြောက် စမ်းသပ်မှု",
+      "category": "item",
+      "chapter_first_seen": 15,
+      "chapter_last_seen": 15,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.341015"
+    },
+    {
+      "id": "term_085",
+      "source": "guqin",
+      "target": "ဂူချင်",
+      "category": "item",
+      "chapter_first_seen": 32,
+      "chapter_last_seen": 32,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.342321"
+    },
+    {
+      "id": "term_086",
+      "source": "sixth stage of Acquisition",
+      "target": "ဟောက်ထျန် ဆဋ္ဌမအဆင့်",
+      "category": "level",
+      "chapter_first_seen": 19,
+      "chapter_last_seen": 19,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.343889"
+    },
+    {
+      "id": "term_087",
+      "source": "Immanence cultivator",
+      "target": "အင်မော်တယ် ကျင့်ကြံသူ",
+      "category": "level",
+      "chapter_first_seen": 15,
+      "chapter_last_seen": 15,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.345673"
+    },
+    {
+      "id": "term_088",
+      "source": "Illusion",
+      "target": "ပုံရိပ်ယောင်",
+      "category": "level",
+      "chapter_first_seen": 15,
+      "chapter_last_seen": 15,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.347443"
+    },
+    {
+      "id": "term_089",
+      "source": "Disciple",
+      "target": "တပည့်",
+      "category": "level",
+      "chapter_first_seen": 19,
+      "chapter_last_seen": 19,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.348895"
+    },
+    {
+      "id": "term_090",
+      "source": "Cursed Effigy",
+      "target": "ကျိန်စာသင့် ရုပ်တု",
+      "category": "item",
+      "chapter_first_seen": 32,
+      "chapter_last_seen": 32,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.350823"
+    },
+    {
+      "id": "term_091",
+      "source": "Cliff of Meditation",
+      "target": "တရားထိုင်ရာ ချောက်ကမ်းပါး",
+      "category": "place",
+      "chapter_first_seen": 32,
+      "chapter_last_seen": 32,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.352336"
+    },
+    {
+      "id": "term_092",
+      "source": "\"Marching Fist\"",
+      "target": "\"စစ်ချီလက်သီး\"",
+      "category": "technique",
+      "chapter_first_seen": 19,
+      "chapter_last_seen": 19,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.354259"
+    },
+    {
+      "id": "term_093",
+      "source": "Sage Shan'sDiscourse on Inimical Behavior",
+      "target": "ပညာရှိရှန်၏ ဆန့်ကျင်သော အပြုအမူဆိုင်ရာ ဆွေးနွေးချက်",
+      "category": "item",
+      "chapter_first_seen": 19,
+      "chapter_last_seen": 19,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.355460"
+    },
+    {
+      "id": "term_094",
+      "source": "Marching Fist",
+      "target": "စစ်ချီလက်သီး",
+      "category": "technique",
+      "chapter_first_seen": 20,
+      "chapter_last_seen": 20,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.357377"
+    },
+    {
+      "id": "term_095",
+      "source": "Martial Sage Wei'sTreatise of the Fist",
+      "target": "သိုင်းပညာရှိဝေ့၏ လက်သီးကျမ်း",
+      "category": "item",
+      "chapter_first_seen": 19,
+      "chapter_last_seen": 19,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.358828"
+    },
+    {
+      "id": "term_096",
+      "source": "yin and yang",
+      "target": "ယင်နှင့်ယန်",
+      "category": "energy",
+      "chapter_first_seen": 19,
+      "chapter_last_seen": 19,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.360722"
+    },
+    {
+      "id": "term_097",
+      "source": "yang technique",
+      "target": "ယန်နည်းစနစ်",
+      "category": "technique",
+      "chapter_first_seen": 19,
+      "chapter_last_seen": 19,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.362744"
+    },
+    {
+      "id": "term_098",
+      "source": "Five-Venom Penetrating Palm!",
+      "target": "အဆိပ်ငါးပါး ထိုးဖောက်ခြင်း လက်ဝါး!",
+      "category": "technique",
+      "chapter_first_seen": 19,
+      "chapter_last_seen": 19,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.364460"
+    },
+    {
+      "id": "term_099",
+      "source": "Five-Venom Penetrating Palm",
+      "target": "အဆိပ်ငါးပါး ထိုးဖောက်ခြင်း လက်ဝါး",
+      "category": "technique",
+      "chapter_first_seen": 20,
+      "chapter_last_seen": 20,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.366695"
+    },
+    {
+      "id": "term_100",
+      "source": "yin",
+      "target": "ယင်း",
+      "category": "energy_type",
+      "chapter_first_seen": 20,
+      "chapter_last_seen": 20,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.368650"
+    },
+    {
+      "id": "term_101",
+      "source": "Rites of Dawn",
+      "target": "မနက်ခင်း၏ဓလေ့များ",
+      "category": "technique",
+      "chapter_first_seen": 20,
+      "chapter_last_seen": 20,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.370757"
+    },
+    {
+      "id": "term_102",
+      "source": "sixth stage of cultivation",
+      "target": "ကျင့်ကြံခြင်း ဆဋ္ဌမအဆင့်",
+      "category": "level",
+      "chapter_first_seen": 20,
+      "chapter_last_seen": 20,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.373698"
+    },
+    {
+      "id": "term_103",
+      "source": "spiritual aether",
+      "target": "ဝိညာဉ်ချီစွမ်းအင်",
+      "category": "energy_type",
+      "chapter_first_seen": 32,
+      "chapter_last_seen": 32,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.376285"
+    },
+    {
+      "id": "term_104",
+      "source": "yang",
+      "target": "ယန်",
+      "category": "energy_type",
+      "chapter_first_seen": 20,
+      "chapter_last_seen": 20,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.377738"
+    },
+    {
+      "id": "term_105",
+      "source": "Martial Sage Wu's Temporal Ode",
+      "target": "သိုင်းပညာရှိဝူ၏ အချိန်အခါကဗျာ",
+      "category": "scripture",
+      "chapter_first_seen": 20,
+      "chapter_last_seen": 20,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.379382"
+    },
+    {
+      "id": "term_106",
+      "source": "Sage Shan's Record of Three Breaths",
+      "target": "ပညာရှိရှန်း၏ ထွက်သက်ဝင်သက်သုံးကြိမ် မှတ်တမ်း",
+      "category": "scripture",
+      "chapter_first_seen": 20,
+      "chapter_last_seen": 20,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.380943"
+    },
+    {
+      "id": "term_107",
+      "source": "Taoist Wushan's Meditations on Meditation",
+      "target": "တာအိုဆရာဝူရှန်း၏ တရားထိုင်ခြင်းဆိုင်ရာ လေ့လာချက်",
+      "category": "scripture",
+      "chapter_first_seen": 20,
+      "chapter_last_seen": 20,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.383226"
+    },
+    {
+      "id": "term_108",
+      "source": "dantian",
+      "target": "ဒန်ထျန်",
+      "category": "cultivation_concept",
+      "chapter_first_seen": 20,
+      "chapter_last_seen": 20,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.385242"
+    },
+    {
+      "id": "term_109",
+      "source": "Senior Sister Yu'er",
+      "target": "ဂိုဏ်းတူအစ်မ ယူအာ",
+      "category": "character",
+      "chapter_first_seen": 29,
+      "chapter_last_seen": 29,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.387581"
+    },
+    {
+      "id": "term_110",
+      "source": "Golden Spirit Eels",
+      "target": "ရွှေဝိညာဉ်ငါး",
+      "category": "item",
+      "chapter_first_seen": 21,
+      "chapter_last_seen": 21,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.391296"
+    },
+    {
+      "id": "term_111",
+      "source": "Pure Yang Food",
+      "target": "သန့်စင်သော ယန်အစားအစာ",
+      "category": "cultivation",
+      "chapter_first_seen": 21,
+      "chapter_last_seen": 21,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.395392"
+    },
+    {
+      "id": "term_112",
+      "source": "Nominal Disciple",
+      "target": "အမည်ခံတပည့်",
+      "category": "level",
+      "chapter_first_seen": 21,
+      "chapter_last_seen": 21,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.397769"
+    },
+    {
+      "id": "term_113",
+      "source": "Xiao Hongye",
+      "target": "ရှောင်ဟုန်ယဲ့",
+      "category": "character",
+      "chapter_first_seen": 21,
+      "chapter_last_seen": 21,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.400096"
+    },
+    {
+      "id": "term_114",
+      "source": "pure yang",
+      "target": "သန့်စင်သော ယန်",
+      "category": "energy",
+      "chapter_first_seen": 21,
+      "chapter_last_seen": 21,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.402594"
+    },
+    {
+      "id": "term_115",
+      "source": "harbor",
+      "target": "ဆိပ်ကမ်း",
+      "category": "place",
+      "chapter_first_seen": 23,
+      "chapter_last_seen": 23,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.404333"
+    },
+    {
+      "id": "term_116",
+      "source": "spiritbeast meat",
+      "target": "ဝိညာဉ်သားရဲအသား",
+      "category": "item",
+      "chapter_first_seen": 23,
+      "chapter_last_seen": 23,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.406702"
+    },
+    {
+      "id": "term_117",
+      "source": "spirit-infused alcohol",
+      "target": "ဝိညာဉ်စွမ်းအင်ပါသော အရက်",
+      "category": "item",
+      "chapter_first_seen": 23,
+      "chapter_last_seen": 23,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.408752"
+    },
+    {
+      "id": "term_118",
+      "source": "flask",
+      "target": "အရက်ဘူး",
+      "category": "item",
+      "chapter_first_seen": 23,
+      "chapter_last_seen": 23,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.410555"
+    },
+    {
+      "id": "term_119",
+      "source": "arrays",
+      "target": "အစီအရင်များ",
+      "category": "level",
+      "chapter_first_seen": 23,
+      "chapter_last_seen": 23,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.413085"
+    },
+    {
+      "id": "term_120",
+      "source": "Hall",
+      "target": "ခန်းမ",
+      "category": "place",
+      "chapter_first_seen": 31,
+      "chapter_last_seen": 31,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.414792"
+    },
+    {
+      "id": "term_121",
+      "source": "Recruitment Test",
+      "target": "ဂိုဏ်းဝင်ရွေးချယ်ရေး စမ်းသပ်မှု",
+      "category": "term",
+      "chapter_first_seen": 25,
+      "chapter_last_seen": 25,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.416866"
+    },
+    {
+      "id": "term_122",
+      "source": "pill of false death",
+      "target": "အတုအယောင် သေဆေး",
+      "category": "item",
+      "chapter_first_seen": 25,
+      "chapter_last_seen": 25,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.419555"
+    },
+    {
+      "id": "term_123",
+      "source": "dark demon",
+      "target": "အမှောင်မိစ္ဆ",
+      "category": "creature",
+      "chapter_first_seen": 25,
+      "chapter_last_seen": 25,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.421843"
+    },
+    {
+      "id": "term_124",
+      "source": "Senior Brother",
+      "target": "ဂိုဏ်းတူအစ်ကိုကြီး",
+      "category": "title",
+      "chapter_first_seen": 25,
+      "chapter_last_seen": 25,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.424211"
+    },
+    {
+      "id": "term_125",
+      "source": "Suicide Pill",
+      "target": "မိမိကိုယ်ကိုသတ်သေသောဆေး",
+      "category": "item",
+      "chapter_first_seen": 25,
+      "chapter_last_seen": 25,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.426445"
+    },
+    {
+      "id": "term_126",
+      "source": "Secluded Cultivation",
+      "target": "တံခါးပိတ်ကျင့်ကြံခြင်း",
+      "category": "level",
+      "chapter_first_seen": 27,
+      "chapter_last_seen": 27,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.428777"
+    },
+    {
+      "id": "term_127",
+      "source": "eighth stage of Acquisition",
+      "target": "ဟောက်ထျန် အဋ္ဌမအဆင့်",
+      "category": "level",
+      "chapter_first_seen": 26,
+      "chapter_last_seen": 26,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.430985"
+    },
+    {
+      "id": "term_128",
+      "source": "Hegemon's Fist",
+      "target": "အရှင်သခင်၏ လက်သီး",
+      "category": "item",
+      "chapter_first_seen": 31,
+      "chapter_last_seen": 31,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.433543"
+    },
+    {
+      "id": "term_129",
+      "source": "Ma Shan",
+      "target": "မားရှန်",
+      "category": "character",
+      "chapter_first_seen": 27,
+      "chapter_last_seen": 27,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.435732"
+    },
+    {
+      "id": "term_130",
+      "source": "Ascended token",
+      "target": "အတွင်းစည်းအမိန့်ပြား",
+      "category": "item",
+      "chapter_first_seen": 27,
+      "chapter_last_seen": 27,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.438831"
+    },
+    {
+      "id": "term_131",
+      "source": "Senior Brother...",
+      "target": "ဂိုဏ်းတူအစ်ကိုကြီး...",
+      "category": "character",
+      "chapter_first_seen": 27,
+      "chapter_last_seen": 27,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.441338"
+    },
+    {
+      "id": "term_132",
+      "source": "Zhao Yuan",
+      "target": "ကျောက်ယွမ်",
+      "category": "character",
+      "chapter_first_seen": 27,
+      "chapter_last_seen": 27,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.443996"
+    },
+    {
+      "id": "term_133",
+      "source": "pill",
+      "target": "ဆေးလုံး",
+      "category": "item",
+      "chapter_first_seen": 27,
+      "chapter_last_seen": 27,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.446086"
+    },
+    {
+      "id": "term_134",
+      "source": "Ascended division",
+      "target": "အတွင်းစည်းတပည့်ဌာန",
+      "category": "level",
+      "chapter_first_seen": 27,
+      "chapter_last_seen": 27,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.448837"
+    },
+    {
+      "id": "term_135",
+      "source": "cell",
+      "target": "အကျဉ်းခန်း",
+      "category": "place",
+      "chapter_first_seen": 27,
+      "chapter_last_seen": 27,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.451060"
+    },
+    {
+      "id": "term_136",
+      "source": "meditation",
+      "target": "တရားထိုင်ခြင်း",
+      "category": "cultivation",
+      "chapter_first_seen": 31,
+      "chapter_last_seen": 31,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.454076"
+    },
+    {
+      "id": "term_137",
+      "source": "energy",
+      "target": "စွမ်းအင်",
+      "category": "cultivation",
+      "chapter_first_seen": 27,
+      "chapter_last_seen": 27,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.456167"
+    },
+    {
+      "id": "term_138",
+      "source": "Ji Shiyu",
+      "target": "ကျီရှီယွီ",
+      "category": "character",
+      "chapter_first_seen": 28,
+      "chapter_last_seen": 28,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.458285"
+    },
+    {
+      "id": "term_139",
+      "source": "five scriptures",
+      "target": "ကျမ်းငါးကျမ်း",
+      "category": "item",
+      "chapter_first_seen": 29,
+      "chapter_last_seen": 29,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.460960"
+    },
+    {
+      "id": "term_140",
+      "source": "fist technique",
+      "target": "လက်သီးနည်းစနစ်",
+      "category": "level",
+      "chapter_first_seen": 29,
+      "chapter_last_seen": 29,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.463654"
+    },
+    {
+      "id": "term_141",
+      "source": "horned golden eel",
+      "target": "ဦးချိုပါသော ရွှေငါး",
+      "category": "item",
+      "chapter_first_seen": 29,
+      "chapter_last_seen": 29,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.467069"
+    },
+    {
+      "id": "term_142",
+      "source": "Cultivators",
+      "target": "ကျင့်ကြံသူများ",
+      "category": "level",
+      "chapter_first_seen": 29,
+      "chapter_last_seen": 29,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.470362"
+    },
+    {
+      "id": "term_143",
+      "source": "aura",
+      "target": "အရှိန်အဝါ",
+      "category": "level",
+      "chapter_first_seen": 29,
+      "chapter_last_seen": 29,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.472510"
+    },
+    {
+      "id": "term_144",
+      "source": "broken through",
+      "target": "အဆင့်တက်ခြင်း",
+      "category": "level",
+      "chapter_first_seen": 29,
+      "chapter_last_seen": 29,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.475188"
+    },
+    {
+      "id": "term_145",
+      "source": "seventh stage of Acquisition",
+      "target": "ဟောက်ထျန် သတ္တမအဆင့်",
+      "category": "level",
+      "chapter_first_seen": 29,
+      "chapter_last_seen": 29,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.478179"
+    },
+    {
+      "id": "term_146",
+      "source": "Senior Brother Ye",
+      "target": "ဂိုဏ်းတူအစ်ကိုကြီး ယီ",
+      "category": "character",
+      "chapter_first_seen": 29,
+      "chapter_last_seen": 29,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.480984"
+    },
+    {
+      "id": "term_147",
+      "source": "scriptures",
+      "target": "ကျမ်းစာများ",
+      "category": "item",
+      "chapter_first_seen": 32,
+      "chapter_last_seen": 32,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.483545"
+    },
+    {
+      "id": "term_148",
+      "source": "mountain valley",
+      "target": "တောင်ကြားချိုင့်ဝှမ်း",
+      "category": "place",
+      "chapter_first_seen": 30,
+      "chapter_last_seen": 30,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.486481"
+    },
+    {
+      "id": "term_149",
+      "source": "fishing pole",
+      "target": "ငါးမျှားတံ",
+      "category": "item",
+      "chapter_first_seen": 30,
+      "chapter_last_seen": 30,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.488862"
+    },
+    {
+      "id": "term_150",
+      "source": "Rocks",
+      "target": "ကျောက်တုံးများ",
+      "category": "item",
+      "chapter_first_seen": 30,
+      "chapter_last_seen": 30,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.491739"
+    },
+    {
+      "id": "term_151",
+      "source": "anfeng's bedroom",
+      "target": "နန်ဖုန်း၏ အိပ်ခန်း",
+      "category": "place",
+      "chapter_first_seen": 30,
+      "chapter_last_seen": 30,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.494891"
+    },
+    {
+      "id": "term_152",
+      "source": "Junior Brother Nanfeng",
+      "target": "ဂိုဏ်းတူညီငယ် နန်ဖုန်း",
+      "category": "character",
+      "chapter_first_seen": 30,
+      "chapter_last_seen": 30,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.497683"
+    },
+    {
+      "id": "term_153",
+      "source": "Senior Brother Nanfeng",
+      "target": "ဂိုဏ်းတူအစ်ကိုကြီး နန်ဖုန်း",
+      "category": "character",
+      "chapter_first_seen": 30,
+      "chapter_last_seen": 30,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.499959"
+    },
+    {
+      "id": "term_154",
+      "source": "The Vault of Scriptures",
+      "target": "ကျမ်းစာတိုက်",
+      "category": "place",
+      "chapter_first_seen": 30,
+      "chapter_last_seen": 30,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.502926"
+    },
+    {
+      "id": "term_155",
+      "source": "Madam Rouge",
+      "target": "မဒမ်ရူဂျ်",
+      "category": "character",
+      "chapter_first_seen": 32,
+      "chapter_last_seen": 32,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.505232"
+    },
+    {
+      "id": "term_156",
+      "source": "realm",
+      "target": "နယ်ပယ်",
+      "category": "place",
+      "chapter_first_seen": 31,
+      "chapter_last_seen": 31,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.507235"
+    },
+    {
+      "id": "term_157",
+      "source": "dreamscape",
+      "target": "အိပ်မက်နယ်ပယ်",
+      "category": "place",
+      "chapter_first_seen": 31,
+      "chapter_last_seen": 31,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.510316"
+    },
+    {
+      "id": "term_158",
+      "source": "soul",
+      "target": "ဝိညာဉ်",
+      "category": "item",
+      "chapter_first_seen": 31,
+      "chapter_last_seen": 31,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.512351"
+    },
+    {
+      "id": "term_159",
+      "source": "dawn qi",
+      "target": "မိုးသောက်ချီ",
+      "category": "item",
+      "chapter_first_seen": 31,
+      "chapter_last_seen": 31,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.515196"
+    },
+    {
+      "id": "term_160",
+      "source": "Pure yang qi",
+      "target": "သန့်စင်သော ယန်ချီ",
+      "category": "cultivation",
+      "chapter_first_seen": 31,
+      "chapter_last_seen": 31,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.518279"
+    },
+    {
+      "id": "term_161",
+      "source": "Recitation",
+      "target": "ရွတ်ဆိုခြင်း",
+      "category": "cultivation",
+      "chapter_first_seen": 31,
+      "chapter_last_seen": 31,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.521488"
+    },
+    {
+      "id": "term_162",
+      "source": "enforcement disciples",
+      "target": "စည်းကမ်းထိန်းသိမ်းရေး တပည့်များ",
+      "category": "character",
+      "chapter_first_seen": 32,
+      "chapter_last_seen": 32,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.524056"
+    },
+    {
+      "id": "term_163",
+      "source": "fines",
+      "target": "ဒဏ်ကြေးများ",
+      "category": "item",
+      "chapter_first_seen": 32,
+      "chapter_last_seen": 32,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.527110"
+    },
+    {
+      "id": "term_164",
+      "source": "Melodic Cultivation",
+      "target": "တေးဂီတကျင့်ကြံခြင်း",
+      "category": "technique",
+      "chapter_first_seen": 32,
+      "chapter_last_seen": 32,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.530364"
+    },
+    {
+      "id": "term_165",
+      "source": "Demonic Lifeforms",
+      "target": "မိစ္ဆာသက်ရှိများ",
+      "category": "item",
+      "chapter_first_seen": 32,
+      "chapter_last_seen": 32,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.533498"
+    },
+    {
+      "id": "term_166",
+      "source": "Flute",
+      "target": "ပုလွေ",
+      "category": "item",
+      "chapter_first_seen": 32,
+      "chapter_last_seen": 32,
+      "verified": false,
+      "added_at": "2026-05-05T08:50:35.535512"
+    }
+  ],
+  "total_terms": 166,
+  "last_updated": "2026-05-05T08:50:35.535516"
+}
