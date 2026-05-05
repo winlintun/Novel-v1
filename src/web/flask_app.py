@@ -45,6 +45,133 @@ app.config['CONFIG_PATH'] = 'config/settings.yaml'
 # Helper Functions
 # ─────────────────────────────────────────────────────────────
 
+# Model recommendations based on AGENTS.md
+MODEL_RECOMMENDATIONS = {
+    # Myanmar translation models (EN→MM or CN→MM)
+    "padauk-gemma:q8_0": {
+        "temp": 0.2,
+        "use_case": "EN→MM, CN→MM",
+        "description": "Best Myanmar output (recommended)",
+        "category": "myanmar"
+    },
+    "padauk-gemma:q4_0": {
+        "temp": 0.2,
+        "use_case": "EN→MM, CN→MM",
+        "description": "Smaller version of padauk-gemma",
+        "category": "myanmar"
+    },
+    "sailor2-20b": {
+        "temp": 0.35,
+        "use_case": "EN→MM, CN→MM",
+        "description": "Alternative Myanmar model (20B)",
+        "category": "myanmar"
+    },
+    # CN→EN pivot models (Stage 1 only)
+    "qwen2.5:14b": {
+        "temp": 0.45,
+        "use_case": "CN→EN (pivot Stage 1 only)",
+        "description": "CN→EN pivot - NOT for Myanmar output",
+        "category": "pivot"
+    },
+    "qwen2.5:7b": {
+        "temp": 0.45,
+        "use_case": "CN→EN (pivot Stage 1 only)",
+        "description": "CN→EN pivot - NOT for Myanmar output",
+        "category": "pivot"
+    },
+    "qwen2.5:7b-instruct": {
+        "temp": 0.45,
+        "use_case": "CN→EN (pivot Stage 1 only)",
+        "description": "CN→EN pivot - NOT for Myanmar output",
+        "category": "pivot"
+    },
+    "alibayram/hunyuan:7b": {
+        "temp": 0.45,
+        "use_case": "CN→EN (pivot Stage 1 only)",
+        "description": "Good Chinese comprehension for CN→EN",
+        "category": "pivot"
+    },
+    "qwen:7b": {
+        "temp": 0.45,
+        "use_case": "CN→EN (pivot Stage 1 only)",
+        "description": "Outputs English only - validation only",
+        "category": "pivot"
+    },
+    # Other models
+    "llama3:8b": {
+        "temp": 0.3,
+        "use_case": "General",
+        "description": "General purpose - not tested for Myanmar",
+        "category": "other"
+    },
+    "mistral:7b": {
+        "temp": 0.3,
+        "use_case": "General",
+        "description": "General purpose - not tested for Myanmar",
+        "category": "other"
+    },
+}
+
+
+def get_available_models() -> list:
+    """Get list of available Ollama models with recommendations"""
+    import subprocess
+    
+    available = []
+    try:
+        result = subprocess.run(
+            ["ollama", "list"],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        if result.returncode == 0:
+            lines = result.stdout.strip().split('\n')[1:]  # Skip header
+            for line in lines:
+                if line.strip():
+                    parts = line.split()
+                    if parts:
+                        model_name = parts[0]
+                        # Check if we have recommendations for this model
+                        if model_name in MODEL_RECOMMENDATIONS:
+                            rec = MODEL_RECOMMENDATIONS[model_name]
+                            available.append({
+                                'name': model_name,
+                                'temp': rec['temp'],
+                                'use_case': rec['use_case'],
+                                'description': rec['description'],
+                                'category': rec['category']
+                            })
+                        else:
+                            # Unknown model - add with default
+                            available.append({
+                                'name': model_name,
+                                'temp': 0.3,
+                                'use_case': "Unknown",
+                                'description': "Not tested for translation",
+                                'category': 'other'
+                            })
+    except Exception as e:
+        logger.warning(f"Failed to get Ollama models: {e}")
+    
+    # Always add recommended models even if not installed (user can install)
+    for model_name, rec in MODEL_RECOMMENDATIONS.items():
+        if not any(m['name'] == model_name for m in available):
+            available.append({
+                'name': model_name,
+                'temp': rec['temp'],
+                'use_case': rec['use_case'],
+                'description': rec['description'],
+                'category': rec['category'],
+                'installed': False  # Not installed
+            })
+    
+    # Sort: installed first, then by category (myanmar, pivot, other)
+    category_order = {'myanmar': 0, 'pivot': 1, 'other': 2}
+    available.sort(key=lambda x: (x.get('installed', True), category_order.get(x.get('category', 3), 3)))
+    
+    return available
+
 def get_config() -> dict:
     """Load configuration from settings.yaml"""
     config_path = Path(app.config['CONFIG_PATH'])
@@ -106,17 +233,6 @@ def save_glossary(glossary: dict) -> bool:
     except Exception as e:
         logger.error(f"Failed to save glossary: {e}")
         return False
-
-
-def get_available_models() -> list:
-    """Get available Ollama models"""
-    try:
-        import ollama
-        models = ollama.list()
-        return [m['name'] for m in models.get('models', [])]
-    except Exception as e:
-        logger.warning(f"Failed to list models: {e}")
-        return ['padauk-gemma:q8_0', 'qwen2.5:14b', 'sailor2-20b']
 
 
 def get_recent_logs() -> list:

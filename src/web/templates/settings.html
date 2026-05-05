@@ -19,27 +19,33 @@
                 
                 <div class="form-group">
                     <label class="form-label">Translation Model</label>
-                    <select name="model" class="form-control">
+                    <select name="model" id="modelSelect" class="form-control" onchange="updateTemperature()">
                         {% for model in models %}
-                        <option value="{{ model }}" {% if current_model == model %}selected{% endif %}>
-                            {{ model }}
+                        <option value="{{ model.name }}" 
+                                data-temp="{{ model.temp }}"
+                                data-category="{{ model.category }}"
+                                {% if current_model == model.name %}selected{% endif %}>
+                            {{ model.name }}
+                            {% if model.installed == False %} (not installed){% endif %}
                         </option>
                         {% endfor %}
                     </select>
-                    <small style="color: var(--text-secondary);">
-                        padauk-gemma:q8_0 is recommended for best Myanmar output
-                    </small>
                 </div>
                 
-                <button type="submit" class="btn btn-primary btn-block">Save Model Settings</button>
+                <div class="model-info" id="modelInfo" style="margin-top: 0.75rem; padding: 0.75rem; border-radius: 6px; background: var(--bg-secondary);">
+                    <div id="modelDescription" style="font-size: 0.9rem; color: var(--text-primary);"></div>
+                    <div id="modelUseCase" style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;"></div>
+                </div>
+                
+                <button type="submit" class="btn btn-primary btn-block" style="margin-top: 1rem;">Save Model Settings</button>
             </form>
             
             <div class="alert alert-info" style="margin-top: 1rem;">
-                <strong>Model Info:</strong>
-                <ul style="margin-top: 0.5rem; margin-left: 1rem;">
-                    <li><strong>padauk-gemma:q8_0</strong> - Recommended for Myanmar translation</li>
-                    <li><strong>qwen2.5:14b</strong> - CN→EN pivot only, not for Myanmar</li>
-                    <li><strong>sailor2-20b</strong> - Alternative Myanmar model</li>
+                <strong>📋 Model Categories:</strong>
+                <ul style="margin-top: 0.5rem; margin-left: 1rem; font-size: 0.85rem;">
+                    <li><strong>🟢 Myanmar Models</strong> - Best for EN→MM, CN→MM direct translation</li>
+                    <li><strong>🟡 Pivot Models</strong> - CN→EN Stage 1 only (use with padauk-gemma for Stage 2)</li>
+                    <li><strong>⚪ Other Models</strong> - Not tested for Myanmar translation</li>
                 </ul>
             </div>
         </div>
@@ -54,8 +60,8 @@
                 <input type="hidden" name="action" value="save_processing">
                 
                 <div class="form-group">
-                    <label class="form-label">Temperature</label>
-                    <input type="number" name="temperature" class="form-control" 
+                    <label class="form-label">Temperature <span id="tempBadge" class="badge badge-info"></span></label>
+                    <input type="number" name="temperature" id="temperatureInput" class="form-control" 
                            value="{{ current_temp }}" step="0.05" min="0" max="1">
                     <small style="color: var(--text-secondary);">
                         Lower values (≤0.2) produce more consistent translations.
@@ -90,11 +96,11 @@
             <table class="table">
                 <tr>
                     <td><strong>Model:</strong></td>
-                    <td>{{ current_model }}</td>
+                    <td id="currentModel">{{ current_model }}</td>
                 </tr>
                 <tr>
                     <td><strong>Temperature:</strong></td>
-                    <td>{{ current_temp }}</td>
+                    <td id="currentTemp">{{ current_temp }}</td>
                 </tr>
                 <tr>
                     <td><strong>Max Tokens:</strong></td>
@@ -108,4 +114,72 @@
         </div>
     </div>
 </div>
+
+<script>
+function updateTemperature() {
+    const select = document.getElementById('modelSelect');
+    const selectedOption = select.options[select.selectedIndex];
+    const temp = selectedOption.getAttribute('data-temp');
+    const category = selectedOption.getAttribute('data-category');
+    
+    // Update temperature input
+    document.getElementById('temperatureInput').value = temp;
+    
+    // Update description
+    const modelName = select.value;
+    const descriptions = {
+        'padauk-gemma:q8_0': 'Best Myanmar output - recommended for EN→MM and CN→MM',
+        'padauk-gemma:q4_0': 'Smaller padauk-gemma - good for limited resources',
+        'sailor2-20b': 'Alternative Myanmar model (20B parameters)',
+        'qwen2.5:14b': 'CN→EN pivot only - NOT for Myanmar output',
+        'qwen2.5:7b': 'CN→EN pivot only - NOT for Myanmar output',
+        'qwen2.5:7b-instruct': 'CN→EN pivot only - NOT for Myanmar output',
+        'alibayram/hunyuan:7b': 'Good Chinese comprehension for CN→EN pivot',
+        'qwen:7b': 'English output only - validation only',
+        'llama3:8b': 'General purpose - not tested for Myanmar',
+        'mistral:7b': 'General purpose - not tested for Myanmar'
+    };
+    
+    const desc = descriptions[modelName] || 'Not tested for Myanmar translation';
+    const useCase = selectedOption.getAttribute('data-use_case') || 'Use case: ' + (category === 'myanmar' ? 'EN→MM / CN→MM' : category === 'pivot' ? 'CN→EN only' : 'Unknown');
+    
+    document.getElementById('modelDescription').innerHTML = desc;
+    document.getElementById('modelUseCase').textContent = useCase;
+    
+    // Update current config display
+    document.getElementById('currentModel').textContent = modelName;
+    document.getElementById('currentTemp').textContent = temp;
+    
+    // Update badge
+    const badge = document.getElementById('tempBadge');
+    if (temp <= 0.2) {
+        badge.textContent = '✓ Recommended';
+        badge.className = 'badge badge-success';
+    } else if (temp <= 0.5) {
+        badge.textContent = 'Moderate';
+        badge.className = 'badge badge-warning';
+    } else {
+        badge.textContent = 'High';
+        badge.className = 'badge badge-danger';
+    }
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', updateTemperature);
+</script>
+
+<style>
+.badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: bold;
+    margin-left: 0.5rem;
+}
+.badge-info { background: #17a2b8; color: white; }
+.badge-success { background: #28a745; color: white; }
+.badge-warning { background: #ffc107; color: black; }
+.badge-danger { background: #dc3545; color: white; }
+</style>
 {% endblock %}
