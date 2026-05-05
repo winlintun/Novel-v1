@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}Progress - Novel Translation{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">📊 Translation Progress | အောက်ငါးပြင်အကျယ်</h1>
+    <p class="page-subtitle">Monitor translation progress across all novels</p>
+</div>
+
+{% if not novel_stats %}
+<div class="alert alert-warning">
+    <strong>No novels found!</strong> Add novel folders to <code>data/input/</code> to track progress.
+</div>
+{% else %}
+<div class="grid">
+    {% for novel in novel_stats %}
+    <div class="card">
+        <h2 class="card-header">
+            📚 {{ novel.name }}
+            <span class="badge badge-primary">{{ novel.percentage }}%</span>
+        </h2>
+        
+        <div class="grid grid-3" style="margin-bottom: 1rem;">
+            <div class="stat">
+                <div class="stat-value">{{ novel.total }}</div>
+                <div class="stat-label">Total Chapters</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value">{{ novel.translated }}</div>
+                <div class="stat-label">Translated</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value">{{ novel.total - novel.translated }}</div>
+                <div class="stat-label">Remaining</div>
+            </div>
+        </div>
+        
+        <div class="progress">
+            <div class="progress-bar" style="width: {{ novel.percentage }}%">{{ novel.percentage }}%</div>
+        </div>
+        
+        {% if novel.chapters %}
+        <div style="margin-top: 1rem;">
+            <strong>Translated Chapters:</strong>
+            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem;">
+                {% for ch in novel.chapters %}
+                <span class="badge badge-success">{{ ch }}</span>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+        
+        <div style="margin-top: 1rem;">
+            <a href="/translate?novel={{ novel.name }}&all=true" class="btn btn-primary btn-sm">
+                Continue Translation →
+            </a>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="card" style="margin-top: 2rem;">
+    <h2 class="card-header">📈 Overall Statistics</h2>
+    
+    {% set total_chapters = namespace(value=0) %}
+    {% set total_translated = namespace(value=0) %}
+    
+    {% for novel in novel_stats %}
+        {% set total_chapters.value = total_chapters.value + novel.total %}
+        {% set total_translated.value = total_translated.value + novel.translated %}
+    {% endfor %}
+    
+    <div class="grid grid-3">
+        <div class="stat">
+            <div class="stat-value">{{ novel_stats|length }}</div>
+            <div class="stat-label">Total Novels</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value">{{ total_chapters.value }}</div>
+            <div class="stat-label">Total Chapters</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value">{{ total_translated.value }}</div>
+            <div class="stat-label">Total Translated</div>
+        </div>
+    </div>
+    
+    {% if total_chapters.value > 0 %}
+    {% set overall_pct = (total_translated.value / total_chapters.value * 100)|round|int %}
+    <div class="progress" style="margin-top: 1rem;">
+        <div class="progress-bar" style="width: {{ overall_pct }}%">{{ overall_pct }}% Overall Progress</div>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

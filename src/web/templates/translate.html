@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+
+{% block title %}Translate - Novel Translation{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">📝 Translation | ဘာသာပြန်ရန်</h1>
+    <p class="page-subtitle">Translate chapters from source language to Myanmar</p>
+</div>
+
+{% if not novels %}
+<div class="alert alert-warning">
+    <strong>No novels found!</strong> Please add novel folders to <code>data/input/</code> directory.
+</div>
+{% else %}
+<div class="grid grid-2">
+    <!-- Settings Column -->
+    <div>
+        <div class="card">
+            <h2 class="card-header">⚙️ Translation Settings</h2>
+            
+            <form method="POST">
+                <input type="hidden" name="action" value="start_translation">
+                
+                <div class="form-group">
+                    <label class="form-label">Select Novel</label>
+                    <select name="novel" class="form-control" onchange="this.form.action='/translate?novel='+this.value+'&chapter='+document.getElementById('chapter').value">
+                        <option value="">-- Select Novel --</option>
+                        {% for novel in novels %}
+                        <option value="{{ novel.name }}" {% if selected_novel == novel.name %}selected{% endif %}>
+                            {{ novel.name }} ({{ novel.chapter_count }} chapters)
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Start Chapter</label>
+                    <input type="number" id="chapter" name="chapter" class="form-control" 
+                           value="{{ start_chapter }}" min="1" 
+                           {% if not selected_novel %}disabled{% endif %}>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">
+                        <input type="checkbox" name="mode" value="all" {% if translate_all %}checked{% endif %}>
+                        Translate All Chapters
+                    </label>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Translation Model</label>
+                    <select name="model" class="form-control">
+                        {% for model in models %}
+                        <option value="{{ model }}" {% if current_model == model %}selected{% endif %}>
+                            {{ model }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Temperature</label>
+                    <input type="number" name="temperature" class="form-control" 
+                           value="{{ current_temp }}" step="0.1" min="0" max="1">
+                    <small style="color: var(--text-secondary);">Lower values (≤0.2) produce more consistent translations</small>
+                </div>
+                
+                <button type="submit" class="btn btn-primary btn-block" {% if not selected_novel %}disabled{% endif %}>
+                    🚀 Start Translation
+                </button>
+            </form>
+        </div>
+        
+        {% if selected_novel and available_chapters %}
+        <div class="card" style="margin-top: 1.5rem;">
+            <h2 class="card-header">📋 Chapter Status for {{ selected_novel }}</h2>
+            
+            <div class="grid grid-2">
+                <div>
+                    <strong>Available Chapters:</strong>
+                    <p>{{ available_chapters|length }} chapters</p>
+                </div>
+                <div>
+                    <strong>Translated:</strong>
+                    <p>{{ translated_chapters|length }} chapters</p>
+                </div>
+            </div>
+            
+            <div style="margin-top: 1rem;">
+                <strong>Next untranslated chapter:</strong>
+                {% set next_chapter = [] %}
+                {% for ch in available_chapters %}
+                    {% set ch_str = 'chapter_' ~ '{:04d}'.format(ch) ~ '.mm.md' %}
+                    {% if ch_str not in translated_chapters and not next_chapter %}
+                        {% set _ = next_chapter.append(ch) %}
+                    {% endif %}
+                {% endfor %}
+                {% if next_chapter %}
+                    <span class="badge badge-primary">Chapter {{ next_chapter[0] }}</span>
+                {% else %}
+                    <span class="badge badge-success">All translated!</span>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    
+    <!-- Info Column -->
+    <div>
+        <div class="card">
+            <h2 class="card-header">ℹ️ Translation Guide</h2>
+            
+            <div class="alert alert-info">
+                <strong>How to use:</strong>
+                <ol style="margin-top: 0.5rem; margin-left: 1.5rem;">
+                    <li>Select a novel from the dropdown</li>
+                    <li>Choose the starting chapter number</li>
+                    <li>Check "Translate All Chapters" to translate the entire novel</li>
+                    <li>Select the translation model (padauk-gemma recommended)</li>
+                    <li>Click "Start Translation"</li>
+                </ol>
+            </div>
+            
+            <h3 style="margin-top: 1rem;">📦 Available Models</h3>
+            <table class="table" style="margin-top: 0.5rem;">
+                <thead>
+                    <tr>
+                        <th>Model</th>
+                        <th>Description</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>padauk-gemma:q8_0</td>
+                        <td>⭐ Recommended - Best Myanmar output</td>
+                    </tr>
+                    <tr>
+                        <td>qwen2.5:14b</td>
+                        <td>CN→EN pivot only - not for Myanmar</td>
+                    </tr>
+                    <tr>
+                        <td>sailor2-20b</td>
+                        <td>Alternative Myanmar model</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="card" style="margin-top: 1.5rem;">
+            <h2 class="card-header">📊 Current Configuration</h2>
+            <table class="table">
+                <tr>
+                    <td><strong>Model:</strong></td>
+                    <td>{{ current_model }}</td>
+                </tr>
+                <tr>
+                    <td><strong>Temperature:</strong></td>
+                    <td>{{ current_temp }}</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<script>
+document.querySelector('select[name="novel"]').addEventListener('change', function() {
+    const novel = this.value;
+    if (novel) {
+        window.location.href = '/translate?novel=' + novel;
+    }
+});
+</script>
+{% endblock %}

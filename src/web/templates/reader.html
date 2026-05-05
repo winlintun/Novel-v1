@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}Reader - Novel Translation{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">📖 Reader | ဖတ်ရှုရန်</h1>
+    <p class="page-subtitle">Read translated chapters</p>
+</div>
+
+<div class="grid" style="grid-template-columns: 300px 1fr;">
+    <!-- File List -->
+    <div>
+        <div class="card">
+            <h2 class="card-header">📚 Select Novel</h2>
+            
+            <form method="GET">
+                <div class="form-group">
+                    <select name="novel" class="form-control" onchange="this.form.submit()">
+                        <option value="">-- Select Novel --</option>
+                        {% for novel in novels %}
+                        <option value="{{ novel.name }}" {% if selected_novel == novel.name %}selected{% endif %}>
+                            {{ novel.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </form>
+            
+            {% if selected_novel and files %}
+            <div style="margin-top: 1rem;">
+                <h3>Translated Chapters</h3>
+                <table class="table" style="font-size: 0.875rem;">
+                    <tbody>
+                        {% for file in files %}
+                        <tr>
+                            <td>
+                                <a href="/reader?novel={{ selected_novel }}&file={{ file }}" 
+                                   class="{% if selected_file == file|string %}btn btn-sm btn-primary{% else %}btn btn-sm btn-secondary{% endif %}"
+                                   style="width: 100%; text-align: left;">
+                                    {{ file.stem }}
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% elif selected_novel %}
+            <div class="alert alert-warning" style="margin-top: 1rem;">
+                No translated chapters found for {{ selected_novel }}.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Content Display -->
+    <div>
+        <div class="card">
+            <h2 class="card-header">
+                {% if selected_file %}
+                📖 {{ selected_file }}
+                {% else %}
+                📖 Select a chapter to read
+                {% endif %}
+            </h2>
+            
+            {% if content %}
+            <div class="content-text">{{ content }}</div>
+            {% elif selected_novel %}
+            <div class="alert alert-info">
+                Select a chapter from the list to view its content.
+            </div>
+            {% else %}
+            <div class="alert alert-warning">
+                Select a novel first to see available chapters.
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+
+{% block title %}Glossary - Novel Translation{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">📚 Glossary Management | အဘိဓာန် ထိန်းချုပ်ရန်</h1>
+    <p class="page-subtitle">Manage translation terminology and vocabulary</p>
+</div>
+
+<div class="grid grid-2">
+    <!-- Add Term Form -->
+    <div>
+        <div class="card">
+            <h2 class="card-header">➕ Add New Term</h2>
+            
+            <form method="POST">
+                <input type="hidden" name="action" value="add_term">
+                
+                <div class="form-group">
+                    <label class="form-label">Source Term (Original)</label>
+                    <input type="text" name="source" class="form-control" placeholder="e.g., 修仙者" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Target Term (Myanmar Translation)</label>
+                    <input type="text" name="target" class="form-control" placeholder="e.g., ပါရှန်းသမား" required>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Category</label>
+                    <select name="category" class="form-control">
+                        <option value="general">General</option>
+                        <option value="character">Character</option>
+                        <option value="place">Place</option>
+                        <option value="item">Item</option>
+                        <option value="technique">Technique</option>
+                        <option value="level">Level/Rank</option>
+                    </select>
+                </div>
+                
+                <button type="submit" class="btn btn-primary btn-block">Add Term</button>
+            </form>
+        </div>
+        
+        <div class="card" style="margin-top: 1.5rem;">
+            <h2 class="card-header">📊 Statistics</h2>
+            <div class="grid grid-2">
+                <div class="stat">
+                    <div class="stat-value">{{ total_terms }}</div>
+                    <div class="stat-label">Total Terms</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">{{ categories|length }}</div>
+                    <div class="stat-label">Categories</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Filter and List -->
+    <div>
+        <div class="card">
+            <h2 class="card-header">🔍 Filter Terms</h2>
+            
+            <form method="GET">
+                <div class="form-group">
+                    <label class="form-label">Category Filter</label>
+                    <select name="category" class="form-control" onchange="this.form.submit()">
+                        <option value="all" {% if category_filter == 'all' %}selected{% endif %}>All Categories</option>
+                        {% for cat in categories %}
+                        <option value="{{ cat }}" {% if category_filter == cat %}selected{% endif %}>{{ cat }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </form>
+        </div>
+        
+        <div class="card" style="margin-top: 1.5rem;">
+            <h2 class="card-header">📝 Terms List ({{ terms|length }})</h2>
+            
+            {% if terms %}
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Source</th>
+                        <th>Target</th>
+                        <th>Category</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for term in terms %}
+                    <tr>
+                        <td>{{ term.source }}</td>
+                        <td>{{ term.target }}</td>
+                        <td><span class="badge badge-secondary">{{ term.category }}</span></td>
+                        <td>
+                            {% if term.verified %}
+                            <span class="badge badge-success">Verified</span>
+                            {% else %}
+                            <span class="badge badge-warning">Pending</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if not term.verified %}
+                            <form method="POST" style="display: inline;">
+                                <input type="hidden" name="action" value="verify_term">
+                                <input type="hidden" name="source" value="{{ term.source }}">
+                                <button type="submit" class="btn btn-sm btn-success">✓</button>
+                            </form>
+                            {% endif %}
+                            <form method="POST" style="display: inline;">
+                                <input type="hidden" name="action" value="delete_term">
+                                <input type="hidden" name="source" value="{{ term.source }}">
+                                <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Delete this term?')">✕</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="alert alert-warning">No terms found. Add your first term!</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

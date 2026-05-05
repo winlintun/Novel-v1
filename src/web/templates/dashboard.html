@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Novel Translation{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">🏠 Dashboard | ပါဝင်းမှု အလုံးစုံ</h1>
+    <p class="page-subtitle">Novel Translation System Overview</p>
+</div>
+
+<div class="grid grid-2">
+    <!-- Stats Column -->
+    <div>
+        <div class="card">
+            <h2 class="card-header">📊 Project Overview | စီမံကိန်း အကျဉ်းချုပ်</h2>
+            
+            <div class="grid grid-4" style="margin-bottom: 1.5rem;">
+                <div class="stat">
+                    <div class="stat-value">{{ total_novels }}</div>
+                    <div class="stat-label">Novels</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">{{ total_chapters }}</div>
+                    <div class="stat-label">Chapters</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">{{ translated }}</div>
+                    <div class="stat-label">Translated</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">{{ glossary_terms }}</div>
+                    <div class="stat-label">Glossary</div>
+                </div>
+            </div>
+            
+            {% if total_chapters > 0 %}
+            <div class="progress">
+                <div class="progress-bar" style="width: {{ progress_pct }}%">{{ progress_pct }}%</div>
+            </div>
+            {% endif %}
+            
+            <div class="alert alert-info" style="margin-top: 1.5rem;">
+                <strong>ဤစီမံကိန်းသည် AI နည်းပညာသုံး အဆင့်မြင့် တရုတ်-မြန်မာ ဝတ္ထုဘာသာပြန် စနစ် ဖြစ်ပါသည်။</strong>
+                <ul style="margin-top: 0.5rem; margin-left: 1.5rem;">
+                    <li>{{ total_novels }} ဝတ္ထု ({{ total_novels }} novels)</li>
+                    <li>{{ total_chapters }} အခန်း ({{ total_chapters }} chapters)</li>
+                    <li>{{ translated }} ဘာသာပြန်ပြီး ({{ translated }} translated)</li>
+                    <li>{{ glossary_terms }} အဘိဓာန်စာလုံး ({{ glossary_terms }} terms)</li>
+                </ul>
+            </div>
+        </div>
+        
+        <div class="card" style="margin-top: 1.5rem;">
+            <h2 class="card-header">⚡ Quick Actions | အမြန်လင့်ခ်များ</h2>
+            <div class="quick-actions">
+                <a href="/translate" class="btn btn-primary">🚀 Translate</a>
+                <a href="/glossary" class="btn btn-secondary">📚 Glossary</a>
+                <a href="/progress" class="btn btn-secondary">📊 Progress</a>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Recent Activity Column -->
+    <div>
+        <div class="card">
+            <h2 class="card-header">📝 Recent Activity | လတ်တလော လုပ်ဆောင်မှုများ</h2>
+            
+            {% if recent_logs %}
+                {% for log in recent_logs %}
+                <div class="log-entry">
+                    <div class="log-title">📄 {{ log.name }}</div>
+                    <div class="log-content">{{ log.content }}</div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="alert alert-warning">No recent logs found.</div>
+            {% endif %}
+        </div>
+        
+        <div class="card" style="margin-top: 1.5rem;">
+            <h2 class="card-header">📚 Available Novels</h2>
+            
+            {% if novels %}
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Novel</th>
+                            <th>Chapters</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for novel in novels %}
+                        <tr>
+                            <td>{{ novel.name }}</td>
+                            <td>{{ novel.chapter_count }}</td>
+                            <td>
+                                <a href="/translate?novel={{ novel.name }}" class="btn btn-sm btn-primary">Translate</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <div class="alert alert-warning">
+                    No novels found. Add novel folders to <code>data/input/</code>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

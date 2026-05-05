@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - Novel Translation{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">⚙️ Settings | ဆက်တင်များ</h1>
+    <p class="page-subtitle">Configure translation models and processing parameters</p>
+</div>
+
+<div class="grid grid-2">
+    <!-- Model Settings -->
+    <div>
+        <div class="card">
+            <h2 class="card-header">🤖 Model Settings</h2>
+            
+            <form method="POST">
+                <input type="hidden" name="action" value="save_model">
+                
+                <div class="form-group">
+                    <label class="form-label">Translation Model</label>
+                    <select name="model" class="form-control">
+                        {% for model in models %}
+                        <option value="{{ model }}" {% if current_model == model %}selected{% endif %}>
+                            {{ model }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <small style="color: var(--text-secondary);">
+                        padauk-gemma:q8_0 is recommended for best Myanmar output
+                    </small>
+                </div>
+                
+                <button type="submit" class="btn btn-primary btn-block">Save Model Settings</button>
+            </form>
+            
+            <div class="alert alert-info" style="margin-top: 1rem;">
+                <strong>Model Info:</strong>
+                <ul style="margin-top: 0.5rem; margin-left: 1rem;">
+                    <li><strong>padauk-gemma:q8_0</strong> - Recommended for Myanmar translation</li>
+                    <li><strong>qwen2.5:14b</strong> - CN→EN pivot only, not for Myanmar</li>
+                    <li><strong>sailor2-20b</strong> - Alternative Myanmar model</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Processing Settings -->
+    <div>
+        <div class="card">
+            <h2 class="card-header">⚡ Processing Settings</h2>
+            
+            <form method="POST">
+                <input type="hidden" name="action" value="save_processing">
+                
+                <div class="form-group">
+                    <label class="form-label">Temperature</label>
+                    <input type="number" name="temperature" class="form-control" 
+                           value="{{ current_temp }}" step="0.05" min="0" max="1">
+                    <small style="color: var(--text-secondary);">
+                        Lower values (≤0.2) produce more consistent translations.
+                        Higher values add creativity but may reduce quality.
+                    </small>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Max Tokens</label>
+                    <input type="number" name="max_tokens" class="form-control" 
+                           value="{{ current_max_tokens }}" min="512" max="8192" step="512">
+                    <small style="color: var(--text-secondary);">
+                        Maximum tokens to generate per response
+                    </small>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Repeat Penalty</label>
+                    <input type="number" name="repeat_penalty" class="form-control" 
+                           value="{{ current_repeat_penalty }}" step="0.05" min="1.0" max="2.0">
+                    <small style="color: var(--text-secondary);">
+                        Controls repetition in output (1.15 recommended for padauk-gemma)
+                    </small>
+                </div>
+                
+                <button type="submit" class="btn btn-primary btn-block">Save Processing Settings</button>
+            </form>
+        </div>
+        
+        <div class="card" style="margin-top: 1.5rem;">
+            <h2 class="card-header">📋 Current Configuration</h2>
+            <table class="table">
+                <tr>
+                    <td><strong>Model:</strong></td>
+                    <td>{{ current_model }}</td>
+                </tr>
+                <tr>
+                    <td><strong>Temperature:</strong></td>
+                    <td>{{ current_temp }}</td>
+                </tr>
+                <tr>
+                    <td><strong>Max Tokens:</strong></td>
+                    <td>{{ current_max_tokens }}</td>
+                </tr>
+                <tr>
+                    <td><strong>Repeat Penalty:</strong></td>
+                    <td>{{ current_repeat_penalty }}</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
