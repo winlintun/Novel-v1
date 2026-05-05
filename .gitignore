@@ -60,6 +60,11 @@ __pycache__/
 .Python
 
 # ── Misc ─────────────────────────────────────────────────────────────────────
+.streamlit/
+.claude/
+.codex/
+.gemini/
+working_data/
 *.log
 *.tmp
 *.bak
@@ -88,7 +93,7 @@ dmypy.json
 *.pxd
 *.pxi
 
-# file 
+# file
 need_to_fix.md
 need_fix.md
 need_fix_another.md

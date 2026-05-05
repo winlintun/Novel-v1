@@ -26,6 +26,9 @@ from src.config.loader import (
     get_default_config,
     save_config,
     merge_configs,
+    detect_config_by_source,
+    load_and_merge_config,
+    CONFIG_PRESETS,
 )
 
 __all__ = [
@@ -47,4 +50,7 @@ __all__ = [
     "get_default_config",
     "save_config",
     "merge_configs",
+    "detect_config_by_source",
+    "load_and_merge_config",
+    "CONFIG_PRESETS",
 ]

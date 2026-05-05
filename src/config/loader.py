@@ -147,6 +147,109 @@ def _find_config_file() -> Path:
     )
 
 
+CONFIG_PRESETS = {
+    "en_us": "config/settings.yaml",
+    "zh_cn": "config/settings.pivot.yaml",
+    "default": "config/settings.yaml",
+    "fast": "config/settings.fast.yaml",
+    "pivot": "config/settings.pivot.yaml",
+}
+
+
+def _normalize_lang_key(lang: str) -> str:
+    """Normalize language code: en-US → en_us, zh-CN → zh_cn"""
+    return lang.lower().replace("-", "_").replace(" ", "_")
+
+
+def detect_config_by_source(
+    source_language: Optional[str] = None,
+    config_path: Optional[Union[str, Path]] = None,
+    mode: Optional[str] = None,
+) -> Path:
+    """Auto-detect best config file based on source language or explicit mode.
+    
+    Priority:
+    1. Explicit config_path (if provided and exists)
+    2. Explicit mode (fast, pivot, default)
+    3. Source language auto-detection (en-US → default, zh-CN → pivot)
+    
+    Args:
+        source_language: Source language code (en-US, zh-CN, etc.)
+        config_path: Explicit config path override
+        mode: Explicit mode (fast, pivot, default)
+        
+    Returns:
+        Path to detected config file
+    """
+    # 1. Explicit config path takes priority
+    if config_path:
+        path = Path(config_path)
+        if path.exists():
+            return path
+    
+    # 2. Explicit mode
+    if mode and mode in CONFIG_PRESETS:
+        path = Path(CONFIG_PRESETS[mode])
+        if path.exists():
+            return path
+    
+    # 3. Source language auto-detection
+    if source_language:
+        lang_key = _normalize_lang_key(source_language)
+        if lang_key in CONFIG_PRESETS:
+            path = Path(CONFIG_PRESETS[lang_key])
+            if path.exists():
+                return path
+    
+    # 4. Fallback to default
+    default_path = Path(CONFIG_PRESETS["default"])
+    if default_path.exists():
+        return default_path
+    
+    # 5. Last resort: find any config
+    return _find_config_file()
+
+
+def load_and_merge_config(
+    base_config: Optional[Union[str, Path]] = None,
+    override_config: Optional[Union[str, Path]] = None,
+    source_language: Optional[str] = None,
+    mode: Optional[str] = None,
+) -> AppConfig:
+    """Load config with auto-detection and optional merge.
+    
+    This function:
+    1. Detects appropriate config file based on source_language or mode
+    2. Optionally merges a second config file on top
+    
+    Args:
+        base_config: Base config file path (None = auto-detect)
+        override_config: Override config to merge on top
+        source_language: Source language for auto-detection
+        mode: Explicit mode (fast, pivot, default)
+        
+    Returns:
+        Merged and validated AppConfig
+    """
+    # Detect base config
+    if base_config is None:
+        base_path = detect_config_by_source(source_language=source_language, mode=mode)
+    else:
+        base_path = Path(base_config)
+    
+    base = load_config(base_path)
+    
+    # Merge override if provided
+    if override_config:
+        override_path = Path(override_config)
+        if override_path.exists():
+            override_dict = yaml.safe_load(open(override_path, encoding='utf-8'))
+            if override_dict:
+                base = merge_configs(base, override_dict)
+    
+    return base
+
+
 def get_default_config() -> AppConfig:
     """Get default configuration.
     

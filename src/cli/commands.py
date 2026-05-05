@@ -441,12 +441,24 @@ def _resolve_workflow(args) -> Optional[str]:
             return 'way2'
 
     # Try to infer from input file using Preprocessor's detect_language
+    input_file = None
+
+    # Check explicit input file
     if hasattr(args, 'input_file') and args.input_file:
+        input_file = args.input_file
+    # Or resolve from novel + chapter
+    elif hasattr(args, 'novel') and args.novel:
+        from src.pipeline.orchestrator import TranslationPipeline
+        input_file = TranslationPipeline._find_chapter_file(
+            args.novel, getattr(args, 'chapter', 1)
+        )
+
+    if input_file:
         try:
             from src.utils.file_handler import FileHandler
             from src.agents.preprocessor import Preprocessor
 
-            text = FileHandler.read_text(args.input_file)
+            text = FileHandler.read_text(input_file)
 
             # Use Preprocessor's detect_language for accuracy
             preprocessor = Preprocessor()
