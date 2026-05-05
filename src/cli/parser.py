@@ -151,8 +151,8 @@ def create_parser() -> argparse.ArgumentParser:
     pipeline_group.add_argument(
         "--mode",
         type=str,
-        choices=["full", "lite", "fast"],
-        help="Pipeline mode: full (6-stage), lite (3-stage), fast (2-stage)"
+        choices=["full", "lite", "fast", "single_stage"],
+        help="Pipeline mode: single_stage (1-stage, recommended), lite (3-stage), fast (2-stage), full (6-stage)"
     )
     pipeline_group.add_argument(
         "--use-reflection",
@@ -191,7 +191,23 @@ def create_parser() -> argparse.ArgumentParser:
     utility_group.add_argument(
         "--ui",
         action="store_true",
-        help="Launch web UI"
+        help="Launch web UI (default: Flask, port 5000)"
+    )
+    utility_group.add_argument(
+        "--flask",
+        action="store_true",
+        help="Launch Flask web UI (default port: 5000)"
+    )
+    utility_group.add_argument(
+        "--streamlit",
+        action="store_true",
+        help="Launch Streamlit web UI (port: 8501)"
+    )
+    utility_group.add_argument(
+        "--port",
+        type=int,
+        default=5000,
+        help="Port for Flask server (default: 5000)"
     )
     utility_group.add_argument(
         "--generate-glossary",
@@ -229,16 +245,6 @@ def create_parser() -> argparse.ArgumentParser:
         "--stats",
         action="store_true",
         help="Show per-chapter quality score trends for a novel"
-    )
-    utility_group.add_argument(
-        "--clean",
-        action="store_true",
-        help="Clear Python cache (__pycache__ and .pyc files) before running"
-    )
-    utility_group.add_argument(
-        "--rebuild-meta",
-        action="store_true",
-        help="Scan output folder and rebuild meta.json for existing .mm.md files"
     )
     utility_group.add_argument(
         "--version",

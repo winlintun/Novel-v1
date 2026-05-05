@@ -106,7 +106,8 @@ class TestGenerateGlossaryRouting(unittest.TestCase):
              mock.patch("src.main.validate_arguments"):
 
             mock_parse.return_value = argparse.Namespace(
-                clean=False, rebuild_meta=False, ui=False, test=False,
+                clean=False, rebuild_meta=False, ui=False, flask=False, streamlit=False,
+                port=5000, test=False,
                 view_file=None, review_file=None, auto_promote=False, stats=False,
                 generate_glossary=True, approve_glossary=False, novel="my-novel",
                 chapter=None, all=False, chapter_range=None, input_file=None,

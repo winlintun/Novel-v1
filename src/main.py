@@ -59,16 +59,11 @@ def main() -> int:
     # Parse arguments
     args = parse_arguments()
 
-    if args.clean:
-        from src.utils.cache_cleaner import clean_cache_with_report
-        clean_cache_with_report()
-        return 0
-
     if getattr(args, 'rebuild_meta', False):
         return run_rebuild_meta(args)
 
     # ── UI: open UI, pass novel/chapter settings as env hints ──
-    if args.ui:
+    if args.ui or args.flask or args.streamlit:
         # Pass CLI settings to UI via environment variables
         if args.novel:
             os.environ["NOVEL_TRANSLATE_NOVEL"] = args.novel
@@ -80,6 +75,17 @@ def main() -> int:
             os.environ["NOVEL_TRANSLATE_START"] = str(args.start)
         if args.generate_glossary:
             os.environ["NOVEL_TRANSLATE_GEN_GLOSSARY"] = "1"
+        
+        # Pass port to launcher
+        if hasattr(args, 'port') and args.port:
+            os.environ["NOVEL_TRANSLATE_PORT"] = str(args.port)
+        
+        # Determine UI type: --streamlit explicitly, else Flask (default)
+        if args.streamlit:
+            os.environ["NOVEL_TRANSLATE_UI"] = "streamlit"
+        else:
+            os.environ["NOVEL_TRANSLATE_UI"] = "flask"
+        
         return run_ui_launch(args)
 
     # ── Standalone utilities (no translation) ──

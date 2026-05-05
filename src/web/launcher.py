@@ -39,10 +39,12 @@ def launch_flask_ui(args: Optional[argparse.Namespace] = None) -> int:
         print("Error: Could not find Flask app at src/web/flask_app.py", file=sys.stderr)
         return 1
     
-    # Get port from args or use default
+    # Get port from args or env var or use default
     port = 5000
     if args and hasattr(args, 'port') and args.port:
         port = args.port
+    elif os.environ.get("NOVEL_TRANSLATE_PORT"):
+        port = int(os.environ.get("NOVEL_TRANSLATE_PORT", 5000))
     
     # Get debug mode
     debug = False
@@ -196,7 +198,15 @@ def launch_web_ui(args: Optional[argparse.Namespace] = None) -> int:
     Returns:
         Exit code from web UI process
     """
-    # Check if Streamlit is explicitly requested
+    # Check env var first, then args
+    ui_type = os.environ.get("NOVEL_TRANSLATE_UI", "")
+    
+    if ui_type == "streamlit":
+        return launch_streamlit_ui(args)
+    elif ui_type == "flask":
+        return launch_flask_ui(args)
+    
+    # Check if Streamlit is explicitly requested via args
     if args and hasattr(args, 'streamlit') and args.streamlit:
         return launch_streamlit_ui(args)
     else:
