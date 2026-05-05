@@ -8,6 +8,16 @@
     <p class="page-subtitle">Monitor translation progress across all novels</p>
 </div>
 
+<!-- Real-time progress indicator - AT TOP -->
+<div id="realtimeStatus" class="card" style="margin-bottom: 1.5rem; display: none; border: 2px solid #007bff;">
+    <h3 class="card-header" style="background: #007bff; color: white;">⚡ Live Translation Progress 
+        <button onclick="clearProgress()" class="btn btn-sm btn-light" style="float: right;">Clear</button>
+    </h3>
+    <div id="liveProgress" class="alert alert-info" style="margin-bottom: 0;">
+        <strong>Checking for active translation...</strong>
+    </div>
+</div>
+
 {% if not novel_stats %}
 <div class="alert alert-warning">
     <strong>No novels found!</strong> Add novel folders to <code>data/input/</code> to track progress.
@@ -92,14 +102,6 @@
         <div class="progress-bar" style="width: {{ overall_pct }}%">{{ overall_pct }}% Overall Progress</div>
     </div>
     {% endif %}
-</div>
-
-<!-- Real-time progress indicator -->
-<div id="realtimeStatus" class="card" style="margin-top: 1rem; display: none;">
-    <h3 class="card-header">⚡ Live Translation Progress <button onclick="clearProgress()" class="btn btn-sm btn-secondary" style="float: right;">Clear</button></h3>
-    <div id="liveProgress" class="alert alert-info">
-        <strong>Checking for active translation...</strong>
-    </div>
 </div>
 
 <script>
