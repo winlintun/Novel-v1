@@ -69,10 +69,12 @@
                     <small style="color: var(--text-secondary);">Lower values (≤0.2) produce more consistent translations</small>
                 </div>
                 
-                <button type="submit" class="btn btn-primary btn-block" {% if not selected_novel %}disabled{% endif %}>
+                <button type="button" class="btn btn-primary btn-block" id="startBtn" {% if not selected_novel %}disabled{% endif %}>
                     🚀 Start Translation
                 </button>
             </form>
+            
+            <div id="translationStatus" class="alert" style="display: none; margin-top: 1rem;"></div>
         </div>
         
         {% if selected_novel and available_chapters %}
@@ -170,6 +172,57 @@ document.querySelector('select[name="novel"]').addEventListener('change', functi
     const novel = this.value;
     if (novel) {
         window.location.href = '/translate?novel=' + novel;
+    }
+});
+
+// Handle translation start
+document.getElementById('startBtn').addEventListener('click', async function() {
+    const novel = document.querySelector('select[name="novel"]').value;
+    const chapter = document.getElementById('chapter').value;
+    const model = document.querySelector('select[name="model"]').value;
+    const translateAll = document.querySelector('input[name="mode"]').checked;
+    
+    if (!novel) {
+        alert('Please select a novel');
+        return;
+    }
+    
+    const btn = this;
+    btn.disabled = true;
+    btn.textContent = '⏳ Starting...';
+    
+    const statusDiv = document.getElementById('translationStatus');
+    statusDiv.style.display = 'block';
+    statusDiv.className = 'alert alert-info';
+    statusDiv.textContent = 'Starting translation...';
+    
+    try {
+        const response = await fetch('/api/start-translation', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                novel: novel,
+                chapter: parseInt(chapter),
+                model: model,
+                translate_all: translateAll
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.status === 'started') {
+            statusDiv.className = 'alert alert-success';
+            statusDiv.textContent = 'Translation started! Go to Progress page to monitor.';
+            btn.textContent = '✅ Started';
+            setTimeout(() => {
+                window.location.href = '/progress';
+            }, 2000);
+        }
+    } catch (err) {
+        statusDiv.className = 'alert alert-danger';
+        statusDiv.textContent = 'Error: ' + err.message;
+        btn.disabled = false;
+        btn.textContent = '🚀 Start Translation';
     }
 });
 </script>

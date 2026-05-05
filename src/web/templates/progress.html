@@ -93,5 +93,69 @@
     </div>
     {% endif %}
 </div>
+
+<!-- Real-time progress indicator -->
+<div id="realtimeStatus" class="card" style="margin-top: 1rem; display: none;">
+    <h3 class="card-header">⚡ Live Translation Progress</h3>
+    <div id="liveProgress" class="alert alert-info">
+        <strong>Checking for active translation...</strong>
+    </div>
+</div>
+
+<script>
+let pollInterval = null;
+
+// Check for real-time progress every 3 seconds
+async function checkProgress() {
+    try {
+        const response = await fetch('/api/progress');
+        const data = await response.json();
+        
+        const statusDiv = document.getElementById('realtimeStatus');
+        const progressDiv = document.getElementById('liveProgress');
+        
+        if (data.status === 'idle' || data.status === 'completed') {
+            statusDiv.style.display = 'none';
+            if (pollInterval) {
+                clearInterval(pollInterval);
+                pollInterval = null;
+            }
+        } else {
+            statusDiv.style.display = 'block';
+            
+            // Update progress display
+            let html = `<strong>🔄 ${data.novel || 'Unknown'}</strong><br>`;
+            html += `Chapter: ${data.chapter || '...'}<br>`;
+            html += `Model: ${data.model || 'padauk-gemma:q8_0'}<br>`;
+            html += `<em>${data.message || 'Translating...'}</em>`;
+            
+            if (data.current_chunk && data.total_chunks) {
+                const pct = Math.round((data.current_chunk / data.total_chunks) * 100);
+                html += `<div class="progress" style="margin-top: 0.5rem;">
+                    <div class="progress-bar" style="width: ${pct}%">${pct}%</div>
+                </div>`;
+            }
+            
+            progressDiv.innerHTML = html;
+            progressDiv.className = 'alert alert-warning';
+        }
+    } catch (err) {
+        console.error('Progress poll error:', err);
+    }
+}
+
+// Start polling when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    checkProgress();
+    pollInterval = setInterval(checkProgress, 3000);
+});
+
+// Stop polling when leaving page
+window.addEventListener('beforeunload', function() {
+    if (pollInterval) {
+        clearInterval(pollInterval);
+    }
+});
+</script>
 {% endif %}
 {% endblock %}

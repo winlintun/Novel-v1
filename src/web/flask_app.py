@@ -580,6 +580,64 @@ def static_files(filename):
     return send_from_directory('static', filename)
 
 
+@app.route('/api/progress')
+def api_progress():
+    """API endpoint for real-time translation progress"""
+    progress_file = Path("logs/progress_current.json")
+    
+    if progress_file.exists():
+        try:
+            with open(progress_file, 'r', encoding='utf-8') as f:
+                return jsonify(json.load(f))
+        except Exception:
+            pass
+    
+    return jsonify({
+        'status': 'idle',
+        'message': 'No translation in progress'
+    })
+
+
+@app.route('/api/start-translation', methods=['POST'])
+def api_start_translation():
+    """Start translation and track progress"""
+    data = request.json
+    novel = data.get('novel')
+    chapter = data.get('chapter')
+    model = data.get('model', 'padauk-gemma:q8_0')
+    translate_all = data.get('translate_all', False)
+    
+    # Create progress file
+    progress_file = Path("logs/progress_current.json")
+    progress_file.parent.mkdir(parents=True, exist_ok=True)
+    
+    progress_data = {
+        'status': 'starting',
+        'novel': novel,
+        'chapter': chapter,
+        'model': model,
+        'translate_all': translate_all,
+        'started_at': datetime.now().isoformat(),
+        'current_chunk': 0,
+        'total_chunks': 0,
+        'message': f'Starting translation of {novel}...'
+    }
+    
+    with open(progress_file, 'w', encoding='utf-8') as f:
+        json.dump(progress_data, f)
+    
+    # Start translation in background
+    import subprocess
+    if translate_all:
+        cmd = [sys.executable, '-m', 'src.main', '--novel', novel, '--all', '--model', model]
+    else:
+        cmd = [sys.executable, '-m', 'src.main', '--novel', novel, '--chapter', str(chapter), '--model', model]
+    
+    subprocess.Popen(cmd, cwd=project_root, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    
+    return jsonify({'status': 'started', 'progress': progress_data})
+
+
 # ─────────────────────────────────────────────────────────────
 # Main Entry Point
 # ─────────────────────────────────────────────────────────────
