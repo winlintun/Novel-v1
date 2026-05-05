@@ -600,28 +600,31 @@ def api_progress():
             # Check if output file exists (translation completed)
             output_dir = Path("data/output") / novel
             if output_dir.exists():
-                # Check for recent output files
-                recent_files = list(output_dir.glob(f"{novel}_chapter_*.mm.md"))
-                recent_files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+                # Check for any .mm.md files
+                output_files = list(output_dir.glob("*.mm.md"))
+                output_files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
                 
-                if recent_files:
-                    latest = recent_files[0]
-                    # If file was modified in last 30 seconds, translation might still be running
-                    if time.time() - latest.stat().st_mtime < 30:
+                if output_files:
+                    latest = output_files[0]
+                    age = time.time() - latest.stat().st_mtime
+                    
+                    if age < 60:  # Modified within last 60 seconds = still translating
                         data['status'] = 'translating'
-                        data['message'] = f'Translating chapter...'
+                        data['message'] = f'Translating... (file: {latest.name})'
                     else:
-                        # Check if it's the expected chapter
-                        expected_ch = f"chapter_{int(chapter):04d}"
-                        if expected_ch in latest.name:
-                            data['status'] = 'completed'
-                            data['message'] = f'Translation completed!'
-                            # Clean up progress file
+                        # Translation likely completed
+                        data['status'] = 'completed'
+                        data['message'] = 'Translation completed!'
+                        # Clean up progress file after a delay
+                        if age > 120:  # 2 minutes old = definitely done
                             progress_file.unlink(missing_ok=True)
             
             return jsonify(data)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Progress check error: {e}")
+            # If error, assume completed and clean up
+            if progress_file.exists():
+                progress_file.unlink(missing_ok=True)
     
     return jsonify({
         'status': 'idle',
@@ -667,6 +670,15 @@ def api_start_translation():
     subprocess.Popen(cmd, cwd=project_root, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
     return jsonify({'status': 'started', 'progress': progress_data})
+
+
+@app.route('/api/progress/clear', methods=['POST'])
+def api_progress_clear():
+    """Clear stuck progress"""
+    progress_file = Path("logs/progress_current.json")
+    if progress_file.exists():
+        progress_file.unlink(missing_ok=True)
+    return jsonify({'status': 'cleared'})
 
 
 # ─────────────────────────────────────────────────────────────

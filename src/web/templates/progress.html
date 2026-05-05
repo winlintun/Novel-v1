@@ -96,7 +96,7 @@
 
 <!-- Real-time progress indicator -->
 <div id="realtimeStatus" class="card" style="margin-top: 1rem; display: none;">
-    <h3 class="card-header">⚡ Live Translation Progress</h3>
+    <h3 class="card-header">⚡ Live Translation Progress <button onclick="clearProgress()" class="btn btn-sm btn-secondary" style="float: right;">Clear</button></h3>
     <div id="liveProgress" class="alert alert-info">
         <strong>Checking for active translation...</strong>
     </div>
@@ -105,7 +105,11 @@
 <script>
 let pollInterval = null;
 
-// Check for real-time progress every 3 seconds
+async function clearProgress() {
+    await fetch('/api/progress/clear', {method: 'POST'});
+    location.reload();
+}
+
 async function checkProgress() {
     try {
         const response = await fetch('/api/progress');
