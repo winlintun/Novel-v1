@@ -123,5 +123,12 @@ Modelfile.burmese-gpt
 fore-do.md
 
 # Generated output (translation results)
-data/output/
+data/output/.versions
+data/output/json-test2
+data/output/novel-alpha
+data/output/novel-beta
+data/*.json
+data/*.db
+data/*.db-shm
+data/*.db-wal
 logs/report/

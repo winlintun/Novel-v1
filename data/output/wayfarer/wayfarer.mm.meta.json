@@ -1,7 +1,7 @@
 ﻿{
   "novel": "wayfarer",
-  "last_updated": "2026-05-06T19:16:58.577536",
-  "total_chapters": 4,
+  "last_updated": "2026-05-06T22:27:47.577344",
+  "total_chapters": 7,
   "chapters": {
     "1": {
       "chapter": 1,
@@ -50,6 +50,42 @@
       "duration_seconds": 3699.3,
       "chunk_count": 11,
       "avg_quality_score": 90.0
+    },
+    "5": {
+      "chapter": 5,
+      "translated_at": "2026-05-06T20:39:03.122891",
+      "source": "data/input/wayfarer/wayfarer_chapter_005.md",
+      "pipeline": "single_stage",
+      "model": "padauk-gemma:q8_0",
+      "char_count": 10445,
+      "myanmar_ratio": 0.988,
+      "duration_seconds": 3998.9,
+      "chunk_count": 12,
+      "avg_quality_score": 92.3
+    },
+    "6": {
+      "chapter": 6,
+      "translated_at": "2026-05-06T21:43:53.913907",
+      "source": "data/input/wayfarer/wayfarer_chapter_006.md",
+      "pipeline": "single_stage",
+      "model": "padauk-gemma:q8_0",
+      "char_count": 11732,
+      "myanmar_ratio": 0.987,
+      "duration_seconds": 3866.2,
+      "chunk_count": 13,
+      "avg_quality_score": 90.0
+    },
+    "7": {
+      "chapter": 7,
+      "translated_at": "2026-05-06T22:27:47.575701",
+      "source": "data/input/wayfarer/wayfarer_chapter_007.md",
+      "pipeline": "single_stage",
+      "model": "padauk-gemma:q8_0",
+      "char_count": 7265,
+      "myanmar_ratio": 0.981,
+      "duration_seconds": 2600.0,
+      "chunk_count": 8,
+      "avg_quality_score": 89.1
     }
   }
 }

@@ -1,0 +1,19 @@
+﻿{
+  "novel": "凡人修仙传",
+  "last_updated": "2026-05-06T18:12:49.549415",
+  "total_chapters": 1,
+  "chapters": {
+    "2": {
+      "chapter": 2,
+      "translated_at": "2026-05-06T18:12:49.549292",
+      "source": "data/input/凡人修仙传/凡人修仙传_002.md",
+      "pipeline": "single_stage",
+      "model": "padauk-gemma:q8_0",
+      "char_count": 298,
+      "myanmar_ratio": 1.0,
+      "duration_seconds": 290.1,
+      "chunk_count": 1,
+      "avg_quality_score": 95.0
+    }
+  }
+}
