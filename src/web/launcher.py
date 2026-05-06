@@ -4,7 +4,6 @@
 import argparse
 import os
 import sys
-import subprocess
 import logging
 from pathlib import Path
 from typing import Optional

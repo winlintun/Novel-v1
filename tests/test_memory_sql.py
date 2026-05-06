@@ -3,8 +3,6 @@ Tests for MemoryManager SQL backend integration.
 """
 
 import pytest
-import tempfile
-from pathlib import Path
 from src.memory.memory_manager import MemoryManager
 
 
@@ -84,7 +82,6 @@ class TestMemoryManagerSQLBackend:
 
     def test_sql_json_parity_add_term(self, db_path, tmp_path):
         """SQL and JSON backends should behave similarly for add_term."""
-        import os
         import json
         # Use temp directory for JSON backend to avoid persistence issues
         json_glossary_dir = tmp_path / "json_parity_test" / "glossary"

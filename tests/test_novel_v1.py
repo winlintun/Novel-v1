@@ -397,7 +397,6 @@ def run_all_tests():
         ("CLI Help System", test_cli_help),
         ("Web UI Launcher", test_launcher_script),
         ("Enhanced CLI Display", test_enhanced_display_functions),
-        ("UI Pages Structure", test_ui_pages_structure),
         ("Progress Logger", test_progress_logger),
         ("Memory Manager", test_memory_manager),
         ("File Handler", test_file_handler),

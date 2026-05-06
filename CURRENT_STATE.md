@@ -7,9 +7,16 @@
 ## Last Updated
 - Date: 2026-05-08
 - Last task completed: Fixed chapter heading format issue - bare numerals like "# ၃" now convert to proper "# အခန်း ၃: Title" format
+- Git commit: 1f00202
 
 ## In Progress
 - None
+
+## Completed Tasks
+- [DONE] Fixed bare chapter numeral heading format (ERR-067)
+- [DONE] Added 4 test cases for heading format fix
+- [DONE] Code review workflow completed (Reviewer A & B PASSED)
+- [DONE] Git commit: 1f00202
 
 ---
 

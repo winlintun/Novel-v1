@@ -315,12 +315,6 @@ def get_glossary() -> dict:
 def save_glossary(glossary: dict) -> bool:
     """Save glossary data to SQLite database"""
     try:
-        from src.db.connection import DatabaseConnection
-        from src.db.repositories.glossary_repo import GlossaryRepository
-        
-        db = DatabaseConnection('data/novel_translation.db')
-        glossary_repo = GlossaryRepository(db)
-        
         # Note: This function is called when adding terms via the web UI
         # The actual save happens when individual terms are added/updated
         # For now, we'll just return True since the database handles persistence
@@ -664,7 +658,6 @@ def static_files(filename):
 @app.route('/api/progress')
 def api_progress():
     """API endpoint for real-time translation progress"""
-    import time
     from datetime import datetime
 
     progress_file = Path("logs/progress_current.json")
@@ -865,7 +858,7 @@ def api_start_translation():
             return jsonify({
                 'status': 'error',
                 'error': error_msg,
-                'details': f'Check logs/translation_webui.log for details'
+                'details': 'Check logs/translation_webui.log for details'
             }), 500
         
         return jsonify({

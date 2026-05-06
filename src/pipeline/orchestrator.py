@@ -21,6 +21,7 @@ from typing import List, Dict, Any, Optional, Tuple, Callable
 from datetime import datetime
 
 from src.config import AppConfig
+from src.utils.progress_logger import ProgressLogger
 
 # Constants
 INPUT_DIR = "data/input"
@@ -392,8 +393,21 @@ class TranslationPipeline:
             # Preprocess
             chunks = self._preprocess(text, chapter_label)
 
+            # Initialize progress logger for real-time tracking
+            progress_logger = None
+            try:
+                progress_logger = ProgressLogger(
+                    book_id=self._current_novel or "unknown",
+                    chapter_name=chapter_label,
+                    total_chunks=len(chunks),
+                    log_dir="logs/progress"
+                )
+                self.logger.info(f"Progress logging to: {progress_logger.get_log_path()}")
+            except Exception as e:
+                self.logger.warning(f"Could not initialize progress logger: {e}")
+
             # Translate (now returns chunks + per-chunk metrics)
-            translated_chunks, chunk_metrics = self._translate_chunks(chunks)
+            translated_chunks, chunk_metrics = self._translate_chunks(chunks, progress_logger)
 
             # Postprocess
             result_text = self._postprocess(translated_chunks)
@@ -530,6 +544,14 @@ class TranslationPipeline:
                 avg_score=avg_score
             )
 
+            # Finalize progress logger
+            if progress_logger:
+                try:
+                    progress_logger.finalize(success=True)
+                    self.logger.info(f"Progress log saved: {progress_logger.get_log_path()}")
+                except Exception as e:
+                    self.logger.warning(f"Could not finalize progress logger: {e}")
+
             return {
                 "success": True,
                 "output_path": str(output_path),
@@ -549,6 +571,12 @@ class TranslationPipeline:
 
         except Exception as e:
             self.logger.error(f"Translation failed: {e}", exc_info=True)
+            # Finalize progress logger with failure
+            if progress_logger:
+                try:
+                    progress_logger.finalize(success=False)
+                except Exception:
+                    pass
             return {
                 "success": False,
                 "output_path": None,

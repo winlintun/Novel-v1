@@ -5,10 +5,8 @@ Tests for JSON-to-SQLite migration.
 import pytest
 import json
 import tempfile
-import shutil
 from pathlib import Path
 from src.db.connection import DatabaseConnection
-from src.db.schema import SchemaManager
 from src.db.migrator import JsonToSqlMigrator
 
 

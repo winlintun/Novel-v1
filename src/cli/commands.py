@@ -242,7 +242,7 @@ def run_translation_pipeline(args: argparse.Namespace) -> int:
                         raise  # Different error, re-raise
             else:
                 logger.error(f"Database locked for {max_wait}s - another process may be using it")
-                print_error(f"Database is locked by another process. Please wait and try again.")
+                print_error("Database is locked by another process. Please wait and try again.")
                 return 1
 
         if args.input_file:

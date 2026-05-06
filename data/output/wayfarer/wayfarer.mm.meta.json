@@ -1,7 +1,7 @@
 ﻿{
   "novel": "wayfarer",
-  "last_updated": "2026-05-06T22:27:47.577344",
-  "total_chapters": 7,
+  "last_updated": "2026-05-06T23:29:18.466914",
+  "total_chapters": 8,
   "chapters": {
     "1": {
       "chapter": 1,
@@ -86,6 +86,18 @@
       "duration_seconds": 2600.0,
       "chunk_count": 8,
       "avg_quality_score": 89.1
+    },
+    "8": {
+      "chapter": 8,
+      "translated_at": "2026-05-06T23:29:18.462661",
+      "source": "data/input/wayfarer/wayfarer_chapter_008.md",
+      "pipeline": "single_stage",
+      "model": "padauk-gemma:q8_0",
+      "char_count": 9417,
+      "myanmar_ratio": 0.991,
+      "duration_seconds": 3665.7,
+      "chunk_count": 11,
+      "avg_quality_score": 92.4
     }
   }
 }

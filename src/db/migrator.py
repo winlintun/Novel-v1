@@ -8,7 +8,6 @@ import logging
 import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 from src.db.connection import DatabaseConnection
 from src.db.schema import SchemaManager
 from src.db.repositories.novel_repo import NovelRepository

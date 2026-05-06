@@ -237,17 +237,6 @@ class MemoryManager:
 
         logger.info(f"Memory loaded: {self.glossary.get('total_terms', 0)} glossary terms")
 
-    def save_memory(self):
-        """Save all memory to disk."""
-        # Update context memory with buffer
-        self.context_memory["paragraph_buffer"] = list(self.paragraph_buffer)
-
-        # Save files
-        FileHandler.write_json(self.glossary_path, self.glossary)
-        FileHandler.write_json(self.context_path, self.context_memory)
-
-        logger.debug("Memory saved to disk")
-
     @staticmethod
     def _is_valid_myanmar_text(text: str, min_ratio: float = 0.5) -> bool:
         """Check if text contains sufficient Myanmar Unicode characters.
@@ -328,58 +317,6 @@ class MemoryManager:
     # Tier 1: Glossary Operations
     # -------------------------------------------------------------------------
 
-    def add_term(
-        self,
-        source: str,
-        target: str,
-        category: str = "general",
-        chapter: int = 0
-    ) -> bool:
-        """Add a new term to glossary.
-        
-        Validates that the target contains Myanmar text before accepting.
-        """
-        terms = self.glossary.get("terms", [])
-
-        # Check for duplicates
-        existing = {t.get("source") or t.get("source_term", "") for t in terms}
-        if source in existing:
-            return False
-
-        # Validate target contains Myanmar text (reject pure English/Latin/Chinese)
-        if not self._is_valid_myanmar_text(target):
-            logger.warning(f"Rejected non-Myanmar target for '{source}': '{target}'")
-            return False
-
-        # Check semantic deduplication: warn if target is too similar to existing term
-        similar_source = self._check_target_similarity(source, target)
-        if similar_source:
-            logger.warning(
-                f"Near-duplicate target for '{source}': '{target}' "
-                f"is too similar to existing term '{similar_source}'. "
-                f"Manual review recommended before approving."
-            )
-
-        new_term = {
-            "id": f"term_{len(terms) + 1:03d}",
-            "source": source,
-            "target": target,
-            "category": category,
-            "chapter_first_seen": chapter,
-            "chapter_last_seen": chapter,
-            "verified": False,
-            "added_at": datetime.now().isoformat()
-        }
-
-        terms.append(new_term)
-        self.glossary["terms"] = terms
-        self.glossary["total_terms"] = len(terms)
-        self.glossary["last_updated"] = datetime.now().isoformat()
-
-        self.save_memory()
-        logger.info(f"Added glossary term: {source} -> {target}")
-        return True
-
     def update_term(self, source: str, new_target: str, chapter: int = 0) -> bool:
         """Update an existing term with Myanmar validation."""
         if not self._is_valid_myanmar_text(new_target):
@@ -411,92 +348,6 @@ class MemoryManager:
 
         return False
 
-    def get_term(self, source: str) -> Optional[str]:
-        """Get target translation for a source term.
-        
-        Dual-layer lookup:
-        1. First check per-novel glossary
-        2. Fall back to universal glossary (shared terms)
-        """
-        # First: Check per-novel glossary
-        terms = self.glossary.get("terms", [])
-        for term in terms:
-            term_source = term.get("source") or term.get("source_term", "")
-            if term_source == source:
-                return term.get("target") or term.get("target_term")
-        
-        # Second: Check universal glossary (fallback)
-        if self.use_universal:
-            universal_terms = self.universal_glossary.get("terms", [])
-            for term in universal_terms:
-                term_source = term.get("source_term") or term.get("source", "")
-                if term_source == source:
-                    return term.get("target_term") or term.get("target")
-        
-        return None
-
-    def get_glossary_for_prompt(self, limit: int = 20) -> str:
-        """Get formatted glossary for prompt injection.
-
-        Sorts terms by chapter_last_seen (most recent first) so freshest
-        terms stay in the window as the glossary grows past `limit`.
-        
-        Includes both per-novel and universal glossary terms.
-        """
-        all_terms = self.get_all_terms()
-
-        if not all_terms:
-            return "No glossary entries yet."
-
-        # Sort by chapter_last_seen descending, then take top `limit`
-        sorted_terms = sorted(
-            all_terms,
-            key=lambda t: t.get("chapter_last_seen", 0) or 0,
-            reverse=True
-        )
-
-        lines = ["GLOSSARY (Use these exact translations):"]
-
-        for term in sorted_terms[:limit]:
-            verified = "✓" if term.get("verified") else "○"
-            # Handle both novel and universal term formats
-            source = self._sanitize_for_prompt(
-                term.get("source") or term.get("source_term", "")
-            )
-            target = self._sanitize_for_prompt(
-                term.get("target") or term.get("target_term", "")
-            )
-            category = self._sanitize_for_prompt(term.get('category', 'general'))
-            lines.append(
-                f"  [{verified}] {source} = {target} "
-                f"({category})"
-            )
-
-        return "\n".join(lines)
-
-    def get_all_terms(self) -> List[Dict[str, Any]]:
-        """Get all glossary terms (per-novel + universal).
-        
-        Returns combined list with per-novel terms first,
-        then universal terms.
-        """
-        combined = []
-        
-        # Add per-novel terms first (takes priority)
-        per_novel = self.glossary.get("terms", [])
-        combined.extend(per_novel)
-        
-        # Add universal terms (skip duplicates)
-        if self.use_universal:
-            per_novel_sources = {t.get("source") or t.get("source_term", "") for t in per_novel}
-            universal = self.universal_glossary.get("terms", [])
-            for term in universal:
-                source = term.get("source_term") or term.get("source", "")
-                if source not in per_novel_sources:
-                    combined.append(term)
-        
-        return combined
-
     def _sanitize_for_prompt(self, text: str) -> str:
         """Sanitize text for safe use in LLM prompts."""
         if not isinstance(text, str):
@@ -511,34 +362,6 @@ class MemoryManager:
     # -------------------------------------------------------------------------
     # Tier 2: Context Memory Operations
     # -------------------------------------------------------------------------
-
-    def update_chapter_context(self, chapter_num: int, translated_text: str = "", summary: str = ""):
-        """Update context after chapter translation.
-        
-        Args:
-            chapter_num: Current chapter number
-            translated_text: Full translated text for extracting characters/events
-            summary: Optional pre-generated summary
-        """
-        self.context_memory["last_translated_chapter"] = self.context_memory.get("current_chapter", 0)
-        self.context_memory["current_chapter"] = chapter_num
-
-        if summary:
-            self.context_memory["summary"] = summary
-        elif translated_text:
-            self.context_memory["summary"] = self._generate_summary_from_text(translated_text)
-
-        if translated_text:
-            try:
-                self._update_active_characters(translated_text)
-            except Exception as e:
-                logger.warning(f"Active characters update failed: {e}")
-            try:
-                self._update_recent_events(translated_text, chapter_num)
-            except Exception as e:
-                logger.warning(f"Recent events update failed: {e}")
-
-        self.save_memory()
 
     def _generate_summary_from_text(self, text: str, max_length: int = 500) -> str:
         """Generate a brief summary from translated text."""

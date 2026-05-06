@@ -532,18 +532,6 @@ def remove_inline_markdown_artifacts(text: str) -> str:
     lines = text.split('\n')
     result: list[str] = []
     
-    # Track if we've seen the main chapter heading structure
-    seen_chapter_heading = False
-    chapter_heading_line = -1
-    
-    # First pass: identify chapter heading position
-    for i, line in enumerate(lines):
-        stripped = line.strip()
-        if re.match(r'^#\s+အခန်း\s+\d+', stripped):
-            seen_chapter_heading = True
-            chapter_heading_line = i
-            break
-    
     for i, line in enumerate(lines):
         stripped = line.strip()
         
