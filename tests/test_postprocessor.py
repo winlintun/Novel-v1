@@ -18,6 +18,7 @@ from src.utils.postprocessor import (
     clean_output,
     validate_output,
     remove_chinese_characters,
+    fix_chapter_heading_format,
 )
 
 
@@ -286,6 +287,54 @@ class TestValidateOutput(unittest.TestCase):
         required_fields = ["chapter", "myanmar_ratio", "thai_chars_leaked", "chinese_chars_leaked", "status"]
         for field in required_fields:
             self.assertIn(field, report)
+
+
+class TestFixChapterHeadingFormat(unittest.TestCase):
+    """Test chapter heading format fixing."""
+
+    def test_bare_numeral_with_subtitle(self):
+        """Test fixing bare numeral # ၃ followed by ## Title."""
+        text = """# ၃
+
+## ယင်၏ကိုယ်ခန္ဓာ
+
+Content here."""
+        result = fix_chapter_heading_format(text)
+        # Should combine into proper format
+        self.assertIn("# အခန်း ၃: ယင်၏ကိုယ်ခန္ဓာ", result)
+        self.assertNotIn("# ၃", result)
+        self.assertNotIn("## ယင်", result)
+
+    def test_bare_arabic_numeral(self):
+        """Test fixing bare numeral # 3 followed by ## Title."""
+        text = """# 3
+
+## Chapter Title
+
+Content here."""
+        result = fix_chapter_heading_format(text)
+        self.assertIn("# အခန်း 3: Chapter Title", result)
+        self.assertNotIn("# 3", result)
+
+    def test_normal_chapter_heading_split(self):
+        """Test that colon-separated chapter headings are split into H1 + H2 format."""
+        text = """# အခန်း ၅: ခေါင်းစဉ်
+
+Content here."""
+        result = fix_chapter_heading_format(text)
+        # Pattern 2 splits "# အခန်း N: Title" into "# အခန်း N" + "## Title"
+        self.assertIn("# အခန်း ၅", result)
+        self.assertIn("## ခေါင်းစဉ်", result)
+        self.assertNotIn("# အခန်း ၅: ခေါင်းစဉ်", result)
+
+    def test_bare_numeral_without_subtitle_unchanged(self):
+        """Test bare numeral without following ## subtitle is kept as-is."""
+        text = """# ၁၀
+
+Some content without subtitle."""
+        result = fix_chapter_heading_format(text)
+        # Should remain unchanged since no subtitle follows
+        self.assertIn("# ၁၀", result)
 
 
 if __name__ == '__main__':

@@ -228,6 +228,7 @@ def fix_chapter_heading_format(text: str) -> str:
     
     The model may output '# အခန်း ၁၂ ## Title text' (H1 + H2 + body
     all on one line). Or '# အခန်း ၁၇: Title' (colon-separated).
+    Also handles bare numerals like '# ၃' followed by '## Title'.
     Split into proper markdown:
         # အခန်း ၁၂
         ## Title
@@ -257,6 +258,39 @@ def fix_chapter_heading_format(text: str) -> str:
         text,
         flags=re.MULTILINE
     )
+    
+    # Pattern 3: Bare numeral "# ၃" or "# 3" followed by "## Title" on next lines
+    # Convert to "# အခန်း ၃" and "## Title" format
+    lines = text.split('\n')
+    result = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.strip()
+        
+        # Check for bare numeral pattern: # [Myanmar numeral] or # [Arabic numeral]
+        bare_num_match = re.match(r'^#\s+([\u1040-\u1049\d]+)$', stripped)
+        if bare_num_match and i + 1 < len(lines):
+            # Look for subtitle, skipping blank lines
+            j = i + 1
+            while j < len(lines) and not lines[j].strip():
+                j += 1
+            
+            # Check if the next non-blank line is a ## subtitle
+            if j < len(lines):
+                next_line = lines[j].strip()
+                if next_line.startswith('## '):
+                    # Convert to proper format: # အခန်း N: Title
+                    num = bare_num_match.group(1)
+                    title = next_line[3:].strip()  # Remove "## " prefix
+                    result.append(f'# အခန်း {num}: {title}')
+                    i = j + 1  # Skip to after the subtitle line
+                    continue
+        
+        result.append(line)
+        i += 1
+    
+    text = '\n'.join(result)
 
     return text
 
@@ -467,8 +501,8 @@ def remove_checkbox_artifacts(text: str) -> str:
         if re.match(r'^-\s*\[\s*\]\s*:', stripped):
             continue
         
-        # Skip checkbox with checkmark: - [x]:, - [✓]:, etc.
-        if re.match(r'^-\s*\[[\sxoX✓✔\-]*\]\s*:', stripped):
+        # Skip checkbox with checkmark: - [x]:, - [✓]:, - [○]:, etc.
+        if re.match(r'^-\s*\[[\sxoX✓✔○\-]*\]\s*:', stripped):
             continue
         
         result.append(line)

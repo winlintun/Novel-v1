@@ -5,11 +5,96 @@
 ---
 
 ## Last Updated
-- Date: 2026-05-07
-- Last task completed: Fixed chapter range translation error in Web UI
+- Date: 2026-05-08
+- Last task completed: Fixed chapter heading format issue - bare numerals like "# ၃" now convert to proper "# အခန်း ၃: Title" format
 
 ## In Progress
 - None
+
+---
+
+## Fixed: Chapter Heading Format (Bare Numerals)
+
+### Problem
+Translated chapter files had incorrect title formatting:
+- **Input**: `# ၃` followed by `## ယင်၏ကိုယ်ခန္ဓာ`
+- **Expected**: `# အခန်း ၃: ယင်၏ကိုယ်ခန္ဓာ` (proper Myanmar chapter heading)
+- **Original Title**: `# Chapter 3: Body of Yin`
+
+The model was outputting bare Myanmar numerals ("# ၃") instead of the proper chapter heading format.
+
+### Root Cause
+The `fix_chapter_heading_format()` function in `postprocessor.py` only handled:
+1. `# အခန်း N ## Title` (H1 + H2 on one line)
+2. `# အခန်း N: Title` (colon-separated)
+
+It did NOT handle bare numerals like `# ၃` followed by `## Title` on separate lines.
+
+### Solution Applied
+**Updated `src/utils/postprocessor.py`** - Added Pattern 3 to `fix_chapter_heading_format()`:
+
+```python
+# Pattern 3: Bare numeral "# ၃" or "# 3" followed by "## Title" on next lines
+# Convert to "# အခန်း ၃: Title" format
+lines = text.split('\n')
+result = []
+i = 0
+while i < len(lines):
+    line = lines[i]
+    stripped = line.strip()
+    
+    # Check for bare numeral pattern
+    bare_num_match = re.match(r'^#\s+([\u1040-\u1049\d]+)$', stripped)
+    if bare_num_match and i + 1 < len(lines):
+        # Look for subtitle, skipping blank lines
+        j = i + 1
+        while j < len(lines) and not lines[j].strip():
+            j += 1
+        
+        # Check if the next non-blank line is a ## subtitle
+        if j < len(lines):
+            next_line = lines[j].strip()
+            if next_line.startswith('## '):
+                # Convert to proper format
+                num = bare_num_match.group(1)
+                title = next_line[3:].strip()
+                result.append(f'# အခန်း {num}: {title}')
+                i = j + 1
+                continue
+    
+    result.append(line)
+    i += 1
+```
+
+### Key Features
+- Handles both Myanmar numerals (၃) and Arabic numerals (3)
+- Skips blank lines between the numeral and subtitle
+- Combines into proper `# အခန်း N: Title` format
+- Preserves all other content
+
+### Tests Added
+**Updated `tests/test_postprocessor.py`**:
+- `test_bare_numeral_with_subtitle` - Myanmar numeral case
+- `test_bare_arabic_numeral` - Arabic numeral case  
+- `test_bare_numeral_without_subtitle_unchanged` - No subtitle case
+- `test_normal_chapter_heading_split` - Existing colon-separated format
+
+### Verification
+```bash
+# Run new tests
+pytest tests/test_postprocessor.py::TestFixChapterHeadingFormat -v
+# 4/4 tests PASSED
+
+# Run full test suite
+pytest tests/ -v
+# 489 tests PASSED
+```
+
+### Files Modified
+- `src/utils/postprocessor.py` - Added Pattern 3 to fix bare numeral headings
+- `tests/test_postprocessor.py` - Added 4 new test cases
+
+---
 
 ## Known Issues
 - None
@@ -747,6 +832,124 @@ Inspired by open-design tools (Linear, Vercel, Notion), implemented modern UI co
 ## Known Issues
 - None
 
+## Analysis: Chapter 8 AI vs Manual Translation Comparison
+
+### Summary
+Completed detailed comparison between AI-generated translation (wayfarer_chapter_008.mm.md) and manual translation (wayfarer_chapter_008.mm.bak.md). Key finding: **Structural fixes are working, but content quality gaps remain significant.**
+
+### Quality Scores
+| Aspect | AI | Manual | Gap |
+|--------|-----|--------|-----|
+| Structural Integrity | 90/100 | 98/100 | Small ✅ |
+| Narrative Flow | 60/100 | 95/100 | **Large** ❌ |
+| Dialogue Quality | 55/100 | 92/100 | **Large** ❌ |
+| Descriptive Detail | 50/100 | 90/100 | **Large** ❌ |
+| **Overall** | **64/100** | **92/100** | **28 points** |
+
+### ✅ What's Working (Postprocessor Fixes)
+- No placeholder headings (`## အခန်းခေါင်းစဉ်`) - Fixed
+- No checkbox artifacts (`- [○]:`) - Fixed
+- No Thai/Khmer script leakage - Fixed
+- Clean markdown structure - Working
+
+### ❌ Critical Issues Identified
+
+#### 1. Missing Dialogue (URGENT)
+**AI is losing dialogue exchanges:**
+- Manual has 6+ lines of disciple reactions
+- AI has only 2 short lines
+- Missing: "ဒါက ထိပ်တန်းသိုင်းပညာရှင် နှစ်ယောက်တိုက်ခိုက်နေတာပဲ"
+- Missing: Fear reactions, speculation about battle
+
+#### 2. Incomplete Sentences (URGENT)
+**Fragmented output in AI:**
+- Line 33: "သူမ၏" (ends mid-sentence)
+- Line 71: "သူသည် အခြားသူများကဲ့သို့" (incomplete)
+- Suggests chunk truncation or generation limits
+
+#### 3. Missing Descriptive Details (HIGH)
+**Rich descriptions in manual, minimal in AI:**
+- Missing: Character appearance (blood on face, beauty)
+- Missing: Battle visual effects
+- Missing: Environmental reactions (ship shaking, waves)
+- Missing: Internal thoughts and observations
+
+#### 4. Flat Character Voices (HIGH)
+- AI: Direct dialogue without emotional markers
+- Manual: "ဟားတိုက်ရယ်မောလိုက်သည်" (laughed uproariously)
+- Missing: Sarcasm, menace, defiance in speech patterns
+
+### Root Causes
+1. **Dialogue truncation** - Model summarizing instead of translating fully
+2. **Sentence completion** - Generation stopping mid-sentence
+3. **Descriptive compression** - Prompt not requiring sensory details
+4. **Voice flattening** - No character context passed to translator
+
+### Recommendations
+
+#### Immediate (This Week)
+1. **Add dialogue preservation rule to translator prompt:**
+   ```
+   CRITICAL: Preserve EVERY line of dialogue. Never summarize.
+   Include dialogue tags and crowd reactions.
+   ```
+
+2. **Add incomplete sentence detection to postprocessor:**
+   ```python
+   def detect_incomplete_sentences(text):
+       # Flag lines ending with possessives (၏) or particles
+       # Trigger re-translation for affected chunks
+   ```
+
+#### Next Sprint
+3. **Enhance descriptive detail requirements:**
+   ```
+   For each scene, include:
+   - Visual: colors, lighting, movements
+   - Sound: onomatopoeia, volume
+   - Physical sensations: pain, temperature
+   ```
+
+4. **Character voice injection:**
+   - Pass character context (role, tone, speech patterns) to translator
+   - Maintain consistency per character
+
+### Files Modified
+- `logs/report/wayfarer_ch8_ai_vs_manual_comparison.md` - Detailed comparison report
+
+### Verification
+See full report at: `logs/report/wayfarer_ch8_ai_vs_manual_comparison.md`
+
+## Fixed: Checkbox Circle Symbol Pattern (ERR-065)
+
+### Problem
+The `remove_checkbox_artifacts()` function in postprocessor.py wasn't catching all checkbox variants:
+- `- [○] : content` (with circle symbol U+25CB) was NOT being removed
+- `- []: content` and `- [x]: content` were being removed correctly
+
+### Root Cause
+The regex pattern `r'^-\s*\[[\sxoX✓✔\-]*\]\s*:'` didn't include the circle symbol `○` in the character class.
+
+### Solution
+Updated line 471 in `src/utils/postprocessor.py`:
+```python
+# Before:
+if re.match(r'^-\s*\[[\sxoX✓✔\-]*\]\s*:', stripped):
+
+# After:
+if re.match(r'^-\s*\[[\sxoX✓✔○\-]*\]\s*:', stripped):
+```
+
+### Verification
+```bash
+pytest tests/test_postprocessor.py -v
+# All 30 tests pass
+```
+
+### Files Modified
+- `src/utils/postprocessor.py` - Added circle symbol (○) to checkbox regex pattern
+- `.agent/error_library.json` - Added ERR-065 entry
+
 ## Architecture Decisions
 - Extracted regex patterns from postprocessor.py to src/utils/postprocessor_patterns.py for better organization
 - Added pattern imports to translation_reviewer.py to reduce duplication
@@ -911,3 +1114,122 @@ python -m src.main --novel my-novel --audit-log
 3. **Diff**: Compare any two versions to see what changed
 4. **Glossary Sync**: Preview and apply glossary changes across all affected chapters in one pass
 5. **Audit Trail**: Complete audit log of who changed what and when
+
+---
+
+## Enhanced: Cleanup Tool with Comprehensive Features
+
+### Summary
+Upgraded `tools/cleanup.py` with comprehensive Ollama memory management capabilities. The tool now automatically detects running models, stops them gracefully, cleans Python cache, and provides detailed status information.
+
+### New Features
+
+#### 1. **Automatic Model Detection** (`get_running_models()`)
+```bash
+python -m tools.cleanup --status
+```
+- Automatically detects all running models via `ollama ps`
+- Shows model name, ID, size, processor usage
+- Lists all installed models
+- Displays system memory usage
+
+#### 2. **Comprehensive Cleanup** (`--all` argument)
+```bash
+python -m tools.cleanup --all
+```
+Performs multi-step cleanup:
+1. **Step 1**: Check initial status (lists running models)
+2. **Step 2**: Stop all running models gracefully
+   - Uses `ollama stop <model>` command (newer versions)
+   - Falls back to `ollama run <model> "" --keepalive 0`
+   - Verifies all models stopped
+3. **Step 3**: Clean Python cache
+   - Removes `__pycache__` directories
+   - Deletes `.pyc` and `.pyo` files
+4. **Step 4**: Show final memory status
+
+#### 3. **Individual Cleanup Commands**
+```bash
+# Stop all running models only
+python -m tools.cleanup --stop-all
+
+# Clean Python cache only
+python -m tools.cleanup --clean-cache
+
+# Clear swap memory (requires sudo)
+python -m tools.cleanup --clear-swap
+
+# Include swap clearing in comprehensive cleanup
+python -m tools.cleanup --all --with-swap
+
+# Full before/after status with cleanup
+python -m tools.cleanup --full
+
+# Stop Ollama service completely
+python -m tools.cleanup --stop-service
+
+# Show memory management tips
+python -m tools.cleanup --tips
+```
+
+### Enhanced Functions
+
+#### `stop_all_models(verbose=True)`
+**Improvements:**
+- Detects running models automatically
+- Shows list of models to be stopped
+- Uses multiple stop methods for reliability
+- Verifies models actually stopped
+- Reports success/failure for each model
+
+**Process:**
+```python
+1. Get running models via `ollama ps`
+2. For each model:
+   - Try `ollama stop <model>`
+   - Fallback to `ollama run <model> "" --keepalive 0`
+3. Verify all models stopped
+4. Report status
+```
+
+#### `comprehensive_cleanup(clean_cache=True, clear_swap_memory=False)`
+**New function for `--all` argument:**
+- 5-step cleanup process
+- Progress indicators for each step
+- Memory status before and after
+- Clean summary output
+
+### Files Modified
+- `tools/cleanup.py` - Complete overhaul with new features
+
+### Usage Examples
+
+**Quick Cleanup After Translation:**
+```bash
+# Stop models and clean cache
+python -m tools.cleanup --all
+```
+
+**Emergency Memory Free:**
+```bash
+# Stop everything including service
+python -m tools.cleanup --stop-service
+```
+
+**Check What's Running:**
+```bash
+# Detailed status with model list
+python -m tools.cleanup --status
+```
+
+### Verification
+```bash
+# Test comprehensive cleanup
+python -m tools.cleanup --all
+
+# Output shows:
+# - Initial running models (detected automatically)
+# - Progress stopping each model
+# - Cache cleaning results
+# - Final memory status
+```

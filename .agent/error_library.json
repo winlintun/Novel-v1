@@ -1,6 +1,6 @@
 {
-  "last_updated": "2026-05-02T13:00:00Z",
-  "notes": "ERR-052 through ERR-054 are from May 2 session — postprocessor and pipeline fixes.",
+  "last_updated": "2026-05-08T02:45:00Z",
+  "notes": "ERR-052 through ERR-054 are from May 2 session — postprocessor and pipeline fixes. ERR-067 is from May 8 session — fixed bare chapter numeral heading format.",
   "errors": [
     {
       "id": "ERR-001",
@@ -280,6 +280,33 @@
       "prevention": "Always check if chapter is None before using chapter-based file resolution. When chapter_range is provided, parse the start chapter from the range for file lookup.",
       "times_seen": 1,
       "last_seen": "2026-05-07"
+    },
+    {
+      "id": "ERR-065",
+      "error_type": "CheckboxCircleSymbolNotCaught",
+      "trigger": "remove_checkbox_artifacts() regex pattern didn't catch circle symbol (○) inside brackets: '- [○] : content' was not removed",
+      "solution": "Updated regex in remove_checkbox_artifacts() from '[\\sxoX✓✔\\-]*' to '[\\sxoX✓✔○\\-]*' to include the circle symbol (U+25CB) in the character class.",
+      "prevention": "Checkbox regex patterns must include ALL possible checkbox symbols: empty space, x, X, o, O, checkmarks (✓✔), circles (○●), and dashes.",
+      "times_seen": 1,
+      "last_seen": "2026-05-08"
+    },
+    {
+      "id": "ERR-066",
+      "error_type": "ContentTruncationAndDialogueLoss",
+      "trigger": "AI translation is missing significant content compared to manual translation: (1) Dialogue exchanges truncated or omitted, (2) Incomplete sentences ending with possessive particles (၏), (3) Missing descriptive details and reactions, (4) Flat character voices without emotional markers",
+      "solution": "Add dialogue preservation rules to translator prompt to ensure ALL dialogue lines are translated. Add incomplete sentence detection to postprocessor. Enhance prompts with descriptive detail requirements and character voice context. Pass character relationship and tone context to translator.",
+      "prevention": "Prompt must include: 'CRITICAL: Preserve EVERY line of dialogue. Never summarize or skip exchanges.' Postprocessor should detect incomplete sentences (ending with ၏, particles) and flag for re-translation. Add sensory detail requirements to prompts. Pass character context (role, tone, speech patterns) to translator.",
+      "times_seen": 1,
+      "last_seen": "2026-05-08"
+    },
+    {
+      "id": "ERR-067",
+      "error_type": "BareChapterNumeralHeading",
+      "trigger": "Model outputs bare numerals like '# ၃' followed by '## Title' instead of proper '# အခန်း ၃: Title' format. Postprocessor's fix_chapter_heading_format() didn't handle this pattern.",
+      "solution": "Update fix_chapter_heading_format() to detect bare numerals (# [Myanmar numeral] or # [Arabic digit]) followed by ## subtitle on separate lines. Convert to '# အခန်း N: Title' format.",
+      "prevention": "Postprocessor Pattern 3 now handles this case automatically. Added tests to ensure coverage.",
+      "times_seen": 1,
+      "last_seen": "2026-05-08"
     }
   ]
 }
