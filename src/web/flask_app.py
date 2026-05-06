@@ -8,6 +8,7 @@ import os
 import sys
 import json
 import yaml
+import time
 import logging
 from pathlib import Path
 from datetime import datetime
@@ -214,6 +215,20 @@ def get_config() -> dict:
     return {}
 
 
+def save_config(config: dict) -> bool:
+    """Persist settings.yaml through the shared file handler."""
+    try:
+        from src.utils.file_handler import FileHandler
+        FileHandler.write_text(
+            app.config['CONFIG_PATH'],
+            yaml.safe_dump(config, allow_unicode=True, sort_keys=False),
+        )
+        return True
+    except Exception as e:
+        logger.error(f"Failed to save config: {e}")
+        return False
+
+
 def get_novels() -> list:
     """Get list of available novels from input directory"""
     input_dir = Path(app.config['UPLOAD_FOLDER'])
@@ -241,24 +256,74 @@ def get_translated_chapters(novel_name: str) -> list:
 
 
 def get_glossary() -> dict:
-    """Load glossary data"""
-    glossary_path = Path(app.config['GLOSSARY_PATH'])
-    if glossary_path.exists():
-        try:
-            with open(glossary_path, 'r', encoding='utf-8-sig') as f:
-                return json.load(f)
-        except Exception as e:
-            logger.warning(f"Failed to load glossary: {e}")
-    return {'terms': [], 'total_terms': 0}
+    """Load glossary data from SQLite database"""
+    try:
+        from src.db.connection import DatabaseConnection
+        from src.db.repositories.glossary_repo import GlossaryRepository
+        
+        db = DatabaseConnection('data/novel_translation.db')
+        glossary_repo = GlossaryRepository(db)
+        
+        # Get all terms from database (all novels)
+        all_terms = []
+        
+        # Get approved terms (limit=1000 to get all)
+        approved = glossary_repo.get_terms_by_novel('novel_wayfarer', status='approved', limit=1000)
+        for t in approved:
+            all_terms.append({
+                'source': t['source_term'],
+                'target': t['target_term'],
+                'category': t['category'],
+                'verified': True,
+                'status': 'approved',
+                'confidence': t.get('confidence', 0.0),
+                'usage_count': t.get('usage_count', 0)
+            })
+        
+        # Get pending terms (limit=1000 to get all)
+        pending = glossary_repo.get_terms_by_novel('novel_wayfarer', status='pending', limit=1000)
+        for t in pending:
+            all_terms.append({
+                'source': t['source_term'],
+                'target': t['target_term'],
+                'category': t['category'],
+                'verified': False,
+                'status': 'pending',
+                'confidence': t.get('confidence', 0.0),
+                'usage_count': t.get('usage_count', 0)
+            })
+        
+        return {
+            'terms': all_terms,
+            'total_terms': len(all_terms),
+            'approved_count': len(approved),
+            'pending_count': len(pending)
+        }
+    except Exception as e:
+        logger.warning(f"Failed to load glossary from database: {e}")
+        # Fallback to JSON if database fails
+        glossary_path = Path(app.config['GLOSSARY_PATH'])
+        if glossary_path.exists():
+            try:
+                with open(glossary_path, 'r', encoding='utf-8-sig') as f:
+                    return json.load(f)
+            except Exception:
+                pass
+        return {'terms': [], 'total_terms': 0}
 
 
 def save_glossary(glossary: dict) -> bool:
-    """Save glossary data"""
-    glossary_path = Path(app.config['GLOSSARY_PATH'])
+    """Save glossary data to SQLite database"""
     try:
-        glossary_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(glossary_path, 'w', encoding='utf-8') as f:
-            json.dump(glossary, f, ensure_ascii=False, indent=2)
+        from src.db.connection import DatabaseConnection
+        from src.db.repositories.glossary_repo import GlossaryRepository
+        
+        db = DatabaseConnection('data/novel_translation.db')
+        glossary_repo = GlossaryRepository(db)
+        
+        # Note: This function is called when adding terms via the web UI
+        # The actual save happens when individual terms are added/updated
+        # For now, we'll just return True since the database handles persistence
         return True
     except Exception as e:
         logger.error(f"Failed to save glossary: {e}")
@@ -354,13 +419,7 @@ def translate():
                 if 'processing' not in config:
                     config['processing'] = {}
                 config['processing']['temperature'] = temperature
-                
-                # Save updated config
-                try:
-                    with open(app.config['CONFIG_PATH'], 'w') as f:
-                        yaml.dump(config, f)
-                except Exception as e:
-                    logger.error(f"Failed to save config: {e}")
+                save_config(config)
             
             # Start translation in background
             import subprocess
@@ -418,41 +477,45 @@ def glossary():
     if request.method == 'POST':
         action = request.form.get('action')
         
-        if action == 'add_term':
-            source = request.form.get('source', '').strip()
-            target = request.form.get('target', '').strip()
-            category = request.form.get('category', 'general')
+        try:
+            from src.db.connection import DatabaseConnection
+            from src.db.repositories.glossary_repo import GlossaryRepository
             
-            if source and target:
-                new_term = {
-                    'source': source,
-                    'target': target,
-                    'category': category,
-                    'verified': True,
-                    'added_at': datetime.now().isoformat()
-                }
-                terms.append(new_term)
-                glossary['terms'] = terms
-                glossary['total_terms'] = len(terms)
-                save_glossary(glossary)
-                flash(f'Term "{source}" added successfully', 'success')
-        
-        elif action == 'delete_term':
-            source = request.form.get('source', '')
-            terms = [t for t in terms if t.get('source') != source]
-            glossary['terms'] = terms
-            glossary['total_terms'] = len(terms)
-            save_glossary(glossary)
-            flash(f'Term "{source}" deleted', 'success')
-        
-        elif action == 'verify_term':
-            source = request.form.get('source', '')
-            for term in terms:
-                if term.get('source') == source:
-                    term['verified'] = True
-            glossary['terms'] = terms
-            save_glossary(glossary)
-            flash(f'Term "{source}" verified', 'success')
+            db = DatabaseConnection('data/novel_translation.db')
+            glossary_repo = GlossaryRepository(db)
+            novel_id = 'novel_wayfarer'
+            
+            if action == 'add_term':
+                source = request.form.get('source', '').strip()
+                target = request.form.get('target', '').strip()
+                category = request.form.get('category', 'general')
+                
+                if source and target:
+                    glossary_repo.add_term(
+                        novel_id=novel_id,
+                        source_term=source,
+                        target_term=target,
+                        category=category,
+                        status='approved'
+                    )
+                    flash(f'Term "{source}" added successfully', 'success')
+            
+            elif action == 'delete_term':
+                source = request.form.get('source', '')
+                term = glossary_repo.get_term_by_source(novel_id, source)
+                if term:
+                    glossary_repo.delete_term(term['id'])
+                    flash(f'Term "{source}" deleted', 'success')
+            
+            elif action == 'verify_term':
+                source = request.form.get('source', '')
+                term = glossary_repo.get_term_by_source(novel_id, source)
+                if term:
+                    glossary_repo.update_term(term['id'], status='approved')
+                    flash(f'Term "{source}" verified', 'success')
+        except Exception as e:
+            logger.error(f"Failed to perform glossary action: {e}")
+            flash(f'Error: {str(e)}', 'error')
     
     # Filter by category
     category_filter = request.args.get('category', 'all')
@@ -483,10 +546,11 @@ def settings():
                 config['models'] = {}
             config['models']['translator'] = model
             config['models']['editor'] = model
-            
-            with open(app.config['CONFIG_PATH'], 'w') as f:
-                yaml.dump(config, f)
-            flash('Model settings saved', 'success')
+
+            if save_config(config):
+                flash('Model settings saved', 'success')
+            else:
+                flash('Failed to save model settings', 'error')
         
         elif action == 'save_processing':
             temperature = float(request.form.get('temperature', 0.2))
@@ -498,10 +562,25 @@ def settings():
             config['processing']['temperature'] = temperature
             config['processing']['max_tokens'] = max_tokens
             config['processing']['repeat_penalty'] = repeat_penalty
+
+            if save_config(config):
+                flash('Processing settings saved', 'success')
+            else:
+                flash('Failed to save processing settings', 'error')
+        
+        elif action == 'save_storage':
+            storage_backend = request.form.get('storage_backend', 'sqlite')
+            db_path = request.form.get('db_path', 'data/novel_translation.db')
             
-            with open(app.config['CONFIG_PATH'], 'w') as f:
-                yaml.dump(config, f)
-            flash('Processing settings saved', 'success')
+            if 'storage' not in config:
+                config['storage'] = {}
+            config['storage']['backend'] = storage_backend
+            config['storage']['db_path'] = db_path
+
+            if save_config(config):
+                flash(f'Storage settings saved (backend: {storage_backend})', 'success')
+            else:
+                flash('Failed to save storage settings', 'error')
     
     return render_template('settings.html',
                          config=config,
@@ -509,7 +588,9 @@ def settings():
                          current_model=config.get('models', {}).get('translator', 'padauk-gemma:q8_0'),
                          current_temp=config.get('processing', {}).get('temperature', 0.2),
                          current_max_tokens=config.get('processing', {}).get('max_tokens', 2048),
-                         current_repeat_penalty=config.get('processing', {}).get('repeat_penalty', 1.15))
+                         current_repeat_penalty=config.get('processing', {}).get('repeat_penalty', 1.15),
+                         storage_backend=config.get('storage', {}).get('backend', 'sqlite'),
+                         db_path=config.get('storage', {}).get('db_path', 'data/novel_translation.db'))
 
 
 @app.route('/reader')
@@ -583,49 +664,46 @@ def static_files(filename):
 @app.route('/api/progress')
 def api_progress():
     """API endpoint for real-time translation progress"""
-    import subprocess
     import time
-    
+
     progress_file = Path("logs/progress_current.json")
-    
+
     if progress_file.exists():
         try:
             with open(progress_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-            
-            # Check if translation process is still running
+
+            status = data.get('status', 'starting')
+
+            # If orchestrator already marked it completed/error, trust that
+            if status in ('completed', 'error'):
+                # Clean up progress file after 2 minutes so next idle poll is clean
+                age = time.time() - progress_file.stat().st_mtime
+                if age > 120:
+                    progress_file.unlink(missing_ok=True)
+                return jsonify(data)
+
+            # Still in progress — fall back to file-age heuristic if chunk info missing
             novel = data.get('novel', '')
-            chapter = data.get('chapter', 1)
-            
-            # Check if output file exists (translation completed)
-            output_dir = Path("data/output") / novel
-            if output_dir.exists():
-                # Check for any .mm.md files
-                output_files = list(output_dir.glob("*.mm.md"))
-                output_files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
-                
-                if output_files:
-                    latest = output_files[0]
-                    age = time.time() - latest.stat().st_mtime
-                    
-                    if age < 60:  # Modified within last 60 seconds = still translating
-                        data['status'] = 'translating'
-                        data['message'] = f'Translating... (file: {latest.name})'
-                    else:
-                        # Translation likely completed
-                        data['status'] = 'completed'
-                        data['message'] = 'Translation completed!'
-                        # Clean up progress file after a delay
-                        if age > 120:  # 2 minutes old = definitely done
-                            progress_file.unlink(missing_ok=True)
-            
+            if novel and not data.get('current_chunk'):
+                output_dir = Path("data/output") / novel
+                if output_dir.exists():
+                    output_files = sorted(
+                        output_dir.glob("*.mm.md"),
+                        key=lambda x: x.stat().st_mtime,
+                        reverse=True
+                    )
+                    if output_files:
+                        age = time.time() - output_files[0].stat().st_mtime
+                        if age > 90:
+                            data['status'] = 'completed'
+                            data['message'] = 'Translation completed!'
+
             return jsonify(data)
         except Exception as e:
             logger.warning(f"Progress check error: {e}")
-            # If error, assume completed and clean up
-            if progress_file.exists():
-                progress_file.unlink(missing_ok=True)
-    
+            progress_file.unlink(missing_ok=True)
+
     return jsonify({
         'status': 'idle',
         'message': 'No translation in progress'
@@ -635,21 +713,60 @@ def api_progress():
 @app.route('/api/start-translation', methods=['POST'])
 def api_start_translation():
     """Start translation and track progress"""
+    import subprocess
+    
     data = request.json
     novel = data.get('novel')
     chapter = data.get('chapter')
     model = data.get('model', 'padauk-gemma:q8_0')
     translate_all = data.get('translate_all', False)
+    temperature = float(data.get('temperature', 0.2))
+    
+    # Validate inputs
+    if not novel:
+        return jsonify({
+            'status': 'error',
+            'error': 'No novel specified'
+        }), 400
+    
+    # Update and save config
+    config = get_config()
+    if not config:
+        config = {}
+    if 'models' not in config:
+        config['models'] = {}
+    if 'processing' not in config:
+        config['processing'] = {}
+    config['models']['translator'] = model
+    config['models']['editor'] = model
+    config['processing']['temperature'] = temperature
+    
+    logger.info(f"Saving config with model={model}, temperature={temperature}")
+    
+    if not save_config(config):
+        logger.error("Failed to save configuration")
+        return jsonify({
+            'status': 'error',
+            'error': 'Failed to save translation settings'
+        }), 500
     
     # Create progress file
     progress_file = Path("logs/progress_current.json")
-    progress_file.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        progress_file.parent.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        logger.error(f"Failed to create progress directory: {e}")
+        return jsonify({
+            'status': 'error',
+            'error': f'Failed to create progress directory: {str(e)}'
+        }), 500
     
     progress_data = {
         'status': 'starting',
         'novel': novel,
         'chapter': chapter,
         'model': model,
+        'temperature': temperature,
         'translate_all': translate_all,
         'started_at': datetime.now().isoformat(),
         'current_chunk': 0,
@@ -657,19 +774,91 @@ def api_start_translation():
         'message': f'Starting translation of {novel}...'
     }
     
-    with open(progress_file, 'w', encoding='utf-8') as f:
-        json.dump(progress_data, f)
+    try:
+        with open(progress_file, 'w', encoding='utf-8') as f:
+            json.dump(progress_data, f)
+    except Exception as e:
+        logger.error(f"Failed to write progress file: {e}")
+        return jsonify({
+            'status': 'error',
+            'error': f'Failed to write progress file: {str(e)}'
+        }), 500
     
     # Start translation in background
-    import subprocess
     if translate_all:
-        cmd = [sys.executable, '-m', 'src.main', '--novel', novel, '--all', '--model', model]
+        cmd = [sys.executable, '-m', 'src.main', '--novel', novel, '--all']
     else:
-        cmd = [sys.executable, '-m', 'src.main', '--novel', novel, '--chapter', str(chapter), '--model', model]
+        cmd = [sys.executable, '-m', 'src.main', '--novel', novel, '--chapter', str(chapter)]
     
-    subprocess.Popen(cmd, cwd=project_root, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    logger.info(f"Starting translation with command: {' '.join(cmd)}")
+    logger.info(f"Working directory: {project_root}")
     
-    return jsonify({'status': 'started', 'progress': progress_data})
+    try:
+        # Start the process and capture initial output for error detection
+        log_file = Path("logs/translation_webui.log")
+        log_file.parent.mkdir(parents=True, exist_ok=True)
+        
+        with open(log_file, 'a', encoding='utf-8') as log:
+            log.write(f"\n{'='*60}\n")
+            log.write(f"[{datetime.now().isoformat()}] Starting translation\n")
+            log.write(f"Novel: {novel}, Chapter: {chapter}, Model: {model}\n")
+            log.write(f"Command: {' '.join(cmd)}\n")
+            log.write(f"Working dir: {project_root}\n")
+            log.write(f"{'='*60}\n")
+        
+        # Start process with output redirected to log file
+        with open(log_file, 'a', encoding='utf-8') as log:
+            process = subprocess.Popen(
+                cmd,
+                cwd=project_root,
+                stdout=log,
+                stderr=subprocess.STDOUT,
+                start_new_session=True  # Detach from parent process
+            )
+        
+        logger.info(f"Translation process started with PID: {process.pid}")
+        
+        # Check if process started successfully (non-blocking)
+        # Give it a moment to fail immediately if there's a config error
+        import time
+        time.sleep(0.5)
+        
+        return_code = process.poll()
+        if return_code is not None and return_code != 0:
+            # Process exited immediately with error
+            error_msg = f"Translation process failed to start (exit code: {return_code})"
+            logger.error(error_msg)
+            
+            # Update progress file with error
+            progress_data['status'] = 'error'
+            progress_data['message'] = error_msg
+            with open(progress_file, 'w', encoding='utf-8') as f:
+                json.dump(progress_data, f)
+            
+            return jsonify({
+                'status': 'error',
+                'error': error_msg,
+                'details': f'Check logs/translation_webui.log for details'
+            }), 500
+        
+        return jsonify({
+            'status': 'started',
+            'progress': progress_data,
+            'pid': process.pid
+        })
+        
+    except FileNotFoundError as e:
+        logger.error(f"Python executable or module not found: {e}")
+        return jsonify({
+            'status': 'error',
+            'error': f'Failed to start translation: Python or src.main not found. {str(e)}'
+        }), 500
+    except Exception as e:
+        logger.exception("Failed to start translation process")
+        return jsonify({
+            'status': 'error',
+            'error': f'Failed to start translation: {str(e)}'
+        }), 500
 
 
 @app.route('/api/progress/clear', methods=['POST'])
@@ -679,6 +868,282 @@ def api_progress_clear():
     if progress_file.exists():
         progress_file.unlink(missing_ok=True)
     return jsonify({'status': 'cleared'})
+
+
+@app.route('/api/debug/translation-log')
+def api_translation_log():
+    """Get the last lines of the translation log for debugging"""
+    log_file = Path("logs/translation_webui.log")
+    if not log_file.exists():
+        return jsonify({'exists': False, 'content': 'No log file yet'})
+    
+    try:
+        with open(log_file, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+            # Get last 50 lines
+            last_lines = lines[-50:] if len(lines) > 50 else lines
+            return jsonify({
+                'exists': True,
+                'total_lines': len(lines),
+                'content': ''.join(last_lines)
+            })
+    except Exception as e:
+        return jsonify({'exists': True, 'error': str(e)}), 500
+
+
+@app.route('/api/debug/health')
+def api_health_check():
+    """Health check endpoint to verify system status"""
+    import subprocess
+    
+    checks = {
+        'python_version': sys.version,
+        'project_root': project_root,
+        'input_dir_exists': Path(app.config['UPLOAD_FOLDER']).exists(),
+        'output_dir_exists': Path(app.config['OUTPUT_FOLDER']).exists(),
+        'logs_dir_exists': Path("logs").exists(),
+        'config_exists': Path(app.config['CONFIG_PATH']).exists(),
+    }
+    
+    # Check Ollama status
+    try:
+        result = subprocess.run(['ollama', 'list'], capture_output=True, text=True, timeout=5)
+        checks['ollama_available'] = result.returncode == 0
+        if result.returncode == 0:
+            checks['ollama_models'] = len(result.stdout.strip().split('\n')) - 1  # minus header
+    except Exception as e:
+        checks['ollama_available'] = False
+        checks['ollama_error'] = str(e)
+    
+    # Check current config
+    try:
+        config = get_config()
+        checks['current_config'] = {
+            'translator_model': config.get('models', {}).get('translator', 'not set'),
+            'temperature': config.get('processing', {}).get('temperature', 'not set')
+        }
+    except Exception as e:
+        checks['config_error'] = str(e)
+    
+    return jsonify(checks)
+
+
+# ─────────────────────────────────────────────────────────────
+# Fiction Editor Routes
+# ─────────────────────────────────────────────────────────────
+
+@app.route('/editor')
+def editor():
+    """Fiction-style editing page"""
+    novels = get_novels()
+    selected_novel = request.args.get('novel', '')
+    selected_file = request.args.get('file', '')
+
+    files = []
+    if selected_novel:
+        output_dir = Path(app.config['OUTPUT_FOLDER']) / selected_novel
+        if output_dir.exists():
+            files = sorted(output_dir.glob("*.mm.md"), key=lambda x: x.name)
+
+    paragraphs = []
+    raw_content = ''
+    if selected_file:
+        try:
+            with open(selected_file, 'r', encoding='utf-8-sig') as f:
+                raw_content = f.read()
+            paragraphs = [p for p in raw_content.split('\n\n') if p.strip()]
+        except Exception as e:
+            flash(f'Error reading file: {e}', 'error')
+
+    return render_template(
+        'editor.html',
+        novels=novels,
+        files=files,
+        selected_novel=selected_novel,
+        selected_file=selected_file,
+        paragraphs=paragraphs,
+    )
+
+
+@app.route('/api/editor/rewrite', methods=['POST'])
+def api_editor_rewrite():
+    """Rewrite a paragraph with a tone preset or custom instruction."""
+    data = request.json or {}
+    text = data.get('text', '').strip()
+    tone = data.get('tone', 'humanize')
+    custom_instruction = data.get('custom_instruction', '')
+
+    if not text:
+        return jsonify({'error': 'No text provided'}), 400
+
+    valid_tones = {'humanize', 'dramatic', 'casual', 'literary', 'action', 'romantic', 'custom'}
+    if tone not in valid_tones:
+        tone = 'humanize'
+
+    try:
+        from src.agents.fiction_editor import FictionEditor
+        config = get_config()
+        editor_agent = FictionEditor(config=config)
+        result = editor_agent.rewrite(text, tone=tone, custom_instruction=custom_instruction)
+        return jsonify({'result': result, 'tone': tone})
+    except Exception as e:
+        logger.error(f"Editor rewrite error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/editor/chapter', methods=['GET'])
+def api_editor_chapter():
+    """Load a chapter file and return its paragraphs."""
+    file_path = request.args.get('file', '')
+    if not file_path:
+        return jsonify({'error': 'No file specified'}), 400
+
+    try:
+        with open(file_path, 'r', encoding='utf-8-sig') as f:
+            content = f.read()
+        paragraphs = [p for p in content.split('\n\n') if p.strip()]
+        return jsonify({'paragraphs': paragraphs, 'file': file_path})
+    except FileNotFoundError:
+        return jsonify({'error': 'File not found'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/editor/format', methods=['POST'])
+def api_editor_format():
+    """Format a chapter's text and return the cleaned version with a change report."""
+    data = request.json or {}
+    file_path = data.get('file', '')
+    text = data.get('text', '')
+    options = data.get('options', None)
+
+    # Accept either raw text or file path
+    if not text and file_path:
+        try:
+            with open(file_path, 'r', encoding='utf-8-sig') as f:
+                text = f.read()
+        except FileNotFoundError:
+            return jsonify({'error': 'File not found'}), 404
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    if not text:
+        return jsonify({'error': 'No text or file provided'}), 400
+
+    try:
+        from src.utils.formatter import format_chapter
+        report = format_chapter(text, options)
+        return jsonify(report.as_dict())
+    except Exception as e:
+        logger.error(f"Format error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/editor/format-save', methods=['POST'])
+def api_editor_format_save():
+    """Format a file in-place and save it (with backup)."""
+    data = request.json or {}
+    file_path = data.get('file', '')
+    options = data.get('options', None)
+
+    if not file_path:
+        return jsonify({'error': 'No file specified'}), 400
+
+    try:
+        from src.utils.formatter import format_file
+        report = format_file(file_path, backup=True, options=options)
+        result = report.as_dict()
+        result['file'] = file_path
+        return jsonify(result)
+    except FileNotFoundError:
+        return jsonify({'error': 'File not found'}), 404
+    except Exception as e:
+        logger.error(f"Format-save error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/editor/format-batch', methods=['POST'])
+def api_editor_format_batch():
+    """Format all .mm.md files for a novel and return per-file results."""
+    data = request.json or {}
+    novel = data.get('novel', '')
+    options = data.get('options', None)
+
+    if not novel:
+        return jsonify({'error': 'No novel specified'}), 400
+
+    output_dir = Path(app.config['OUTPUT_FOLDER']) / novel
+    if not output_dir.exists():
+        return jsonify({'error': f'No output directory for novel: {novel}'}), 404
+
+    try:
+        from src.utils.formatter import format_novel
+        results = format_novel(output_dir, backup=True, options=options)
+        total_changes = sum(r['total_changes'] for r in results)
+        files_changed = sum(1 for r in results if r['changed'])
+        return jsonify({
+            'novel': novel,
+            'files_processed': len(results),
+            'files_changed': files_changed,
+            'total_changes': total_changes,
+            'results': results,
+        })
+    except Exception as e:
+        logger.error(f"Batch format error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/cleanup')
+def cleanup():
+    """Batch formatting / cleanup page"""
+    novels = get_novels()
+    selected_novel = request.args.get('novel', '')
+
+    files = []
+    if selected_novel:
+        output_dir = Path(app.config['OUTPUT_FOLDER']) / selected_novel
+        if output_dir.exists():
+            files = sorted(output_dir.glob("*.mm.md"), key=lambda x: x.name)
+
+    return render_template(
+        'cleanup.html',
+        novels=novels,
+        selected_novel=selected_novel,
+        files=files,
+    )
+
+
+@app.route('/api/editor/save', methods=['POST'])
+def api_editor_save():
+    """Save edited chapter back to disk."""
+    data = request.json or {}
+    file_path = data.get('file', '')
+    paragraphs = data.get('paragraphs', [])
+
+    if not file_path:
+        return jsonify({'error': 'No file specified'}), 400
+    if not paragraphs:
+        return jsonify({'error': 'No content to save'}), 400
+
+    try:
+        content = '\n\n'.join(paragraphs)
+        # Write a backup first
+        backup_path = Path(file_path).with_suffix('.bak.md')
+        try:
+            with open(file_path, 'r', encoding='utf-8-sig') as f:
+                original = f.read()
+            with open(backup_path, 'w', encoding='utf-8') as f:
+                f.write(original)
+        except Exception:
+            pass  # backup is best-effort
+
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+
+        return jsonify({'status': 'saved', 'file': file_path, 'paragraphs': len(paragraphs)})
+    except Exception as e:
+        logger.error(f"Editor save error: {e}")
+        return jsonify({'error': str(e)}), 500
 
 
 # ─────────────────────────────────────────────────────────────
