@@ -71,7 +71,10 @@ class TestGenerateGlossaryRouting(unittest.TestCase):
             view_file=None, review_file=None, auto_promote=False, stats=False,
             novel=None, input_file=None,
             chapter=None, all=False, chapter_range=None,
-            config=None
+            config=None,
+            # Versioning command flags
+            versions=False, rollback=None, diff=None, preview_sync=None,
+            create_sync_job=None, execute_sync=None, list_sync_jobs=False, audit_log=False
         )
         defaults.update(kwargs)
         return argparse.Namespace(**defaults)
@@ -106,12 +109,15 @@ class TestGenerateGlossaryRouting(unittest.TestCase):
              mock.patch("src.main.validate_arguments"):
 
             mock_parse.return_value = argparse.Namespace(
-                clean=False, rebuild_meta=False, ui=False, flask=False, streamlit=False,
+                clean=False, rebuild_meta=False, ui=False, flask=False,
                 port=5000, test=False,
                 view_file=None, review_file=None, auto_promote=False, stats=False,
                 generate_glossary=True, approve_glossary=False, novel="my-novel",
                 chapter=None, all=False, chapter_range=None, input_file=None,
-                config=None, model=None, mode=None, output_dir=None
+                config=None, model=None, mode=None, output_dir=None,
+                # Versioning command flags
+                versions=False, rollback=None, diff=None, preview_sync=None,
+                create_sync_job=None, execute_sync=None, list_sync_jobs=False, audit_log=False
             )
             main_mod.main()
 

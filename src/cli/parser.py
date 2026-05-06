@@ -52,10 +52,13 @@ def create_parser() -> argparse.ArgumentParser:
 ║    python -m src.main --novel reverend-insanity --generate-glossary --chapter-range 1-5
 ║    python -m src.main --auto-promote --novel reverend-insanity       ║
 ║                                                                      ║
+║  WEB UI:                                                             ║
+║    python -m src.main --ui         (launch Flask web UI)             ║
+║    python -m src.main --flask      (launch Flask web UI)             ║
+║    python -m src.main --flask --port 8080  (custom port)             ║
+║                                                                      ║
 ║  UTILITIES:                                                          ║
-║    python -m src.main --ui         (launch Streamlit web UI)         ║
 ║    python -m src.main --test       (run sample translation test)     ║
-║    python -m src.main --clean      (clear Python cache)              ║
 ║    python -m src.main --version    (show version)                    ║
 ║                                                                      ║
 ╚══════════════════════════════════════════════════════════════════════╝
@@ -119,6 +122,25 @@ def create_parser() -> argparse.ArgumentParser:
         "--provider",
         type=str,
         help="Override model provider"
+    )
+    config_group.add_argument(
+        "--use-sql",
+        action="store_true",
+        dest="use_sql",
+        help="Use SQLite backend for glossary storage (default: uses config setting)"
+    )
+    config_group.add_argument(
+        "--migrate-sql",
+        action="store_true",
+        dest="migrate_sql",
+        help="Migrate existing JSON glossary to SQLite and exit"
+    )
+    config_group.add_argument(
+        "--db-path",
+        type=str,
+        dest="db_path",
+        default="data/novel_translation.db",
+        help="Path to SQLite database (default: data/novel_translation.db)"
     )
 
     # Workflow options
@@ -191,17 +213,12 @@ def create_parser() -> argparse.ArgumentParser:
     utility_group.add_argument(
         "--ui",
         action="store_true",
-        help="Launch web UI (default: Flask, port 5000)"
+        help="Launch Flask web UI (port 5000)"
     )
     utility_group.add_argument(
         "--flask",
         action="store_true",
-        help="Launch Flask web UI (default port: 5000)"
-    )
-    utility_group.add_argument(
-        "--streamlit",
-        action="store_true",
-        help="Launch Streamlit web UI (port: 8501)"
+        help="Launch Flask web UI — Dashboard, Translate, Editor, Cleanup, Reader (default port: 5000)"
     )
     utility_group.add_argument(
         "--port",
@@ -253,6 +270,59 @@ def create_parser() -> argparse.ArgumentParser:
         help="Show version information"
     )
 
+    # Versioning commands
+    versioning_group = parser.add_argument_group("Version Control & Change Tracking")
+    versioning_group.add_argument(
+        "--versions",
+        action="store_true",
+        help="List chapter versions (requires --novel and --chapter)"
+    )
+    versioning_group.add_argument(
+        "--rollback",
+        type=int,
+        metavar="VERSION",
+        help="Rollback chapter to specific version (requires --novel, --chapter, --rollback N)"
+    )
+    versioning_group.add_argument(
+        "--diff",
+        type=str,
+        metavar="A,B",
+        help="Show diff between two versions (e.g., --diff 1,3)"
+    )
+    versioning_group.add_argument(
+        "--preview-sync",
+        type=str,
+        metavar="TERM_ID=NEW_VALUE",
+        help="Preview which chapters would be affected by a glossary change (e.g., --preview-sync term_123=NEW_VALUE)"
+    )
+    versioning_group.add_argument(
+        "--create-sync-job",
+        type=str,
+        metavar="TERM_ID=NEW_VALUE",
+        help="Create a sync job for glossary change (e.g., --create-sync-job term_123=NEW_VALUE)"
+    )
+    versioning_group.add_argument(
+        "--execute-sync",
+        type=int,
+        metavar="JOB_ID",
+        help="Execute a sync job (use --dry-run to preview)"
+    )
+    versioning_group.add_argument(
+        "--list-sync-jobs",
+        action="store_true",
+        help="List all sync jobs (optionally filter with --novel)"
+    )
+    versioning_group.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Preview sync job without applying changes"
+    )
+    versioning_group.add_argument(
+        "--audit-log",
+        action="store_true",
+        help="Show audit log (optionally filter with --novel)"
+    )
+
     return parser
 
 
@@ -280,7 +350,8 @@ def validate_arguments(args: argparse.Namespace) -> None:
     """
     # Check for required arguments when not running utility commands
     # --generate-glossary --novel X is a standalone command (no chapter required)
-    utility_commands = [args.ui, args.test, args.generate_glossary, args.approve_glossary, args.view_file, args.review_file, args.auto_promote, args.stats]
+    versioning_commands = [args.versions, args.rollback, args.diff, args.preview_sync, args.create_sync_job, args.execute_sync, args.list_sync_jobs, args.audit_log]
+    utility_commands = [args.ui, args.test, args.generate_glossary, args.approve_glossary, args.view_file, args.review_file, args.auto_promote, args.stats] + versioning_commands
 
     if not any(utility_commands):
         if not args.novel and not args.input_file:

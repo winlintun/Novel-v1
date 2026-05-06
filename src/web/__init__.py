@@ -3,7 +3,7 @@
 Web module for the novel translation pipeline.
 
 Provides web UI functionality including:
-- Streamlit UI launcher
+- Flask UI launcher
 - Web request handlers
 """
 

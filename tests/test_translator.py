@@ -130,7 +130,7 @@ class TestMemoryManager(unittest.TestCase):
         self.temp_dir = tempfile.mkdtemp()
         self.glossary_path = Path(self.temp_dir) / "glossary.json"
         self.context_path = Path(self.temp_dir) / "context.json"
-        self.memory = MemoryManager(str(self.glossary_path), str(self.context_path))
+        self.memory = MemoryManager(str(self.glossary_path), str(self.context_path), use_sql=False)
 
     def tearDown(self):
         import shutil

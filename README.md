@@ -4,7 +4,7 @@ AI-powered Chinese/English-to-Myanmar (Burmese) novel translation pipeline using
 
 ## Overview
 
-This is a production-grade local novel translation system that translates Chinese and English novels into Myanmar (Burmese) language using local LLM inference via Ollama. The system specializes in Xianxia, Wuxia, and other East Asian fantasy genres with comprehensive quality gates, terminology management, and a Streamlit web UI.
+This is a production-grade local novel translation system that translates Chinese and English novels into Myanmar (Burmese) language using local LLM inference via Ollama. The system specializes in Xianxia, Wuxia, and other East Asian fantasy genres with comprehensive quality gates, terminology management, and a Flask web UI.
 
 ## Features
 
@@ -14,7 +14,9 @@ This is a production-grade local novel translation system that translates Chines
 - **Quality gates**: Myanmar ratio ≥70%, quality score ≥70
 - **Per-novel glossary**: Isolated terminology per novel
 - **Auto-promotion**: High-confidence terms auto-approved
-- **Web UI**: Streamlit-based interface for translations
+- **Web UI**: Flask-based interface for translations
+- **Version Control**: Chapter snapshots, rollback, diff, and glossary sync jobs
+- **Audit Logging**: Track who changed what and when across all chapters
 
 ## Installation
 
@@ -123,11 +125,6 @@ novel_translation_project/
 │   └── web/                # Web UI
 │       ├── __init__.py
 │       └── launcher.py     # UI launcher
-├── ui/                    # Streamlit UI
-│   ├── pages/              # UI pages
-│   │   └── ...
-│   ├── utils/
-│   └── streamlit_app.py    # Main UI
 ├── config/                # Configuration files
 │   ├── settings.yaml      # Default config
 │   ├── settings.pivot.yaml  # CN→EN→MM pivot
@@ -179,7 +176,7 @@ novel_translation_project/
 
 | Command | Description |
 |---------|-------------|
-| `--ui` | Launch web UI |
+| `--ui` | Launch Flask web UI |
 | `--review FILE` | Quality review |
 | `--view FILE` | View output |
 | `--stats --novel X` | Score trends |
@@ -189,6 +186,41 @@ novel_translation_project/
 | `--clean` | ~~Clear cache~~ (use `./clean_run.sh`) |
 | `--test` | Run test |
 | `--rebuild-meta` | Rebuild metadata |
+
+### Version Control Commands
+
+| Command | Description |
+|---------|-------------|
+| `--versions` | List chapter versions |
+| `--rollback N` | Rollback to version N |
+| `--diff A,B` | Show diff between versions |
+| `--preview-sync ID=VAL` | Preview glossary change impact |
+| `--create-sync-job ID=VAL` | Create glossary sync job |
+| `--execute-sync ID` | Execute sync job |
+| `--execute-sync ID --dry-run` | Preview sync without applying |
+| `--list-sync-jobs` | List all sync jobs |
+| `--audit-log` | Show audit log |
+
+**Version Control Examples:**
+
+```bash
+# List versions for chapter 1
+python -m src.main --novel my-novel --chapter 1 --versions
+
+# Show diff between versions 1 and 3
+python -m src.main --novel my-novel --chapter 1 --diff 1,3
+
+# Rollback chapter 1 to version 2
+python -m src.main --novel my-novel --chapter 1 --rollback 2
+
+# Preview glossary change impact
+python -m src.main --novel my-novel --preview-sync term_abc123=NEW_VALUE
+
+# Create and execute sync job
+python -m src.main --novel my-novel --create-sync-job term_abc123=NEW_VALUE
+python -m src.main --execute-sync 1 --dry-run  # Preview first
+python -m src.main --execute-sync 1            # Apply changes
+```
 
 ### Configuration Options
 
@@ -510,6 +542,45 @@ class MemoryManager:
     @staticmethod
     def _edit_distance(s1: str, s2: str) -> int
 ```
+
+#### `src/memory/version_manager.py`
+
+Version control and change tracking system (requires SQLite backend).
+
+```python
+class VersionManager:
+    def __init__(self, db: DatabaseConnection, output_dir: Path, versions_dir: Optional[Path])
+    
+    # Chapter Versioning
+    def snapshot_chapter(self, novel_name: str, chapter_num: int, reason: str, source: str) -> Optional[dict]
+    def list_versions(self, novel_name: str, chapter_num: int) -> list[dict]
+    def rollback_chapter(self, novel_name: str, chapter_num: int, version_num: int, reason: str) -> Optional[Path]
+    def diff_versions(self, novel_name: str, chapter_num: int, version_a: int, version_b: int) -> Optional[str]
+    
+    # Glossary Change Management
+    def preview_glossary_change(self, novel_name: str, term_id: str, new_value: str) -> dict
+    def create_sync_job(self, novel_name: str, term_id: str, new_value: str, chapter_nums: Optional[list]) -> Optional[dict]
+    def execute_sync_job(self, job_id: int, dry_run: bool) -> dict
+    def list_sync_jobs(self, novel_name: Optional[str], status: Optional[str]) -> list[dict]
+    
+    # Audit Logging
+    def get_audit_log(self, novel_name: Optional[str], table_name: Optional[str], limit: int) -> list[dict]
+```
+
+**Database Schema (10 tables):**
+
+| Table | Purpose |
+|-------|---------|
+| `novels` | Novel metadata |
+| `glossary_terms` | Approved glossary entries |
+| `term_variants` | Alternative spellings |
+| `chapters` | Chapter tracking |
+| `term_usage` | Where terms appear |
+| `context_snapshots` | Chapter summaries |
+| `sync_jobs` | Glossary update jobs |
+| `sync_job_chapters` | Job-chapter linkage |
+| `chapter_versions` | File snapshots |
+| `audit_log` | Change history |
 
 ---
 

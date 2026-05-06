@@ -617,13 +617,9 @@ novel_translation_project/
 │   │   ├── ram_monitor.py        # Memory / VRAM monitoring
 │   │   └── cache_cleaner.py      # Python cache cleanup utility
 │   ├── web/
-│   │   └── launcher.py           # Streamlit launcher (subprocess)
+│   │   └── launcher.py           # Flask launcher
 │   ├── exceptions.py             # Exception hierarchy (ModelError, GlossaryError, etc.)
 │   └── main.py                   # Entry point (thin dispatcher)
-├── ui/                           # ★ Streamlit Web UI (lives here, not src/web/)
-│   ├── streamlit_app.py          # Multi-page app entry point
-│   ├── pages/                    # Individual UI pages (Quickstart, Translate, Glossary…)
-│   └── utils/                    # UI utility helpers
 ├── tests/                        # 259 tests passing (pytest tests/ -v)
 │   ├── test_agents.py
 │   ├── test_chunker.py
@@ -1079,10 +1075,10 @@ python -m src.main --novel reverend-insanity --view data/output/reverend-insanit
 # Rebuild the cumulative meta.json from all chapter files
 python -m src.main --novel reverend-insanity --rebuild-meta
 
-# Launch Streamlit Web UI
+# Launch Flask Web UI
 python -m src.main --ui
 
-# Launch Flask Web UI (default, port 5000)
+# Launch Flask Web UI (explicit, port 5000)
 python -m src.main --flask
 
 # Launch Flask on custom port

@@ -37,6 +37,14 @@ from src.cli.commands import (
     run_view_file,
     run_review,
     run_rebuild_meta,
+    run_list_versions,
+    run_rollback,
+    run_diff,
+    run_preview_sync,
+    run_create_sync_job,
+    run_execute_sync,
+    run_list_sync_jobs,
+    run_audit_log,
 )
 
 
@@ -44,13 +52,13 @@ def main() -> int:
     """Main entry point.
     
     Command priority (descending):
-    1. --ui → opens Web UI (pass --novel/--chapter as hints via env vars)
+    1. --ui → opens Flask Web UI (pass --novel/--chapter as hints via env vars)
     2. --test, --view, --review, --stats, --auto-promote, --rebuild-meta (standalone)
     3. --generate-glossary (runs before translation if both specified)
     4. Translation pipeline (--novel / --input)
     
     When --ui is used with --novel/--chapter, the settings are passed
-    as environment variables to the Web UI so it can pre-fill the
+    as environment variables to the Flask Web UI so it can pre-fill the
     translation form. Translation itself runs from inside the UI.
     
     Returns:
@@ -63,7 +71,7 @@ def main() -> int:
         return run_rebuild_meta(args)
 
     # ── UI: open UI, pass novel/chapter settings as env hints ──
-    if args.ui or args.flask or args.streamlit:
+    if args.ui or args.flask:
         # Pass CLI settings to UI via environment variables
         if args.novel:
             os.environ["NOVEL_TRANSLATE_NOVEL"] = args.novel
@@ -80,11 +88,7 @@ def main() -> int:
         if hasattr(args, 'port') and args.port:
             os.environ["NOVEL_TRANSLATE_PORT"] = str(args.port)
         
-        # Determine UI type: --streamlit explicitly, else Flask (default)
-        if args.streamlit:
-            os.environ["NOVEL_TRANSLATE_UI"] = "streamlit"
-        else:
-            os.environ["NOVEL_TRANSLATE_UI"] = "flask"
+        os.environ["NOVEL_TRANSLATE_UI"] = "flask"
         
         return run_ui_launch(args)
 
@@ -106,6 +110,31 @@ def main() -> int:
 
     if args.stats:
         return run_stats(args)
+
+    # ── Version control commands ──
+    if args.versions:
+        return run_list_versions(args)
+
+    if args.rollback:
+        return run_rollback(args)
+
+    if args.diff:
+        return run_diff(args)
+
+    if args.preview_sync:
+        return run_preview_sync(args)
+
+    if args.create_sync_job:
+        return run_create_sync_job(args)
+
+    if args.execute_sync:
+        return run_execute_sync(args)
+
+    if args.list_sync_jobs:
+        return run_list_sync_jobs(args)
+
+    if args.audit_log:
+        return run_audit_log(args)
 
     # ── Glossary generation (standalone or pre-translation) ──
     if args.generate_glossary:

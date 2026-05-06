@@ -36,7 +36,7 @@
 | Translate | `python -m src.main --novel X --chapter 1` |
 | Tests | `pytest tests/ -v` |
 | Lint | `ruff check src/ tests/ --select=E,F` |
-| Web UI | `streamlit run ui/streamlit_app.py` |
+| Web UI | `python -m src.main --ui` |
 
 ---
 

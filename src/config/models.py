@@ -348,6 +348,19 @@ class FastConfig(BaseModel):
     )
 
 
+class StorageConfig(BaseModel):
+    """Storage backend configuration."""
+
+    backend: Literal["json", "sqlite"] = Field(
+        default="sqlite",
+        description="Storage backend: json or sqlite"
+    )
+    db_path: str = Field(
+        default="data/novel_translation.db",
+        description="Path to SQLite database"
+    )
+
+
 class AppConfig(BaseModel):
     """Root application configuration.
     
@@ -393,6 +406,10 @@ class AppConfig(BaseModel):
     fast_config: FastConfig = Field(
         default_factory=FastConfig,
         description="Fast mode configuration"
+    )
+    storage: StorageConfig = Field(
+        default_factory=StorageConfig,
+        description="Storage backend configuration"
     )
 
     model_config = ConfigDict(

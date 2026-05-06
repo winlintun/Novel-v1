@@ -114,7 +114,7 @@ class TestDualLayerGlossary(unittest.TestCase):
                   universal_path: str = "") -> MemoryManager:
         """Helper: create MemoryManager with optional patched universal path."""
         context_path = glossary_path.replace("glossary.json", "context.json")
-        mm = MemoryManager(glossary_path, context_path, use_universal=False)
+        mm = MemoryManager(glossary_path, context_path, use_sql=False)
         if use_universal and universal_path:
             raw_data = FileHandler.read_json(universal_path) or {"terms": []}
             # Apply same placeholder filter as _load_memory()
@@ -279,7 +279,7 @@ class TestDualLayerGlossary(unittest.TestCase):
             json.dump(legacy_data, f)
 
         context_path = glossary_path.replace("glossary.json", "context.json")
-        mm = MemoryManager(glossary_path, context_path, use_universal=False)
+        mm = MemoryManager(glossary_path, context_path, use_sql=False)
         result = mm.get_term("Gu Master")
         self.assertEqual(result, "ကြောင်ဆရာ",
                          "Legacy source_term/target_term format must be normalized and readable")

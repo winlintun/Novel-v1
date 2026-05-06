@@ -43,6 +43,10 @@
     cursor: not-allowed;
 }
 
+[data-theme="dark"] .form-control:disabled {
+    background-color: #2d2640;
+}
+
 /* Button enhancements */
 .btn {
     transition: all 0.2s;
@@ -63,6 +67,10 @@
 
 .table tbody tr:hover {
     background-color: #f8fafc;
+}
+
+[data-theme="dark"] .table tbody tr:hover {
+    background-color: #2d2640;
 }
 
 /* Badge variations */
@@ -104,6 +112,11 @@
     animation: spin 1s linear infinite;
     display: inline-block;
     vertical-align: middle;
+}
+
+[data-theme="dark"] .spinner {
+    border-color: #2d2640;
+    border-top-color: var(--primary);
 }
 
 @keyframes spin {

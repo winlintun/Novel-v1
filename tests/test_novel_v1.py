@@ -48,12 +48,8 @@ def test_syntax_check():
         "src/memory/memory_manager.py",
         "src/utils/file_handler.py",
         "src/utils/ollama_client.py",
-        "ui/streamlit_app.py",
-        "ui/pages/2_Translate.py",
-        "ui/pages/3_Progress.py",
-        "ui/pages/4_Glossary_Editor.py",
-        "ui/pages/5_Settings.py",
-        "ui/components/sidebar.py",
+        "src/web/flask_app.py",
+        "src/web/launcher.py",
         "tools/launch_ui.py",
     ]
     
@@ -84,11 +80,11 @@ def test_syntax_check():
     assert all_passed
 
 def test_import_paths():
-    """Test 2: Verify UI import paths work correctly."""
+    """Test 2: Verify core import paths work correctly."""
     print_header("TEST 2: UI Import Path Verification")
     
     tests = [
-        ("ui.components.sidebar", "render_sidebar"),
+        ("src.web.launcher", "launch_web_ui"),
         ("src.utils.file_handler", "FileHandler"),
         ("src.memory.memory_manager", "MemoryManager"),
     ]
@@ -206,9 +202,8 @@ def test_launcher_script():
         
         checks = [
             ("Log file creation", "logs/web_server.log" in content),
-            ("Streamlit command", "streamlit" in content and "run" in content),
-            ("Process management", "subprocess.Popen" in content),
-            ("Keyboard interrupt", "KeyboardInterrupt" in content),
+            ("Flask launcher call", "launch_flask_ui" in content),
+            ("Entry function", "launch_ui" in content),
             ("Project root detection", "Path(__file__)" in content),
         ]
         
@@ -255,14 +250,13 @@ def test_enhanced_display_functions():
         print_test("Display functions", "FAIL", str(e))
         assert False
 
-def test_ui_pages_structure():
-    """Test 8: Verify UI pages have correct structure."""
-    print_header("TEST 8: UI Pages Structure")
-    
+def test_web_ui_structure():
+    """Test 8: Verify Flask web files have correct structure."""
+    print_header("TEST 8: Flask Web UI Structure")
+
     pages = [
-        ("ui/pages/2_Translate.py", ["render_sidebar", "st.set_page_config"]),
-        ("ui/pages/4_Glossary_Editor.py", ["MemoryManager", "FileHandler"]),
-        ("ui/streamlit_app.py", ["st.set_page_config"]),
+        ("src/web/flask_app.py", ["Flask", "@app.route('/translate'"]),
+        ("src/web/launcher.py", ["launch_flask_ui", "app.run"]),
     ]
     
     all_passed = True
@@ -278,14 +272,6 @@ def test_ui_pages_structure():
                     print_test(f"{page_path} - {element}", "FAIL", "Not found")
                     all_passed = False
             
-            # Check for path fix (not needed for main streamlit_app.py)
-            if page_path == "ui/streamlit_app.py":
-                print_test(f"{page_path} - Path fix", "PASS", "Main entry point (no fix needed)")
-            elif "project_root" in content and "sys.path.insert" in content:
-                print_test(f"{page_path} - Path fix", "PASS")
-            else:
-                print_test(f"{page_path} - Path fix", "FAIL", "Missing project_root fix")
-                
         except Exception as e:
             print_test(f"{page_path}", "FAIL", str(e))
             all_passed = False

@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
-"""
-Web UI launcher for the novel translation pipeline.
-
-Supports both Streamlit and Flask web interfaces.
-Default is Flask, use --streamlit flag for Streamlit.
-"""
+"""Flask web UI launcher for the novel translation pipeline."""
 
 import argparse
 import os
@@ -16,9 +11,6 @@ from typing import Optional
 
 # Constants
 LOG_DIR = "logs"
-UI_DIR = "ui"
-
-
 def launch_flask_ui(args: Optional[argparse.Namespace] = None) -> int:
     """Launch the Flask web UI.
     
@@ -78,119 +70,8 @@ def launch_flask_ui(args: Optional[argparse.Namespace] = None) -> int:
         logger.error(f"Failed to launch web UI: {e}")
         print(f"Error: Failed to launch web UI: {e}", file=sys.stderr)
         return 1
-
-
-def launch_streamlit_ui(args: Optional[argparse.Namespace] = None) -> int:
-    """Launch the Streamlit web UI.
-    
-    Args:
-        args: Command line arguments (optional)
-        
-    Returns:
-        Exit code from Streamlit process
-    """
-    logger = logging.getLogger(__name__)
-
-    # Ensure log directory exists
-    os.makedirs(LOG_DIR, exist_ok=True)
-
-    # Find the UI entry point
-    ui_entry = _find_ui_entry()
-    if not ui_entry:
-        print("Error: Could not find Streamlit UI entry point", file=sys.stderr)
-        return 1
-
-    # Build command
-    cmd = [
-        sys.executable, "-m", "streamlit", "run",
-        str(ui_entry),
-        "--server.port=8501",
-        "--server.address=localhost",
-        "--browser.gatherUsageStats=false",
-    ]
-
-    # Add any additional args
-    if args and hasattr(args, 'config') and args.config:
-        cmd.extend(["--", "--config", args.config])
-
-    logger.info(f"Launching web UI: {' '.join(cmd)}")
-    print("\n" + "=" * 60)
-    print("🌐 Launching Novel Translation Web UI (Streamlit)")
-    print("=" * 60)
-    print("\n  URL: http://localhost:8501")
-    print(f"  Log: {LOG_DIR}/web_server.log")
-    print("\n  Press Ctrl+C to stop the server")
-    print("=" * 60 + "\n")
-
-    # Launch with logging
-    log_file = Path(LOG_DIR) / "web_server.log"
-
-    try:
-        with open(log_file, 'w', encoding='utf-8') as f:
-            f.write(f"Web UI launched at {__import__('datetime').datetime.now().isoformat()}\n")
-            f.write(f"Command: {' '.join(cmd)}\n")
-            f.write("-" * 60 + "\n\n")
-            f.flush()
-
-            process = subprocess.Popen(
-                cmd,
-                stdout=f,
-                stderr=subprocess.STDOUT,
-                universal_newlines=True
-            )
-
-            try:
-                return process.wait()
-            except KeyboardInterrupt:
-                print("\n\nShutting down web UI...")
-                process.terminate()
-                try:
-                    process.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    process.kill()
-                return 0
-
-    except Exception as e:
-        logger.error(f"Failed to launch web UI: {e}")
-        print(f"Error: Failed to launch web UI: {e}", file=sys.stderr)
-        return 1
-
-
-def _find_ui_entry() -> Optional[Path]:
-    """Find the Streamlit UI entry point.
-    
-    Returns:
-        Path to UI entry file or None if not found
-    """
-    # Check common locations
-    possible_paths = [
-        Path(UI_DIR) / "streamlit_app.py",
-        Path(UI_DIR) / "app.py",
-        Path("streamlit_app.py"),
-        Path("app.py"),
-    ]
-
-    for path in possible_paths:
-        if path.exists():
-            return path
-
-    # Search for any streamlit app
-    ui_dir = Path(UI_DIR)
-    if ui_dir.exists():
-        for py_file in ui_dir.rglob("*.py"):
-            # Check if it imports streamlit
-            try:
-                content = py_file.read_text(encoding='utf-8')
-                if 'import streamlit' in content or 'from streamlit' in content:
-                    return py_file
-            except Exception:
-                continue
-
-    return None
-
-
 def launch_web_ui(args: Optional[argparse.Namespace] = None) -> int:
-    """Main entry point - launches Flask by default, Streamlit with --streamlit flag.
+    """Main entry point for the Flask web UI.
     
     Args:
         args: Command line arguments (optional)
@@ -198,20 +79,9 @@ def launch_web_ui(args: Optional[argparse.Namespace] = None) -> int:
     Returns:
         Exit code from web UI process
     """
-    # Check env var first, then args
-    ui_type = os.environ.get("NOVEL_TRANSLATE_UI", "")
-    
-    if ui_type == "streamlit":
-        return launch_streamlit_ui(args)
-    elif ui_type == "flask":
-        return launch_flask_ui(args)
-    
-    # Check if Streamlit is explicitly requested via args
-    if args and hasattr(args, 'streamlit') and args.streamlit:
-        return launch_streamlit_ui(args)
-    else:
-        # Default to Flask
-        return launch_flask_ui(args)
+    # Keep honoring the existing env var used by src.main, but only Flask is supported.
+    _ = os.environ.get("NOVEL_TRANSLATE_UI", "")
+    return launch_flask_ui(args)
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -219,11 +89,6 @@ def create_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Launch Novel Translation Web UI",
         formatter_class=argparse.RawDescriptionHelpFormatter
-    )
-    parser.add_argument(
-        '--streamlit',
-        action='store_true',
-        help='Use Streamlit instead of Flask'
     )
     parser.add_argument(
         '--port',
@@ -239,7 +104,7 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         '--config',
         type=str,
-        help='Config file path (Streamlit only)'
+        help='Config file path'
     )
     return parser
 

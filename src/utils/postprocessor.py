@@ -345,6 +345,211 @@ def remove_duplicate_headings(text: str) -> str:
     return '\n'.join(result)
 
 
+def fix_merged_headings(text: str) -> str:
+    """Fix headings that are merged with following content without newline.
+    
+    The model may output '## Title"content' or '## Titlecontent' where
+    the heading is directly concatenated with the paragraph text.
+    This function separates them properly:
+        ## Title
+        
+        content...
+    
+    Patterns handled:
+    - '## မြန်မာစာသား"English...' → '## မြန်မာစာသား\n\n"English...'
+    - '## မြန်မာစာသားမြန်မာ...' → '## မြန်မာစာသား\n\nမြန်မာ...'
+    """
+    lines = text.split('\n')
+    result: list[str] = []
+    
+    for line in lines:
+        stripped = line.strip()
+        
+        # Pattern: ## Heading"content or ## Heading'content or ## Heading(content
+        # Look for ## followed by Myanmar text, then immediately a quote or content
+        merged_match = re.match(r'^(##\s+[က-႟\uAA60-\uAA7F\uA9E0-\uA9FF][^"\'\(။\n]*)["\'\(](.+)', stripped)
+        if merged_match:
+            heading_part = merged_match.group(1).strip()
+            content_part = merged_match.group(2)
+            result.append(heading_part)
+            result.append('')  # blank line
+            # Re-add the quote that was consumed
+            if stripped[len(heading_part):].startswith('"'):
+                result.append('"' + content_part)
+            elif stripped[len(heading_part):].startswith("'"):
+                result.append("'" + content_part)
+            elif stripped[len(heading_part):].startswith('('):
+                result.append('(' + content_part)
+            else:
+                result.append(content_part)
+            continue
+        
+        # Pattern: ## HeadingContent (no space between heading Myanmar text and content)
+        # Detect if line starts with ## has Myanmar text but no clear boundary
+        # and the line is very long (likely merged)
+        if stripped.startswith('## ') and len(stripped) > 100:
+            # Try to find boundary: look for sentence ender or quote followed by space
+            # Pattern: ## မြန်မာ။content or ## မြန်မာ" content
+            boundary_match = re.search(r'(["\'။]\s+|\s{2,})([\u1000-\u109F])', stripped)
+            if boundary_match:
+                split_pos = boundary_match.start()
+                # Include the punctuation in heading
+                if stripped[split_pos] in '"\'။':
+                    split_pos = boundary_match.end() - 1  # Keep punctuation with heading
+                heading_part = stripped[:split_pos].strip()
+                content_part = stripped[split_pos:].strip()
+                if heading_part and content_part:
+                    result.append(heading_part)
+                    result.append('')
+                    result.append(content_part)
+                    continue
+        
+        result.append(line)
+    
+    return '\n'.join(result)
+
+
+def remove_placeholder_headings(text: str) -> str:
+    """Remove placeholder headings like '## အခန်းခေါင်းစဉ်' that leak from prompts.
+    
+    These are template placeholders that should never appear in actual output:
+    - ## အခန်းခေါင်းစဉ် (Chapter Title)
+    - ## အခန်းခေါင်းစဉ်\n
+    Also handles merged versions like '## အခန်းခေါင်းစဉ်အဘိုးကြီး...'
+    """
+    lines = text.split('\n')
+    result: list[str] = []
+    skip_next_empty = False
+    
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        
+        # Exact match: ## အခန်းခေါင်းစဉ် (with or without trailing content on same line)
+        if stripped == '## အခန်းခေါင်းစဉ်':
+            skip_next_empty = True
+            continue
+        
+        # Merged placeholder: ## အခန်းခေါင်းစဉ်မြန်မာစာ... (heading merged with content)
+        # Keep only the content part after the placeholder
+        if stripped.startswith('## အခန်းခေါင်းစဉ်'):
+            # Extract content after the placeholder
+            content_after = stripped[len('## အခန်းခေါင်းစဉ်'):].strip()
+            if content_after:
+                result.append(content_after)
+            skip_next_empty = True
+            continue
+        
+        # Skip empty lines after removed placeholders
+        if skip_next_empty and not stripped:
+            skip_next_empty = False
+            continue
+        
+        result.append(line)
+    
+    return '\n'.join(result)
+
+
+def remove_checkbox_artifacts(text: str) -> str:
+    """Remove checkbox/list artifacts that appear in output.
+    
+    Patterns:
+    - '- []: [ ]' (empty checkbox with brackets)
+    - '- []: content' (checkbox with content)
+    - '- [ ]: ' (various checkbox formats)
+    """
+    lines = text.split('\n')
+    result: list[str] = []
+    
+    for line in lines:
+        stripped = line.strip()
+        
+        # Skip checkbox artifacts: - []: [ ], - []: content, - [ ]:, etc.
+        if re.match(r'^-\s*\[\s*\]\s*:', stripped):
+            continue
+        
+        # Skip checkbox with checkmark: - [x]:, - [✓]:, etc.
+        if re.match(r'^-\s*\[[\sxoX✓✔\-]*\]\s*:', stripped):
+            continue
+        
+        result.append(line)
+    
+    return '\n'.join(result)
+
+
+def remove_inline_markdown_artifacts(text: str) -> str:
+    """Remove markdown formatting that appears inline within paragraphs.
+    
+    The model sometimes hallucinates markdown syntax mid-paragraph:
+    - "## " appearing in the middle of a sentence
+    - "- " list markers appearing mid-paragraph
+    - These are NOT proper headings/lists, just formatting leaks
+    
+    Detection criteria for fake headings:
+    - Line starts with "## " but is NOT:
+      - The first content line after chapter heading
+      - A proper short subtitle (typically < 50 chars)
+      - Followed by blank line (proper heading format)
+    - Line is very long (> 80 chars) suggesting it's actually paragraph text
+    
+    Detection criteria for fake list items:
+    - Line starts with "- " but contains full sentence structure
+    - Part of continuous paragraph flow (not a real list)
+    """
+    lines = text.split('\n')
+    result: list[str] = []
+    
+    # Track if we've seen the main chapter heading structure
+    seen_chapter_heading = False
+    chapter_heading_line = -1
+    
+    # First pass: identify chapter heading position
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if re.match(r'^#\s+အခန်း\s+\d+', stripped):
+            seen_chapter_heading = True
+            chapter_heading_line = i
+            break
+    
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        
+        # Pattern 1: Fake ## heading mid-content
+        # Real headings are: short, followed by blank line, near top
+        # Fake headings are: long (>80 chars), mid-content, part of paragraph flow
+        if stripped.startswith('## ') and len(stripped) > 80:
+            # Check if previous line was blank (proper heading) or content (fake)
+            prev_is_blank = (i == 0) or (not lines[i-1].strip())
+            next_is_blank = (i == len(lines) - 1) or (not lines[i+1].strip() if i + 1 < len(lines) else True)
+            
+            # If surrounded by content (no blank lines), it's a fake heading
+            if not prev_is_blank or not next_is_blank:
+                # Remove the "## " prefix and add as regular content
+                cleaned_line = stripped[3:].strip()  # Remove "## "
+                if cleaned_line:
+                    result.append(cleaned_line)
+                continue
+        
+        # Pattern 2: Fake list item "- " mid-paragraph
+        # Real list items are typically short and standalone
+        # Fake ones are long sentences that start with "- " and have full sentence structure
+        if re.match(r'^-\s+', stripped) and len(stripped) > 60:
+            # Check if it looks like a paragraph sentence (has sentence ender, multiple words)
+            has_sentence_ender = '။' in stripped
+            word_count = len(stripped.split())
+            
+            # If it's a long sentence with proper structure, it's likely a fake list item
+            if has_sentence_ender and word_count > 6:
+                # Remove the "- " prefix
+                cleaned_line = re.sub(r'^-\s+', '', stripped)
+                if cleaned_line:
+                    result.append(cleaned_line)
+                continue
+        
+        result.append(line)
+    
+    return '\n'.join(result)
+
+
 def detect_potential_hallucinations(text: str, known_terms: Optional[set] = None) -> List[str]:
     """Detect Myanmar proper names that may be LLM hallucinations.
     
@@ -721,6 +926,10 @@ def clean_output(raw: str, aggressive: bool = False) -> str:
     text = _split_into_lines_if_needed(text)  # recover structure from collapsed text
     text = fix_chapter_heading_format(text)
     text = remove_duplicate_headings(text)
+    text = fix_merged_headings(text)  # Fix headings merged with content
+    text = remove_placeholder_headings(text)  # Remove placeholder headings like ## အခန်းခေါင်းစဉ်
+    text = remove_checkbox_artifacts(text)  # Remove checkbox artifacts
+    text = remove_inline_markdown_artifacts(text)  # Remove ## and - markers mid-paragraph
     text = ensure_markdown_readability(text)  # proper paragraph breaks, heading spacing
     text = text.strip()
     return text

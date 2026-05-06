@@ -1,6 +1,6 @@
 {
   "current_phase": "DOC",
-  "task": "Migrate wayfarer glossary from JSON to SQLite database",
+  "task": "Fix Thai/Khmer script leak and SQL backend glossary approval",
   "feature_type": 2,
   "phases": {
     "PLAN":   { "status": "DONE",        "runner": "Agent",  "requires_human": false },
@@ -12,19 +12,22 @@
     "DOC":    { "status": "DONE",        "runner": "Agent",  "requires_human": false,
                  "skippable": false }
   },
-  "updated_at": "2026-05-06T22:00:00Z",
+  "updated_at": "2026-05-06T23:30:00Z",
   "summary": {
-    "files_created": 1,
-    "files_modified": 1,
-    "terms_migrated": 166,
-    "approved_terms": 13,
-    "pending_terms": 153,
+    "files_created": 0,
+    "files_modified": 5,
+    "commits_made": 3,
     "code_review_score": "PASS",
     "features_added": [
-      "JSON to SQLite glossary migration script",
-      "Automatic status mapping (verified→approved)",
-      "Category preservation",
-      "Duplicate detection"
+      "Khmer Unicode pattern (U+1780-U+17FF)",
+      "Thai/Khmer removal functions in postprocessor",
+      "SQL backend support for glossary approval methods",
+      "Flask glossary page reads from SQLite database"
+    ],
+    "bugs_fixed": [
+      "ERR-061: Thai/Khmer script leak in translation output",
+      "IsADirectoryError when using --auto-promote with SQLite backend",
+      "Flask glossary page showing empty despite 166 terms in database"
     ]
   }
 }

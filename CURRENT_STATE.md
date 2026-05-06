@@ -5,14 +5,393 @@
 ---
 
 ## Last Updated
-- Date: 2026-05-06
-- Last task completed: Fixed Thai/Khmer script leak and checkbox artifacts in postprocessor
+- Date: 2026-05-07
+- Last task completed: Fixed chapter range translation error in Web UI
 
 ## In Progress
 - None
 
 ## Known Issues
 - None
+
+## Fixed: Chapter Range Translation Error
+
+### Problem
+When using the Web UI to translate a chapter range (e.g., chapters 5-10), translation failed with:
+```
+Failed to start translation: Translation process failed to start (exit code: 1)
+```
+
+Error in logs:
+```
+TypeError: unsupported format string passed to NoneType.__format__
+File "src/cli/commands.py", line 497, in _resolve_workflow
+    input_file = TranslationPipeline._find_chapter_file(
+        args.novel, getattr(args, 'chapter', 1)
+    )
+```
+
+### Root Cause
+When using `--chapter-range`, the `args.chapter` attribute is `None`. The `_resolve_workflow()` function was passing `None` to `_find_chapter_file()`, which tried to format it as `chapter:03d` causing the TypeError.
+
+### Solution
+Updated `_resolve_workflow()` in `src/cli/commands.py` to:
+1. Check if `chapter` is `None`
+2. If `chapter_range` is set, extract the start chapter from the range (e.g., "5-10" → 5)
+3. Use the extracted chapter for language detection
+
+### Code Change
+```python
+chapter = getattr(args, 'chapter', None)
+# If chapter is None but chapter_range is set, use start chapter from range
+if chapter is None and hasattr(args, 'chapter_range') and args.chapter_range:
+    try:
+        chapter = int(args.chapter_range.split('-')[0])
+    except (ValueError, IndexError):
+        chapter = 1
+# Default to chapter 1 if still None
+if chapter is None:
+    chapter = 1
+input_file = TranslationPipeline._find_chapter_file(args.novel, chapter)
+```
+
+### Files Modified
+- `src/cli/commands.py` - Fixed `_resolve_workflow()` function
+
+### Verification
+Tested with:
+- ✅ Chapter range 5-10 → workflow=way1
+- ✅ Single chapter 2 → workflow=way1  
+- ✅ All chapters (no chapter specified) → workflow=way1
+
+---
+
+## Feature: Translation Completion Report
+
+### Summary
+When a translation finishes, a detailed completion report is now saved to `logs/report/`. The report includes pipeline configuration, model information, and formatted duration.
+
+### Report Location
+```
+logs/report/{novel_name}_ch{chapter}_completion_{timestamp}.log
+```
+
+### Report Contents
+```
+============================================================
+TRANSLATION COMPLETION REPORT
+============================================================
+
+Timestamp:     2026-05-07 14:30:25
+Input File:    data/input/wayfarer/wayfarer_chapter_002.md
+Output File:   data/output/wayfarer/wayfarer_chapter_002.mm.md
+Chapter:       2
+
+----------------------------------------
+PIPELINE CONFIGURATION
+----------------------------------------
+Pipeline Mode: full
+Model Name:    padauk-gemma:q8_0
+
+----------------------------------------
+TRANSLATION METRICS
+----------------------------------------
+Total Chunks:  12
+Avg Quality:   87.5/100
+Duration:      15m 42s (942.3s)
+
+============================================================
+```
+
+### Implementation
+**Files Modified:**
+- `src/pipeline/orchestrator.py` - Added `_write_completion_report()` method
+
+**Report Fields:**
+- **Timestamp** - When translation completed
+- **Input/Output Files** - Source and translated file paths
+- **Chapter** - Chapter number
+- **Pipeline Mode** - Translation pipeline mode (full/lite/fast)
+- **Model Name** - LLM model used
+- **Total Chunks** - Number of chunks processed
+- **Avg Quality** - Average quality score
+- **Duration** - Formatted as "Xh Ym Zs" with raw seconds in parentheses
+
+---
+
+## Feature: Elapsed Time Display on Progress Page
+
+### Summary
+Added elapsed time display to the Live Status panel on the Progress page, showing translation duration in hours, minutes, and seconds format.
+
+### Implementation
+
+**Files Modified:**
+1. `src/web/flask_app.py` - API calculates elapsed time from `started_at` timestamp
+2. `src/web/templates/progress.html` - Displays elapsed time in Live Status panel
+
+**Time Format:**
+- Less than 1 minute: `45s`
+- Less than 1 hour: `12m 34s`
+- 1 hour or more: `2h 15m 30s`
+
+**How It Works:**
+1. API calculates difference between current time and `started_at`
+2. Formats duration as human-readable string
+3. JavaScript updates display every 3 seconds along with other progress data
+4. Only shown when translation is active (not in idle state)
+
+### Screenshot
+```
+Live Status
+━━━━━━━━━━━━━━━━━━━━━━━
+⚡ Translating...
+
+Novel          Wayfarer
+Chapter        5
+Model          padauk-gemma:q8_0
+Elapsed Time   12m 34s    ← NEW!
+```
+
+---
+
+## Feature: Chapter Range Selection in Web UI
+
+### Summary
+Added chapter range selection to the translate page, allowing users to translate a specific range of chapters (e.g., chapters 5-15) in one operation.
+
+### Implementation
+
+**Files Modified:**
+1. `src/web/templates/translate.html` - UI and JavaScript
+2. `src/web/flask_app.py` - API endpoint
+
+**UI Changes:**
+- Added "Range" checkbox with "From" and "To" number inputs
+- Three mutually exclusive modes:
+  1. **Single chapter** - Enter chapter number
+  2. **Range** - Check "Range" and set From/To chapters
+  3. **All chapters** - Check "All Chapters"
+
+**API Changes:**
+- Added `chapter_range` parameter to `/api/start-translation`
+- Format: `"start-end"` (e.g., `"5-15"`)
+- Backend uses `--chapter-range` CLI flag
+
+**Usage:**
+```bash
+# Via Web UI
+1. Select novel
+2. Check "Range" checkbox
+3. Enter From: 5, To: 15
+4. Click Start Translation
+
+# Via CLI (already supported)
+python -m src.main --novel wayfarer --chapter-range 5-15
+```
+
+### How It Works
+1. User selects range mode and enters start/end chapters
+2. JavaScript validates that start ≤ end
+3. API receives `chapter_range: "5-15"`
+4. Backend constructs command: `--chapter-range 5-15`
+5. Translation proceeds sequentially through the range
+
+---
+
+## Fixed: Inline Markdown Artifacts in Translation Output
+
+### Problem
+Translation output contained markdown syntax in the middle of paragraphs:
+- `## ရှောင်နန်ဖုန်းဆီသို့အဘိုးကြီး၏...` - Fake heading mid-paragraph
+- `- အကြီးအကဲ စီမံခန့်ခွဲသူ: ...` - Fake list item mid-sentence
+
+These are model hallucinations where the model incorrectly outputs markdown formatting mid-content.
+
+### Root Cause
+The model sometimes hallucinates markdown syntax:
+- Outputs `## ` thinking it's a subsection heading, but it's actually mid-paragraph narrative
+- Outputs `- ` thinking it's a list item, but it's actually continuing paragraph text
+
+### Solution Applied
+**Updated postprocessor.py** - Added `remove_inline_markdown_artifacts()`:
+
+**Detection Logic:**
+1. **Fake Headings**: Lines starting with `## ` that are:
+   - Longer than 80 characters (real headings are typically short)
+   - Not followed by blank lines (real headings have spacing)
+   - Located mid-chapter (not at the top)
+
+2. **Fake List Items**: Lines starting with `- ` that are:
+   - Longer than 60 characters (real list items are short)
+   - Contain sentence enders (`။`) indicating full sentences
+   - Have 6+ words
+
+**Cleaning:** Removes the markdown prefix (`## ` or `- `) and keeps the text content.
+
+### Files Modified
+- `src/web/templates/base.html` - Added theme CSS variables
+- `src/web/static/components.css` - Added component dark theme styles
+- `src/web/static/style.css` - Added additional dark theme support
+
+### Features
+- 🌙 Toggle button in sidebar footer
+- 💾 Theme preference saved to localStorage
+- 🎨 Consistent dark color palette
+- ⚡ Smooth theme transitions
+
+**Files Modified:**
+- `src/utils/postprocessor.py` - Added `remove_inline_markdown_artifacts()` function
+- `data/output/wayfarer/wayfarer_chapter_002.mm.md` - Fixed corrupted output
+
+### Result
+- Wayfarer chapter 2: Removed 2 fake headings, 1 fake list item
+- Postprocessor tests: 30/30 PASSED
+- Proper headings preserved (e.g., `## ဝိညာဉ်စွမ်းအား` remains)
+
+---
+
+## Feature: Dark Theme for Web UI
+
+### Summary
+Added a complete dark theme toggle to the Web UI with persistent storage and smooth transitions.
+
+### Implementation
+
+**Files Modified:**
+1. `src/web/templates/base.html` - Core theme implementation
+2. `src/web/static/components.css` - Component dark theme styles
+3. `src/web/static/style.css` - Additional dark theme support
+
+**Features:**
+- 🌙 Dark/Light mode toggle button in sidebar footer
+- 💾 Theme preference persisted in localStorage
+- 🎨 Consistent dark color palette across all components
+- ⚡ Smooth transitions between themes
+- 🔆 Flash messages, tables, forms all support dark mode
+
+**Color Palette (Dark Mode):**
+- Background: `#12101a` (ivory) / `#1a1625` (paper)
+- Text: `#e8e6f0` (primary) / `#a8a0c0` (secondary)
+- Border: `#2d2640`
+- Gold accent: `#c9a84c` (unchanged)
+- Status colors with reduced opacity backgrounds
+
+**Usage:**
+```javascript
+// Toggle theme
+function toggleTheme() {
+    const current = localStorage.getItem('novel-translation-theme') || 'light';
+    const newTheme = current === 'dark' ? 'light' : 'dark';
+    localStorage.setItem('novel-translation-theme', newTheme);
+    document.documentElement.setAttribute('data-theme', newTheme);
+}
+```
+
+**Testing:**
+```bash
+# Start the web UI
+python -m src.main --ui
+
+# Navigate to http://localhost:5000
+# Click the theme toggle button (🌙/☀️) in the sidebar footer
+# Theme preference persists across page reloads
+```
+
+---
+
+## Fixed: Merged Headings and Placeholder Leak in Wayfarer Chapter 2
+
+### Problem
+Translation output for wayfarer chapter 2 was corrupted with:
+1. **Merged headings**: `## ဝိညာဉ်စွမ်းအား"သခင်လေး...` (heading merged with content)
+2. **Placeholder headings**: `## အခန်းခေါင်းစဉ်"ထွက်သွားမယ်လို့လား...` (template placeholder leaked)
+3. **Checkbox artifacts**: `- []: [ ]` (list artifacts in output)
+
+### Root Cause
+Model output contained:
+- Headings without proper newline separation from following content
+- Template placeholders like `## အခန်းခေါင်းစဉ်` that leaked from the prompt
+- Checkbox/list formatting that shouldn't appear in final output
+
+### Solution Applied
+**Updated postprocessor.py** - Added 3 new functions to `clean_output()` pipeline:
+
+1. **`fix_merged_headings()`**: Separates headings merged with content
+   - Pattern: `## Title"content` → `## Title\n\n"content`
+   - Detects merged headings by looking for quote/paren immediately after heading text
+   - Preserves the quote character that was consumed in the match
+
+2. **`remove_placeholder_headings()`**: Removes template placeholder headings
+   - Pattern: `## အခန်းခေါင်းစဉ်` (Chapter Title placeholder)
+   - Also handles merged versions: `## အခန်းခေါင်းစဉ်အဘိုးကြီး...` → `အဘိုးကြီး...`
+   - Preserves content after the placeholder
+
+3. **`remove_checkbox_artifacts()`**: Removes checkbox/list artifacts
+   - Pattern: `- []: [ ]`, `- []: content`, `- [x]:`, etc.
+   - Cleans up stray list formatting from model output
+
+### Integration
+All three functions added to `clean_output()` pipeline between `remove_duplicate_headings()` and `ensure_markdown_readability()`:
+```python
+text = fix_merged_headings(text)
+text = remove_placeholder_headings(text)
+text = remove_checkbox_artifacts(text)
+```
+
+### Result
+- Wayfarer chapter 2 file cleaned successfully
+- All placeholder headings removed
+- All checkbox artifacts removed
+- Content after merged headings preserved
+- Postprocessor tests: 30/30 PASSED
+
+### Files Modified
+- `src/utils/postprocessor.py` - Added 3 new cleaning functions
+- `data/output/wayfarer/wayfarer_chapter_002.mm.md` - Fixed corrupted output
+- `.agent/error_library.json` - Added ERR-062 for this issue
+
+---
+
+## Fixed: SQL Backend Glossary Approval Methods
+
+### Problem
+When running `python -m src.main --novel wayfarer --auto-promote` or `--approve-glossary`, got:
+```
+IsADirectoryError: [Errno 21] Is a directory: '.'
+```
+
+### Root Cause
+Glossary approval methods only supported JSON backend (reading/writing files), but config uses SQLite backend (`storage.backend: sqlite`). Methods were trying to read from empty `pending_path`.
+
+### Solution Applied
+**Updated memory_manager.py** - Added SQL backend support to 5 methods:
+- `get_pending_terms()`: Query database instead of JSON file
+- `promote_pending_to_glossary()`: UPDATE SQL row status
+- `bulk_approve_all_pending()`: Batch SQL UPDATE for all pending terms
+- `auto_approve_pending_terms()`: Query + UPDATE SQL
+- `auto_approve_by_confidence()`: Query + UPDATE SQL with confidence scoring
+
+### Result
+All 166 wayfarer glossary terms successfully approved via CLI.
+
+## Fixed: Flask Glossary Page Not Showing Data
+
+### Problem
+Glossary page showed "No glossary terms yet" even though 166 terms exist in database.
+
+### Root Cause
+Flask app's `get_glossary()` function read from JSON files (`data/glossary.json`), but data is stored in SQLite database (`data/novel_translation.db`).
+
+### Solution Applied
+**Updated flask_app.py**:
+- `get_glossary()`: Now queries `glossary_terms` table for approved and pending terms
+- `save_glossary()`: Returns True (database handles persistence)
+- `glossary` route: Uses `GlossaryRepository` for add/delete/verify operations
+- Increased limit from 100 to 1000 to get all terms
+
+### Result
+Glossary page now shows all 166 terms from database with search, filter, and CRUD operations.
 
 ## Fixed: Thai/Khmer Script Leak in Translation Output
 

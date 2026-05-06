@@ -1,87 +1,558 @@
 {% extends "base.html" %}
+{% block title %}Progress — Novel Studio{% endblock %}
+{% block topbar_title %}Translation Progress{% endblock %}
 
-{% block title %}Progress - Novel Translation{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='components.css') }}">
+<style>
+  .progress-layout {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: var(--space-5);
+  }
+
+  @media (max-width: 1024px) {
+    .progress-layout { grid-template-columns: 1fr; }
+  }
+
+  /* Novel Progress Cards */
+  .novel-progress-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+
+  .novel-progress-card {
+    background: var(--paper);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    transition: all var(--transition-fast);
+  }
+
+  .novel-progress-card:hover {
+    box-shadow: var(--shadow);
+    border-color: var(--gold-dim);
+  }
+
+  .novel-progress-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-4) var(--space-5);
+    background: linear-gradient(135deg, var(--ink), var(--ink-light));
+    color: #fff;
+  }
+
+  .novel-progress-title {
+    font-family: var(--font-serif);
+    font-size: 1.1rem;
+    font-weight: 600;
+  }
+
+  .novel-progress-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    font-size: 0.8rem;
+    opacity: 0.8;
+  }
+
+  .novel-progress-body {
+    padding: var(--space-5);
+  }
+
+  .progress-bar-large {
+    height: 12px;
+    background: var(--ivory-3);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+    margin-bottom: var(--space-3);
+  }
+
+  .progress-bar-large-fill {
+    height: 100%;
+    border-radius: var(--radius-full);
+    background: linear-gradient(90deg, var(--gold), var(--gold-bright));
+    transition: width 0.5s ease;
+    position: relative;
+  }
+
+  .progress-bar-large-fill::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+    animation: shimmer 2s infinite;
+  }
+
+  .progress-bar-large-fill.complete {
+    background: linear-gradient(90deg, var(--emerald), #34d399);
+  }
+
+  .progress-bar-large-fill.complete::after {
+    display: none;
+  }
+
+  .novel-progress-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: var(--space-4);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--ivory-2);
+  }
+
+  .chapter-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .chapter-tag {
+    padding: 4px 10px;
+    border-radius: var(--radius-full);
+    font-size: 0.75rem;
+    font-weight: 500;
+    background: var(--ivory-2);
+    color: var(--text-2);
+    border: 1px solid var(--border);
+  }
+
+  .chapter-tag:hover {
+    background: var(--ivory-3);
+    border-color: var(--text-3);
+  }
+
+  /* Live Status Panel */
+  .status-panel {
+    background: var(--paper);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: var(--space-5);
+  }
+
+  .status-indicator {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    border-radius: var(--radius);
+    margin-bottom: var(--space-4);
+  }
+
+  .status-indicator.idle { background: var(--ivory-2); }
+  .status-indicator.translating { background: var(--cyan-bg); }
+  .status-indicator.completed { background: var(--emerald-bg); }
+  .status-indicator.error { background: var(--rose-bg); }
+
+  .status-icon {
+    font-size: 1.5rem;
+  }
+
+  .status-text {
+    flex: 1;
+  }
+
+  .status-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    opacity: 0.7;
+  }
+
+  .status-value {
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  /* Current Job Info */
+  .job-info {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .job-info-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.875rem;
+  }
+
+  .job-info-label {
+    color: var(--text-3);
+  }
+
+  .job-info-value {
+    font-weight: 500;
+    color: var(--text);
+  }
+
+  /* Chunk Progress */
+  .chunk-progress {
+    margin-top: var(--space-4);
+    padding: var(--space-4);
+    background: var(--ivory);
+    border-radius: var(--radius);
+  }
+
+  .chunk-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: var(--space-2);
+    font-size: 0.8rem;
+  }
+
+  .chunk-bar {
+    height: 6px;
+    background: var(--ivory-3);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+  }
+
+  .chunk-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--cyan), var(--blue));
+    border-radius: var(--radius-full);
+    transition: width 0.3s ease;
+  }
+
+  /* Empty State */
+  .progress-empty {
+    text-align: center;
+    padding: var(--space-12);
+  }
+
+  .progress-empty-icon {
+    font-size: 4rem;
+    opacity: 0.1;
+    margin-bottom: var(--space-4);
+  }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1 class="page-title">📊 Translation Progress | အောက်ငါးပြင်အကျယ်</h1>
-    <p class="page-subtitle">Monitor translation progress across all novels</p>
-</div>
-
-<!-- Real-time progress indicator - AT TOP (always visible) -->
-<div id="realtimeStatus" class="card" style="margin-bottom: 1.5rem; border: 2px solid #007bff;">
-    <h3 class="card-header" style="background: #007bff; color: white;">⚡ Live Translation Progress 
-        <button onclick="clearProgress()" class="btn btn-sm btn-light" style="float: right;">Clear</button>
-    </h3>
-    <div id="liveProgress" class="alert" style="margin-bottom: 0;">
-        <strong id="liveStatusText">Loading...</strong>
+<div class="progress-layout">
+  <!-- ── Main Content ── -->
+  <div>
+    {% if novel_stats %}
+    <div class="novel-progress-list">
+      {% for stat in novel_stats %}
+      <div class="novel-progress-card animate-fade-in-up">
+        <div class="novel-progress-header">
+          <div class="novel-progress-title">{{ stat.name }}</div>
+          <div class="novel-progress-meta">
+            <span>{{ stat.translated }} / {{ stat.total }} chapters</span>
+            <span>•</span>
+            <span>{{ stat.percentage }}%</span>
+          </div>
+        </div>
+        <div class="novel-progress-body">
+          <div class="progress-bar-large">
+            <div class="progress-bar-large-fill {% if stat.percentage == 100 %}complete{% endif %}" 
+                 style="width: {{ stat.percentage }}%;"></div>
+          </div>
+          
+          {% if stat.chapters %}
+          <div class="chapter-tags">
+            {% for chapter in stat.chapters[:8] %}
+            <a href="/reader?novel={{ stat.name }}&file=data/output/{{ stat.name }}/{{ chapter }}" 
+               class="chapter-tag" title="View {{ chapter }}">
+              {{ chapter.split('_')[-1].split('.')[0] }}
+            </a>
+            {% endfor %}
+            {% if stat.chapters|length > 8 %}
+            <span class="chapter-tag">+{{ stat.chapters|length - 8 }} more</span>
+            {% endif %}
+          </div>
+          {% else %}
+          <p class="text-muted text-sm">No chapters translated yet</p>
+          {% endif %}
+          
+          <div class="novel-progress-footer">
+            <span class="text-sm text-secondary">
+              {% if stat.percentage == 100 %}
+                <span style="color: var(--emerald);">✓ Complete</span>
+              {% elif stat.percentage > 0 %}
+                {{ stat.total - stat.translated }} chapters remaining
+              {% else %}
+                Not started
+              {% endif %}
+            </span>
+            <a href="/translate?novel={{ stat.name }}" class="btn btn-gold btn-sm">
+              {% if stat.percentage == 0 %}
+                Start Translation
+              {% elif stat.percentage == 100 %}
+                Review
+              {% else %}
+                Continue
+              {% endif %}
+            </a>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
     </div>
+    {% else %}
+    <div class="card">
+      <div class="progress-empty">
+        <div class="progress-empty-icon">📊</div>
+        <h4 class="empty-state-title">No translation data yet</h4>
+        <p class="empty-state-description">
+          Start translating novels to see progress tracking here.
+        </p>
+        <a href="/translate" class="btn btn-gold btn-lg" style="margin-top: var(--space-4);">
+          Start Translating →
+        </a>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ── Sidebar: Live Status ── -->
+  <div>
+    <div class="status-panel">
+      <h3 class="card-title" style="margin-bottom: var(--space-4);">Live Status</h3>
+      
+      <div id="statusIndicator" class="status-indicator idle">
+        <div class="status-icon">⏸</div>
+        <div class="status-text">
+          <div class="status-label">Current Status</div>
+          <div class="status-value">Idle</div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="job-info" id="jobInfo">
+        <div class="job-info-row">
+          <span class="job-info-label">Novel</span>
+          <span class="job-info-value" id="jobNovel">—</span>
+        </div>
+        <div class="job-info-row">
+          <span class="job-info-label">Chapter</span>
+          <span class="job-info-value" id="jobChapter">—</span>
+        </div>
+        <div class="job-info-row">
+          <span class="job-info-label">Model</span>
+          <span class="job-info-value" id="jobModel">—</span>
+        </div>
+        <div class="job-info-row" id="elapsedTimeRow" style="display: none;">
+          <span class="job-info-label">Elapsed Time</span>
+          <span class="job-info-value" id="jobElapsedTime">—</span>
+        </div>
+      </div>
+
+      <div class="chunk-progress" id="chunkProgress" style="display: none;">
+        <div class="chunk-header">
+          <span class="text-sm text-secondary">Chunk Progress</span>
+          <span class="text-sm font-medium" id="chunkText">0 / 0</span>
+        </div>
+        <div class="chunk-bar">
+          <div class="chunk-bar-fill" id="chunkBar" style="width: 0%;"></div>
+        </div>
+      </div>
+
+      <div class="mt-4" id="actionButtons" style="display: none;">
+        <button class="btn btn-ghost btn-block" onclick="clearProgress()">
+          Clear Status
+        </button>
+      </div>
+
+      <div class="mt-4">
+        <button class="btn btn-ghost btn-block" onclick="viewTranslationLog()">
+          📋 View Translation Log
+        </button>
+      </div>
+
+      <!-- Debug Log Modal -->
+      <div id="logModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; padding: 20px;">
+        <div style="background: var(--paper); border-radius: var(--radius); max-width: 800px; width: 100%; max-height: 80vh; display: flex; flex-direction: column; box-shadow: var(--shadow-lg);">
+          <div style="padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+            <h3 style="margin: 0; font-family: var(--font-serif); font-size: 1.1rem;">Translation Log</h3>
+            <button onclick="closeLogModal()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-3);">×</button>
+          </div>
+          <div style="flex: 1; overflow: auto; padding: var(--space-4);">
+            <pre id="logContent" style="margin: 0; font-family: var(--font-mono); font-size: 0.8rem; line-height: 1.5; color: var(--text); white-space: pre-wrap; word-break: break-word; background: var(--ivory); padding: var(--space-4); border-radius: var(--radius);"></pre>
+          </div>
+          <div style="padding: var(--space-4) var(--space-5); border-top: 1px solid var(--border); display: flex; gap: var(--space-3);">
+            <button class="btn btn-ghost" onclick="refreshLog()">🔄 Refresh</button>
+            <button class="btn btn-primary" onclick="closeLogModal()">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Summary Stats -->
+    <div class="card mt-4">
+      <div class="card-header">
+        <h3 class="card-title">Summary</h3>
+      </div>
+      <div class="card-body">
+        <div class="stats-list">
+          {% set total_novels = novel_stats|length %}
+          {% set total_chapters = novel_stats|sum(attribute='total') %}
+          {% set total_translated = novel_stats|sum(attribute='translated') %}
+          
+          <div class="stat-row">
+            <span class="stat-label">Total Novels</span>
+            <span class="stat-value">{{ total_novels }}</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Total Chapters</span>
+            <span class="stat-value">{{ total_chapters }}</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Translated</span>
+            <span class="stat-value" style="color: var(--emerald);">{{ total_translated }}</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Remaining</span>
+            <span class="stat-value" style="color: var(--amber);">{{ total_chapters - total_translated }}</span>
+          </div>
+          {% if total_chapters > 0 %}
+          <div class="stat-row">
+            <span class="stat-label">Overall Progress</span>
+            <span class="stat-value">{{ (total_translated / total_chapters * 100)|int }}%</span>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
+{% endblock %}
 
+{% block extra_js %}
 <script>
-let pollInterval = null;
+// Live progress polling
+(function() {
+  const statusIndicator = document.getElementById('statusIndicator');
+  const jobNovel = document.getElementById('jobNovel');
+  const jobChapter = document.getElementById('jobChapter');
+  const jobModel = document.getElementById('jobModel');
+  const chunkProgress = document.getElementById('chunkProgress');
+  const chunkText = document.getElementById('chunkText');
+  const chunkBar = document.getElementById('chunkBar');
+  const actionButtons = document.getElementById('actionButtons');
+  const elapsedTimeRow = document.getElementById('elapsedTimeRow');
+  const jobElapsedTime = document.getElementById('jobElapsedTime');
 
-async function clearProgress() {
-    await fetch('/api/progress/clear', {method: 'POST'});
-    location.reload();
-}
-
-async function checkProgress() {
-    try {
-        const response = await fetch('/api/progress');
-        const data = await response.json();
+  function updateStatus() {
+    fetch('/api/progress')
+      .then(r => r.json())
+      .then(data => {
+        const status = data.status;
         
-        const statusDiv = document.getElementById('realtimeStatus');
-        const progressDiv = document.getElementById('liveProgress');
-        const statusText = document.getElementById('liveStatusText');
+        // Update status indicator
+        statusIndicator.className = 'status-indicator ' + status;
         
-        if (data.status === 'idle') {
-            statusText.textContent = 'No translation in progress';
-            progressDiv.className = 'alert alert-secondary';
-            statusDiv.style.borderColor = '#6c757d';
-        } else if (data.status === 'completed') {
-            statusText.textContent = '✅ Translation completed!';
-            progressDiv.className = 'alert alert-success';
-            statusDiv.style.borderColor = '#28a745';
-            alert('✅ Translation completed! Refresh to see updated progress.');
-            if (pollInterval) {
-                clearInterval(pollInterval);
-                pollInterval = null;
-            }
-        } else {
-            statusDiv.style.borderColor = '#007bff';
-            
-            let html = `<strong>🔄 ${data.novel || 'Unknown'}</strong> - Chapter ${data.chapter || '...'}<br>`;
-            html += `Model: ${data.model || 'padauk-gemma:q8_0'}<br>`;
-            html += `<em>${data.message || 'Translating...'}</em>`;
-            
-            if (data.current_chunk && data.total_chunks) {
-                const pct = Math.round((data.current_chunk / data.total_chunks) * 100);
-                html += `<div class="progress" style="margin-top: 0.5rem;">
-                    <div class="progress-bar" style="width: ${pct}%">${pct}%</div>
-                </div>`;
-            }
-            
-            progressDiv.innerHTML = html;
-            progressDiv.className = 'alert alert-warning';
+        if (status === 'idle') {
+          statusIndicator.querySelector('.status-icon').textContent = '⏸';
+          statusIndicator.querySelector('.status-value').textContent = 'Idle';
+          jobNovel.textContent = '—';
+          jobChapter.textContent = '—';
+          jobModel.textContent = '—';
+          chunkProgress.style.display = 'none';
+          actionButtons.style.display = 'none';
+        } else if (status === 'starting') {
+          statusIndicator.querySelector('.status-icon').textContent = '🚀';
+          statusIndicator.querySelector('.status-value').textContent = 'Starting...';
+          jobNovel.textContent = data.novel || '—';
+          jobChapter.textContent = data.chapter || '—';
+          jobModel.textContent = data.model || '—';
+          chunkProgress.style.display = 'block';
+          actionButtons.style.display = 'block';
+        } else if (status === 'translating') {
+          statusIndicator.querySelector('.status-icon').textContent = '⚡';
+          statusIndicator.querySelector('.status-value').textContent = 'Translating...';
+          jobNovel.textContent = data.novel || '—';
+          jobChapter.textContent = data.chapter || '—';
+          jobModel.textContent = data.model || '—';
+          chunkProgress.style.display = 'block';
+          actionButtons.style.display = 'block';
+        } else if (status === 'completed') {
+          statusIndicator.querySelector('.status-icon').textContent = '✓';
+          statusIndicator.querySelector('.status-value').textContent = 'Completed';
+          actionButtons.style.display = 'block';
+        } else if (status === 'error') {
+          statusIndicator.querySelector('.status-icon').textContent = '⚠';
+          statusIndicator.querySelector('.status-value').textContent = 'Error';
+          actionButtons.style.display = 'block';
         }
-    } catch (err) {
-        console.error('Progress poll error:', err);
-    }
+
+        // Update chunk progress
+        if (data.current_chunk && data.total_chunks) {
+          const pct = (data.current_chunk / data.total_chunks) * 100;
+          chunkText.textContent = `${data.current_chunk} / ${data.total_chunks}`;
+          chunkBar.style.width = `${pct}%`;
+        } else if (data.message) {
+          chunkText.textContent = data.message;
+          chunkBar.style.width = '50%';
+        }
+        
+        // Update elapsed time
+        if (data.elapsed_time && status !== 'idle') {
+          elapsedTimeRow.style.display = 'flex';
+          jobElapsedTime.textContent = data.elapsed_time;
+        } else {
+          elapsedTimeRow.style.display = 'none';
+        }
+      })
+      .catch(() => {
+        // Silently fail
+      });
+  }
+
+  // Poll every 3 seconds
+  updateStatus();
+  setInterval(updateStatus, 3000);
+})();
+
+// Clear progress
+function clearProgress() {
+  fetch('/api/progress/clear', { method: 'POST' })
+    .then(() => window.location.reload())
+    .catch(err => alert('Failed to clear: ' + err.message));
 }
 
-// Start polling when page loads
-document.addEventListener('DOMContentLoaded', function() {
-    checkProgress();
-    pollInterval = setInterval(checkProgress, 3000);
-});
+// View translation log
+function viewTranslationLog() {
+  const modal = document.getElementById('logModal');
+  modal.style.display = 'flex';
+  refreshLog();
+}
 
-// Stop polling when leaving page
-window.addEventListener('beforeunload', function() {
-    if (pollInterval) {
-        clearInterval(pollInterval);
-    }
-});
+function closeLogModal() {
+  const modal = document.getElementById('logModal');
+  modal.style.display = 'none';
+}
+
+function refreshLog() {
+  const logContent = document.getElementById('logContent');
+  logContent.textContent = 'Loading...';
+  
+  fetch('/api/debug/translation-log')
+    .then(r => r.json())
+    .then(data => {
+      if (data.exists) {
+        logContent.textContent = data.content || 'Log file is empty';
+      } else {
+        logContent.textContent = 'No translation log found. Start a translation first.';
+      }
+    })
+    .catch(err => {
+      logContent.textContent = 'Error loading log: ' + err.message;
+    });
+}
+
+// Close modal when clicking outside
+window.onclick = function(event) {
+  const modal = document.getElementById('logModal');
+  if (event.target === modal) {
+    closeLogModal();
+  }
+}
 </script>
-{% endif %}
 {% endblock %}

@@ -1,0 +1,406 @@
+{% extends "base.html" %}
+{% block title %}Cleanup — Novel Studio{% endblock %}
+{% block topbar_title %}Cleanup & Format{% endblock %}
+{% block topbar_extra %}
+<span style="font-size:0.8rem; color:var(--text-3);">ဖော်မတ်သပ်သပ်ရပ်ရပ်</span>
+{% endblock %}
+
+{% block extra_css %}
+.cleanup-layout {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    gap: 16px;
+    align-items: start;
+}
+
+.fix-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 0;
+    font-size: 0.82rem;
+    border-bottom: 1px solid var(--ivory-2);
+    color: var(--text-2);
+}
+.fix-toggle:last-child { border-bottom: none; }
+.fix-toggle input[type=checkbox] {
+    width: 15px; height: 15px;
+    accent-color: var(--gold-dim);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.fix-toggle label { cursor: pointer; flex: 1; }
+
+.file-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.file-card {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 12px;
+    font-size: 0.8rem;
+    background: var(--paper);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.file-card:hover { border-color: var(--gold-dim); }
+.file-card.processing { border-color: var(--amber); background: var(--amber-bg); }
+.file-card.done-changed { border-color: var(--emerald); background: var(--emerald-bg); }
+.file-card.done-clean   { border-color: var(--ivory-3); background: var(--ivory); }
+.file-card.error-state  { border-color: var(--rose); background: var(--rose-bg); }
+
+.file-name { font-weight: 600; color: var(--text); margin-bottom: 4px; }
+.file-state { font-size: 0.72rem; font-weight: 600; }
+.state-idle       { color: var(--text-3); }
+.state-processing { color: #92400e; }
+.state-changed    { color: #065f46; }
+.state-clean      { color: var(--text-3); }
+.state-error      { color: #9f1239; }
+
+.change-tags { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 5px; }
+.change-tag {
+    font-size: 0.65rem;
+    padding: 2px 6px;
+    border-radius: 99px;
+    background: rgba(16,185,129,0.12);
+    color: #065f46;
+    font-weight: 600;
+}
+
+.batch-bar { margin-bottom: 12px; display: none; }
+.batch-bar.visible { display: block; }
+.batch-label { display: flex; justify-content: space-between; font-size: 0.78rem; color: var(--text-3); margin-bottom: 5px; }
+
+.preview-pane { margin-top: 16px; display: none; }
+.preview-pane.visible { display: block; }
+
+.fix-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--ivory-2);
+    font-size: 0.82rem;
+}
+.fix-row:last-child { border-bottom: none; }
+.fix-count {
+    background: var(--emerald);
+    color: #fff;
+    padding: 1px 8px;
+    border-radius: 99px;
+    font-size: 0.7rem;
+    font-weight: 700;
+}
+.fix-count.zero { background: var(--ivory-3); color: var(--text-3); }
+{% endblock %}
+
+{% block content %}
+<div class="cleanup-layout">
+
+    <!-- ── Controls ── -->
+    <div style="display: flex; flex-direction: column; gap: 16px;">
+
+        <!-- Novel selector -->
+        <div class="card">
+            <div class="card-head"><span class="card-title">Novel</span></div>
+            <div class="card-body">
+                <form method="GET">
+                    <select name="novel" class="form-control" onchange="this.form.submit()">
+                        <option value="">— Select novel —</option>
+                        {% for novel in novels %}
+                        <option value="{{ novel.name }}" {% if selected_novel == novel.name %}selected{% endif %}>
+                            {{ novel.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </form>
+            </div>
+        </div>
+
+        <!-- Fix options -->
+        <div class="card">
+            <div class="card-head"><span class="card-title">Fixes to Apply</span></div>
+            <div class="card-body" style="padding: 4px 20px;">
+                <div class="fix-toggle">
+                    <input type="checkbox" id="opt-line_endings" checked>
+                    <label for="opt-line_endings">Line endings (CRLF→LF)</label>
+                </div>
+                <div class="fix-toggle">
+                    <input type="checkbox" id="opt-blank_lines" checked>
+                    <label for="opt-blank_lines">Excess blank lines</label>
+                </div>
+                <div class="fix-toggle">
+                    <input type="checkbox" id="opt-script_leakage" checked>
+                    <label for="opt-script_leakage">Script leakage (KR/ZH/BN)</label>
+                </div>
+                <div class="fix-toggle">
+                    <input type="checkbox" id="opt-duplicate_paragraphs" checked>
+                    <label for="opt-duplicate_paragraphs">Duplicate paragraphs</label>
+                </div>
+                <div class="fix-toggle">
+                    <input type="checkbox" id="opt-paragraph_breaks" checked>
+                    <label for="opt-paragraph_breaks">Paragraph breaks (blob fix)</label>
+                </div>
+                <div class="fix-toggle">
+                    <input type="checkbox" id="opt-punctuation" checked>
+                    <label for="opt-punctuation">Punctuation fixes</label>
+                </div>
+                <div class="fix-toggle">
+                    <input type="checkbox" id="opt-quote_style" checked>
+                    <label for="opt-quote_style">Quote normalization</label>
+                </div>
+                <div class="fix-toggle">
+                    <input type="checkbox" id="opt-ellipsis" checked>
+                    <label for="opt-ellipsis">Ellipsis (…→......)</label>
+                </div>
+                <div class="fix-toggle">
+                    <input type="checkbox" id="opt-chapter_heading" checked>
+                    <label for="opt-chapter_heading">Chapter heading format</label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action -->
+        <div class="card">
+            <div class="card-body">
+                {% if selected_novel %}
+                <button class="btn btn-primary btn-block" onclick="batchFormat()" id="batch-btn">
+                    ⟳ Format All ({{ files|length }} chapters)
+                </button>
+                <div class="text-muted" style="font-size:0.75rem; margin-top:6px; text-align:center;">
+                    Creates .bak.md backup before saving
+                </div>
+                {% else %}
+                <div style="text-align:center; color:var(--text-3); font-size:0.85rem;">Select a novel first.</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- ── File panel ── -->
+    <div>
+        {% if selected_novel %}
+
+        <!-- Batch progress -->
+        <div class="batch-bar" id="batch-progress">
+            <div class="batch-label">
+                <span id="progress-text">Ready</span>
+                <span id="changed-summary"></span>
+            </div>
+            <div class="progress-track">
+                <div class="progress-fill shimmer" id="progress-fill" style="width:0%;"></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-head">
+                <span class="card-title">{{ files|length }} Chapter{{ 's' if files|length != 1 else '' }}</span>
+                <span style="font-size:0.78rem; color:var(--text-3);">Click any chapter to preview fixes</span>
+            </div>
+            <div class="card-body">
+                {% if files %}
+                <div class="file-grid" id="file-grid">
+                    {% for f in files %}
+                    <div class="file-card" id="fc-{{ loop.index0 }}"
+                         data-file="{{ f }}" data-idx="{{ loop.index0 }}">
+                        <div class="file-name">{{ f.stem }}</div>
+                        <div class="file-state state-idle" id="fs-{{ loop.index0 }}">Ready</div>
+                        <div class="change-tags" id="ft-{{ loop.index0 }}"></div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div style="text-align:center; padding:20px; color:var(--text-3);">No translated chapters found.</div>
+                {% endif %}
+
+                <!-- Single file preview -->
+                <div class="preview-pane" id="preview-pane">
+                    <div class="divider"></div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                        <span style="font-weight:600; font-size:0.9rem;" id="preview-title">Preview</span>
+                        <button class="btn btn-ghost btn-sm" onclick="closePreview()">✕ Close</button>
+                    </div>
+                    <div id="fix-list" style="margin-bottom:12px;"></div>
+                    <div style="background:var(--ivory); border:1px solid var(--border); border-radius:var(--radius); padding:12px; font-family:'Padauk',monospace; font-size:0.875rem; line-height:1.9; max-height:300px; overflow-y:auto; white-space:pre-wrap;" id="preview-content"></div>
+                    <div style="display:flex; gap:8px; margin-top:12px;">
+                        <button class="btn btn-sm" style="background:var(--emerald);color:#fff;" id="apply-btn" onclick="applySingle()">Apply & Save</button>
+                        <button class="btn btn-ghost btn-sm" onclick="closePreview()">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% else %}
+        <div class="card">
+            <div class="card-body" style="text-align:center; padding:40px; color:var(--text-3);">
+                <div style="font-size:3rem; opacity:0.15; margin-bottom:12px;">⟳</div>
+                <div>Select a novel from the left panel.</div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function getOptions() {
+    const ids = ['line_endings','blank_lines','script_leakage','duplicate_paragraphs',
+                 'paragraph_breaks','punctuation','quote_style','ellipsis','chapter_heading'];
+    const opts = {};
+    ids.forEach(id => {
+        const el = document.getElementById('opt-' + id);
+        opts[id] = el ? el.checked : true;
+    });
+    opts['markdown_readability'] = true;
+    return opts;
+}
+
+async function batchFormat() {
+    const btn      = document.getElementById('batch-btn');
+    const progress = document.getElementById('batch-progress');
+    const fill     = document.getElementById('progress-fill');
+    const text     = document.getElementById('progress-text');
+    const summary  = document.getElementById('changed-summary');
+
+    btn.disabled = true;
+    btn.textContent = '⏳ Formatting…';
+    progress.classList.add('visible');
+
+    document.querySelectorAll('.file-card').forEach(c => {
+        c.className = 'file-card';
+        c.querySelector('.change-tags').innerHTML = '';
+    });
+
+    const cards = document.querySelectorAll('.file-card');
+    const total = cards.length;
+    let changed = 0, errors = 0, totalFixes = 0;
+
+    for (let i = 0; i < total; i++) {
+        const card  = cards[i];
+        const file  = card.dataset.file;
+        const state = card.querySelector('.file-state');
+        const tags  = card.querySelector('.change-tags');
+
+        card.classList.add('processing');
+        state.className = 'file-state state-processing';
+        state.textContent = 'Processing…';
+        fill.style.width = Math.round((i / total) * 100) + '%';
+        text.textContent = `${i + 1}/${total}: ${card.querySelector('.file-name').textContent}`;
+
+        try {
+            const resp = await fetch('/api/editor/format-save', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ file, options: getOptions() })
+            });
+            const data = await resp.json();
+
+            card.classList.remove('processing');
+            if (data.error) {
+                card.classList.add('error-state');
+                state.className = 'file-state state-error';
+                state.textContent = 'Error: ' + data.error;
+                errors++;
+            } else if (data.changed) {
+                card.classList.add('done-changed');
+                state.className = 'file-state state-changed';
+                state.textContent = data.total_changes + ' fix' + (data.total_changes !== 1 ? 'es' : '');
+                (data.fixes || []).filter(f => f.changes > 0).forEach(f => {
+                    const t = document.createElement('span');
+                    t.className = 'change-tag';
+                    t.textContent = f.name.replace('_',' ') + ' ×' + f.changes;
+                    tags.appendChild(t);
+                });
+                changed++;
+                totalFixes += data.total_changes;
+            } else {
+                card.classList.add('done-clean');
+                state.className = 'file-state state-clean';
+                state.textContent = 'Clean';
+            }
+        } catch (e) {
+            card.classList.remove('processing');
+            card.classList.add('error-state');
+            state.className = 'file-state state-error';
+            state.textContent = 'Network error';
+            errors++;
+        }
+    }
+
+    fill.style.width = '100%';
+    fill.classList.remove('shimmer');
+    text.textContent = `Done — ${changed} changed, ${totalFixes} total fixes` + (errors ? `, ${errors} errors` : '');
+    summary.textContent = `${total - changed - errors} already clean`;
+    btn.disabled = false;
+    btn.textContent = '⟳ Format All (' + total + ' chapters)';
+}
+
+let _previewFile = '', _previewText = '';
+
+async function previewFile(file, idx) {
+    const state = document.getElementById('fs-' + idx);
+    state.textContent = 'Loading…';
+    try {
+        const resp = await fetch('/api/editor/format', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ file, options: getOptions() })
+        });
+        const data = await resp.json();
+        if (data.error) { state.textContent = 'Error: ' + data.error; return; }
+
+        _previewFile = file;
+        _previewText = data.text;
+
+        const fixList = document.getElementById('fix-list');
+        fixList.innerHTML = '';
+        (data.fixes || []).forEach(f => {
+            const row = document.createElement('div');
+            row.className = 'fix-row';
+            row.innerHTML = `<span>${f.description}</span><span class="fix-count ${f.changes===0?'zero':''}">${f.changes}</span>`;
+            fixList.appendChild(row);
+        });
+
+        document.getElementById('preview-title').textContent =
+            file.split('/').pop() + (data.changed ? ' — ' + data.total_changes + ' fixes' : ' — clean');
+        document.getElementById('preview-content').textContent = data.text;
+        document.getElementById('preview-pane').classList.add('visible');
+        document.getElementById('apply-btn').disabled = !data.changed;
+        state.textContent = data.changed ? data.total_changes + ' fixes ready' : 'Clean';
+    } catch(e) {
+        state.textContent = 'Error: ' + e;
+    }
+}
+
+function closePreview() {
+    document.getElementById('preview-pane').classList.remove('visible');
+    _previewFile = '';
+}
+
+async function applySingle() {
+    if (!_previewFile) return;
+    const btn = document.getElementById('apply-btn');
+    btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+        const resp = await fetch('/api/editor/format-save', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ file: _previewFile, options: getOptions() })
+        });
+        const data = await resp.json();
+        if (data.error) { btn.textContent = 'Error: ' + data.error; btn.disabled = false; }
+        else { btn.textContent = 'Saved!'; setTimeout(closePreview, 1200); }
+    } catch (e) { btn.textContent = 'Error: ' + e; btn.disabled = false; }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.file-card').forEach(card => {
+        card.addEventListener('click', () => previewFile(card.dataset.file, card.dataset.idx));
+    });
+});
+</script>
+{% endblock %}

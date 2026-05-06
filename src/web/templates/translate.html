@@ -1,229 +1,409 @@
 {% extends "base.html" %}
+{% block title %}Translate — Novel Studio{% endblock %}
+{% block topbar_title %}Translate{% endblock %}
+{% block topbar_extra %}
+<span style="font-size:0.8rem; color:var(--text-3);">ဘာသာပြန်ရန်</span>
+{% endblock %}
 
-{% block title %}Translate - Novel Translation{% endblock %}
+{% block extra_css %}
+.start-btn {
+    width: 100%;
+    padding: 16px;
+    font-size: 1.05rem;
+    font-weight: 700;
+    font-family: 'Fraunces', serif;
+    background: var(--ink);
+    color: var(--gold);
+    border: none;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 0.02em;
+    margin-top: 4px;
+    position: relative;
+    overflow: hidden;
+}
+.start-btn::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, transparent 60%, rgba(201,168,76,0.08));
+}
+.start-btn:hover:not(:disabled) {
+    background: var(--ink-light);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 24px rgba(26,22,37,0.32);
+}
+.start-btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+
+.step-list { counter-reset: step; list-style: none; padding: 0; }
+.step-list li {
+    counter-increment: step;
+    display: flex; gap: 12px; align-items: flex-start;
+    padding: 9px 0; border-bottom: 1px solid var(--ivory-2);
+    font-size: 0.875rem; color: var(--text-2); line-height: 1.5;
+}
+.step-list li:last-child { border-bottom: none; }
+.step-list li::before {
+    content: counter(step);
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--ivory-3); color: var(--text-3);
+    font-size: 0.7rem; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; margin-top: 1px;
+}
+
+.model-rec-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 0; border-bottom: 1px solid var(--ivory-2);
+    font-size: 0.82rem;
+}
+.model-rec-row:last-child { border-bottom: none; }
+.model-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.model-dot.mm { background: var(--emerald); }
+.model-dot.pivot { background: var(--amber); }
+
+.chapter-mini-stat {
+    text-align: center;
+    padding: 14px 8px;
+    border-radius: var(--radius);
+    background: var(--ivory);
+    border: 1px solid var(--border);
+}
+.chapter-mini-num { font-family: 'Fraunces', serif; font-size: 1.8rem; font-weight: 700; line-height: 1; }
+.chapter-mini-lbl { font-size: 0.65rem; text-transform: uppercase; letter-spacing: .07em; color: var(--text-3); margin-top: 4px; }
+{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1 class="page-title">📝 Translation | ဘာသာပြန်ရန်</h1>
-    <p class="page-subtitle">Translate chapters from source language to Myanmar</p>
-</div>
+<div class="grid-2" style="align-items: start;">
 
-{% if not novels %}
-<div class="alert alert-warning">
-    <strong>No novels found!</strong> Please add novel folders to <code>data/input/</code> directory.
-</div>
-{% else %}
-<div class="grid grid-2">
-    <!-- Settings Column -->
-    <div>
+    <!-- ── Left: Form ── -->
+    <div style="display: flex; flex-direction: column; gap: 20px;">
+
         <div class="card">
-            <h2 class="card-header">⚙️ Translation Settings</h2>
-            
-            <form method="POST">
-                <input type="hidden" name="action" value="start_translation">
-                
+            <div class="card-head"><span class="card-title">Translation Settings</span></div>
+            <div class="card-body">
+
                 <div class="form-group">
-                    <label class="form-label">Select Novel</label>
-                    <select name="novel" class="form-control" onchange="this.form.action='/translate?novel='+this.value+'&chapter='+document.getElementById('chapter').value">
-                        <option value="">-- Select Novel --</option>
+                    <label class="form-label">Novel</label>
+                    <select id="novelSelect" class="form-control">
+                        <option value="">— Select a novel —</option>
                         {% for novel in novels %}
                         <option value="{{ novel.name }}" {% if selected_novel == novel.name %}selected{% endif %}>
-                            {{ novel.name }} ({{ novel.chapter_count }} chapters)
+                            {{ novel.name }}&nbsp;&nbsp;({{ novel.chapter_count }} ch.)
                         </option>
                         {% endfor %}
                     </select>
                 </div>
-                
+
                 <div class="form-group">
-                    <label class="form-label">Start Chapter</label>
-                    <input type="number" id="chapter" name="chapter" class="form-control" 
-                           value="{{ start_chapter }}" min="1" 
-                           {% if not selected_novel %}disabled{% endif %}>
+                    <label class="form-label">Chapter</label>
+                    <div style="display:flex; gap:10px; align-items:center; margin-bottom:8px;">
+                        <input type="number" id="chapterInput" class="form-control" style="flex:1;"
+                               value="{{ start_chapter }}" min="1"
+                               {% if not selected_novel %}disabled{% endif %}>
+                        <label style="display:flex; align-items:center; gap:6px; font-size:0.875rem;
+                                      white-space:nowrap; cursor:pointer; font-weight:400; color:var(--text-2);">
+                            <input type="checkbox" id="translateAllCheck" {% if translate_all %}checked{% endif %}
+                                   style="accent-color: var(--gold-dim);">
+                            All Chapters
+                        </label>
+                    </div>
+                    
+                    <!-- Chapter Range Selection -->
+                    <div style="display:flex; gap:10px; align-items:center; padding:10px; background:var(--ivory-2); border-radius:var(--radius); margin-bottom:8px;">
+                        <input type="checkbox" id="rangeModeCheck" style="accent-color: var(--gold-dim);">
+                        <span style="font-size:0.875rem; color:var(--text-2); font-weight:500;">Range:</span>
+                        <input type="number" id="rangeStartInput" class="form-control" style="width:70px;" 
+                               value="1" min="1" placeholder="From" disabled>
+                        <span style="color:var(--text-3);">—</span>
+                        <input type="number" id="rangeEndInput" class="form-control" style="width:70px;" 
+                               value="5" min="1" placeholder="To" disabled>
+                        <span style="font-size:0.75rem; color:var(--text-3); margin-left:auto;">chapters</span>
+                    </div>
+                    
+                    <div class="form-hint">
+                        Enter single chapter, check "All Chapters", or use "Range" for chapters X to Y.
+                    </div>
                 </div>
-                
-                <div class="form-group">
-                    <label class="form-label">
-                        <input type="checkbox" name="mode" value="all" {% if translate_all %}checked{% endif %}>
-                        Translate All Chapters
-                    </label>
-                </div>
-                
+
                 <div class="form-group">
                     <label class="form-label">Translation Model</label>
-                    <select name="model" class="form-control">
+                    <select id="modelSelect" class="form-control">
                         {% for m in models %}
-                        <option value="{{ m.name }}" 
+                        <option value="{{ m.name }}"
+                                data-temp="{{ m.temp }}"
                                 {% if current_model == m.name %}selected{% endif %}
                                 {% if m.installed == false %}disabled{% endif %}>
-                            {{ m.name }}
-                            {% if m.installed == false %} (not installed){% endif %}
+                            {{ m.name }}{% if m.installed == false %} (not installed){% endif %}
                         </option>
                         {% endfor %}
                     </select>
+                    <div class="form-hint" id="modelHint">padauk-gemma:q8_0 recommended for Myanmar output</div>
                 </div>
-                
+
                 <div class="form-group">
                     <label class="form-label">Temperature</label>
-                    <input type="number" name="temperature" class="form-control" 
-                           value="{{ current_temp }}" step="0.1" min="0" max="1">
-                    <small style="color: var(--text-secondary);">Lower values (≤0.2) produce more consistent translations</small>
+                    <div style="display:flex; gap:10px; align-items:center;">
+                        <input type="number" id="tempInput" class="form-control"
+                               value="{{ current_temp }}" step="0.05" min="0" max="1">
+                        <span id="tempLabel" class="badge badge-category" style="white-space:nowrap; flex-shrink:0;"></span>
+                    </div>
+                    <div class="form-hint">≤0.2 for consistent, 0.3–0.5 balanced, >0.5 creative</div>
                 </div>
-                
-                <button type="button" class="btn btn-primary btn-block" id="startBtn" {% if not selected_novel %}disabled{% endif %}>
-                    🚀 Start Translation
+
+                <div id="statusMsg" style="display:none;" class="alert"></div>
+
+                <button class="start-btn" id="startBtn" {% if not selected_novel %}disabled{% endif %}>
+                    ⟶ Start Translation
                 </button>
-            </form>
-            
-            <div id="translationStatus" class="alert" style="display: none; margin-top: 1rem;"></div>
-        </div>
-        
-        {% if selected_novel and available_chapters %}
-        <div class="card" style="margin-top: 1.5rem;">
-            <h2 class="card-header">📋 Chapter Status for {{ selected_novel }}</h2>
-            
-            <div class="grid grid-2">
-                <div>
-                    <strong>Available Chapters:</strong>
-                    <p>{{ available_chapters|length }} chapters</p>
-                </div>
-                <div>
-                    <strong>Translated:</strong>
-                    <p>{{ translated_chapters|length }} chapters</p>
-                </div>
             </div>
-            
-            <div style="margin-top: 1rem;">
-                <strong>Next untranslated chapter:</strong>
-                {% set next_chapter = [] %}
-                {% for ch in available_chapters %}
-                    {% set ch_str = 'chapter_' ~ '{:04d}'.format(ch) ~ '.mm.md' %}
-                    {% if ch_str not in translated_chapters and not next_chapter %}
-                        {% set _ = next_chapter.append(ch) %}
-                    {% endif %}
-                {% endfor %}
-                {% if next_chapter %}
-                    <span class="badge badge-primary">Chapter {{ next_chapter[0] }}</span>
-                {% else %}
-                    <span class="badge badge-success">All translated!</span>
-                {% endif %}
+        </div>
+
+        <!-- Chapter stats (when novel selected) -->
+        {% if selected_novel and available_chapters %}
+        <div class="card">
+            <div class="card-head">
+                <span class="card-title">Chapter Status</span>
+                <span class="badge badge-primary">{{ selected_novel }}</span>
+            </div>
+            <div class="card-body">
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 14px;">
+                    <div class="chapter-mini-stat">
+                        <div class="chapter-mini-num">{{ available_chapters|length }}</div>
+                        <div class="chapter-mini-lbl">Available</div>
+                    </div>
+                    <div class="chapter-mini-stat" style="border-color: var(--emerald);">
+                        <div class="chapter-mini-num" style="color:var(--emerald);">{{ translated_chapters|length }}</div>
+                        <div class="chapter-mini-lbl">Translated</div>
+                    </div>
+                    <div class="chapter-mini-stat" style="border-color: var(--amber);">
+                        <div class="chapter-mini-num" style="color:var(--amber);">{{ available_chapters|length - translated_chapters|length }}</div>
+                        <div class="chapter-mini-lbl">Remaining</div>
+                    </div>
+                </div>
+                {% set pct = ((translated_chapters|length / available_chapters|length) * 100)|int if available_chapters|length > 0 else 0 %}
+                <div class="progress-track">
+                    <div class="progress-fill complete" style="width: {{ pct }}%;"></div>
+                </div>
+                <div style="font-size:0.72rem; color:var(--text-3); text-align:right; margin-top:5px;">{{ pct }}% complete</div>
             </div>
         </div>
         {% endif %}
     </div>
-    
-    <!-- Info Column -->
-    <div>
+
+    <!-- ── Right: Guide ── -->
+    <div style="display: flex; flex-direction: column; gap: 20px;">
+
         <div class="card">
-            <h2 class="card-header">ℹ️ Translation Guide</h2>
-            
-            <div class="alert alert-info">
-                <strong>How to use:</strong>
-                <ol style="margin-top: 0.5rem; margin-left: 1.5rem;">
+            <div class="card-head"><span class="card-title">How to Use</span></div>
+            <div class="card-body" style="padding: 14px 20px;">
+                <ol class="step-list">
                     <li>Select a novel from the dropdown</li>
-                    <li>Choose the starting chapter number</li>
-                    <li>Check "Translate All Chapters" to translate the entire novel</li>
-                    <li>Select the translation model (padauk-gemma recommended)</li>
-                    <li>Click "Start Translation"</li>
+                    <li>Choose translation mode:
+                        <ul style="margin-top:4px; padding-left:16px; color:var(--text-3);">
+                            <li>Single chapter — enter chapter number</li>
+                            <li>Range — check "Range" box and set From/To</li>
+                            <li>All chapters — check "All Chapters"</li>
+                        </ul>
+                    </li>
+                    <li>Choose a translation model</li>
+                    <li>Adjust temperature (0.2 recommended)</li>
+                    <li>Click <strong>Start Translation</strong> and monitor on the <a href="/progress" style="color:var(--gold-dim); font-weight:500;">Progress</a> page</li>
                 </ol>
             </div>
-            
-            <h3 style="margin-top: 1rem;">📦 Available Models</h3>
-            <table class="table" style="margin-top: 0.5rem;">
-                <thead>
-                    <tr>
-                        <th>Model</th>
-                        <th>Use Case</th>
-                        <th>Temp</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for m in models %}
-                    {% if m.category == 'myanmar' %}
-                    <tr>
-                        <td>{{ m.name }}</td>
-                        <td>{{ m.description }}</td>
-                        <td>{{ m.temp }}</td>
-                    </tr>
-                    {% endif %}
-                    {% endfor %}
-                </tbody>
-            </table>
         </div>
-        
-        <div class="card" style="margin-top: 1.5rem;">
-            <h2 class="card-header">📊 Current Configuration</h2>
-            <table class="table">
-                <tr>
-                    <td><strong>Model:</strong></td>
-                    <td>{{ current_model }}</td>
-                </tr>
-                <tr>
-                    <td><strong>Temperature:</strong></td>
-                    <td>{{ current_temp }}</td>
-                </tr>
-            </table>
+
+        <div class="card">
+            <div class="card-head"><span class="card-title">Myanmar Models</span></div>
+            <div class="card-body" style="padding: 8px 20px;">
+                {% for m in models %}
+                {% if m.category == 'myanmar' %}
+                <div class="model-rec-row">
+                    <div class="model-dot mm"></div>
+                    <div style="flex:1; min-width:0;">
+                        <div style="font-size:0.82rem; font-weight:500;">{{ m.name }}</div>
+                        <div style="font-size:0.72rem; color:var(--text-3);">{{ m.description }}</div>
+                    </div>
+                    <span class="badge badge-category">{{ m.temp }}</span>
+                </div>
+                {% endif %}
+                {% endfor %}
+                {% for m in models %}
+                {% if m.category == 'pivot' %}
+                <div class="model-rec-row">
+                    <div class="model-dot pivot"></div>
+                    <div style="flex:1; min-width:0;">
+                        <div style="font-size:0.82rem; font-weight:500;">{{ m.name }}</div>
+                        <div style="font-size:0.72rem; color:var(--text-3);">{{ m.description }}</div>
+                    </div>
+                    <span class="badge badge-category">{{ m.temp }}</span>
+                </div>
+                {% endif %}
+                {% endfor %}
+            </div>
         </div>
     </div>
 </div>
-{% endif %}
 
 <script>
-document.querySelector('select[name="novel"]').addEventListener('change', function() {
-    const novel = this.value;
-    if (novel) {
-        window.location.href = '/translate?novel=' + novel;
+const novelSelect  = document.getElementById('novelSelect');
+const chapterInput = document.getElementById('chapterInput');
+const modelSelect  = document.getElementById('modelSelect');
+const tempInput    = document.getElementById('tempInput');
+const allCheck     = document.getElementById('translateAllCheck');
+const rangeModeCheck = document.getElementById('rangeModeCheck');
+const rangeStartInput = document.getElementById('rangeStartInput');
+const rangeEndInput = document.getElementById('rangeEndInput');
+const startBtn     = document.getElementById('startBtn');
+const statusMsg    = document.getElementById('statusMsg');
+const modelHint    = document.getElementById('modelHint');
+const tempLabel    = document.getElementById('tempLabel');
+
+const modelHints = {
+    'padauk-gemma:q8_0':  'Best Myanmar output — recommended',
+    'padauk-gemma:q4_0':  'Smaller padauk-gemma, good for limited VRAM',
+    'sailor2-20b:latest': 'Highest quality — 20B parameters',
+    'sailor2:8b':         '8B sailor model, faster inference',
+    'burmese-gpt:7b':     'Burmese GPT, 7B parameters',
+    'qwen2.5:14b':        'CN→EN pivot only — not for Myanmar output',
+    'qwen2.5:7b':         'CN→EN pivot only — not for Myanmar output',
+};
+
+function updateTempLabel() {
+    const t = parseFloat(tempInput.value);
+    if (t <= 0.2) { tempLabel.textContent = '✓ Consistent'; tempLabel.style.cssText = 'background:var(--emerald-bg);color:#065f46;border:1px solid #6ee7b7;'; }
+    else if (t <= 0.5) { tempLabel.textContent = 'Balanced'; tempLabel.style.cssText = 'background:var(--amber-bg);color:#92400e;border:1px solid #fcd34d;'; }
+    else { tempLabel.textContent = 'Creative'; tempLabel.style.cssText = 'background:var(--rose-bg);color:#9f1239;border:1px solid #fda4af;'; }
+}
+
+// Range mode toggle
+rangeModeCheck.addEventListener('change', function() {
+    const enabled = this.checked;
+    rangeStartInput.disabled = !enabled;
+    rangeEndInput.disabled = !enabled;
+    chapterInput.disabled = enabled;
+    allCheck.disabled = enabled;
+    if (enabled) {
+        allCheck.checked = false;
     }
 });
 
-// Handle translation start
-document.getElementById('startBtn').addEventListener('click', async function() {
-    const novel = document.querySelector('select[name="novel"]').value;
-    const chapter = document.getElementById('chapter').value;
-    const model = document.querySelector('select[name="model"]').value;
-    const translateAll = document.querySelector('input[name="mode"]').checked;
-    
-    if (!novel) {
-        alert('Please select a novel');
-        return;
-    }
-    
-    const btn = this;
-    btn.disabled = true;
-    btn.textContent = '⏳ Starting...';
-    
-    const statusDiv = document.getElementById('translationStatus');
-    statusDiv.style.display = 'block';
-    statusDiv.className = 'alert alert-info';
-    statusDiv.textContent = 'Starting translation...';
-    
-    try {
-        const response = await fetch('/api/start-translation', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                novel: novel,
-                chapter: parseInt(chapter),
-                model: model,
-                translate_all: translateAll
-            })
-        });
-        
-        const result = await response.json();
-        
-        if (result.status === 'started') {
-            statusDiv.className = 'alert alert-success';
-            statusDiv.textContent = 'Translation started! Go to Progress page to monitor.';
-            btn.textContent = '✅ Started';
-            setTimeout(() => {
-                window.location.href = '/progress';
-            }, 2000);
-        }
-    } catch (err) {
-        statusDiv.className = 'alert alert-danger';
-        statusDiv.textContent = 'Error: ' + err.message;
-        btn.disabled = false;
-        btn.textContent = '🚀 Start Translation';
+// All chapters toggle
+allCheck.addEventListener('change', function() {
+    if (this.checked) {
+        rangeModeCheck.checked = false;
+        rangeStartInput.disabled = true;
+        rangeEndInput.disabled = true;
+        chapterInput.disabled = true;
+    } else {
+        chapterInput.disabled = false;
     }
 });
+
+novelSelect.addEventListener('change', function() {
+    const val = this.value;
+    chapterInput.disabled = !val || rangeModeCheck.checked || allCheck.checked;
+    rangeModeCheck.disabled = !val;
+    rangeStartInput.disabled = !val || !rangeModeCheck.checked;
+    rangeEndInput.disabled = !val || !rangeModeCheck.checked;
+    allCheck.disabled = !val;
+    startBtn.disabled = !val;
+    if (val) window.location.href = '/translate?novel=' + encodeURIComponent(val);
+});
+
+modelSelect.addEventListener('change', function() {
+    modelHint.textContent = modelHints[this.value] || '';
+    const opt = this.options[this.selectedIndex];
+    const modelTemp = opt.getAttribute('data-temp');
+    if (modelTemp) {
+        tempInput.value = modelTemp;
+        updateTempLabel();
+    }
+});
+
+tempInput.addEventListener('input', updateTempLabel);
+
+startBtn.addEventListener('click', async function() {
+    const novel = novelSelect.value;
+    if (!novel) { alert('Please select a novel.'); return; }
+
+    const model   = modelSelect.value;
+    const temp    = parseFloat(tempInput.value) || 0.2;
+    const all     = allCheck.checked;
+    const rangeMode = rangeModeCheck.checked;
+    
+    let chapter = 1;
+    let chapterRange = null;
+    
+    if (rangeMode) {
+        const start = parseInt(rangeStartInput.value) || 1;
+        const end = parseInt(rangeEndInput.value) || start;
+        if (start > end) {
+            alert('Range start must be less than or equal to end.');
+            return;
+        }
+        chapterRange = `${start}-${end}`;
+    } else if (!all) {
+        chapter = parseInt(chapterInput.value) || 1;
+    }
+
+    startBtn.disabled = true;
+    startBtn.textContent = '⏳ Starting…';
+
+    statusMsg.style.display = 'block';
+    statusMsg.className = 'alert alert-info';
+    statusMsg.textContent = 'Initializing translation…';
+
+    try {
+        const res = await fetch('/api/start-translation', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ novel, chapter, chapter_range: chapterRange, model, translate_all: all, temperature: temp })
+        });
+        
+        const data = await res.json();
+        
+        if (!res.ok || data.status === 'error') {
+            // Handle HTTP errors or application errors
+            const errorMsg = data.error || data.details || `Server returned ${res.status}`;
+            throw new Error(errorMsg);
+        }
+        
+        if (data.status === 'started') {
+            statusMsg.className = 'alert alert-success';
+            let successMsg = '✓ Translation started successfully!';
+            if (data.pid) {
+                successMsg += ` (PID: ${data.pid})`;
+            }
+            statusMsg.innerHTML = successMsg + '<br>Redirecting to Progress page…';
+            setTimeout(() => { window.location.href = '/progress'; }, 1500);
+        } else {
+            throw new Error(data.error || 'Unknown error occurred');
+        }
+    } catch (err) {
+        console.error('Translation start failed:', err);
+        statusMsg.className = 'alert alert-error';
+        statusMsg.innerHTML = '<strong>Failed to start translation:</strong><br>' + err.message;
+        startBtn.disabled = false;
+        startBtn.textContent = '⟶ Start Translation';
+    }
+});
+
+// Init
+if (modelSelect.value) {
+    modelHint.textContent = modelHints[modelSelect.value] || '';
+    const opt = modelSelect.options[modelSelect.selectedIndex];
+    const modelTemp = opt.getAttribute('data-temp');
+    if (modelTemp) tempInput.value = modelTemp;
+}
+updateTempLabel();
+
+// Initialize range input states
+if (!novelSelect.value) {
+    rangeModeCheck.disabled = true;
+    rangeStartInput.disabled = true;
+    rangeEndInput.disabled = true;
+}
 </script>
 {% endblock %}

@@ -60,6 +60,7 @@ class TranslationPipeline:
         self._shutdown_requested = False
         self._current_novel: Optional[str] = None
         self._progress_callback: Optional[Callable] = None
+        self._version_manager = None
 
         # Register signal handlers
         signal.signal(signal.SIGINT, self._signal_handler)
@@ -85,13 +86,125 @@ class TranslationPipeline:
                 self._progress_callback(event)
             except Exception:
                 pass  # Never let progress reporting break the pipeline
+        # Write live progress to file so the Flask web UI can poll it
+        try:
+            event_type = event.get("type", "")
+            progress_file = Path("logs/progress_current.json")
+            if progress_file.exists() and event_type in (
+                "chunk_start", "chunk_translated", "chunk_complete", "summary"
+            ):
+                with open(progress_file, "r", encoding="utf-8") as _f:
+                    pdata = json.load(_f)
+                if event_type in ("chunk_start", "chunk_translated", "chunk_complete"):
+                    pdata["status"] = "translating"
+                    pdata["current_chunk"] = event.get("chunk_index", pdata.get("current_chunk", 0))
+                    pdata["total_chunks"] = event.get("total_chunks", pdata.get("total_chunks", 0))
+                    pdata["message"] = (
+                        f"Chunk {pdata['current_chunk']}/{pdata['total_chunks']}"
+                    )
+                elif event_type == "summary":
+                    pdata["status"] = "completed"
+                    pdata["message"] = "Translation completed!"
+                with open(progress_file, "w", encoding="utf-8") as _f:
+                    json.dump(pdata, _f)
+        except Exception:
+            pass  # Never let progress reporting break the pipeline
+
+    def _write_completion_report(
+        self,
+        filepath: str,
+        output_path: Path,
+        duration: float,
+        chapter_num: Optional[int],
+        total_chunks: int,
+        avg_score: float
+    ) -> None:
+        """Write a detailed completion report to logs directory.
+        
+        Creates a human-readable log file with translation details including
+        pipeline mode, model name, and duration in hours/minutes/seconds.
+        """
+        try:
+            from datetime import datetime
+            
+            # Calculate duration in hours, minutes, seconds
+            hours = int(duration // 3600)
+            minutes = int((duration % 3600) // 60)
+            seconds = int(duration % 60)
+            
+            # Format duration string
+            if hours > 0:
+                duration_str = f"{hours}h {minutes}m {seconds}s"
+            elif minutes > 0:
+                duration_str = f"{minutes}m {seconds}s"
+            else:
+                duration_str = f"{seconds}s"
+            
+            # Get pipeline info from config
+            pipeline_mode = getattr(self.config.translation_pipeline, 'mode', 'unknown')
+            model_name = getattr(self.config.models, 'translator', 'unknown')
+            
+            # Build report content
+            report_lines = [
+                "=" * 60,
+                "TRANSLATION COMPLETION REPORT",
+                "=" * 60,
+                "",
+                f"Timestamp:     {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                f"Input File:    {filepath}",
+                f"Output File:   {output_path}",
+                f"Chapter:       {chapter_num if chapter_num else 'N/A'}",
+                "",
+                "-" * 40,
+                "PIPELINE CONFIGURATION",
+                "-" * 40,
+                f"Pipeline Mode: {pipeline_mode}",
+                f"Model Name:    {model_name}",
+                "",
+                "-" * 40,
+                "TRANSLATION METRICS",
+                "-" * 40,
+                f"Total Chunks:  {total_chunks}",
+                f"Avg Quality:   {avg_score:.1f}/100",
+                f"Duration:      {duration_str} ({duration:.1f}s)",
+                "",
+                "=" * 60,
+                "",
+            ]
+            
+            # Ensure logs directory exists
+            report_dir = Path("logs/report")
+            report_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Generate filename with timestamp
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            novel_name = self._current_novel or "unknown"
+            chapter_str = f"_ch{chapter_num:04d}" if chapter_num else ""
+            report_file = report_dir / f"{novel_name}{chapter_str}_completion_{timestamp}.log"
+            
+            # Write report
+            with open(report_file, 'w', encoding='utf-8') as f:
+                f.write('\n'.join(report_lines))
+            
+            self.logger.info(f"Completion report saved: {report_file}")
+            
+        except Exception as e:
+            self.logger.warning(f"Failed to write completion report: {e}")
 
     @property
     def memory_manager(self):
         """Lazy load memory manager with novel-specific glossary."""
         if self._memory_manager is None:
             from src.memory.memory_manager import MemoryManager
-            self._memory_manager = MemoryManager(novel_name=self._current_novel)
+            # Determine storage backend from config
+            use_sql = self.config.storage.backend == "sqlite"
+            db_path = self.config.storage.db_path
+            self._memory_manager = MemoryManager(
+                novel_name=self._current_novel,
+                use_sql=use_sql,
+                db_path=db_path
+            )
+            self.logger.info(f"MemoryManager initialized with {'SQLite' if use_sql else 'JSON'} backend")
             # Auto-approve pending glossary terms marked 'approved' by user
             try:
                 auto_count = self._memory_manager.auto_approve_pending_terms()
@@ -107,6 +220,23 @@ class TranslationPipeline:
             except Exception:
                 pass
         return self._memory_manager
+
+    @property
+    def version_manager(self):
+        """Lazy load version manager for SQL backend."""
+        if self._version_manager is None:
+            from src.memory.version_manager import VersionManager
+            from src.db.connection import DatabaseConnection
+            use_sql = self.config.storage.backend == "sqlite"
+            if use_sql:
+                db = DatabaseConnection(self.config.storage.db_path)
+                self._version_manager = VersionManager(
+                    db=db,
+                    output_dir=Path(OUTPUT_DIR),
+                )
+            else:
+                self._version_manager = None
+        return self._version_manager
 
     @property
     def ollama_client(self):
@@ -137,6 +267,8 @@ class TranslationPipeline:
             from src.agents.preprocessor import Preprocessor
             self._preprocessor = Preprocessor(
                 chunk_size=self.config.processing.chunk_size,
+                memory_manager=self.memory_manager,
+                config=self.config.dict(),
             )
         return self._preprocessor
 
@@ -387,6 +519,16 @@ class TranslationPipeline:
                 "file_size": len(result_text.encode('utf-8')),
                 "issues_total": total_issues,
             })
+            
+            # Generate completion report
+            self._write_completion_report(
+                filepath=filepath,
+                output_path=output_path,
+                duration=duration,
+                chapter_num=chapter_num,
+                total_chunks=len(chunk_metrics),
+                avg_score=avg_score
+            )
 
             return {
                 "success": True,
@@ -1004,6 +1146,18 @@ class TranslationPipeline:
         from src.utils.file_handler import FileHandler
         FileHandler.write_text(str(output_path), text)
 
+        # --- Create version snapshot (if SQL backend) ---
+        if self.config.storage.backend == "sqlite" and self.version_manager and chapter_num:
+            try:
+                self.version_manager.snapshot_chapter(
+                    novel_name=self._current_novel or "unknown",
+                    chapter_num=chapter_num,
+                    reason="translation_complete",
+                    source="pipeline",
+                )
+            except Exception as e:
+                self.logger.warning(f"Version snapshot failed: {e}")
+
         # --- Update cumulative per-novel meta.json ---
         # Single file: data/output/{novel}/{novel}.mm.meta.json
         # Updated cumulatively with each chapter translation
@@ -1109,12 +1263,20 @@ class TranslationPipeline:
             except Exception as e:
                 self.logger.error(f"Error cleaning up Ollama client: {e}")
 
-        # Save memory manager state
+        # Save memory manager state and close database connection
         if self._memory_manager:
             try:
                 self._memory_manager.save_memory()
+                self.logger.info("Memory saved successfully")
             except Exception as e:
                 self.logger.error(f"Error saving memory: {e}")
+            
+            # Close database connection to prevent locking issues
+            try:
+                self._memory_manager.close()
+                self.logger.info("Database connection closed")
+            except Exception as e:
+                self.logger.error(f"Error closing database connection: {e}")
 
     def cleanup(self) -> None:
         """Public cleanup method for manual resource cleanup."""

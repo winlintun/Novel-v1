@@ -1,130 +1,522 @@
 {% extends "base.html" %}
+{% block title %}Glossary — Novel Studio{% endblock %}
+{% block topbar_title %}Glossary{% endblock %}
 
-{% block title %}Glossary - Novel Translation{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='components.css') }}">
+<style>
+  .glossary-layout {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: var(--space-5);
+  }
+
+  @media (max-width: 1024px) {
+    .glossary-layout { grid-template-columns: 1fr; }
+  }
+
+  /* Search and Filter Bar */
+  .glossary-toolbar {
+    display: flex;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+    flex-wrap: wrap;
+  }
+
+  .search-box {
+    position: relative;
+    flex: 1;
+    min-width: 200px;
+  }
+
+  .search-box input {
+    width: 100%;
+    padding: 10px 14px 10px 40px;
+    background: var(--ivory);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 0.9rem;
+    transition: all var(--transition-fast);
+  }
+
+  .search-box input:focus {
+    outline: none;
+    border-color: var(--gold-dim);
+    box-shadow: 0 0 0 3px rgba(201, 168, 76, 0.12);
+    background: var(--paper);
+  }
+
+  .search-box::before {
+    content: '🔍';
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.9rem;
+    opacity: 0.5;
+  }
+
+  /* Category Filter Pills */
+  .category-filters {
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+  }
+
+  .category-pill {
+    padding: 6px 14px;
+    border-radius: var(--radius-full);
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: var(--paper);
+    color: var(--text-2);
+    transition: all var(--transition-fast);
+  }
+
+  .category-pill:hover {
+    border-color: var(--gold-dim);
+    color: var(--text);
+  }
+
+  .category-pill.active {
+    background: var(--gold);
+    border-color: var(--gold);
+    color: var(--ink);
+  }
+
+  /* Term Cards */
+  .terms-grid {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .term-card {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-4);
+    background: var(--paper);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    transition: all var(--transition-fast);
+    animation: fade-in-up var(--transition) forwards;
+  }
+
+  .term-card:hover {
+    border-color: var(--gold-dim);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .term-card.hidden {
+    display: none;
+  }
+
+  .term-source {
+    font-family: var(--font-mono);
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--text);
+    min-width: 150px;
+  }
+
+  .term-arrow {
+    color: var(--text-3);
+    font-size: 0.8rem;
+  }
+
+  .term-target {
+    font-family: var(--font-myanmar);
+    font-size: 1.1rem;
+    color: var(--ink);
+    flex: 1;
+  }
+
+  .term-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .term-category {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 3px 10px;
+    border-radius: var(--radius-full);
+    background: var(--ivory-2);
+    color: var(--text-2);
+  }
+
+  .term-actions {
+    display: flex;
+    gap: var(--space-2);
+    opacity: 0;
+    transition: opacity var(--transition-fast);
+  }
+
+  .term-card:hover .term-actions {
+    opacity: 1;
+  }
+
+  .term-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: var(--paper);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+    transition: all var(--transition-fast);
+  }
+
+  .term-btn:hover {
+    background: var(--ivory-2);
+    border-color: var(--text-3);
+  }
+
+  .term-btn.delete:hover {
+    background: var(--rose-bg);
+    border-color: var(--rose);
+    color: var(--rose);
+  }
+
+  /* Add Term Form */
+  .add-term-form {
+    background: var(--paper);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: var(--space-5);
+  }
+
+  .form-title {
+    font-family: var(--font-serif);
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: var(--space-4);
+    color: var(--text);
+  }
+
+  /* Stats Panel */
+  .stats-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--ivory-2);
+  }
+
+  .stat-row:last-child {
+    border-bottom: none;
+  }
+
+  .stat-label {
+    font-size: 0.875rem;
+    color: var(--text-2);
+  }
+
+  .stat-value {
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  /* Empty State */
+  .glossary-empty {
+    text-align: center;
+    padding: var(--space-10);
+  }
+
+  .glossary-empty-icon {
+    font-size: 4rem;
+    opacity: 0.1;
+    margin-bottom: var(--space-4);
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .term-card {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .term-actions {
+      opacity: 1;
+      width: 100%;
+      justify-content: flex-end;
+      margin-top: var(--space-2);
+    }
+
+    .glossary-toolbar {
+      flex-direction: column;
+    }
+
+    .search-box {
+      width: 100%;
+    }
+  }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1 class="page-title">📚 Glossary Management | အဘိဓာန် ထိန်းချုပ်ရန်</h1>
-    <p class="page-subtitle">Manage translation terminology and vocabulary</p>
-</div>
+<div class="glossary-layout">
+  <!-- ── Main Content ── -->
+  <div>
+    <!-- Toolbar -->
+    <div class="glossary-toolbar">
+      <div class="search-box">
+        <input type="text" id="searchInput" placeholder="Search terms..." autocomplete="off">
+      </div>
+      
+      <div class="category-filters" id="categoryFilters">
+        <button class="category-pill active" data-category="all">All</button>
+        {% for cat in categories %}
+        <button class="category-pill" data-category="{{ cat }}">{{ cat }}</button>
+        {% endfor %}
+      </div>
+    </div>
 
-<div class="grid grid-2">
-    <!-- Add Term Form -->
-    <div>
-        <div class="card">
-            <h2 class="card-header">➕ Add New Term</h2>
-            
-            <form method="POST">
-                <input type="hidden" name="action" value="add_term">
-                
-                <div class="form-group">
-                    <label class="form-label">Source Term (Original)</label>
-                    <input type="text" name="source" class="form-control" placeholder="e.g., 修仙者" required>
-                </div>
-                
-                <div class="form-group">
-                    <label class="form-label">Target Term (Myanmar Translation)</label>
-                    <input type="text" name="target" class="form-control" placeholder="e.g., ပါရှန်းသမား" required>
-                </div>
-                
-                <div class="form-group">
-                    <label class="form-label">Category</label>
-                    <select name="category" class="form-control">
-                        <option value="general">General</option>
-                        <option value="character">Character</option>
-                        <option value="place">Place</option>
-                        <option value="item">Item</option>
-                        <option value="technique">Technique</option>
-                        <option value="level">Level/Rank</option>
-                    </select>
-                </div>
-                
-                <button type="submit" class="btn btn-primary btn-block">Add Term</button>
-            </form>
+    <!-- Terms List -->
+    {% if terms %}
+    <div class="terms-grid" id="termsGrid">
+      {% for term in terms %}
+      <div class="term-card" data-category="{{ term.category or 'general' }}" data-search="{{ term.source.lower() }} {{ term.target.lower() }}">
+        <div class="term-source">{{ term.source }}</div>
+        <div class="term-arrow">→</div>
+        <div class="term-target myanmar-text">{{ term.target }}</div>
+        <div class="term-meta">
+          <span class="term-category">{{ term.category or 'general' }}</span>
+          {% if term.verified %}
+          <span class="badge badge-verified">✓</span>
+          {% else %}
+          <span class="badge badge-pending">pending</span>
+          {% endif %}
         </div>
-        
-        <div class="card" style="margin-top: 1.5rem;">
-            <h2 class="card-header">📊 Statistics</h2>
-            <div class="grid grid-2">
-                <div class="stat">
-                    <div class="stat-value">{{ total_terms }}</div>
-                    <div class="stat-label">Total Terms</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-value">{{ categories|length }}</div>
-                    <div class="stat-label">Categories</div>
-                </div>
-            </div>
+        <div class="term-actions">
+          <form method="POST" style="display: inline;">
+            <input type="hidden" name="action" value="verify_term">
+            <input type="hidden" name="source" value="{{ term.source }}">
+            <button type="submit" class="term-btn" title="Verify term">✓</button>
+          </form>
+          <form method="POST" style="display: inline;" onsubmit="return confirm('Delete this term?');">
+            <input type="hidden" name="action" value="delete_term">
+            <input type="hidden" name="source" value="{{ term.source }}">
+            <button type="submit" class="term-btn delete" title="Delete term">🗑</button>
+          </form>
         </div>
+      </div>
+      {% endfor %}
     </div>
     
-    <!-- Filter and List -->
-    <div>
-        <div class="card">
-            <h2 class="card-header">🔍 Filter Terms</h2>
-            
-            <form method="GET">
-                <div class="form-group">
-                    <label class="form-label">Category Filter</label>
-                    <select name="category" class="form-control" onchange="this.form.submit()">
-                        <option value="all" {% if category_filter == 'all' %}selected{% endif %}>All Categories</option>
-                        {% for cat in categories %}
-                        <option value="{{ cat }}" {% if category_filter == cat %}selected{% endif %}>{{ cat }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-            </form>
+    <!-- No Results Message -->
+    <div id="noResults" class="glossary-empty" style="display: none;">
+      <div class="glossary-empty-icon">🔍</div>
+      <h4 class="empty-state-title">No terms found</h4>
+      <p class="empty-state-description">Try adjusting your search or filters</p>
+    </div>
+    {% else %}
+    <div class="card">
+      <div class="glossary-empty">
+        <div class="glossary-empty-icon">📝</div>
+        <h4 class="empty-state-title">No glossary terms yet</h4>
+        <p class="empty-state-description">
+          Add terms to maintain consistency across translations.
+        </p>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ── Sidebar ── -->
+  <div style="display: flex; flex-direction: column; gap: var(--space-5);">
+    
+    <!-- Add Term Form -->
+    <div class="add-term-form card">
+      <h3 class="form-title">Add New Term</h3>
+      <form method="POST">
+        <input type="hidden" name="action" value="add_term">
+        
+        <div class="form-group">
+          <label class="form-label">Source Term</label>
+          <input type="text" name="source" class="form-control" placeholder="e.g., Dragon King" required>
         </div>
         
-        <div class="card" style="margin-top: 1.5rem;">
-            <h2 class="card-header">📝 Terms List ({{ terms|length }})</h2>
-            
-            {% if terms %}
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th>Source</th>
-                        <th>Target</th>
-                        <th>Category</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for term in terms %}
-                    <tr>
-                        <td>{{ term.source }}</td>
-                        <td>{{ term.target }}</td>
-                        <td><span class="badge badge-secondary">{{ term.category }}</span></td>
-                        <td>
-                            {% if term.verified %}
-                            <span class="badge badge-success">Verified</span>
-                            {% else %}
-                            <span class="badge badge-warning">Pending</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if not term.verified %}
-                            <form method="POST" style="display: inline;">
-                                <input type="hidden" name="action" value="verify_term">
-                                <input type="hidden" name="source" value="{{ term.source }}">
-                                <button type="submit" class="btn btn-sm btn-success">✓</button>
-                            </form>
-                            {% endif %}
-                            <form method="POST" style="display: inline;">
-                                <input type="hidden" name="action" value="delete_term">
-                                <input type="hidden" name="source" value="{{ term.source }}">
-                                <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Delete this term?')">✕</button>
-                            </form>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-            {% else %}
-            <div class="alert alert-warning">No terms found. Add your first term!</div>
-            {% endif %}
+        <div class="form-group">
+          <label class="form-label">Myanmar Translation</label>
+          <input type="text" name="target" class="form-control myanmar-text" placeholder="e.g., နဂါးဘုရင်" required>
         </div>
+        
+        <div class="form-group">
+          <label class="form-label">Category</label>
+          <select name="category" class="form-control">
+            <option value="character">Character</option>
+            <option value="place">Place</option>
+            <option value="item">Item</option>
+            <option value="technique">Technique</option>
+            <option value="general" selected>General</option>
+          </select>
+        </div>
+        
+        <button type="submit" class="btn btn-gold btn-block">
+          <span>+</span>
+          <span>Add Term</span>
+        </button>
+      </form>
     </div>
+
+    <!-- Stats -->
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">Statistics</h3>
+      </div>
+      <div class="card-body">
+        <div class="stats-list">
+          <div class="stat-row">
+            <span class="stat-label">Total Terms</span>
+            <span class="stat-value">{{ total_terms }}</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Verified</span>
+            <span class="stat-value" style="color: var(--emerald);">
+              {{ terms|selectattr('verified')|list|length }}
+            </span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Pending</span>
+            <span class="stat-value" style="color: var(--amber);">
+              {{ terms|rejectattr('verified')|list|length }}
+            </span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Categories</span>
+            <span class="stat-value">{{ categories|length }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Import/Export -->
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">Import / Export</h3>
+      </div>
+      <div class="card-body">
+        <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+          <button class="btn btn-ghost btn-block" onclick="exportGlossary()">
+            <span>⬇</span>
+            <span>Export to JSON</span>
+          </button>
+          <button class="btn btn-ghost btn-block" onclick="document.getElementById('importFile').click()">
+            <span>⬆</span>
+            <span>Import from JSON</span>
+          </button>
+          <input type="file" id="importFile" accept=".json" style="display: none;" onchange="importGlossary(this)">
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Search functionality
+(function() {
+  const searchInput = document.getElementById('searchInput');
+  const categoryPills = document.querySelectorAll('.category-pill');
+  const termCards = document.querySelectorAll('.term-card');
+  const noResults = document.getElementById('noResults');
+  
+  let currentCategory = 'all';
+  let currentSearch = '';
+
+  function filterTerms() {
+    let visibleCount = 0;
+    
+    termCards.forEach(card => {
+      const cardCategory = card.dataset.category;
+      const cardSearch = card.dataset.search;
+      
+      const matchesCategory = currentCategory === 'all' || cardCategory === currentCategory;
+      const matchesSearch = currentSearch === '' || cardSearch.includes(currentSearch.toLowerCase());
+      
+      if (matchesCategory && matchesSearch) {
+        card.classList.remove('hidden');
+        visibleCount++;
+      } else {
+        card.classList.add('hidden');
+      }
+    });
+    
+    // Show/hide no results message
+    if (visibleCount === 0 && termCards.length > 0) {
+      noResults.style.display = 'block';
+    } else {
+      noResults.style.display = 'none';
+    }
+  }
+
+  // Search input handler
+  searchInput?.addEventListener('input', (e) => {
+    currentSearch = e.target.value;
+    filterTerms();
+  });
+
+  // Category filter handler
+  categoryPills.forEach(pill => {
+    pill.addEventListener('click', () => {
+      categoryPills.forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      currentCategory = pill.dataset.category;
+      filterTerms();
+    });
+  });
+})();
+
+// Export glossary
+function exportGlossary() {
+  fetch('/api/glossary')
+    .then(r => r.json())
+    .then(data => {
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'glossary-export.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    })
+    .catch(err => alert('Export failed: ' + err.message));
+}
+
+// Import glossary (placeholder - would need backend support)
+function importGlossary(input) {
+  const file = input.files[0];
+  if (!file) return;
+  
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      // Would send to backend for import
+      alert('Import functionality would process ' + (data.terms?.length || 0) + ' terms');
+    } catch (err) {
+      alert('Invalid JSON file');
+    }
+  };
+  reader.readAsText(file);
+}
+</script>
 {% endblock %}

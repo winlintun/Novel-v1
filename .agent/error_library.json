@@ -253,6 +253,33 @@
       "prevention": "Postprocessor must strip ALL non-Myanmar Unicode script blocks unconditionally. Any script other than Myanmar Unicode (U+1000-U+109F, U+AA60-U+AA7F, U+A9E0-U+A9FF) is forbidden in output.",
       "times_seen": 1,
       "last_seen": "2026-05-06"
+    },
+    {
+      "id": "ERR-062",
+      "error_type": "MergedHeadingAndPlaceholderLeak",
+      "trigger": "Model outputs headings merged with content (e.g., '## ဝိညာဉ်စွမ်းအား\"သခင်လေး...') or placeholder headings (e.g., '## အခန်းခေါင်းစဉ်') leak into output",
+      "solution": "Added fix_merged_headings() to separate headings from content. Added remove_placeholder_headings() to strip placeholder patterns like '## အခန်းခေါင်းစဉ်'. Added remove_checkbox_artifacts() for '- []: [ ]' patterns. All integrated into clean_output() pipeline.",
+      "prevention": "Postprocessor must detect and fix: (1) Headings without proper newline separation, (2) Template placeholder text in output, (3) Checkbox/list artifacts. Run postprocessor on all output before saving.",
+      "times_seen": 1,
+      "last_seen": "2026-05-06"
+    },
+    {
+      "id": "ERR-063",
+      "error_type": "InlineMarkdownArtifacts",
+      "trigger": "Markdown syntax '## ' and '- ' appears in the middle of paragraphs, breaking the flow. Model hallucinates headings/list items mid-sentence (e.g., '## ရှောင်နန်ဖုန်းဆီသို့...' mid-chapter, '- အကြီးအကဲ စီမံခန့်ခွဲသူ: ...' mid-paragraph)",
+      "solution": "Added remove_inline_markdown_artifacts() to detect and clean fake markdown: (1) Long ## lines (>80 chars) that aren't proper headings, (2) Long - list items (>60 chars with sentence enders) that are actually paragraph text. Removes the markdown prefix and keeps the content.",
+      "prevention": "Postprocessor must scan all lines for inline markdown artifacts. Real headings are short, followed by blank lines. Real list items are short and standalone. Long lines with markdown prefixes are hallucinations and should be cleaned.",
+      "times_seen": 1,
+      "last_seen": "2026-05-06"
+    },
+    {
+      "id": "ERR-064",
+      "error_type": "ChapterRangeNoneFormatError",
+      "trigger": "When using --chapter-range, the chapter attribute is None, causing TypeError: unsupported format string passed to NoneType.__format__ in _find_chapter_file()",
+      "solution": "Updated _resolve_workflow() in commands.py to handle chapter=None when chapter_range is set. Extract start chapter from range string (e.g., '5-10' -> 5) for language detection.",
+      "prevention": "Always check if chapter is None before using chapter-based file resolution. When chapter_range is provided, parse the start chapter from the range for file lookup.",
+      "times_seen": 1,
+      "last_seen": "2026-05-07"
     }
   ]
 }

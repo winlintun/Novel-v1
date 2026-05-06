@@ -1,112 +1,555 @@
 {% extends "base.html" %}
+{% block title %}Dashboard — Novel Studio{% endblock %}
+{% block topbar_title %}Dashboard{% endblock %}
 
-{% block title %}Dashboard - Novel Translation{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='components.css') }}">
+<style>
+  /* Dashboard-specific styles */
+  .dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--space-4);
+    margin-bottom: var(--space-6);
+  }
+
+  @media (max-width: 1200px) {
+    .dashboard-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  @media (max-width: 768px) {
+    .dashboard-grid { grid-template-columns: 1fr; }
+  }
+
+  .dashboard-section {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: var(--space-5);
+  }
+
+  @media (max-width: 1024px) {
+    .dashboard-section { grid-template-columns: 1fr; }
+  }
+
+  /* Novel list improvements */
+  .novel-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .novel-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius);
+    transition: all var(--transition-fast);
+    text-decoration: none;
+    border: 1px solid transparent;
+  }
+
+  .novel-item:hover {
+    background: var(--ivory);
+    border-color: var(--border);
+  }
+
+  .novel-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius);
+    background: linear-gradient(135deg, var(--ink), var(--ink-light));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    color: var(--gold);
+    flex-shrink: 0;
+  }
+
+  .novel-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .novel-name {
+    font-weight: 500;
+    font-size: 0.9rem;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .novel-meta {
+    font-size: 0.75rem;
+    color: var(--text-3);
+    margin-top: 2px;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .novel-progress {
+    margin-top: 6px;
+    height: 4px;
+    background: var(--ivory-3);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .novel-progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--emerald), #34d399);
+    border-radius: 2px;
+    transition: width 0.5s ease;
+  }
+
+  .novel-actions {
+    opacity: 0;
+    transition: opacity var(--transition-fast);
+  }
+
+  .novel-item:hover .novel-actions {
+    opacity: 1;
+  }
+
+  /* Activity log improvements */
+  .activity-list {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .activity-item {
+    display: flex;
+    gap: var(--space-3);
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--ivory-2);
+  }
+
+  .activity-item:last-child {
+    border-bottom: none;
+  }
+
+  .activity-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--ivory-3);
+    flex-shrink: 0;
+    margin-top: 6px;
+  }
+
+  .activity-dot.success { background: var(--emerald); }
+  .activity-dot.warning { background: var(--amber); }
+  .activity-dot.error { background: var(--rose); }
+  .activity-dot.active { background: var(--cyan); animation: pulse-subtle 2s infinite; }
+
+  .activity-content {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .activity-title {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text);
+  }
+
+  .activity-desc {
+    font-size: 0.75rem;
+    color: var(--text-3);
+    margin-top: 2px;
+    font-family: var(--font-mono);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .activity-time {
+    font-size: 0.7rem;
+    color: var(--text-3);
+    white-space: nowrap;
+  }
+
+  /* Quick actions grid */
+  .quick-actions {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-2);
+  }
+
+  @media (max-width: 480px) {
+    .quick-actions { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  .quick-action {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    padding: var(--space-4) var(--space-3);
+    border-radius: var(--radius);
+    background: var(--ivory);
+    border: 1px solid var(--border);
+    text-decoration: none;
+    color: var(--text);
+    transition: all var(--transition-fast);
+    font-size: 0.8rem;
+    font-weight: 500;
+    text-align: center;
+  }
+
+  .quick-action:hover {
+    background: var(--paper);
+    border-color: var(--gold-dim);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow);
+  }
+
+  .quick-action-icon {
+    font-size: 1.5rem;
+    opacity: 0.7;
+    transition: all var(--transition-fast);
+  }
+
+  .quick-action:hover .quick-action-icon {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+
+  /* Progress overview */
+  .progress-overview {
+    display: flex;
+    align-items: center;
+    gap: var(--space-6);
+    padding: var(--space-5);
+  }
+
+  .progress-stats {
+    flex: 1;
+  }
+
+  .progress-stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--ivory-2);
+  }
+
+  .progress-stat-row:last-child {
+    border-bottom: none;
+  }
+
+  /* Responsive adjustments */
+  @media (max-width: 768px) {
+    .page-content { padding: var(--space-4); }
+    .progress-overview { flex-direction: column; text-align: center; }
+  }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1 class="page-title">🏠 Dashboard | ပါဝင်းမှု အလုံးစုံ</h1>
-    <p class="page-subtitle">Novel Translation System Overview</p>
+<!-- ── Stats Row ── -->
+<div class="dashboard-grid">
+  <div class="stat-card gold animate-fade-in-up stagger-1">
+    <div class="stat-card-header">
+      <div class="stat-card-icon gold">📚</div>
+      <span class="badge badge-category">Total</span>
+    </div>
+    <div class="stat-card-value gold">{{ total_novels }}</div>
+    <div class="stat-card-label">Novels</div>
+    <div class="stat-card-footer">
+      {% if total_novels > 0 %}
+        {{ total_novels }} novel{{ 's' if total_novels != 1 else '' }} in library
+      {% else %}
+        Add novels to get started
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="stat-card ink animate-fade-in-up stagger-2">
+    <div class="stat-card-header">
+      <div class="stat-card-icon ink">📄</div>
+      <span class="badge badge-category">Chapters</span>
+    </div>
+    <div class="stat-card-value ink">{{ total_chapters }}</div>
+    <div class="stat-card-label">Total Chapters</div>
+    <div class="stat-card-footer">
+      {% if total_chapters > 0 %}
+        Across all novels
+      {% else %}
+        No chapters imported yet
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="stat-card green animate-fade-in-up stagger-3">
+    <div class="stat-card-header">
+      <div class="stat-card-icon green">✓</div>
+      {% if progress_pct >= 50 %}
+        <span class="stat-card-trend up">↑ {{ progress_pct }}%</span>
+      {% endif %}
+    </div>
+    <div class="stat-card-value green">{{ translated }}</div>
+    <div class="stat-card-label">Translated</div>
+    <div class="stat-card-footer">
+      {% if total_chapters > 0 %}
+        {{ progress_pct }}% complete
+      {% else %}
+        Ready to translate
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="stat-card cyan animate-fade-in-up stagger-4">
+    <div class="stat-card-header">
+      <div class="stat-card-icon cyan">📝</div>
+      <span class="badge badge-verified">Active</span>
+    </div>
+    <div class="stat-card-value cyan">{{ glossary_terms }}</div>
+    <div class="stat-card-label">Glossary Terms</div>
+    <div class="stat-card-footer">
+      {% if glossary_terms > 0 %}
+        Terms in database
+      {% else %}
+        Build your glossary
+      {% endif %}
+    </div>
+  </div>
 </div>
 
-<div class="grid grid-2">
-    <!-- Stats Column -->
-    <div>
-        <div class="card">
-            <h2 class="card-header">📊 Project Overview | စီမံကိန်း အကျဉ်းချုပ်</h2>
-            
-            <div class="grid grid-4" style="margin-bottom: 1.5rem;">
-                <div class="stat">
-                    <div class="stat-value">{{ total_novels }}</div>
-                    <div class="stat-label">Novels</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-value">{{ total_chapters }}</div>
-                    <div class="stat-label">Chapters</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-value">{{ translated }}</div>
-                    <div class="stat-label">Translated</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-value">{{ glossary_terms }}</div>
-                    <div class="stat-label">Glossary</div>
-                </div>
-            </div>
-            
-            {% if total_chapters > 0 %}
-            <div class="progress">
-                <div class="progress-bar" style="width: {{ progress_pct }}%">{{ progress_pct }}%</div>
-            </div>
-            {% endif %}
-            
-            <div class="alert alert-info" style="margin-top: 1.5rem;">
-                <strong>ဤစီမံကိန်းသည် AI နည်းပညာသုံး အဆင့်မြင့် တရုတ်-မြန်မာ ဝတ္ထုဘာသာပြန် စနစ် ဖြစ်ပါသည်။</strong>
-                <ul style="margin-top: 0.5rem; margin-left: 1.5rem;">
-                    <li>{{ total_novels }} ဝတ္ထု ({{ total_novels }} novels)</li>
-                    <li>{{ total_chapters }} အခန်း ({{ total_chapters }} chapters)</li>
-                    <li>{{ translated }} ဘာသာပြန်ပြီး ({{ translated }} translated)</li>
-                    <li>{{ glossary_terms }} အဘိဓာန်စာလုံး ({{ glossary_terms }} terms)</li>
-                </ul>
-            </div>
-        </div>
-        
-        <div class="card" style="margin-top: 1.5rem;">
-            <h2 class="card-header">⚡ Quick Actions | အမြန်လင့်ခ်များ</h2>
-            <div class="quick-actions">
-                <a href="/translate" class="btn btn-primary">🚀 Translate</a>
-                <a href="/glossary" class="btn btn-secondary">📚 Glossary</a>
-                <a href="/progress" class="btn btn-secondary">📊 Progress</a>
-            </div>
-        </div>
+<!-- ── Overall Progress ── -->
+{% if total_chapters > 0 %}
+<div class="card mb-6 animate-fade-in-up stagger-5">
+  <div class="card-body">
+    <div class="progress-header">
+      <span class="progress-label">Overall Translation Progress</span>
+      <span class="progress-value">{{ translated }} / {{ total_chapters }} chapters</span>
     </div>
-    
-    <!-- Recent Activity Column -->
-    <div>
-        <div class="card">
-            <h2 class="card-header">📝 Recent Activity | လတ်တလော လုပ်ဆောင်မှုများ</h2>
-            
-            {% if recent_logs %}
-                {% for log in recent_logs %}
-                <div class="log-entry">
-                    <div class="log-title">📄 {{ log.name }}</div>
-                    <div class="log-content">{{ log.content }}</div>
-                </div>
-                {% endfor %}
-            {% else %}
-                <div class="alert alert-warning">No recent logs found.</div>
-            {% endif %}
-        </div>
-        
-        <div class="card" style="margin-top: 1.5rem;">
-            <h2 class="card-header">📚 Available Novels</h2>
-            
-            {% if novels %}
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>Novel</th>
-                            <th>Chapters</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for novel in novels %}
-                        <tr>
-                            <td>{{ novel.name }}</td>
-                            <td>{{ novel.chapter_count }}</td>
-                            <td>
-                                <a href="/translate?novel={{ novel.name }}" class="btn btn-sm btn-primary">Translate</a>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            {% else %}
-                <div class="alert alert-warning">
-                    No novels found. Add novel folders to <code>data/input/</code>
-                </div>
-            {% endif %}
-        </div>
+    <div class="progress-track">
+      <div class="progress-fill {% if progress_pct == 100 %}complete{% endif %}" style="width: {{ progress_pct }}%;"></div>
     </div>
+    <div class="mt-3 flex justify-between items-center text-sm">
+      <span class="text-muted">{{ progress_pct }}% complete</span>
+      {% if progress_pct < 100 %}
+        <span class="text-secondary">{{ total_chapters - translated }} chapters remaining</span>
+      {% else %}
+        <span class="badge badge-completed">✓ All Complete</span>
+      {% endif %}
+    </div>
+  </div>
 </div>
+{% endif %}
+
+<div class="dashboard-section">
+  <!-- ── Left Column ── -->
+  <div style="display: flex; flex-direction: column; gap: var(--space-5);">
+    
+    <!-- Novels Card -->
+    <div class="card animate-fade-in">
+      <div class="card-header">
+        <div>
+          <h3 class="card-title">Novel Library</h3>
+          <p class="card-subtitle">Manage and translate your novels</p>
+        </div>
+        <a href="/translate" class="btn btn-gold btn-sm">
+          <span>+</span>
+          <span>New Translation</span>
+        </a>
+      </div>
+      <div class="card-body" style="padding: var(--space-3);">
+        {% if novels %}
+        <div class="novel-list">
+          {% for novel in novels %}
+          <a href="/translate?novel={{ novel.name }}" class="novel-item">
+            <div class="novel-avatar">📖</div>
+            <div class="novel-info">
+              <div class="novel-name">{{ novel.name }}</div>
+              <div class="novel-meta">
+                <span>{{ novel.chapter_count }} chapters</span>
+                <span>•</span>
+                <span>{{ novel.chapter_count }} files</span>
+              </div>
+              {% if novel.chapter_count > 0 %}
+              <div class="novel-progress">
+                <div class="novel-progress-bar" style="width: {{ (translated / total_chapters * 100) if total_chapters > 0 else 0 }}%;"></div>
+              </div>
+              {% endif %}
+            </div>
+            <div class="novel-actions">
+              <span class="btn btn-ghost btn-xs">Start →</span>
+            </div>
+          </a>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state" style="padding: var(--space-8);">
+          <div class="empty-state-icon">📚</div>
+          <h4 class="empty-state-title">No novels yet</h4>
+          <p class="empty-state-description">
+            Add your novel folders to <code>data/input/</code> to get started with translation.
+          </p>
+          <a href="/translate" class="btn btn-gold">
+            <span>Start Translating</span>
+          </a>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Quick Actions Card -->
+    <div class="card animate-fade-in">
+      <div class="card-header">
+        <div>
+          <h3 class="card-title">Quick Actions</h3>
+          <p class="card-subtitle">Common tasks and shortcuts</p>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="quick-actions">
+          <a href="/translate" class="quick-action">
+            <span class="quick-action-icon">🚀</span>
+            <span>Translate</span>
+          </a>
+          <a href="/progress" class="quick-action">
+            <span class="quick-action-icon">📊</span>
+            <span>Progress</span>
+          </a>
+          <a href="/reader" class="quick-action">
+            <span class="quick-action-icon">📖</span>
+            <span>Reader</span>
+          </a>
+          <a href="/editor" class="quick-action">
+            <span class="quick-action-icon">✏️</span>
+            <span>Editor</span>
+          </a>
+          <a href="/glossary" class="quick-action">
+            <span class="quick-action-icon">📝</span>
+            <span>Glossary</span>
+          </a>
+          <a href="/cleanup" class="quick-action">
+            <span class="quick-action-icon">🧹</span>
+            <span>Cleanup</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Right Column: Activity & Stats ── -->
+  <div style="display: flex; flex-direction: column; gap: var(--space-5);">
+    
+    <!-- Activity Card -->
+    <div class="card animate-fade-in" style="flex: 1;">
+      <div class="card-header">
+        <div>
+          <h3 class="card-title">Recent Activity</h3>
+          <p class="card-subtitle">Latest translation logs</p>
+        </div>
+        <span class="badge badge-category">{{ recent_logs|length }} logs</span>
+      </div>
+      <div class="card-body" style="padding: 0 var(--space-5);">
+        {% if recent_logs %}
+        <div class="activity-list">
+          {% for log in recent_logs %}
+          <div class="activity-item">
+            <div class="activity-dot {% if 'error' in log.content.lower() %}error{% elif 'complete' in log.content.lower() %}success{% elif 'translat' in log.content.lower() %}active{% else %}warning{% endif %}"></div>
+            <div class="activity-content">
+              <div class="activity-title">{{ log.name }}</div>
+              <div class="activity-desc">{{ log.content[:80] }}...</div>
+            </div>
+            <div class="activity-time">now</div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state" style="padding: var(--space-8) 0;">
+          <div class="empty-state-icon" style="font-size: 2.5rem;">📋</div>
+          <h4 class="empty-state-title" style="font-size: 1rem;">No recent activity</h4>
+          <p class="empty-state-description" style="font-size: 0.8rem;">
+            Start a translation to see activity logs here.
+          </p>
+          <a href="/translate" class="btn btn-gold btn-sm" style="margin-top: var(--space-4);">
+            Start Translating →
+          </a>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- System Status Card -->
+    <div class="card animate-fade-in">
+      <div class="card-header">
+        <div>
+          <h3 class="card-title">System Status</h3>
+          <p class="card-subtitle">Translation pipeline health</p>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="flex items-center gap-4 mb-4">
+          <div id="statusIndicator" class="badge badge-idle">
+            <span class="badge-dot" style="background: currentColor;"></span>
+            <span>Idle</span>
+          </div>
+          <span class="text-sm text-muted">Ready to translate</span>
+        </div>
+        
+        <div class="divider"></div>
+        
+        <div class="mt-4">
+          <div class="flex justify-between items-center text-sm mb-2">
+            <span class="text-secondary">Storage Backend</span>
+            <span class="badge badge-primary">SQLite</span>
+          </div>
+          <div class="flex justify-between items-center text-sm mb-2">
+            <span class="text-secondary">Default Model</span>
+            <span class="font-mono text-xs">padauk-gemma:q8_0</span>
+          </div>
+          <div class="flex justify-between items-center text-sm">
+            <span class="text-secondary">Version</span>
+            <span>v1.0</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Update status indicator based on translation progress
+(function() {
+  function updateStatus() {
+    fetch('/api/progress')
+      .then(r => r.json())
+      .then(data => {
+        const indicator = document.getElementById('statusIndicator');
+        if (!indicator) return;
+        
+        const status = data.status;
+        if (status === 'translating' || status === 'starting') {
+          indicator.className = 'badge badge-translating';
+          indicator.innerHTML = '<span class="badge-dot" style="background: currentColor;"></span><span>Translating...</span>';
+        } else if (status === 'completed') {
+          indicator.className = 'badge badge-completed';
+          indicator.innerHTML = '<span class="badge-dot" style="background: currentColor;"></span><span>Completed</span>';
+        } else if (status === 'error') {
+          indicator.className = 'badge badge-error';
+          indicator.innerHTML = '<span class="badge-dot" style="background: currentColor;"></span><span>Error</span>';
+        } else {
+          indicator.className = 'badge badge-idle';
+          indicator.innerHTML = '<span class="badge-dot" style="background: currentColor;"></span><span>Idle</span>';
+        }
+      })
+      .catch(() => {});
+  }
+  
+  updateStatus();
+  setInterval(updateStatus, 5000);
+})();
+</script>
 {% endblock %}

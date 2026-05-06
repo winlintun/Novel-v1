@@ -26,7 +26,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - `src/core/` - Dependency injection container
   - `src/pipeline/` - Translation pipeline orchestrator
   - `src/types/` - TypedDict definitions
-  - `src/web/` - Streamlit UI launcher
+  - `src/web/` - Flask UI launcher
 
 ### Added
 - Exception hierarchy (`src/exceptions.py`)
@@ -46,7 +46,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - QA Tester agent for automated validation
 - Reflection agent for self-correction
 - Myanmar quality checker for linguistic validation
-- Web UI (Streamlit) with Home, Translate, Progress, Glossary, Settings pages
+- Web UI with Flask routes for dashboard, translation, progress, editor, cleanup, and reader
 - Glossary generator for pre-translation terminology extraction
 - Pivot translation (CN→EN→MM) support
 - Fast translation mode with optimized batch processing

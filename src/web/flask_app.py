@@ -665,6 +665,7 @@ def static_files(filename):
 def api_progress():
     """API endpoint for real-time translation progress"""
     import time
+    from datetime import datetime
 
     progress_file = Path("logs/progress_current.json")
 
@@ -674,6 +675,25 @@ def api_progress():
                 data = json.load(f)
 
             status = data.get('status', 'starting')
+            
+            # Calculate elapsed time
+            started_at = data.get('started_at')
+            if started_at:
+                try:
+                    start_time = datetime.fromisoformat(started_at)
+                    elapsed_seconds = int((datetime.now() - start_time).total_seconds())
+                    hours = elapsed_seconds // 3600
+                    minutes = (elapsed_seconds % 3600) // 60
+                    seconds = elapsed_seconds % 60
+                    if hours > 0:
+                        data['elapsed_time'] = f"{hours}h {minutes}m {seconds}s"
+                    elif minutes > 0:
+                        data['elapsed_time'] = f"{minutes}m {seconds}s"
+                    else:
+                        data['elapsed_time'] = f"{seconds}s"
+                    data['elapsed_seconds'] = elapsed_seconds
+                except:
+                    data['elapsed_time'] = "calculating..."
 
             # If orchestrator already marked it completed/error, trust that
             if status in ('completed', 'error'):
@@ -718,6 +738,7 @@ def api_start_translation():
     data = request.json
     novel = data.get('novel')
     chapter = data.get('chapter')
+    chapter_range = data.get('chapter_range')  # Format: "start-end" (e.g., "1-5")
     model = data.get('model', 'padauk-gemma:q8_0')
     translate_all = data.get('translate_all', False)
     temperature = float(data.get('temperature', 0.2))
@@ -765,6 +786,7 @@ def api_start_translation():
         'status': 'starting',
         'novel': novel,
         'chapter': chapter,
+        'chapter_range': chapter_range,
         'model': model,
         'temperature': temperature,
         'translate_all': translate_all,
@@ -787,6 +809,8 @@ def api_start_translation():
     # Start translation in background
     if translate_all:
         cmd = [sys.executable, '-m', 'src.main', '--novel', novel, '--all']
+    elif chapter_range:
+        cmd = [sys.executable, '-m', 'src.main', '--novel', novel, '--chapter-range', chapter_range]
     else:
         cmd = [sys.executable, '-m', 'src.main', '--novel', novel, '--chapter', str(chapter)]
     
@@ -801,7 +825,10 @@ def api_start_translation():
         with open(log_file, 'a', encoding='utf-8') as log:
             log.write(f"\n{'='*60}\n")
             log.write(f"[{datetime.now().isoformat()}] Starting translation\n")
-            log.write(f"Novel: {novel}, Chapter: {chapter}, Model: {model}\n")
+            if chapter_range:
+                log.write(f"Novel: {novel}, Range: {chapter_range}, Model: {model}\n")
+            else:
+                log.write(f"Novel: {novel}, Chapter: {chapter}, Model: {model}\n")
             log.write(f"Command: {' '.join(cmd)}\n")
             log.write(f"Working dir: {project_root}\n")
             log.write(f"{'='*60}\n")

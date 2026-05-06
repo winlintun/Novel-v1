@@ -260,7 +260,7 @@ class GlossaryGenerator(BaseAgent):
 
             # Detect source language
             from src.agents.preprocessor import Preprocessor
-            preprocessor = Preprocessor()
+            preprocessor = Preprocessor(memory_manager=self.memory)
             detected_lang = preprocessor.detect_language(content)
             source_lang = "Chinese" if detected_lang == "chinese" else "English"
 

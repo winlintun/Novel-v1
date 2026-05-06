@@ -128,7 +128,7 @@ class TestGlossaryConsistencyRegression(unittest.TestCase):
         self.temp_dir = tempfile.mkdtemp()
         self.glossary_path = Path(self.temp_dir) / "glossary.json"
         self.context_path = Path(self.temp_dir) / "context.json"
-        self.memory = MemoryManager(str(self.glossary_path), str(self.context_path))
+        self.memory = MemoryManager(str(self.glossary_path), str(self.context_path), use_sql=False)
 
     def tearDown(self):
         import shutil
@@ -171,17 +171,17 @@ class TestMemoryManagerRegression(unittest.TestCase):
 
     def test_save_and_load_persistence(self):
         """Test save/load cycle still works."""
-        memory1 = MemoryManager(str(self.glossary_path), str(self.context_path))
+        memory1 = MemoryManager(str(self.glossary_path), str(self.context_path), use_sql=False)
         memory1.add_term("测试", "စမ်းသပ်", "general", 1)
         memory1.push_to_buffer("Test context")
         memory1.save_memory()
 
-        memory2 = MemoryManager(str(self.glossary_path), str(self.context_path))
+        memory2 = MemoryManager(str(self.glossary_path), str(self.context_path), use_sql=False)
         self.assertEqual(memory2.get_term("测试"), "စမ်းသပ်")
 
     def test_fifo_buffer_behavior(self):
         """Test FIFO buffer still works correctly."""
-        memory = MemoryManager(str(self.glossary_path), str(self.context_path))
+        memory = MemoryManager(str(self.glossary_path), str(self.context_path), use_sql=False)
 
         # Add more than max (10)
         for i in range(15):
@@ -219,7 +219,7 @@ class TestBackwardsCompatibility(unittest.TestCase):
         with open(self.glossary_path, 'w', encoding='utf-8') as f:
             json.dump(old_format, f)
 
-        memory = MemoryManager(str(self.glossary_path), str(self.context_path))
+        memory = MemoryManager(str(self.glossary_path), str(self.context_path), use_sql=False)
         self.assertEqual(memory.get_term("旧词"), "ဟောင်း")
         self.assertEqual(memory.get_term("新词"), "သစ်")
 

@@ -1,31 +1,55 @@
 ﻿{
   "novel": "wayfarer",
-  "last_updated": "2026-05-05T14:09:14.414105",
-  "total_chapters": 2,
+  "last_updated": "2026-05-06T19:16:58.577536",
+  "total_chapters": 4,
   "chapters": {
     "1": {
       "chapter": 1,
-      "translated_at": "2026-05-05T14:09:14.408549",
+      "translated_at": "2026-05-06T06:23:45.847546",
       "source": "data/input/wayfarer/wayfarer_chapter_001.md",
       "pipeline": "single_stage",
       "model": "padauk-gemma:q8_0",
-      "char_count": 14440,
+      "char_count": 14462,
       "myanmar_ratio": 0.986,
-      "duration_seconds": 4762.3,
+      "duration_seconds": 5106.1,
       "chunk_count": 17,
-      "avg_quality_score": 92.7
+      "avg_quality_score": 92.9
     },
     "2": {
       "chapter": 2,
-      "translated_at": "2026-05-05T11:44:49.189637",
+      "translated_at": "2026-05-06T14:58:21.669840",
       "source": "data/input/wayfarer/wayfarer_chapter_002.md",
       "pipeline": "single_stage",
       "model": "padauk-gemma:q8_0",
-      "char_count": 13127,
-      "myanmar_ratio": 0.982,
-      "duration_seconds": 4918.3,
+      "char_count": 13325,
+      "myanmar_ratio": 0.988,
+      "duration_seconds": 5282.4,
       "chunk_count": 16,
-      "avg_quality_score": 94.6
+      "avg_quality_score": 94.8
+    },
+    "3": {
+      "chapter": 3,
+      "translated_at": "2026-05-06T17:01:43.393100",
+      "source": "data/input/wayfarer/wayfarer_chapter_003.md",
+      "pipeline": "single_stage",
+      "model": "padauk-gemma:q8_0",
+      "char_count": 8532,
+      "myanmar_ratio": 0.987,
+      "duration_seconds": 2926.8,
+      "chunk_count": 10,
+      "avg_quality_score": 91.2
+    },
+    "4": {
+      "chapter": 4,
+      "translated_at": "2026-05-06T19:16:58.573673",
+      "source": "data/input/wayfarer/wayfarer_chapter_004.md",
+      "pipeline": "single_stage",
+      "model": "padauk-gemma:q8_0",
+      "char_count": 10044,
+      "myanmar_ratio": 0.986,
+      "duration_seconds": 3699.3,
+      "chunk_count": 11,
+      "avg_quality_score": 90.0
     }
   }
 }

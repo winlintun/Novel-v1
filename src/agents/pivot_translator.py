@@ -330,7 +330,7 @@ class PivotTranslator:
         logger.info(f"Pivot Translating Chapter {chapter_num}")
         self.memory.clear_buffer()
         if use_chunking:
-            preprocessor = Preprocessor()
+            preprocessor = Preprocessor(memory_manager=self.memory)
             chunks = preprocessor.create_chunks(text)
             translated_chunks = self.translate_chunks(chunks, chapter_num)
             return '\n\n'.join(translated_chunks)

@@ -188,7 +188,11 @@ MYANMAR TRANSLATION:""")
 
         if use_chunking:
             # Use larger chunks (3000 chars vs 1500)
-            preprocessor = Preprocessor(chunk_size=3000, overlap_size=50)
+            preprocessor = Preprocessor(
+                chunk_size=3000,
+                overlap_size=50,
+                memory_manager=self.memory,
+            )
             chunks = preprocessor.create_chunks(text)
 
             logger.info(f"Created {len(chunks)} large chunks")
