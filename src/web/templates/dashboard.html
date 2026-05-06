@@ -253,70 +253,75 @@
 
 {% block content %}
 <!-- ── Stats Row ── -->
-<div class="dashboard-grid">
-  <div class="stat-card gold animate-fade-in-up stagger-1">
-    <div class="stat-card-header">
-      <div class="stat-card-icon gold">📚</div>
-      <span class="badge badge-category">Total</span>
+<div class="dashboard-section">
+  <!-- ── Left Column ── -->
+  <div style="display: flex; flex-direction: column; gap: var(--space-5);">
+    <div class="stat-card gold animate-fade-in-up stagger-1">
+      <div class="stat-card-header">
+        <div class="stat-card-icon gold">📚</div>
+        <span class="badge badge-category">Total</span>
+      </div>
+      <div class="stat-card-value gold">{{ total_novels }}</div>
+      <div class="stat-card-label">Novels</div>
+      <div class="stat-card-footer">
+        {% if total_novels > 0 %}
+          {{ total_novels }} novel{{ 's' if total_novels != 1 else '' }} in library
+        {% else %}
+          Add novels to get started
+        {% endif %}
+      </div>
     </div>
-    <div class="stat-card-value gold">{{ total_novels }}</div>
-    <div class="stat-card-label">Novels</div>
-    <div class="stat-card-footer">
-      {% if total_novels > 0 %}
-        {{ total_novels }} novel{{ 's' if total_novels != 1 else '' }} in library
-      {% else %}
-        Add novels to get started
-      {% endif %}
+
+    <div class="stat-card ink animate-fade-in-up stagger-2">
+      <div class="stat-card-header">
+        <div class="stat-card-icon ink">📄</div>
+        <span class="badge badge-category">Chapters</span>
+      </div>
+      <div class="stat-card-value ink">{{ total_chapters }}</div>
+      <div class="stat-card-label">Total Chapters</div>
+      <div class="stat-card-footer">
+        {% if total_chapters > 0 %}
+          Across all novels
+        {% else %}
+          No chapters imported yet
+        {% endif %}
+      </div>
     </div>
   </div>
+  <!-- ── Right Column: Activity & Stats ── -->
+  <div style="display: flex; flex-direction: column; gap: var(--space-5);">
+    <div class="stat-card green animate-fade-in-up stagger-3">
+      <div class="stat-card-header">
+        <div class="stat-card-icon green">✓</div>
+        {% if progress_pct >= 50 %}
+          <span class="stat-card-trend up">↑ {{ progress_pct }}%</span>
+        {% endif %}
+      </div>
+      <div class="stat-card-value green">{{ translated }}</div>
+      <div class="stat-card-label">Translated</div>
+      <div class="stat-card-footer">
+        {% if total_chapters > 0 %}
+          {{ progress_pct }}% complete
+        {% else %}
+          Ready to translate
+        {% endif %}
+      </div>
+    </div>
 
-  <div class="stat-card ink animate-fade-in-up stagger-2">
-    <div class="stat-card-header">
-      <div class="stat-card-icon ink">📄</div>
-      <span class="badge badge-category">Chapters</span>
-    </div>
-    <div class="stat-card-value ink">{{ total_chapters }}</div>
-    <div class="stat-card-label">Total Chapters</div>
-    <div class="stat-card-footer">
-      {% if total_chapters > 0 %}
-        Across all novels
-      {% else %}
-        No chapters imported yet
-      {% endif %}
-    </div>
-  </div>
-
-  <div class="stat-card green animate-fade-in-up stagger-3">
-    <div class="stat-card-header">
-      <div class="stat-card-icon green">✓</div>
-      {% if progress_pct >= 50 %}
-        <span class="stat-card-trend up">↑ {{ progress_pct }}%</span>
-      {% endif %}
-    </div>
-    <div class="stat-card-value green">{{ translated }}</div>
-    <div class="stat-card-label">Translated</div>
-    <div class="stat-card-footer">
-      {% if total_chapters > 0 %}
-        {{ progress_pct }}% complete
-      {% else %}
-        Ready to translate
-      {% endif %}
-    </div>
-  </div>
-
-  <div class="stat-card cyan animate-fade-in-up stagger-4">
-    <div class="stat-card-header">
-      <div class="stat-card-icon cyan">📝</div>
-      <span class="badge badge-verified">Active</span>
-    </div>
-    <div class="stat-card-value cyan">{{ glossary_terms }}</div>
-    <div class="stat-card-label">Glossary Terms</div>
-    <div class="stat-card-footer">
-      {% if glossary_terms > 0 %}
-        Terms in database
-      {% else %}
-        Build your glossary
-      {% endif %}
+    <div class="stat-card cyan animate-fade-in-up stagger-4">
+      <div class="stat-card-header">
+        <div class="stat-card-icon cyan">📝</div>
+        <span class="badge badge-verified">Active</span>
+      </div>
+      <div class="stat-card-value cyan">{{ glossary_terms }}</div>
+      <div class="stat-card-label">Glossary Terms</div>
+      <div class="stat-card-footer">
+        {% if glossary_terms > 0 %}
+          Terms in database
+        {% else %}
+          Build your glossary
+        {% endif %}
+      </div>
     </div>
   </div>
 </div>
@@ -340,6 +345,11 @@
         <span class="badge badge-completed">✓ All Complete</span>
       {% endif %}
     </div>
+    {% if translation_model %}
+    <div class="mt-2 pt-2 border-t" style="border-color: var(--border);">
+      <span class="text-xs text-muted">Model: <span class="font-mono">{{ translation_model }}</span></span>
+    </div>
+    {% endif %}
   </div>
 </div>
 {% endif %}

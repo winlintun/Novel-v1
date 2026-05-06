@@ -350,16 +350,38 @@ def index():
     """Dashboard/Home page"""
     novels = get_novels()
     glossary = get_glossary()
-    
+
     total_novels = len(novels)
     total_chapters = sum(n['chapter_count'] for n in novels)
     translated = 0
-    
+    translation_models = set()  # Track which models were used
+
     for novel in novels:
-        translated += len(get_translated_chapters(novel['name']))
-    
+        translated_chapters = get_translated_chapters(novel['name'])
+        translated += len(translated_chapters)
+
+        # Load meta.json to get model info
+        meta_path = Path(app.config['OUTPUT_FOLDER']) / novel['name'] / f"{novel['name']}.mm.meta.json"
+        if meta_path.exists():
+            try:
+                with open(meta_path, 'r', encoding='utf-8-sig') as f:
+                    meta = json.load(f)
+                for ch_data in meta.get('chapters', {}).values():
+                    if isinstance(ch_data, dict) and ch_data.get('model'):
+                        translation_models.add(ch_data['model'])
+            except Exception:
+                pass
+
     progress_pct = int((translated / total_chapters) * 100) if total_chapters > 0 else 0
-    
+
+    # Get primary model (most recently used, or from config)
+    primary_model = None
+    if translation_models:
+        primary_model = sorted(translation_models)[0]  # Pick first alphabetically
+    else:
+        config = get_config()
+        primary_model = config.get('models', {}).get('translator', 'padauk-gemma:q8_0')
+
     return render_template('dashboard.html',
                          novels=novels,
                          total_novels=total_novels,
@@ -367,7 +389,8 @@ def index():
                          translated=translated,
                          glossary_terms=len(glossary.get('terms', [])),
                          progress_pct=progress_pct,
-                         recent_logs=get_recent_logs())
+                         recent_logs=get_recent_logs(),
+                         translation_model=primary_model)
 
 
 @app.route('/translate', methods=['GET', 'POST'])
@@ -610,28 +633,47 @@ def reader():
     """File reader page"""
     novels = get_novels()
     selected_novel = request.args.get('novel', '')
-    
+
     files = []
     if selected_novel:
         output_dir = Path(app.config['OUTPUT_FOLDER']) / selected_novel
         if output_dir.exists():
             files = sorted(output_dir.glob("*.mm.md"), key=lambda x: x.stat().st_mtime, reverse=True)
-    
+
     selected_file = request.args.get('file', '')
     content = ''
+    chapter_meta = None
+
     if selected_file:
         try:
             with open(selected_file, 'r', encoding='utf-8-sig') as f:
                 content = f.read()
+
+            # Load chapter metadata from meta.json
+            if selected_novel:
+                meta_path = Path(app.config['OUTPUT_FOLDER']) / selected_novel / f"{selected_novel}.mm.meta.json"
+                if meta_path.exists():
+                    try:
+                        with open(meta_path, 'r', encoding='utf-8-sig') as f:
+                            meta = json.load(f)
+
+                        # Extract chapter number from filename
+                        ch_match = re.search(r'chapter[_\-]?(\d+)', Path(selected_file).name)
+                        if ch_match:
+                            ch_num = ch_match.group(1).lstrip('0') or '1'
+                            chapter_meta = meta.get('chapters', {}).get(ch_num, {})
+                    except Exception:
+                        pass
         except Exception as e:
             content = f"Error reading file: {e}"
-    
+
     return render_template('reader.html',
                          novels=novels,
                          selected_novel=selected_novel,
                          files=files,
                          selected_file=selected_file,
-                         content=content)
+                         content=content,
+                         chapter_meta=chapter_meta)
 
 
 @app.route('/api/novels')
