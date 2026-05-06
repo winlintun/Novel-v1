@@ -890,6 +890,38 @@ def api_progress_clear():
     return jsonify({'status': 'cleared'})
 
 
+@app.route('/api/translation/stop', methods=['POST'])
+def api_stop_translation():
+    """Signal running translation to stop gracefully."""
+    try:
+        # Create stop flag file
+        stop_flag = Path("logs/translation_stop.flag")
+        stop_flag.touch(exist_ok=True)
+        
+        # Update progress file to show stopping status
+        progress_file = Path("logs/progress_current.json")
+        if progress_file.exists():
+            try:
+                with open(progress_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                data['status'] = 'stopping'
+                data['message'] = 'Stopping translation...'
+                with open(progress_file, 'w', encoding='utf-8') as f:
+                    json.dump(data, f)
+            except Exception:
+                pass
+        
+        return jsonify({
+            'status': 'success',
+            'message': 'Stop signal sent to translation process'
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
+            'message': f'Failed to send stop signal: {str(e)}'
+        }), 500
+
+
 @app.route('/api/debug/translation-log')
 def api_translation_log():
     """Get the last lines of the translation log for debugging"""

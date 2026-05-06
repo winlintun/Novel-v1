@@ -157,6 +157,13 @@
                 <button class="start-btn" id="startBtn" {% if not selected_novel %}disabled{% endif %}>
                     ⟶ Start Translation
                 </button>
+
+                <button class="start-btn" id="stopBtn" style="display: none; background: linear-gradient(135deg, var(--rose), #dc2626); margin-top: 10px;" onclick="stopTranslation()">
+                    ⏹ Stop Translation
+                </button>
+                <div id="stopMsg" class="form-hint" style="display: none; color: var(--rose); margin-top: 5px;">
+                    Stopping after current chunk...
+                </div>
             </div>
         </div>
 
@@ -405,5 +412,60 @@ if (!novelSelect.value) {
     rangeStartInput.disabled = true;
     rangeEndInput.disabled = true;
 }
+
+// Stop translation function
+async function stopTranslation() {
+    if (!confirm('Are you sure you want to stop the translation?')) {
+        return;
+    }
+
+    const stopBtn = document.getElementById('stopBtn');
+    const stopMsg = document.getElementById('stopMsg');
+
+    stopBtn.disabled = true;
+    stopMsg.style.display = 'block';
+
+    try {
+        const res = await fetch('/api/translation/stop', { method: 'POST' });
+        const data = await res.json();
+
+        if (data.status === 'success') {
+            stopMsg.textContent = 'Stop signal sent. Waiting for current chunk to finish...';
+        } else {
+            stopMsg.textContent = 'Error: ' + data.message;
+            stopBtn.disabled = false;
+        }
+    } catch (err) {
+        stopMsg.textContent = 'Error sending stop signal: ' + err.message;
+        stopBtn.disabled = false;
+    }
+}
+
+// Check translation status periodically
+function checkTranslationStatus() {
+    fetch('/api/progress')
+        .then(r => r.json())
+        .then(data => {
+            const stopBtn = document.getElementById('stopBtn');
+            const startBtn = document.getElementById('startBtn');
+
+            if (data.status === 'translating' || data.status === 'starting') {
+                stopBtn.style.display = 'block';
+                startBtn.style.display = 'none';
+            } else {
+                stopBtn.style.display = 'none';
+                startBtn.style.display = 'block';
+                stopBtn.disabled = false;
+                document.getElementById('stopMsg').style.display = 'none';
+            }
+        })
+        .catch(() => {
+            // Silently fail
+        });
+}
+
+// Check status every 3 seconds
+checkTranslationStatus();
+setInterval(checkTranslationStatus, 3000);
 </script>
 {% endblock %}

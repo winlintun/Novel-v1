@@ -72,6 +72,18 @@ class TranslationPipeline:
         self.logger.warning("Shutdown requested. Finishing current chunk...")
         self._shutdown_requested = True
 
+    def _check_stop_signal(self) -> bool:
+        """Check if stop signal file exists (set by Web UI).
+
+        Returns:
+            True if stop signal detected, False otherwise.
+        """
+        stop_flag = Path("logs/translation_stop.flag")
+        if stop_flag.exists():
+            self.logger.warning("Stop signal detected from Web UI")
+            return True
+        return False
+
     def set_progress_callback(self, callback: Optional[Callable[[Dict[str, Any]], None]]) -> None:
         """Set a progress callback for live CLI output.
         
@@ -588,6 +600,13 @@ class TranslationPipeline:
         finally:
             # Always cleanup to free RAM after translation
             self._cleanup_resources()
+            # Clean up stop signal file if it exists
+            try:
+                stop_flag = Path("logs/translation_stop.flag")
+                if stop_flag.exists():
+                    stop_flag.unlink(missing_ok=True)
+            except Exception:
+                pass
 
     def translate_chapter(self, novel: str, chapter: int) -> Dict[str, Any]:
         """Translate a single chapter of a novel.
@@ -859,6 +878,12 @@ class TranslationPipeline:
 
         for i, chunk in enumerate(chunks):
             if self._shutdown_requested:
+                break
+
+            # Check for stop signal from Web UI
+            if self._check_stop_signal():
+                self._shutdown_requested = True
+                self.logger.warning(f"Stopping translation at chunk {i+1}/{len(chunks)} due to stop signal")
                 break
 
             chunk_t0 = time.time()

@@ -494,7 +494,16 @@
             <span class="badge-dot" style="background: currentColor;"></span>
             <span>Idle</span>
           </div>
-          <span class="text-sm text-muted">Ready to translate</span>
+          <span class="text-sm text-muted" id="statusText">Ready to translate</span>
+        </div>
+
+        <div id="stopContainer" style="display: none; margin-bottom: 15px;">
+          <button class="btn btn-danger btn-sm btn-block" onclick="stopTranslation()" id="stopBtn">
+            ⏹ Stop Translation
+          </button>
+          <div id="stopMsg" class="text-xs text-secondary mt-1" style="display: none;">
+            Stopping after current chunk...
+          </div>
         </div>
         
         <div class="divider"></div>
@@ -528,26 +537,86 @@
       .then(r => r.json())
       .then(data => {
         const indicator = document.getElementById('statusIndicator');
+        const stopContainer = document.getElementById('stopContainer');
+        const statusText = document.getElementById('statusText');
         if (!indicator) return;
-        
+
         const status = data.status;
         if (status === 'translating' || status === 'starting') {
           indicator.className = 'badge badge-translating';
           indicator.innerHTML = '<span class="badge-dot" style="background: currentColor;"></span><span>Translating...</span>';
+          if (stopContainer) stopContainer.style.display = 'block';
+          if (statusText) statusText.textContent = data.novel ? `${data.novel} Ch.${data.chapter}` : 'Translation in progress';
+        } else if (status === 'stopping') {
+          indicator.className = 'badge badge-translating';
+          indicator.innerHTML = '<span class="badge-dot" style="background: currentColor;"></span><span>Stopping...</span>';
+          if (stopContainer) stopContainer.style.display = 'block';
+          const stopBtn = document.getElementById('stopBtn');
+          const stopMsg = document.getElementById('stopMsg');
+          if (stopBtn) stopBtn.disabled = true;
+          if (stopMsg) stopMsg.style.display = 'block';
+          if (statusText) statusText.textContent = 'Waiting for current chunk to finish...';
         } else if (status === 'completed') {
           indicator.className = 'badge badge-completed';
           indicator.innerHTML = '<span class="badge-dot" style="background: currentColor;"></span><span>Completed</span>';
+          if (stopContainer) stopContainer.style.display = 'none';
+          if (statusText) statusText.textContent = 'Ready to translate';
+          resetStopButton();
         } else if (status === 'error') {
           indicator.className = 'badge badge-error';
           indicator.innerHTML = '<span class="badge-dot" style="background: currentColor;"></span><span>Error</span>';
+          if (stopContainer) stopContainer.style.display = 'none';
+          if (statusText) statusText.textContent = 'An error occurred';
+          resetStopButton();
         } else {
           indicator.className = 'badge badge-idle';
           indicator.innerHTML = '<span class="badge-dot" style="background: currentColor;"></span><span>Idle</span>';
+          if (stopContainer) stopContainer.style.display = 'none';
+          if (statusText) statusText.textContent = 'Ready to translate';
+          resetStopButton();
         }
       })
       .catch(() => {});
   }
-  
+
+  function resetStopButton() {
+    const stopBtn = document.getElementById('stopBtn');
+    const stopMsg = document.getElementById('stopMsg');
+    if (stopBtn) stopBtn.disabled = false;
+    if (stopMsg) stopMsg.style.display = 'none';
+  }
+
+  // Stop translation function
+  window.stopTranslation = function() {
+    if (!confirm('Are you sure you want to stop the translation? The current chunk will finish, then translation will stop.')) {
+      return;
+    }
+
+    const stopBtn = document.getElementById('stopBtn');
+    const stopMsg = document.getElementById('stopMsg');
+
+    if (stopBtn) stopBtn.disabled = true;
+    if (stopMsg) {
+      stopMsg.style.display = 'block';
+      stopMsg.textContent = 'Sending stop signal...';
+    }
+
+    fetch('/api/translation/stop', { method: 'POST' })
+      .then(r => r.json())
+      .then(data => {
+        if (data.status === 'success') {
+          if (stopMsg) stopMsg.textContent = 'Stop signal sent. Waiting for current chunk to finish...';
+        } else {
+          if (stopMsg) stopMsg.textContent = 'Error: ' + data.message;
+          if (stopBtn) stopBtn.disabled = false;
+        }
+      })
+      .catch(err => {
+        if (stopMsg) stopMsg.textContent = 'Error: ' + err.message;
+        if (stopBtn) stopBtn.disabled = false;
+      });
+  };
+
   updateStatus();
   setInterval(updateStatus, 5000);
 })();
