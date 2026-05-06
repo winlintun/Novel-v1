@@ -270,72 +270,6 @@
 
 {% block content %}
 <div class="glossary-layout">
-  <!-- ── Main Content ── -->
-  <div>
-    <!-- Toolbar -->
-    <div class="glossary-toolbar">
-      <div class="search-box">
-        <input type="text" id="searchInput" placeholder="Search terms..." autocomplete="off">
-      </div>
-      
-      <div class="category-filters" id="categoryFilters">
-        <button class="category-pill active" data-category="all">All</button>
-        {% for cat in categories %}
-        <button class="category-pill" data-category="{{ cat }}">{{ cat }}</button>
-        {% endfor %}
-      </div>
-    </div>
-
-    <!-- Terms List -->
-    {% if terms %}
-    <div class="terms-grid" id="termsGrid">
-      {% for term in terms %}
-      <div class="term-card" data-category="{{ term.category or 'general' }}" data-search="{{ term.source.lower() }} {{ term.target.lower() }}">
-        <div class="term-source">{{ term.source }}</div>
-        <div class="term-arrow">→</div>
-        <div class="term-target myanmar-text">{{ term.target }}</div>
-        <div class="term-meta">
-          <span class="term-category">{{ term.category or 'general' }}</span>
-          {% if term.verified %}
-          <span class="badge badge-verified">✓</span>
-          {% else %}
-          <span class="badge badge-pending">pending</span>
-          {% endif %}
-        </div>
-        <div class="term-actions">
-          <form method="POST" style="display: inline;">
-            <input type="hidden" name="action" value="verify_term">
-            <input type="hidden" name="source" value="{{ term.source }}">
-            <button type="submit" class="term-btn" title="Verify term">✓</button>
-          </form>
-          <form method="POST" style="display: inline;" onsubmit="return confirm('Delete this term?');">
-            <input type="hidden" name="action" value="delete_term">
-            <input type="hidden" name="source" value="{{ term.source }}">
-            <button type="submit" class="term-btn delete" title="Delete term">🗑</button>
-          </form>
-        </div>
-      </div>
-      {% endfor %}
-    </div>
-    
-    <!-- No Results Message -->
-    <div id="noResults" class="glossary-empty" style="display: none;">
-      <div class="glossary-empty-icon">🔍</div>
-      <h4 class="empty-state-title">No terms found</h4>
-      <p class="empty-state-description">Try adjusting your search or filters</p>
-    </div>
-    {% else %}
-    <div class="card">
-      <div class="glossary-empty">
-        <div class="glossary-empty-icon">📝</div>
-        <h4 class="empty-state-title">No glossary terms yet</h4>
-        <p class="empty-state-description">
-          Add terms to maintain consistency across translations.
-        </p>
-      </div>
-    </div>
-    {% endif %}
-  </div>
 
   <!-- ── Sidebar ── -->
   <div style="display: flex; flex-direction: column; gap: var(--space-5);">
@@ -425,6 +359,75 @@
       </div>
     </div>
   </div>
+
+  <!-- ── Main Content ── -->
+  <div>
+    <!-- Toolbar -->
+    <div class="glossary-toolbar">
+      <div class="search-box mt-4">
+        <input type="text" id="searchInput" placeholder="Search terms..." autocomplete="off">
+      </div>
+      
+      <div class="category-filters" id="categoryFilters">
+        <button class="category-pill active" data-category="all">All</button>
+        {% for cat in categories %}
+        <button class="category-pill" data-category="{{ cat }}">{{ cat }}</button>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Terms List -->
+    {% if terms %}
+    <div class="terms-grid" id="termsGrid">
+      {% for term in terms %}
+      <div class="term-card" data-category="{{ term.category or 'general' }}" data-search="{{ term.source.lower() }} {{ term.target.lower() }}">
+        <div class="term-source">{{ term.source }}</div>
+        <div class="term-arrow">→</div>
+        <div class="term-target myanmar-text">{{ term.target }}</div>
+        <div class="term-meta">
+          <span class="term-category">{{ term.category or 'general' }}</span>
+          {% if term.verified %}
+          <span class="badge badge-verified">✓</span>
+          {% else %}
+          <span class="badge badge-pending">pending</span>
+          {% endif %}
+        </div>
+        <div class="term-actions">
+          <form method="POST" style="display: inline;">
+            <input type="hidden" name="action" value="verify_term">
+            <input type="hidden" name="source" value="{{ term.source }}">
+            <button type="submit" class="term-btn" title="Verify term">✓</button>
+          </form>
+          <form method="POST" style="display: inline;" onsubmit="return confirm('Delete this term?');">
+            <input type="hidden" name="action" value="delete_term">
+            <input type="hidden" name="source" value="{{ term.source }}">
+            <button type="submit" class="term-btn delete" title="Delete term">🗑</button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    
+    <!-- No Results Message -->
+    <div id="noResults" class="glossary-empty" style="display: none;">
+      <div class="glossary-empty-icon">🔍</div>
+      <h4 class="empty-state-title">No terms found</h4>
+      <p class="empty-state-description">Try adjusting your search or filters</p>
+    </div>
+    {% else %}
+    <div class="card">
+      <div class="glossary-empty">
+        <div class="glossary-empty-icon">📝</div>
+        <h4 class="empty-state-title">No glossary terms yet</h4>
+        <p class="empty-state-description">
+          Add terms to maintain consistency across translations.
+        </p>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  
 </div>
 {% endblock %}
 

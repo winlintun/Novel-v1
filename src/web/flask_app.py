@@ -383,6 +383,7 @@ def translate():
     
     # Get available chapters for selected novel
     available_chapters = []
+    chapter_list = []  # List of dicts with num and title
     if selected_novel:
         novel_dir = Path(app.config['UPLOAD_FOLDER']) / selected_novel
         if novel_dir.exists():
@@ -390,6 +391,22 @@ def translate():
             for ch in chapters:
                 chapter_num = int(ch.stem.split('_')[-1] or ch.stem)
                 available_chapters.append(chapter_num)
+                # Try to extract title from file or use default
+                chapter_title = f"Chapter {chapter_num:03d}"
+                try:
+                    # Read first few lines to find title
+                    content = ch.read_text(encoding='utf-8-sig', errors='ignore')
+                    lines = content.strip().split('\n')
+                    for line in lines[:5]:
+                        line = line.strip()
+                        if line.startswith('# '):
+                            title = line[2:].strip()
+                            if title and not title.startswith('Chapter'):
+                                chapter_title = f"{chapter_num:03d}: {title[:40]}"
+                            break
+                except Exception:
+                    pass
+                chapter_list.append({'num': chapter_num, 'title': chapter_title})
     
     # Get translated chapters
     translated_chapters = get_translated_chapters(selected_novel) if selected_novel else []
@@ -434,6 +451,7 @@ def translate():
                          start_chapter=start_chapter,
                          translate_all=translate_all,
                          available_chapters=available_chapters,
+                         chapter_list=chapter_list,
                          translated_chapters=translated_chapters,
                          current_model=config.get('models', {}).get('translator', 'padauk-gemma:q8_0'),
                          current_temp=config.get('processing', {}).get('temperature', 0.2))

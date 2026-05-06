@@ -99,9 +99,20 @@
                 <div class="form-group">
                     <label class="form-label">Chapter</label>
                     <div style="display:flex; gap:10px; align-items:center; margin-bottom:8px;">
+                        {% if chapter_list %}
+                        <select id="chapterInput" class="form-control" style="flex:1;"
+                                {% if not selected_novel %}disabled{% endif %}>
+                            {% for ch in chapter_list %}
+                            <option value="{{ ch.num }}" {% if ch.num == start_chapter %}selected{% endif %}>
+                                {{ ch.title }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        {% else %}
                         <input type="number" id="chapterInput" class="form-control" style="flex:1;"
                                value="{{ start_chapter }}" min="1"
                                {% if not selected_novel %}disabled{% endif %}>
+                        {% endif %}
                         <label style="display:flex; align-items:center; gap:6px; font-size:0.875rem;
                                       white-space:nowrap; cursor:pointer; font-weight:400; color:var(--text-2);">
                             <input type="checkbox" id="translateAllCheck" {% if translate_all %}checked{% endif %}
@@ -109,21 +120,21 @@
                             All Chapters
                         </label>
                     </div>
-                    
+
                     <!-- Chapter Range Selection -->
                     <div style="display:flex; gap:10px; align-items:center; padding:10px; background:var(--ivory-2); border-radius:var(--radius); margin-bottom:8px;">
                         <input type="checkbox" id="rangeModeCheck" style="accent-color: var(--gold-dim);">
                         <span style="font-size:0.875rem; color:var(--text-2); font-weight:500;">Range:</span>
-                        <input type="number" id="rangeStartInput" class="form-control" style="width:70px;" 
+                        <input type="number" id="rangeStartInput" class="form-control" style="width:70px;"
                                value="1" min="1" placeholder="From" disabled>
                         <span style="color:var(--text-3);">—</span>
-                        <input type="number" id="rangeEndInput" class="form-control" style="width:70px;" 
+                        <input type="number" id="rangeEndInput" class="form-control" style="width:70px;"
                                value="5" min="1" placeholder="To" disabled>
                         <span style="font-size:0.75rem; color:var(--text-3); margin-left:auto;">chapters</span>
                     </div>
-                    
+
                     <div class="form-hint">
-                        Enter single chapter, check "All Chapters", or use "Range" for chapters X to Y.
+                        Select chapter, check "All Chapters", or use "Range" for chapters X to Y.
                     </div>
                 </div>
 
