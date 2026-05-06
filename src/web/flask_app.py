@@ -861,11 +861,11 @@ def api_start_translation():
     
     # Start translation in background
     if translate_all:
-        cmd = [sys.executable, '-m', 'src.main', '--novel', novel, '--all']
+        cmd = [sys.executable, '-m', 'src.main', '--novel', novel, '--all', '--model', model]
     elif chapter_range:
-        cmd = [sys.executable, '-m', 'src.main', '--novel', novel, '--chapter-range', chapter_range]
+        cmd = [sys.executable, '-m', 'src.main', '--novel', novel, '--chapter-range', chapter_range, '--model', model]
     else:
-        cmd = [sys.executable, '-m', 'src.main', '--novel', novel, '--chapter', str(chapter)]
+        cmd = [sys.executable, '-m', 'src.main', '--novel', novel, '--chapter', str(chapter), '--model', model]
     
     logger.info(f"Starting translation with command: {' '.join(cmd)}")
     logger.info(f"Working directory: {project_root}")

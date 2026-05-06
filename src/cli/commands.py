@@ -169,7 +169,8 @@ def run_translation_pipeline(args: argparse.Namespace) -> int:
                 detected_lang = "unknown"
 
         if workflow:
-            config = _apply_workflow_config(config, workflow, logger)
+            cli_model = args.model if hasattr(args, 'model') and args.model else None
+            config = _apply_workflow_config(config, workflow, logger, cli_model)
 
         # Get chapters to translate
         chapters = get_chapter_list(args)
@@ -644,13 +645,14 @@ def run_review(args: argparse.Namespace) -> int:
     return 0 if report.total_score >= 70 else 1
 
 
-def _apply_workflow_config(config: AppConfig, workflow: str, logger: Optional[logging.Logger] = None) -> AppConfig:
+def _apply_workflow_config(config: AppConfig, workflow: str, logger: Optional[logging.Logger] = None, cli_model: Optional[str] = None) -> AppConfig:
     """Apply workflow-specific configuration overrides with automatic model selection.
     
     Args:
         config: Base configuration
         workflow: Workflow name (way1 or way2)
         logger: Optional logger for reporting auto-detected settings
+        cli_model: Model explicitly specified via CLI --model flag (preserves user choice)
         
     Returns:
         Modified configuration
@@ -659,12 +661,17 @@ def _apply_workflow_config(config: AppConfig, workflow: str, logger: Optional[lo
 
     if workflow == 'way1':
         # way1: English -> Myanmar direct
-        # Use padauk-gemma:q8_0 for best Myanmar output
+        # Use padauk-gemma:q8_0 for best Myanmar output (unless user specified --model)
         # SINGLE_STAGE mode: padauk-gemma produces BETTER quality in single-stage
         # (direct translation only) than full pipeline (translate→refine→reflect).
         # Full pipeline adds 2 extra API calls per chunk (3x slower) and the
         # refinement/reflection steps with padauk-gemma collapse paragraph breaks
         # and degrade output quality. See ERROR-050.
+        
+        # Respect user-selected model if --model was explicitly passed
+        translator_model = cli_model if cli_model else "padauk-gemma:q8_0"
+        editor_model = cli_model if cli_model else "padauk-gemma:q8_0"
+        
         overrides = {
             "project": {
                 "source_language": "en-US"
@@ -672,22 +679,29 @@ def _apply_workflow_config(config: AppConfig, workflow: str, logger: Optional[lo
             "translation_pipeline": {
                 "mode": "single_stage",
                 "use_reflection": False,
-                "stage1_model": "padauk-gemma:q8_0",
-                "stage2_model": "padauk-gemma:q8_0"
+                "stage1_model": translator_model,
+                "stage2_model": translator_model
             },
             "models": {
-                "translator": "padauk-gemma:q8_0",
-                "editor": "padauk-gemma:q8_0",
+                "translator": translator_model,
+                "editor": editor_model,
                 "refiner": "padauk-gemma:q8_0"
             }
         }
         if logger:
-            logger.info("🔄 Auto-detected ENGLISH source → Using way1 (EN→MM direct, single-stage)")
-            logger.info("🤖 Auto-selected models: padauk-gemma:q8_0 (best for Myanmar)")
+            if cli_model:
+                logger.info(f"🔄 Auto-detected ENGLISH source → Using way1 (EN→MM direct, single-stage)")
+                logger.info(f"🤖 Using user-selected model: {cli_model}")
+            else:
+                logger.info("🔄 Auto-detected ENGLISH source → Using way1 (EN→MM direct, single-stage)")
+                logger.info("🤖 Auto-selected models: padauk-gemma:q8_0 (best for Myanmar)")
 
     elif workflow == 'way2':
         # way2: Chinese -> English -> Myanmar pivot
         # Use alibayram/hunyuan:7b for CN→EN, padauk-gemma:q8_0 for EN→MM
+        # Respect user-selected model for stage 2 if --model was explicitly passed
+        stage2_model = cli_model if cli_model else "padauk-gemma:q8_0"
+        
         overrides = {
             "project": {
                 "source_language": "zh-CN"
@@ -695,19 +709,22 @@ def _apply_workflow_config(config: AppConfig, workflow: str, logger: Optional[lo
             "translation_pipeline": {
                 "mode": "two_stage",
                 "stage1_model": "alibayram/hunyuan:7b",
-                "stage2_model": "padauk-gemma:q8_0"
+                "stage2_model": stage2_model
             },
             "models": {
                 "translator": "alibayram/hunyuan:7b",
-                "editor": "padauk-gemma:q8_0",
-                "refiner": "padauk-gemma:q8_0"
+                "editor": stage2_model,
+                "refiner": stage2_model
             }
         }
         if logger:
             logger.info("🔄 Auto-detected CHINESE source → Using way2 (CN→EN→MM pivot)")
-            logger.info("🤖 Auto-selected models:")
+            if cli_model:
+                logger.info(f"🤖 Using user-selected model for Stage 2 (EN→MM): {cli_model}")
+            else:
+                logger.info("🤖 Auto-selected models:")
             logger.info("   - Stage 1 (CN→EN): alibayram/hunyuan:7b")
-            logger.info("   - Stage 2 (EN→MM): padauk-gemma:q8_0")
+            logger.info(f"   - Stage 2 (EN→MM): {stage2_model}")
     else:
         return config
 
