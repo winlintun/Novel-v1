@@ -14,6 +14,7 @@ from src.utils.postprocessor_patterns import (
     HEADER_ARTIFACTS,
     REASONING_PATTERNS,
     THAI_PATTERN,
+    KHMER_PATTERN,
     BENGALI_PATTERN,
     INDIC_PATTERN,
     KOREAN_PATTERN,
@@ -28,6 +29,7 @@ _TAG_PATTERNS = TAG_PATTERNS
 _HEADER_ARTIFACTS = HEADER_ARTIFACTS
 _REASONING_PATTERNS = REASONING_PATTERNS
 _THAI_PATTERN = THAI_PATTERN
+_KHMER_PATTERN = KHMER_PATTERN
 _BENGALI_PATTERN = BENGALI_PATTERN
 _INDIC_PATTERN = INDIC_PATTERN
 _KOREAN_PATTERN = KOREAN_PATTERN
@@ -146,21 +148,25 @@ def strip_reasoning_process(text: str) -> str:
 def detect_language_leakage(text: str) -> dict[str, int]:
     """
     Count non-Myanmar language characters in output.
-    Returns counts for Thai, Bengali, Indic, Chinese, and English.
+    Returns counts for Thai, Khmer, Bengali, Indic, Chinese, Korean, and English.
     Used for quality logging.
     """
     thai_count = len(_THAI_PATTERN.findall(text))
+    khmer_count = len(_KHMER_PATTERN.findall(text))
     bengali_count = len(_BENGALI_PATTERN.findall(text))
     indic_count = len(_INDIC_PATTERN.findall(text))
     chinese_count = len(_CHINESE_PATTERN.findall(text))
+    korean_count = len(_KOREAN_PATTERN.findall(text))
     latin_words = len(_LATIN_WORD_PATTERN.findall(text))
     english_common = len(_ENGLISH_COMMON_WORDS.findall(text))
 
     return {
         "thai_chars": thai_count,
+        "khmer_chars": khmer_count,
         "bengali_chars": bengali_count,
         "indic_chars": indic_count,
         "chinese_chars": chinese_count,
+        "korean_chars": korean_count,
         "latin_words": latin_words,
         "english_common_words": english_common,
         "has_english": latin_words > 0 or english_common > 0,
@@ -194,6 +200,16 @@ def remove_indic_characters(text: str) -> str:
 def remove_korean_characters(text: str) -> str:
     """Remove all Korean Hangul characters from text."""
     return _KOREAN_PATTERN.sub("", text)
+
+
+def remove_thai_characters(text: str) -> str:
+    """Remove all Thai characters from text."""
+    return _THAI_PATTERN.sub("", text)
+
+
+def remove_khmer_characters(text: str) -> str:
+    """Remove all Khmer characters from text."""
+    return _KHMER_PATTERN.sub("", text)
 
 
 def remove_latin_words(text: str) -> str:
@@ -679,7 +695,10 @@ def clean_output(raw: str, aggressive: bool = False) -> str:
     # Stitch fragments at chunk boundaries
     text = stitch_chunk_boundaries(text)
 
-    # Always strip Chinese, Bengali, and other Indic scripts (unambiguous garbage)
+    # Always strip non-Myanmar scripts (unambiguous garbage)
+    # Thai (U+0E00-U+0E7F), Khmer (U+1780-U+17FF), Bengali, Indic, Chinese, Korean
+    text = remove_thai_characters(text)
+    text = remove_khmer_characters(text)
     text = remove_chinese_characters(text)
     text = remove_bengali_characters(text)
     text = remove_indic_characters(text)
@@ -720,14 +739,18 @@ def validate_output(text: str, chapter: int) -> dict:
     leakage = detect_language_leakage(text)
     ratio = myanmar_char_ratio(text)
 
-    # Determine status - Chinese, Bengali, Indic characters = automatic REJECT
+    # Determine status - Any non-Myanmar script = automatic REJECT
     if leakage.get("thai_chars", 0) > 0:
+        status = "REJECTED"
+    elif leakage.get("khmer_chars", 0) > 0:
         status = "REJECTED"
     elif leakage.get("bengali_chars", 0) > 0:
         status = "REJECTED"
     elif leakage.get("indic_chars", 0) > 0:
         status = "REJECTED"
     elif leakage.get("chinese_chars", 0) > 0:
+        status = "REJECTED"
+    elif leakage.get("korean_chars", 0) > 0:
         status = "REJECTED"
     elif ratio < 0.30:
         status = "REJECTED"
@@ -740,9 +763,11 @@ def validate_output(text: str, chapter: int) -> dict:
         "chapter": chapter,
         "myanmar_ratio": round(ratio, 3),
         "thai_chars_leaked": leakage.get("thai_chars", 0),
+        "khmer_chars_leaked": leakage.get("khmer_chars", 0),
         "bengali_chars_leaked": leakage.get("bengali_chars", 0),
         "indic_chars_leaked": leakage.get("indic_chars", 0),
         "chinese_chars_leaked": leakage.get("chinese_chars", 0),
+        "korean_chars_leaked": leakage.get("korean_chars", 0),
         "latin_words_found": leakage.get("latin_words", 0),
         "english_common_words": leakage.get("english_common_words", 0),
         "status": status,

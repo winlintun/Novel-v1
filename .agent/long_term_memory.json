@@ -1,6 +1,12 @@
 {
-  "last_updated": "2026-05-06T22:00:00Z",
+  "last_updated": "2026-05-06T22:45:00Z",
   "lessons": [
+    {
+      "date": "2026-05-06",
+      "context": "Wayfarer chapter 1 translation - Thai/Khmer script leak",
+      "lesson": "Translation output contained Thai and Khmer characters along with checkbox artifacts (- [○], - []:) and stray markdown headers (## [ in ]). Postprocessor was missing Khmer pattern (U+1780-U+17FF) and Thai wasn't being stripped in the clean pipeline.",
+      "action": "Postprocessor must strip ALL non-Myanmar Unicode script blocks: Thai (U+0E00-U+0E7F), Khmer (U+1780-U+17FF), Bengali, Indic, Chinese, Korean. Add checkbox artifact patterns to REASONING_PATTERNS. Stray English headers like ## [ in ] must be detected and stripped."
+    },
     {
       "date": "2026-05-06",
       "context": "Wayfarer glossary migration from JSON to SQLite",

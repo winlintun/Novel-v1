@@ -52,10 +52,20 @@ REASONING_PATTERNS: List[Pattern] = [
     re.compile(r"^\s*\*[\s:]*\*.*?to\s*/\.\s*.*$", re.MULTILINE),
     re.compile(r"^\s*-\s*\[[\w\s]+\]:\s.*(?:to|of|a|an|the|is|are)\b.*$", re.MULTILINE),
     re.compile(r"^\s*-\s*\[\s*\]\s*$", re.MULTILINE),
+    # Checkbox with any content: - [○], - [x], - [ ], - []: etc.
+    re.compile(r"^\s*-\s*\[[\s○xX✓✔\-]*\]\s*:?\s*.*$", re.MULTILINE),
+    # Stray markdown headers with foreign text: ## [ in ], ## text
+    re.compile(r"^\s*##\s*\[.*?\]\s*$", re.MULTILINE),
+    re.compile(r"^\s*##\s*[a-zA-Z\s]+\s*$", re.MULTILINE),
+    # Horizontal rules
+    re.compile(r"^\s*---+\s*$", re.MULTILINE),
 ]
 
 # Thai Unicode range - should never appear in Myanmar output
 THAI_PATTERN = re.compile(r"[\u0E00-\u0E7F]+")
+
+# Khmer Unicode range - should never appear in Myanmar output
+KHMER_PATTERN = re.compile(r"[\u1780-\u17FF]+")
 
 # Bengali Unicode range - should never appear in Myanmar output
 BENGALI_PATTERN = re.compile(r"[\u0980-\u09FF]+")

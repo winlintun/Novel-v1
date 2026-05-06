@@ -6,13 +6,68 @@
 
 ## Last Updated
 - Date: 2026-05-06
-- Last task completed: Migrated wayfarer glossary (166 terms) from JSON to SQLite database
+- Last task completed: Fixed Thai/Khmer script leak and checkbox artifacts in postprocessor
 
 ## In Progress
 - None
 
 ## Known Issues
 - None
+
+## Fixed: Thai/Khmer Script Leak in Translation Output
+
+### Problem
+Translation output contained foreign scripts and artifacts:
+- **Thai characters** in Myanmar text
+- **Khmer text** (e.g., `វត្ត`) mixed into output
+- **Checkbox artifacts**: `- [○]`, `- []: မင်းကြီး`
+- **Stray markdown headers**: `## [ in ]`, `## အတွင်းဝင်းထဲသို့`
+- **Horizontal rules**: `---`
+
+### Root Cause
+Postprocessor was missing:
+1. Khmer Unicode pattern (U+1780-U+17FF)
+2. Thai character removal in clean pipeline
+3. Checkbox artifact patterns in REASONING_PATTERNS
+4. Stray English-only header detection
+
+### Solution Applied
+**1. Enhanced postprocessor_patterns.py**:
+- Added `KHMER_PATTERN` for Khmer Unicode range (U+1780-U+17FF)
+- Added checkbox artifact patterns: `- [○]`, `- []: text`, `- [x]`, etc.
+- Added stray header patterns: `## [ in ]`, `## English text`
+- Added horizontal rule pattern: `---`
+
+**2. Enhanced postprocessor.py**:
+- Added `remove_thai_characters()` function
+- Added `remove_khmer_characters()` function
+- Updated `clean_output()` to strip Thai and Khmer unconditionally
+- Updated `detect_language_leakage()` to detect Khmer and Korean
+- Updated `validate_output()` to reject output with Thai/Khmer/Korean chars
+
+### Verification
+```bash
+# Test postprocessor fixes
+python -c "
+from src.utils.postprocessor import clean_output
+test = '''- [○] 
+វត្តရှိ
+## [ in ]
+---
+- []: text
+ငါးသုံးကောင်'''
+cleaned = clean_output(test)
+print(cleaned)  # Only Myanmar text remains
+"
+
+# Run postprocessor tests
+pytest tests/test_postprocessor.py -v
+```
+
+### Files Modified
+- `src/utils/postprocessor_patterns.py` - Added KHMER_PATTERN and artifact patterns
+- `src/utils/postprocessor.py` - Added Thai/Khmer removal functions
+- `.agent/error_library.json` - Added ERR-061 for this issue
 
 ## Completed: Wayfarer Glossary Migration to SQLite
 

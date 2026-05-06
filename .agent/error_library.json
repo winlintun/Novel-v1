@@ -244,6 +244,15 @@
       "prevention": "Always include LANGUAGE_GUARD in refiner prompts. MYANMAR_PATTERN must include all 3 Myanmar Unicode blocks: U+1000-U+109F, U+AA60-U+AA7F, U+A9E0-U+A9FF.",
       "times_seen": 1,
       "last_seen": "2026-05-05"
+    },
+    {
+      "id": "ERR-061",
+      "error_type": "ThaiKhmerScriptLeak",
+      "trigger": "Thai (U+0E00-U+0E7F) and Khmer (U+1780-U+17FF) characters appearing in Myanmar output, along with checkbox artifacts (- [○], - []:) and markdown headers with English text (## [ in ])",
+      "solution": "Added KHMER_PATTERN to postprocessor_patterns.py. Added remove_thai_characters() and remove_khmer_characters() to postprocessor.py. Enhanced REASONING_PATTERNS to strip checkbox artifacts (- [○], - []: text), stray markdown headers (## [ in ], ## text), and horizontal rules (---). Updated clean_output() to strip Thai and Khmer unconditionally.",
+      "prevention": "Postprocessor must strip ALL non-Myanmar Unicode script blocks unconditionally. Any script other than Myanmar Unicode (U+1000-U+109F, U+AA60-U+AA7F, U+A9E0-U+A9FF) is forbidden in output.",
+      "times_seen": 1,
+      "last_seen": "2026-05-06"
     }
   ]
 }
