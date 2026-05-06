@@ -22,8 +22,8 @@ class TestMemoryManager(unittest.TestCase):
         self.glossary_path = os.path.join(self.temp_dir, "glossary.json")
         self.context_path = os.path.join(self.temp_dir, "context.json")
 
-        # Initialize with empty files
-        self.memory = MemoryManager(self.glossary_path, self.context_path)
+        # Initialize with empty files (JSON backend for tests)
+        self.memory = MemoryManager(self.glossary_path, self.context_path, use_sql=False)
 
     def tearDown(self):
         import shutil
@@ -61,8 +61,8 @@ class TestMemoryManager(unittest.TestCase):
         self.memory.push_to_buffer("Context text")
         self.memory.save_memory()
 
-        # New instance
-        new_memory = MemoryManager(self.glossary_path, self.context_path)
+        # New instance (JSON backend for tests)
+        new_memory = MemoryManager(self.glossary_path, self.context_path, use_sql=False)
         self.assertEqual(new_memory.get_term("Item"), "ပစ္စည်း")
         self.assertIn("Context text", new_memory.get_context_buffer())
 

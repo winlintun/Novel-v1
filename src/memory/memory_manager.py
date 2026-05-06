@@ -2,6 +2,7 @@
 Memory Manager Module
 Handles 3-tier memory system: Glossary and Context Memory.
 Supports per-novel glossary (primary) + optional universal reference (read-only).
+Supports JSON backend (default) and SQLite backend (optional).
 
 NOTE: Universal blueprint files are READ-ONLY reference templates.
 They are NOT written to - only used as optional read-only fallback.
@@ -82,8 +83,51 @@ class MemoryManager:
         glossary_path: str = "data/output/default/glossary/glossary.json",
         context_path: str = "data/output/default/glossary/context_memory.json",
         novel_name: Optional[str] = None,
-        use_universal: bool = False  # Default: disabled (per-novel only)
+        use_universal: bool = False,  # Default: disabled (per-novel only)
+        use_sql: bool = True,         # Default: SQLite backend (NEW)
+        db_path: str = "data/novel_translation.db",
     ):
+        self.use_sql = use_sql
+        self.novel_name = novel_name
+
+        if use_sql:
+            from src.db.connection import DatabaseConnection
+            from src.db.schema import SchemaManager
+            from src.db.repositories.glossary_repo import GlossaryRepository
+            from src.db.repositories.chapter_repo import ChapterRepository
+            from src.db.repositories.context_repo import ContextRepository
+            from src.db.repositories.novel_repo import NovelRepository
+
+            self.db = DatabaseConnection(db_path)
+            self.schema = SchemaManager(self.db)
+            self.schema.create_all()
+            self.novel_repo = NovelRepository(self.db)
+            self.glossary_repo = GlossaryRepository(self.db)
+            self.chapter_repo = ChapterRepository(self.db)
+            self.context_repo = ContextRepository(self.db)
+
+            self.novel_id = f"novel_{novel_name}" if novel_name else "novel_default"
+            if not self.novel_repo.exists(self.novel_id):
+                self.novel_repo.create(self.novel_id, novel_name or "default", "chinese")
+
+            self.glossary_path = ""
+            self.context_path = ""
+            self.pending_path = ""
+            self.glossary: Dict[str, Any] = {"terms": [], "total_terms": 0}
+            self.context_memory: Dict[str, Any] = {
+                "current_chapter": 0, "last_translated_chapter": 0,
+                "summary": "", "active_characters": {}, "recent_events": [],
+                "paragraph_buffer": [],
+            }
+            self.paragraph_buffer: deque = deque(maxlen=10)
+            self.session_rules: Dict[str, str] = {}
+            self.universal_glossary: Dict[str, Any] = {}
+            self.universal_pending: Dict[str, Any] = {}
+            self.universal_context: Dict[str, Any] = {}
+            self.use_universal = False
+            logger.info(f"MemoryManager initialized with SQL backend (novel={novel_name})")
+            return
+
         # Resolve novel-specific paths when novel_name is provided
         if novel_name:
             glossary_path, context_path, self.pending_path = _resolve_glossary_path(novel_name)
@@ -92,7 +136,6 @@ class MemoryManager:
 
         self.glossary_path = glossary_path
         self.context_path = context_path
-        self.novel_name = novel_name
         self.use_universal = use_universal
 
         # Dual-layer glossary support
@@ -680,6 +723,22 @@ class MemoryManager:
 
     def get_pending_terms(self) -> List[Dict[str, Any]]:
         """Get all pending terms for review."""
+        if self.use_sql:
+            # SQL backend: query from database
+            terms = self.glossary_repo.get_terms_by_novel(self.novel_id, status='pending')
+            # Convert to legacy format for compatibility
+            return [
+                {
+                    "source": t['source_term'],
+                    "target": t['target_term'],
+                    "category": t['category'],
+                    "chapter_first_seen": 0,
+                    "status": "pending",
+                    "confidence": t.get('confidence', 0.7)
+                }
+                for t in terms
+            ]
+        # JSON backend: read from file
         pending_data = FileHandler.read_json(self.pending_path)
         if not pending_data:
             return []
@@ -701,6 +760,25 @@ class MemoryManager:
         Returns:
             True if promoted successfully, False if not found
         """
+        if self.use_sql:
+            # SQL backend
+            term = self.glossary_repo.get_term_by_source(self.novel_id, source)
+            if not term or term.get('status') != 'pending':
+                return False
+            
+            target = term.get('target_term', '')
+            
+            # Update status to approved
+            self.glossary_repo.update_term(
+                term['id'],
+                status='approved',
+                reviewed_at=datetime.now().isoformat()
+            )
+            
+            logger.info(f"Promoted pending term to glossary: {source} -> {target}")
+            return True
+        
+        # JSON backend
         pending_data = FileHandler.read_json(self.pending_path)
         if not pending_data:
             return False
@@ -780,6 +858,33 @@ class MemoryManager:
         Returns:
             Number of terms promoted to glossary
         """
+        if self.use_sql:
+            # SQL backend: bulk approve all pending terms
+            pending = self.glossary_repo.get_terms_by_novel(self.novel_id, status='pending')
+            if not pending:
+                logger.info("No pending terms to approve")
+                return 0
+
+            approved_count = 0
+            for term in pending:
+                try:
+                    result = self.glossary_repo.update_term(
+                        term['id'],
+                        status='approved',
+                        reviewed_at=datetime.now().isoformat()
+                    )
+                    if result:
+                        approved_count += 1
+                        logger.info(f"Approved: {term['source_term']} → {term['target_term']}")
+                    else:
+                        logger.warning(f"Failed to approve: {term['source_term']}")
+                except Exception as e:
+                    logger.warning(f"Failed to approve term '{term['source_term']}': {e}")
+
+            logger.info(f"Bulk approval complete: {approved_count}/{len(pending)} terms approved")
+            return approved_count
+
+        # JSON backend
         pending_data = FileHandler.read_json(self.pending_path)
         if not pending_data:
             logger.info("No pending glossary file found")
@@ -830,6 +935,28 @@ class MemoryManager:
         Returns:
             Number of terms promoted
         """
+        if self.use_sql:
+            # SQL backend: promote terms already marked as 'approved' in the database
+            pending = self.glossary_repo.get_terms_by_novel(self.novel_id, status='pending')
+            approved = [t for t in pending if t.get('user_marked_approved')]
+            
+            if not approved:
+                return 0
+            
+            promoted_count = 0
+            for term in approved:
+                result = self.glossary_repo.update_term(
+                    term['id'],
+                    status='approved',
+                    reviewed_at=datetime.now().isoformat()
+                )
+                if result:
+                    promoted_count += 1
+            
+            logger.info(f"Auto-approved {promoted_count}/{len(approved)} pending glossary terms")
+            return promoted_count
+        
+        # JSON backend
         pending_data = FileHandler.read_json(self.pending_path)
         if not pending_data:
             return 0
@@ -885,6 +1012,68 @@ class MemoryManager:
         Returns:
             Number of terms auto-approved
         """
+        if self.use_sql:
+            # SQL backend: get pending terms from database
+            pending = self.glossary_repo.get_terms_by_novel(self.novel_id, status='pending')
+            if not pending:
+                return 0
+            
+            to_approve = []
+            for term in pending:
+                confidence = 0.0
+                source = term.get('source_term', '')
+                target = term.get('target_term', '')
+                category = term.get('category', 'general')
+                # Use confidence field from database or calculate
+                chapter_count = term.get('usage_count', 0)
+                
+                # Rule 1: Multi-chapter appearance
+                if chapter_count >= 3:
+                    confidence += 0.40
+                elif chapter_count >= 2:
+                    confidence += 0.25
+                
+                # Rule 2: Known category types
+                if category in ("character", "place"):
+                    confidence += 0.20
+                
+                # Rule 3: Not a placeholder
+                if target and not target.startswith("【?") and not target.startswith("[") and "?" not in target:
+                    confidence += 0.15
+                
+                # Rule 4: Proper Myanmar target
+                if target and not any(ord(c) < 128 for c in target):
+                    confidence += 0.10
+                
+                # Rule 5: Chinese name pattern
+                if source and all('\u4e00' <= c <= '\u9fff' for c in source) and 2 <= len(source) <= 3:
+                    confidence += 0.10
+                
+                if confidence >= confidence_threshold:
+                    to_approve.append((term['id'], source, confidence))
+            
+            if not to_approve:
+                return 0
+            
+            # Promote approved terms
+            promoted_count = 0
+            for term_id, source, confidence in to_approve:
+                try:
+                    result = self.glossary_repo.update_term(
+                        term_id,
+                        status='approved',
+                        reviewed_at=datetime.now().isoformat()
+                    )
+                    if result:
+                        promoted_count += 1
+                        logger.debug(f"Auto-approved: {source} (confidence={confidence:.2f})")
+                except Exception as e:
+                    logger.warning(f"Failed to auto-approve term '{source}': {e}")
+            
+            logger.info(f"Auto-approved {promoted_count}/{len(to_approve)} terms by confidence (threshold={confidence_threshold})")
+            return promoted_count
+        
+        # JSON backend
         pending_data = FileHandler.read_json(self.pending_path)
         if not pending_data:
             return 0
@@ -978,3 +1167,167 @@ class MemoryManager:
             "rules": self.get_session_rules(),
             "summary": self.get_summary()
         }
+
+    # ── SQL Backend Overrides ─────────────────────────────────────────────
+
+    def save_memory(self):
+        """Save all memory to disk (JSON) or no-op (SQL — already persisted)."""
+        if self.use_sql:
+            return  # SQL writes are immediate
+        self.context_memory["paragraph_buffer"] = list(self.paragraph_buffer)
+        FileHandler.write_json(self.glossary_path, self.glossary)
+        FileHandler.write_json(self.context_path, self.context_memory)
+        logger.debug("Memory saved to disk")
+
+    def add_term(self, source: str, target: str, category: str = "general",
+                 chapter: int = 0) -> bool:
+        """Add a new term to glossary (SQL or JSON backend)."""
+        if self.use_sql:
+            if not self._is_valid_myanmar_text(target):
+                logger.warning(f"Rejected non-Myanmar target for '{source}': '{target}'")
+                return False
+            existing = self.glossary_repo.get_term_by_source(self.novel_id, source)
+            if existing:
+                return False
+            self.glossary_repo.add_term(
+                novel_id=self.novel_id, source_term=source, target_term=target,
+                category=category, status="pending", enforcement_level="soft",
+            )
+            logger.info(f"Added glossary term (SQL): {source} -> {target}")
+            return True
+        return self._json_add_term(source, target, category, chapter)
+
+    def _json_add_term(self, source: str, target: str, category: str, chapter: int) -> bool:
+        """JSON backend add_term (original logic preserved)."""
+        terms = self.glossary.get("terms", [])
+        existing = {t.get("source") or t.get("source_term", "") for t in terms}
+        if source in existing:
+            return False
+        if not self._is_valid_myanmar_text(target):
+            logger.warning(f"Rejected non-Myanmar target for '{source}': '{target}'")
+            return False
+        similar_source = self._check_target_similarity(source, target)
+        if similar_source:
+            logger.warning(
+                f"Near-duplicate target for '{source}': '{target}' "
+                f"is too similar to existing term '{similar_source}'. "
+                f"Manual review recommended before approving."
+            )
+        new_term = {
+            "id": f"term_{len(terms) + 1:03d}",
+            "source": source, "target": target, "category": category,
+            "chapter_first_seen": chapter, "chapter_last_seen": chapter,
+            "verified": False, "added_at": datetime.now().isoformat()
+        }
+        terms.append(new_term)
+        self.glossary["terms"] = terms
+        self.glossary["total_terms"] = len(terms)
+        self.glossary["last_updated"] = datetime.now().isoformat()
+        self.save_memory()
+        logger.info(f"Added glossary term: {source} -> {target}")
+        return True
+
+    def get_term(self, source: str) -> Optional[str]:
+        """Get target translation for a source term (SQL or JSON)."""
+        if self.use_sql:
+            term = self.glossary_repo.get_term_by_source(self.novel_id, source)
+            return term["target_term"] if term else None
+        terms = self.glossary.get("terms", [])
+        for term in terms:
+            term_source = term.get("source") or term.get("source_term", "")
+            if term_source == source:
+                return term.get("target") or term.get("target_term")
+        if self.use_universal:
+            universal_terms = self.universal_glossary.get("terms", [])
+            for term in universal_terms:
+                term_source = term.get("source_term") or term.get("source", "")
+                if term_source == source:
+                    return term.get("target_term") or term.get("target")
+        return None
+
+    def get_all_terms(self) -> List[Dict[str, Any]]:
+        """Get all glossary terms (SQL or JSON)."""
+        if self.use_sql:
+            terms = self.glossary_repo.get_terms_by_novel(self.novel_id)
+            return [
+                {
+                    "id": t["id"], "source": t["source_term"], "target": t["target_term"],
+                    "category": t["category"], "verified": t["status"] == "approved",
+                    "chapter_last_seen": t["usage_count"],
+                }
+                for t in terms
+            ]
+        combined = []
+        per_novel = self.glossary.get("terms", [])
+        combined.extend(per_novel)
+        if self.use_universal:
+            per_novel_sources = {t.get("source") or t.get("source_term", "") for t in per_novel}
+            universal = self.universal_glossary.get("terms", [])
+            for term in universal:
+                source = term.get("source_term") or term.get("source", "")
+                if source not in per_novel_sources:
+                    combined.append(term)
+        return combined
+
+    def get_glossary_for_prompt(self, limit: int = 20) -> str:
+        """Get formatted glossary for prompt injection (SQL or JSON)."""
+        if self.use_sql:
+            terms = self.glossary_repo.get_terms_for_prompt(self.novel_id, limit)
+        else:
+            all_terms = self.get_all_terms()
+            terms = sorted(all_terms, key=lambda t: t.get("chapter_last_seen", 0) or 0, reverse=True)[:limit]
+
+        if not terms:
+            return "No glossary entries yet."
+
+        lines = ["GLOSSARY (Use these exact translations):"]
+        for term in terms:
+            verified = "✓" if term.get("verified") else "○"
+            source = self._sanitize_for_prompt(term.get("source") or term.get("source_term", ""))
+            target = self._sanitize_for_prompt(term.get("target") or term.get("target_term", ""))
+            category = self._sanitize_for_prompt(term.get('category', 'general'))
+            lines.append(f"  [{verified}] {source} = {target} ({category})")
+        return "\n".join(lines)
+
+    def update_chapter_context(self, chapter_num: int, translated_text: str = "", summary: str = ""):
+        """Update context after chapter translation (SQL or JSON)."""
+        if self.use_sql:
+            chapter_id = f"chapter_{self.novel_id}_{chapter_num:04d}"
+            chapter = self.chapter_repo.get_by_id(chapter_id)
+            if not chapter:
+                self.chapter_repo.create(
+                    novel_id=self.novel_id, chapter_num=chapter_num,
+                    file_path="", translation_status="translated",
+                )
+            if translated_text or summary:
+                snap_summary = summary or self._generate_summary_from_text(translated_text)
+                snapshot = {
+                    "active_chars": [], "events": [],
+                    "summary": snap_summary, "new_terms": [],
+                }
+                import json as _json
+                self.context_repo.create_snapshot(chapter_id, _json.dumps(snapshot, ensure_ascii=False))
+            self.chapter_repo.update_status(chapter_id, "translated")
+            return
+
+        self.context_memory["last_translated_chapter"] = self.context_memory.get("current_chapter", 0)
+        self.context_memory["current_chapter"] = chapter_num
+        if summary:
+            self.context_memory["summary"] = summary
+        elif translated_text:
+            self.context_memory["summary"] = self._generate_summary_from_text(translated_text)
+        if translated_text:
+            try:
+                self._update_active_characters(translated_text)
+            except Exception as e:
+                logger.warning(f"Active characters update failed: {e}")
+            try:
+                self._update_recent_events(translated_text, chapter_num)
+            except Exception as e:
+                logger.warning(f"Recent events update failed: {e}")
+        self.save_memory()
+
+    def close(self):
+        """Close SQL connection if using SQL backend."""
+        if self.use_sql and hasattr(self, "db"):
+            self.db.close()
