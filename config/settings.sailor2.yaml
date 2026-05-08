@@ -10,7 +10,7 @@ project:
 
 models:
   provider: "ollama"
-  translator: "sailor2-20b"
+  translator: "sailor2:8b"
   editor: "padauk-gemma:q8_0"
   refiner: "padauk-gemma:q8_0"
   checker: "padauk-gemma:q8_0"
@@ -22,18 +22,18 @@ models:
 
 processing:
   chunk_size: 1500
-  temperature: 0.2
+  temperature: 0.3
   top_p: 0.95
-  repeat_penalty: 1.15
+  repeat_penalty: 1.3
   max_retries: 3
   stream: true
   keep_alive: "15m"
 
 translation_pipeline:
   mode: "single_stage"
-  stage1_model: "sailor2-20b"
-  stage2_model: "sailor2-20b"
-  reflection_model: "sailor2-20b"
+  stage1_model: "sailor2:8b"
+  stage2_model: "sailor2:8b"
+  reflection_model: "sailor2:8b"
   use_reflection: true
 
 myanmar_readability:
@@ -48,7 +48,7 @@ qa_testing:
   min_myanmar_ratio: 0.75
 
 model_roles:
-  translator: ["sailor2-20b", "padauk-gemma:q8_0"]
+  translator: ["sailor2:8b", "padauk-gemma:q8_0"]
   refiner: ["padauk-gemma:q8_0", "padauk-gemma:q8_0"]
   checker: ["padauk-gemma:q8_0"]
   glossary_sync: ["padauk-gemma:q8_0"]

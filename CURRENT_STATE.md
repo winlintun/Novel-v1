@@ -6,17 +6,536 @@
 
 ## Last Updated
 - Date: 2026-05-08
-- Last task completed: Fixed chapter heading format issue - bare numerals like "# ၃" now convert to proper "# အခန်း ၃: Title" format
-- Git commit: 1f00202
+- Last task completed: Completed model comparison tool + prompt refactoring + code review
+- Git commit: Pending
+
+## Session Summary
+- ✅ Created skeleton model config system with 12 Ollama models
+- ✅ Integrated skeleton config with Web UI and CLI
+- ✅ Refactored all prompts into src/agents/prompts/
+- ✅ Created model comparison tool (compare_all_models.py)
+- ✅ Fixed bug in compare_models.py (wrong method name)
+- ✅ Completed post-implementation code review
+- ✅ Fixed code quality issues identified in review
 
 ## In Progress
 - None
 
 ## Completed Tasks
+- [DONE] **Model comparison tool - translate with ALL models, save to logs/temp/**
+- [DONE] **Skeleton model config with ALL 12 downloaded Ollama models + Web UI + CLI**
+- [DONE] **Refactored all translation prompts into src/agents/prompts/ directory**
+- [DONE] **CRITICAL: Tested sailor2:8b - FAILED for Myanmar translation**
+
+---
+
+## Feature: Simple Skeleton Model Config + Web UI + CLI Integration
+
+### Summary
+Created a simple skeleton model configuration system that works with BOTH Web UI and CLI. Users define model presets in a minimal YAML file, and the active model's parameters are automatically applied to all translations.
+
+### Files Created
+1. **`config/models.skeleton.yaml`** - Simple skeleton config with model definitions
+2. **`src/config/skeleton_models.py`** - Python module to load and apply skeleton configs
+3. **`src/web/templates/settings.html`** - Updated settings page with model card selection UI
+4. **`src/cli/commands.py`** - CLI now applies skeleton model config automatically
+
+### How It Works
+
+#### 1. Define Models in Skeleton Config
+```yaml
+# config/models.skeleton.yaml
+active_model: padauk-gemma-q8
+
+models:
+  padauk-gemma-q8:
+    name: padauk-gemma:q8_0
+    display_name: Padauk-Gemma Q8 (Recommended)
+    temperature: 0.2
+    max_tokens: 4096
+    repeat_penalty: 1.3
+    chunk_size: 2500
+```
+
+#### 2. CLI Automatically Uses Skeleton Model
+```bash
+# This will use the active_model from skeleton config
+python -m src.main --novel wayfarer --chapter 1
+
+# Override with --model flag (bypasses skeleton)
+python -m src.main --novel wayfarer --chapter 1 --model qwen:7b
+```
+
+#### 3. Web UI Shows Model Cards
+- Settings page displays each model as a clickable card
+- Shows all parameters: temp, tokens, penalty, chunk size
+- Click to change the active model
+
+### Example Output
+```
+Before skeleton - Model: padauk-gemma:q8_0, Temp: 0.25
+Active skeleton model: padauk-gemma-q8
+After skeleton  - Model: padauk-gemma:q8_0, Temp: 0.2
+```
+Note: Temperature changed from 0.25 (settings.yaml) to 0.2 (skeleton model)
+- Click to select, then "Apply Selected Model"
+
+#### 3. Program Uses Selected Model
+- When translation runs, it uses the active model from skeleton config
+- All parameters auto-loaded from the model definition
+- No need to manually set temperature, tokens, etc.
+
+### Key Features
+- **Minimal config**: Only 5 lines per model (name, display_name, temp, tokens, penalty, chunk)
+- **Web UI integration**: Visual model selection with cards
+
+---
+
+## Feature: Model Comparison Tool
+
+### Summary
+Created a tool to translate the same chapter with ALL models in the skeleton config for easy comparison. Results are saved to `logs/temp/` with naming pattern `modelname_chxxx.md`.
+
+### Files Created
+1. **`src/utils/compare_models.py`** - Core comparison functionality
+2. **`compare_all_models.py`** - Standalone script for easy use
+3. **`src/cli/commands.py`** - Added `run_compare_models()` command handler
+4. **`src/cli/parser.py`** - Added `--compare-models` and `--model-categories` arguments
+5. **`src/main.py`** - Added command dispatch for model comparison
+
+### Usage
+
+#### CLI Command
+```bash
+# Compare all Myanmar models (default)
+python -m src.main --novel sample --chapter 1 --compare-models
+
+# Compare specific categories
+python -m src.main --novel sample --chapter 1 --compare-models --model-categories myanmar pivot
+
+# Compare ALL models including utility
+python -m src.main --novel sample --chapter 1 --compare-models --model-categories myanmar pivot utility
+```
+
+#### Standalone Script
+```bash
+python compare_all_models.py --novel sample --chapter 1
+
+# With categories
+python compare_all_models.py --novel sample --chapter 1 --categories myanmar
+```
+
+### Output
+Files saved to `logs/temp/`:
+- `padauk-gemma_q8_0_ch001.md`
+- `sailor2-20b_latest_ch001.md`
+- `sailor2_8b_ch001.md`
+- etc.
+
+Each file contains:
+- Model name and parameters used
+- Translation output
+- Duration and metrics
+- Error info (if failed)
+
+A summary file is also generated:
+- `_comparison_summary_ch001.md` - Overview of all results with quick preview
+
+---
+
+## Refactor: Translation Prompts Moved to src/agents/prompts/
+
+### Summary
+Refactored all translation prompts from scattered locations into a centralized `src/agents/prompts/` directory for better maintainability and consistency.
+
+### Files Created/Modified
+
+#### New Files in src/agents/prompts/:
+1. **`language_guards.py`** - Unicode safety rules and language prevention constants
+2. **`system_prompts.py`** - All system prompts (translator, editor, extractor, fallback rules)
+
+#### Updated Files:
+1. **`__init__.py`** - Consolidated exports from all prompt modules
+2. **`src/agents/translator.py`** - Removed hardcoded prompts, imports from prompts module
+3. **`src/agents/fast_translator.py`** - Updated import to use prompts module
+4. **`src/agents/prompt_patch.py`** - Now re-exports from prompts module (backward compatibility)
+
+### New Structure
+```
+src/agents/prompts/
+├── __init__.py           # Exports all prompts
+├── language_guards.py    # LANGUAGE_GUARD, UNICODE_SAFETY_CHECKLIST
+├── system_prompts.py     # TRANSLATOR_SYSTEM_PROMPT, EDITOR_SYSTEM_PROMPT, etc.
+├── cn_mm_rules.py        # Chinese→Myanmar linguistic rules (existing)
+└── en_mm_rules.py        # English→Myanmar linguistic rules (existing)
+```
+
+### Exports from prompts module:
+```python
+from src.agents.prompts import (
+    # Language guards
+    LANGUAGE_GUARD,
+    UNICODE_SAFETY_CHECKLIST,
+    # System prompts
+    TRANSLATOR_SYSTEM_PROMPT,
+    EDITOR_SYSTEM_PROMPT,
+    EXTRACTOR_SYSTEM_PROMPT,
+    FAST_EN_MM_PROMPT,
+    # Builder functions
+    build_translator_prompt,
+    build_cn_context,
+    build_en_context,
+)
+```
+
+### Backward Compatibility
+- `src/agents/prompt_patch.py` still works (re-exports from prompts module)
+- All existing imports continue to function
+- No breaking changes to external code
+- **Auto-apply**: Parameters automatically loaded when model selected
+- **DRY principle**: Inherits base settings from settings.yaml
+- **Minimal overrides**: Only model-specific settings defined
+- **No duplication**: Inherits paths, processing params, quality thresholds from base config
+- **Easy customization**: Copy template → Replace MODEL_NAME → Use
+
+### Usage Example
+```bash
+# Default (already uses padauk-gemma:q8_0)
+python -m src.main --novel sample --chapter 1
+
+# Chapter range
+python -m src.main --novel wayfarer --chapter-range 21-35
+```
+
+### Skeleton Config Structure
+```yaml
+# Only these sections are required in model skeleton:
+models:
+  translator: "padauk-gemma:q8_0"
+  editor: "padauk-gemma:q8_0"
+  refiner: "padauk-gemma:q8_0"
+  checker: "padauk-gemma:q8_0"
+
+translation_pipeline:
+  mode: "single_stage"
+  stage1_model: "padauk-gemma:q8_0"
+  stage2_model: "padauk-gemma:q8_0"
+
+model_roles:
+  translator: ["padauk-gemma:q8_0"]
+  refiner: ["padauk-gemma:q8_0"]
+  checker: ["padauk-gemma:q8_0"]
+```
+
+### Files Modified
+- `config/settings.yaml` - Fixed inconsistent model settings (was using burmese-gpt:7b)
+- `src/cli/parser.py` - Updated QUICKSTART EXAMPLES to show default model usage
+
+---
+- [DONE] Fixed CLI ignoring config file model - now respects config > CLI --model > default
+- [DONE] Fixed orchestrator model sharing bug - now uses separate models per role
+- [DONE] Fixed SQL backend context update error (ERR-069)
+- [DONE] Fixed Web UI translation error (ERR-068)
 - [DONE] Fixed bare chapter numeral heading format (ERR-067)
 - [DONE] Added 4 test cases for heading format fix
 - [DONE] Code review workflow completed (Reviewer A & B PASSED)
 - [DONE] Git commit: 1f00202
+
+---
+
+## TEST RESULTS: sailor2:8b Model FAILED for Myanmar Translation
+
+### Test Date
+2026-05-08 - Wayfarer Chapter 21
+
+### Results Summary
+**❌ FAILED - DO NOT USE sailor2:8b for Myanmar translation**
+
+| Metric | Result | Status |
+|--------|--------|--------|
+| Myanmar Ratio | 11-55% (avg 35%) | ❌ FAIL (need 70%+) |
+| Chunks Passed | 5/12 | ❌ FAIL |
+| Chunks Rejected | 7/12 | ❌ FAIL |
+| English Words | 7-152 per chunk | ❌ FAIL |
+| Translation Saved | NO | ❌ FAIL |
+
+### Detailed Log Analysis
+
+**Chunk 1**: Myanmar ratio 55.5% - NEEDS_REVIEW
+**Chunk 2**: Myanmar ratio 42.1% - NEEDS_REVIEW
+**Chunk 3**: Myanmar ratio 35.1% - NEEDS_REVIEW
+**Chunk 4**: Myanmar ratio 11.2% - REJECTED
+**Chunk 5**: Myanmar ratio 21.7% - REJECTED
+**Chunk 6**: Myanmar ratio 37.8% - NEEDS_REVIEW
+**Chunk 7**: Myanmar ratio 25.5% - REJECTED
+**Chunk 8**: Myanmar ratio 52.1% - NEEDS_REVIEW
+**Chunk 9**: Myanmar ratio 12.3% - REJECTED
+**Chunk 10**: Myanmar ratio 18.7% - REJECTED
+**Chunk 11**: Myanmar ratio 21.6% - REJECTED
+**Chunk 12**: Myanmar ratio 50.9% - NEEDS_REVIEW
+
+### Key Issues
+1. **Outputs English instead of Myanmar** - 55-152 English words per chunk
+2. **Retry attempts failed** - Model continued outputting English even with stronger prompts
+3. **Below quality threshold** - All chunks below 70% Myanmar ratio minimum
+4. **Final result**: File NOT saved due to "Quality gate: Myanmar ratio 55.0% < 70%"
+
+### Conclusion
+**sailor2:8b is NOT SUITABLE for Myanmar translation.**
+
+Use instead:
+- ✅ **padauk-gemma:q8_0** (proven 98% Myanmar ratio)
+- ⚠️ sailor2:20b (untested - test before use)
+
+### Files Updated
+- `AGENTS.md` - Added sailor2:8b to model warnings
+- `.agent/long_term_memory.json` - Added test results and lesson
+
+---
+
+## Fixed: CLI Ignoring Config File Model
+  - Mode: single_stage
+  - Stage 1 Model: sailor2:8b ✓
+  - Stage 2 Model: sailor2:8b ✓
+
+🧪 Container Initialization:
+  ✓ OllamaClient created with model: sailor2:8b
+  ✓ Translator created with model: sailor2:8b
+
+✅ Model chain consistent: sailor2:8b
+```
+
+### Configuration Status
+**The configuration is WORKING CORRECTLY.**
+
+- Config loads: ✓
+- Model propagates to OllamaClient: ✓
+- Model propagates to Translator: ✓
+- All settings loaded properly: ✓
+
+### How to Use
+```bash
+python -m src.main --novel wayfarer --chapter 21 --config config/settings.sailor2.yaml
+```
+
+### Notes
+- The sailor2:8b model is correctly configured and will be used for translation
+- Refiner/Editor/Checker use padauk-gemma:q8_0 (proven Myanmar output model)
+- This is a valid configuration - the translator model choice is separate from the refiner models
+
+---
+
+## Fixed: CLI Ignoring Config File Model
+
+### Problem
+When using `--config config/settings.sailor2.yaml`, the CLI showed:
+```
+🤖 Auto-selected models: padauk-gemma:q8_0 (best for Myanmar)
+  Translator:      padauk-gemma:q8_0
+  Editor:          padauk-gemma:q8_0
+```
+
+**But the config file specified `sailor2:8b`!**
+
+### Root Cause
+In `src/cli/commands.py`, the `_apply_workflow_config()` function **always overrode** the config with hardcoded `padauk-gemma:q8_0`:
+
+```python
+# Old code - ignores config file
+translator_model = cli_model if cli_model else "padauk-gemma:q8_0"
+```
+
+This meant:
+1. If user passed `--model X` → uses X ✓
+2. If config had `sailor2:8b` → ignored, uses `padauk-gemma:q8_0` ✗
+3. Otherwise → uses `padauk-gemma:q8_0` ✓
+
+### Solution Applied
+Updated `_apply_workflow_config()` to respect **priority order**:
+1. **CLI `--model` flag** (explicit user choice)
+2. **Config file model** (if different from default)
+3. **Default** (`padauk-gemma:q8_0`)
+
+```python
+# New code - respects config file
+config_translator = getattr(config.models, 'translator', None)
+if cli_model:
+    translator_model = cli_model
+elif config_translator and config_translator != "qwen2.5:14b":
+    translator_model = config_translator  # Use config file model
+else:
+    translator_model = "padauk-gemma:q8_0"
+```
+
+### Files Modified
+- `src/cli/commands.py` - Updated `_apply_workflow_config()` function
+
+### Now Works Correctly
+```bash
+python -m src.main --novel wayfarer --chapter 21 --config config/settings.sailor2.yaml
+```
+
+Output:
+```
+🤖 Using config file model: sailor2:8b
+  Translator:      sailor2:8b
+  Editor:          padauk-gemma:q8_0
+```
+
+---
+
+## Fixed: Orchestrator Model Sharing Bug
+
+### Problem
+When using `config/settings.sailor2.yaml` with different models for translator and refiner:
+```yaml
+models:
+  translator: "sailor2:8b"
+  refiner: "padauk-gemma:q8_0"
+```
+
+**All agents were using `sailor2:8b` instead of their assigned models.**
+
+The orchestrator created only **ONE OllamaClient** with the translator model and shared it across:
+- Translator (should use `sailor2:8b`) ✓
+- Refiner (should use `padauk-gemma:q8_0`) ✗ got `sailor2:8b`
+- Checker (should use `padauk-gemma:q8_0`) ✗ got `sailor2:8b`
+- Reflection Agent (should use `padauk-gemma:q8_0`) ✗ got `sailor2:8b`
+
+### Root Cause
+In `src/pipeline/orchestrator.py`, the `ollama_client` property created a single client:
+```python
+@property
+def ollama_client(self):
+    if self._ollama_client is None:
+        self._ollama_client = OllamaClient(model=self.config.models.translator, ...)
+    return self._ollama_client
+```
+
+All agents used `self.ollama_client`, ignoring their config-assigned models.
+
+### Solution Applied
+1. **Created separate OllamaClient instances** for each role:
+   - `ollama_client_translator` - uses `config.models.translator`
+   - `ollama_client_refiner` - uses `config.models.refiner` or `config.models.editor`
+   - `ollama_client_checker` - uses `config.models.checker`
+
+2. **Updated agents to use role-specific clients**:
+   - Translator → `ollama_client_translator`
+   - Refiner/Reflection → `ollama_client_refiner`
+   - Checker → `ollama_client_checker`
+
+3. **Updated cleanup** to unload all three models
+
+### Files Modified
+- `src/pipeline/orchestrator.py` - Added separate client properties and updated agent initialization
+
+### Verification
+```bash
+# Syntax check
+python3 -m py_compile src/pipeline/orchestrator.py
+# Output: Syntax OK
+```
+
+Now with sailor2:8b config:
+- Translator uses: `sailor2:8b` ✓
+- Refiner uses: `padauk-gemma:q8_0` ✓
+- Checker uses: `padauk-gemma:q8_0` ✓
+
+---
+
+## Fixed: IsADirectoryError in Context Updater with SQL Backend
+
+### Problem
+During Chapter 19 translation, context update phase failed with:
+```
+2026-05-08 00:43:07,460 - WARNING - Context update failed (non-fatal): [Errno 21] Is a directory: '.'
+```
+
+The error occurred when extracting new entities and trying to add them to the pending glossary.
+
+### Root Cause
+The `add_pending_term()` method in `memory_manager.py` was missing SQL backend support. When `use_sql=True`:
+- `self.pending_path` is set to empty string `""`
+- `FileHandler.read_json("")` converts empty string to `Path(".")` (current directory)
+- Attempting to open a directory as a file causes `IsADirectoryError`
+
+### Solution Applied
+Updated `add_pending_term()` method to check `self.use_sql` flag and use appropriate backend:
+- **SQL backend**: Use `glossary_repo.get_term_by_source()` and `glossary_repo.add_term()` for database operations
+- **JSON backend**: Keep existing file-based logic using `FileHandler`
+
+### Files Modified
+- `src/memory/memory_manager.py` - Added SQL backend support to `add_pending_term()` method
+
+### Verification
+```bash
+# Syntax check
+python3 -m py_compile src/memory/memory_manager.py
+# Output: Syntax OK
+```
+
+---
+
+## Fixed: Web UI Translation Error - Method Signature Mismatch
+
+### Problem
+When users clicked "Start Translation" in the Web UI, translation failed immediately with:
+```
+Failed to start translation: Translation process failed to start (exit code: 1)
+```
+
+Error in logs:
+```
+TypeError: TranslationPipeline._translate_chunks() takes 2 positional arguments but 3 were given
+File "src/pipeline/orchestrator.py", line 422, in translate_file
+    translated_chunks, chunk_metrics = self._translate_chunks(chunks, progress_logger)
+```
+
+### Root Cause
+The `_translate_chunks()` method was being called with 2 arguments (`chunks` and `progress_logger`), but the method signature only defined 1 argument (`chunks`).
+
+**Call site (line 422):**
+```python
+translated_chunks, chunk_metrics = self._translate_chunks(chunks, progress_logger)
+```
+
+**Method signature (line 860):**
+```python
+def _translate_chunks(self, chunks: List[str]) -> Tuple[List[str], List[Dict[str, Any]]]:
+```
+
+This mismatch caused a `TypeError` immediately when translation started.
+
+### Solution Applied
+Updated `_translate_chunks()` method signature to accept an optional `progress_logger` parameter:
+
+```python
+def _translate_chunks(
+    self,
+    chunks: List[str],
+    progress_logger: Optional[Any] = None
+) -> Tuple[List[str], List[Dict[str, Any]]]:
+```
+
+This maintains backward compatibility while allowing the method to receive the progress logger for future enhancements.
+
+### Files Modified
+- `src/pipeline/orchestrator.py` - Updated method signature at line 860-872
+
+### Verification
+```bash
+# Syntax check
+python3 -m py_compile src/pipeline/orchestrator.py
+# Output: Syntax OK
+
+# Run tests
+pytest tests/test_translator.py -v
+# Output: 29/29 tests PASSED
+
+pytest tests/test_agents.py -v
+# Output: 16/16 tests PASSED
+```
 
 ---
 

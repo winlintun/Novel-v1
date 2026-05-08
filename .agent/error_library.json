@@ -307,6 +307,24 @@
       "prevention": "Postprocessor Pattern 3 now handles this case automatically. Added tests to ensure coverage.",
       "times_seen": 1,
       "last_seen": "2026-05-08"
+    },
+    {
+      "id": "ERR-068",
+      "error_type": "MethodSignatureMismatch",
+      "trigger": "_translate_chunks() called with 2 arguments but method signature only accepts 1. TypeError: TranslationPipeline._translate_chunks() takes 2 positional arguments but 3 were given",
+      "solution": "Update method signature to accept optional progress_logger parameter: def _translate_chunks(self, chunks: List[str], progress_logger: Optional[Any] = None)",
+      "prevention": "Always verify method signatures match call sites. Run py_compile and tests after signature changes.",
+      "times_seen": 1,
+      "last_seen": "2026-05-08"
+    },
+    {
+      "id": "ERR-069",
+      "error_type": "SQLBackendPendingTermError",
+      "trigger": "add_pending_term() called with SQL backend (use_sql=True) but method only handles JSON backend. Empty pending_path ('') gets converted to Path('.'), causing [Errno 21] Is a directory error when trying to read JSON file.",
+      "solution": "Add SQL backend support to add_pending_term() method. Check self.use_sql flag at start of method and use glossary_repo for database operations instead of FileHandler JSON operations.",
+      "prevention": "When adding SQL backend support to MemoryManager, ensure ALL methods that read/write glossary/pending files have SQL backend handling. Methods to check: add_pending_term, reject_pending_term, and any other pending-related operations.",
+      "times_seen": 1,
+      "last_seen": "2026-05-08"
     }
   ]
 }

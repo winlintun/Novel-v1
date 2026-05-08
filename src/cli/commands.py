@@ -20,6 +20,18 @@ from src.config import AppConfig, load_config
 from src.cli.parser import get_chapter_list
 from src.exceptions import NovelTranslationError, ConfigurationError
 
+# Try to import skeleton model manager
+try:
+    from src.config.skeleton_models import get_skeleton_manager
+except ImportError:
+    get_skeleton_manager = None
+
+# Try to import compare models utility
+try:
+    from src.utils.compare_models import compare_models
+except ImportError:
+    compare_models = None
+
 # Constants
 DEFAULT_CHUNK_SIZE = 1500
 INPUT_DIR = "data/input"
@@ -120,6 +132,21 @@ def run_translation_pipeline(args: argparse.Namespace) -> int:
     try:
         # Load configuration
         config = load_config(args.config)
+
+        # Apply skeleton model config if available and no CLI model override
+        if get_skeleton_manager and not args.model:
+            try:
+                skeleton_mgr = get_skeleton_manager()
+                active_model_key = skeleton_mgr.get_active_model_key()
+                config_dict = skeleton_mgr.apply_model_to_config(
+                    active_model_key, 
+                    config.model_dump()
+                )
+                # Reload config from updated dict
+                config = AppConfig(**config_dict)
+                logger.info(f"Applied skeleton model: {active_model_key}")
+            except Exception as e:
+                logger.debug(f"Could not apply skeleton model config: {e}")
 
         # Apply command line overrides
         if args.model:
@@ -661,16 +688,27 @@ def _apply_workflow_config(config: AppConfig, workflow: str, logger: Optional[lo
 
     if workflow == 'way1':
         # way1: English -> Myanmar direct
-        # Use padauk-gemma:q8_0 for best Myanmar output (unless user specified --model)
+        # Use padauk-gemma:q8_0 for best Myanmar output (unless user specified --model or config has different model)
         # SINGLE_STAGE mode: padauk-gemma produces BETTER quality in single-stage
         # (direct translation only) than full pipeline (translate→refine→reflect).
         # Full pipeline adds 2 extra API calls per chunk (3x slower) and the
         # refinement/reflection steps with padauk-gemma collapse paragraph breaks
         # and degrade output quality. See ERROR-050.
         
-        # Respect user-selected model if --model was explicitly passed
-        translator_model = cli_model if cli_model else "padauk-gemma:q8_0"
-        editor_model = cli_model if cli_model else "padauk-gemma:q8_0"
+        # Priority: CLI --model > config file > default (padauk-gemma:q8_0)
+        config_translator = getattr(config.models, 'translator', None)
+        if cli_model:
+            # User explicitly passed --model
+            translator_model = cli_model
+            editor_model = cli_model
+        elif config_translator and config_translator != "qwen2.5:14b":  # Not default
+            # Config file has a specific model set
+            translator_model = config_translator
+            editor_model = getattr(config.models, 'editor', config_translator)
+        else:
+            # Use default
+            translator_model = "padauk-gemma:q8_0"
+            editor_model = "padauk-gemma:q8_0"
         
         overrides = {
             "project": {
@@ -689,18 +727,26 @@ def _apply_workflow_config(config: AppConfig, workflow: str, logger: Optional[lo
             }
         }
         if logger:
+            logger.info("🔄 Auto-detected ENGLISH source → Using way1 (EN→MM direct, single-stage)")
             if cli_model:
-                logger.info(f"🔄 Auto-detected ENGLISH source → Using way1 (EN→MM direct, single-stage)")
-                logger.info(f"🤖 Using user-selected model: {cli_model}")
+                logger.info(f"🤖 Using CLI-specified model: {cli_model}")
+            elif config_translator and config_translator != "qwen2.5:14b":
+                logger.info(f"🤖 Using config file model: {translator_model}")
             else:
-                logger.info("🔄 Auto-detected ENGLISH source → Using way1 (EN→MM direct, single-stage)")
                 logger.info("🤖 Auto-selected models: padauk-gemma:q8_0 (best for Myanmar)")
 
     elif workflow == 'way2':
         # way2: Chinese -> English -> Myanmar pivot
         # Use alibayram/hunyuan:7b for CN→EN, padauk-gemma:q8_0 for EN→MM
-        # Respect user-selected model for stage 2 if --model was explicitly passed
-        stage2_model = cli_model if cli_model else "padauk-gemma:q8_0"
+        # Priority: CLI --model > config file > default
+        config_translator = getattr(config.models, 'translator', None)
+        if cli_model:
+            stage2_model = cli_model
+        elif config_translator and config_translator not in ["qwen2.5:14b", "alibayram/hunyuan:7b"]:
+            # Config file has a specific model set (not default and not stage1 model)
+            stage2_model = config_translator
+        else:
+            stage2_model = "padauk-gemma:q8_0"
         
         overrides = {
             "project": {
@@ -720,7 +766,9 @@ def _apply_workflow_config(config: AppConfig, workflow: str, logger: Optional[lo
         if logger:
             logger.info("🔄 Auto-detected CHINESE source → Using way2 (CN→EN→MM pivot)")
             if cli_model:
-                logger.info(f"🤖 Using user-selected model for Stage 2 (EN→MM): {cli_model}")
+                logger.info(f"🤖 Using CLI-specified model for Stage 2 (EN→MM): {cli_model}")
+            elif config_translator and config_translator not in ["qwen2.5:14b", "alibayram/hunyuan:7b"]:
+                logger.info(f"🤖 Using config file model for Stage 2 (EN→MM): {stage2_model}")
             else:
                 logger.info("🤖 Auto-selected models:")
             logger.info("   - Stage 1 (CN→EN): alibayram/hunyuan:7b")
@@ -1522,4 +1570,57 @@ def run_audit_log(args: argparse.Namespace) -> int:
         
     except Exception as e:
         logger.error(f"Audit log failed: {e}", exc_info=True)
+        return 1
+
+
+def run_compare_models(args: argparse.Namespace) -> int:
+    """Run model comparison - translate chapter with all models.
+    
+    Args:
+        args: Command line arguments with --novel, --chapter, --model-categories
+        
+    Returns:
+        Exit code (0 for success, 1 for failure)
+    """
+    logger = setup_logging()
+    
+    try:
+        from src.utils.compare_models import compare_models as do_comparison
+        
+        logger.info(f"\n{'='*60}")
+        logger.info("  MODEL COMPARISON MODE")
+        logger.info(f"{'='*60}")
+        logger.info(f"Novel: {args.novel}")
+        logger.info(f"Chapter: {args.chapter}")
+        logger.info(f"Categories: {args.model_categories}")
+        logger.info(f"Output: logs/temp/")
+        logger.info(f"{'='*60}\n")
+        
+        # Run comparison
+        saved_files = do_comparison(
+            novel=args.novel,
+            chapter=args.chapter,
+            categories=args.model_categories
+        )
+        
+        if saved_files:
+            logger.info(f"\n{'='*60}")
+            logger.info(f"✓ Comparison complete!")
+            logger.info(f"  Generated {len(saved_files)} files")
+            logger.info(f"  Location: logs/temp/")
+            logger.info(f"{'='*60}\n")
+            
+            # Show generated files
+            print("\nGenerated files:")
+            for f in saved_files:
+                print(f"  - {f.name}")
+            print()
+            
+            return 0
+        else:
+            logger.error("No files generated. Check input file exists.")
+            return 1
+            
+    except Exception as e:
+        logger.error(f"Model comparison failed: {e}", exc_info=True)
         return 1

@@ -6,76 +6,174 @@
 {% endblock %}
 
 {% block extra_css %}
-.model-badge { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; }
-.model-badge.myanmar { background: var(--emerald); }
-.model-badge.pivot   { background: var(--amber); }
-.model-badge.other   { background: var(--text-3); }
-.config-row { display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid var(--ivory-2); font-size:0.875rem; }
+.model-card { 
+    padding: 12px 16px; 
+    border: 2px solid var(--border); 
+    border-radius: var(--radius); 
+    cursor: pointer; 
+    transition: all 0.2s;
+    margin-bottom: 8px;
+}
+.model-card:hover { 
+    border-color: var(--gold); 
+    background: var(--ivory);
+}
+.model-card.active { 
+    border-color: var(--emerald); 
+    background: rgba(16, 185, 129, 0.05);
+}
+.model-card.recommended {
+    border-left: 4px solid var(--gold);
+}
+.model-name { 
+    font-weight: 600; 
+    color: var(--text); 
+    margin-bottom: 2px;
+}
+.model-params { 
+    font-size: 0.75rem; 
+    color: var(--text-3);
+    font-family: var(--font-mono);
+}
+.config-row { 
+    display: flex; 
+    justify-content: space-between; 
+    padding: 10px 0; 
+    border-bottom: 1px solid var(--ivory-2); 
+    font-size: 0.875rem; 
+}
 .config-row:last-child { border-bottom: none; }
-.config-key { color: var(--text-3); font-size:0.75rem; text-transform:uppercase; letter-spacing:.06em; font-weight:600; }
-.config-val { font-weight: 600; color: var(--text); }
+.config-key { 
+    color: var(--text-3); 
+    font-size: 0.75rem; 
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 600;
+}
+.config-val { 
+    font-weight: 600; 
+    color: var(--text); 
+}
 {% endblock %}
 
 {% block content %}
 <div class="grid-2" style="align-items: start;">
 
-    <!-- Model Settings -->
+    <!-- Active Model Selection -->
     <div style="display: flex; flex-direction: column; gap: 20px;">
+        
+        <!-- Skeleton Model Selector -->
+        {% if has_skeleton_config %}
         <div class="card">
-            <div class="card-head"><span class="card-title">Translation Model</span></div>
+            <div class="card-head">
+                <span class="card-title">🤖 Active Model</span>
+                <span class="badge badge-success">Skeleton Config</span>
+            </div>
+            <div class="card-body">
+                <form method="POST" id="skeletonModelForm">
+                    <input type="hidden" name="action" value="save_skeleton_model">
+                    <input type="hidden" name="model_key" id="selectedModelKey" value="{{ active_model_key }}">
+                    
+                    <div class="form-group">
+                        <label class="form-label">Select Model</label>
+                        
+                        {% for cat_key, cat_data in skeleton_categories.items() %}
+                        <div style="margin-bottom: 16px;">
+                            <div style="font-size: 0.75rem; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; margin-bottom: 8px;">
+                                {{ cat_data.label }}
+                            </div>
+                            <div style="font-size: 0.7rem; color: var(--text-2); margin-bottom: 8px;">
+                                {{ cat_data.description }}
+                            </div>
+                            <div style="display: flex; flex-direction: column; gap: 8px;">
+                                {% for model in cat_data.models %}
+                                <div class="model-card {% if model.key == active_model_key %}active{% endif %}"
+                                     onclick="selectModel('{{ model.key }}', this)">
+                                    <div class="model-name">
+                                        {{ model.display_name }}
+                                        {% if model.key == active_model_key %}
+                                        <span class="badge badge-success" style="margin-left: 8px;">ACTIVE</span>
+                                        {% endif %}
+                                    </div>
+                                    <div style="font-size: 0.75rem; color: var(--text-2); margin: 4px 0;">
+                                        {{ model.description }}
+                                    </div>
+                                    <div class="model-params">
+                                        temp={{ model.temperature }} | 
+                                        tokens={{ model.max_tokens }} | 
+                                        penalty={{ model.repeat_penalty }} | 
+                                        chunk={{ model.chunk_size }} |
+                                        VRAM={{ model.vram_gb }}GB
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary btn-block" style="margin-top: 12px;">
+                        Apply Selected Model
+                    </button>
+                </form>
+                
+                <div style="margin-top: 16px; padding: 12px; background: var(--ivory); border-radius: var(--radius); font-size: 0.8rem; color: var(--text-2);">
+                    <div style="font-weight: 600; margin-bottom: 6px;">💡 How to Add Models</div>
+                    <div>Edit <code>config/models.skeleton.yaml</code> to add custom model presets:</div>
+                    <pre style="margin-top: 8px; background: var(--ivory-2); padding: 8px; border-radius: 4px; overflow-x: auto;">
+models:
+  my-custom-model:
+    name: my-model:tag
+    display_name: My Custom Model
+    temperature: 0.2
+    max_tokens: 4096
+    repeat_penalty: 1.3
+    chunk_size: 2500</pre>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Legacy Model Selector (fallback) -->
+        <div class="card">
+            <div class="card-head">
+                <span class="card-title">Translation Model (Legacy)</span>
+            </div>
             <div class="card-body">
                 <form method="POST">
                     <input type="hidden" name="action" value="save_model">
                     <div class="form-group">
-                        <label class="form-label">Active Model</label>
-                        <select name="model" id="modelSelect" class="form-control" onchange="updateModelInfo()">
+                        <label class="form-label">Ollama Model</label>
+                        <select name="model" class="form-control">
                             {% for m in models %}
-                            <option value="{{ m.name }}"
-                                    data-temp="{{ m.temp }}"
-                                    data-category="{{ m.category }}"
-                                    data-desc="{{ m.description }}"
-                                    data-use="{{ m.use_case }}"
-                                    {% if current_model == m.name %}selected{% endif %}>
+                            <option value="{{ m.name }}" {% if current_model == m.name %}selected{% endif %}>
                                 {{ m.name }}{% if m.installed == false %} (not installed){% endif %}
                             </option>
                             {% endfor %}
                         </select>
                     </div>
-
-                    <div id="modelInfoBox" style="padding:12px; border-radius:var(--radius); background:var(--ivory); border:1px solid var(--border); margin-bottom:16px;">
-                        <div id="modelDesc" style="font-size:0.875rem; font-weight:500; color:var(--text);"></div>
-                        <div id="modelUse"  style="font-size:0.75rem; color:var(--text-3); margin-top:4px;"></div>
-                        <div style="margin-top:8px; display:flex; gap:8px; align-items:center;">
-                            <span style="font-size:0.72rem; color:var(--text-3); text-transform:uppercase; letter-spacing:.06em;">Recommended temp:</span>
-                            <span id="modelTempBadge" class="badge badge-category">—</span>
-                        </div>
-                    </div>
-
-                    <button type="submit" class="btn btn-primary btn-block">Save Model</button>
+                    <button type="submit" class="btn btn-secondary btn-block">Save Model</button>
                 </form>
-
-                <div style="margin-top:16px; padding:12px; background:var(--ivory); border-radius:var(--radius); font-size:0.8rem; color:var(--text-2);">
-                    <div style="font-weight:600; margin-bottom:6px;">Model Legend</div>
-                    <div style="display:flex; flex-direction:column; gap:4px;">
-                        <div><span class="model-badge myanmar"></span> Myanmar models — EN→MM / CN→MM direct</div>
-                        <div><span class="model-badge pivot"></span> Pivot models — CN→EN stage 1 only</div>
-                        <div><span class="model-badge other"></span> Other — not tested for Myanmar</div>
-                    </div>
-                </div>
             </div>
         </div>
+    </div>
 
-        <!-- Current Config summary -->
+    <!-- Current Configuration Display -->
+    <div style="display: flex; flex-direction: column; gap: 20px;">
+        
+        <!-- Active Configuration Summary -->
         <div class="card">
-            <div class="card-head"><span class="card-title">Active Configuration</span></div>
+            <div class="card-head">
+                <span class="card-title">⚙️ Active Configuration</span>
+            </div>
             <div class="card-body" style="padding: 8px 20px;">
                 <div class="config-row">
-                    <span class="config-key">Model</span>
-                    <span class="config-val" id="cfgModel">{{ current_model }}</span>
+                    <span class="config-key">Model Name</span>
+                    <span class="config-val">{{ current_model }}</span>
                 </div>
                 <div class="config-row">
                     <span class="config-key">Temperature</span>
-                    <span class="config-val" id="cfgTemp">{{ current_temp }}</span>
+                    <span class="config-val">{{ current_temp }}</span>
                 </div>
                 <div class="config-row">
                     <span class="config-key">Max Tokens</span>
@@ -85,42 +183,74 @@
                     <span class="config-key">Repeat Penalty</span>
                     <span class="config-val">{{ current_repeat_penalty }}</span>
                 </div>
+                <div class="config-row">
+                    <span class="config-key">Storage Backend</span>
+                    <span class="config-val">{{ storage_backend }}</span>
+                </div>
             </div>
         </div>
-    </div>
 
-    <!-- Processing Settings -->
-    <div>
+        <!-- Processing Parameters (Editable) -->
         <div class="card">
-            <div class="card-head"><span class="card-title">Processing Parameters</span></div>
+            <div class="card-head">
+                <span class="card-title">Processing Parameters</span>
+            </div>
             <div class="card-body">
                 <form method="POST">
                     <input type="hidden" name="action" value="save_processing">
 
                     <div class="form-group">
-                        <label class="form-label">Temperature
-                            <span id="tempBadge" class="badge badge-category" style="margin-left:8px; text-transform:none; letter-spacing:0;"></span>
+                        <label class="form-label">
+                            Temperature
+                            <span id="tempBadge" class="badge badge-category" style="margin-left:8px;"></span>
                         </label>
-                        <input type="number" name="temperature" id="temperatureInput" class="form-control"
-                               value="{{ current_temp }}" step="0.05" min="0" max="1">
-                        <div class="form-hint">≤0.2 = consistent, 0.3–0.5 = balanced, >0.5 = creative</div>
+                        <input type="number" name="temperature" id="temperatureInput" 
+                               class="form-control" value="{{ current_temp }}" 
+                               step="0.05" min="0" max="1">
+                        <div class="form-hint">Lower = more consistent, Higher = more creative</div>
                     </div>
 
                     <div class="form-group">
                         <label class="form-label">Max Tokens</label>
                         <input type="number" name="max_tokens" class="form-control"
                                value="{{ current_max_tokens }}" min="512" max="8192" step="512">
-                        <div class="form-hint">Maximum tokens generated per response</div>
                     </div>
 
                     <div class="form-group">
                         <label class="form-label">Repeat Penalty</label>
                         <input type="number" name="repeat_penalty" class="form-control"
                                value="{{ current_repeat_penalty }}" step="0.05" min="1.0" max="2.0">
-                        <div class="form-hint">1.15 recommended for padauk-gemma</div>
+                        <div class="form-hint">1.15-1.3 recommended for Myanmar</div>
                     </div>
 
-                    <button type="submit" class="btn btn-primary btn-block">Save Processing</button>
+                    <button type="submit" class="btn btn-primary btn-block">Save Parameters</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Storage Settings -->
+        <div class="card">
+            <div class="card-head">
+                <span class="card-title">Storage Settings</span>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <input type="hidden" name="action" value="save_storage">
+                    
+                    <div class="form-group">
+                        <label class="form-label">Backend</label>
+                        <select name="storage_backend" class="form-control">
+                            <option value="sqlite" {% if storage_backend == 'sqlite' %}selected{% endif %}>SQLite (Recommended)</option>
+                            <option value="json" {% if storage_backend == 'json' %}selected{% endif %}>JSON Files</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Database Path</label>
+                        <input type="text" name="db_path" class="form-control" value="{{ db_path }}">
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary btn-block">Save Storage</button>
                 </form>
             </div>
         </div>
@@ -128,38 +258,53 @@
 </div>
 
 <script>
-const modelDescriptions = {
-    'padauk-gemma:q8_0':  'Best Myanmar output — recommended for EN→MM and CN→MM',
-    'padauk-gemma:q4_0':  'Smaller padauk-gemma — good for limited VRAM',
-    'sailor2-20b:latest': 'BEST Myanmar model — 20B parameters, highest quality',
-    'sailor2:8b':         'Smaller sailor — 8B parameters, faster inference',
-    'burmese-gpt:7b':     'Burmese GPT — 7B parameters for Myanmar',
-    'qwen2.5:14b':        'CN→EN pivot only — NOT for Myanmar output',
-    'qwen2.5:7b':         'CN→EN pivot only — NOT for Myanmar output',
-    'qwen2.5:7b-instruct':'CN→EN pivot only — NOT for Myanmar output',
-};
-
-function updateModelInfo() {
-    const sel = document.getElementById('modelSelect');
-    const opt = sel.options[sel.selectedIndex];
-    const temp = opt.getAttribute('data-temp') || '0.2';
-    const desc = opt.getAttribute('data-desc') || modelDescriptions[sel.value] || 'No description';
-    const use  = opt.getAttribute('data-use')  || '';
-
-    document.getElementById('modelDesc').textContent = desc;
-    document.getElementById('modelUse').textContent  = use ? 'Use: ' + use : '';
-    document.getElementById('modelTempBadge').textContent = temp;
-    document.getElementById('temperatureInput').value = temp;
-    document.getElementById('cfgModel').textContent   = sel.value;
-    document.getElementById('cfgTemp').textContent    = temp;
-
-    const badge = document.getElementById('tempBadge');
-    const t = parseFloat(temp);
-    if (t <= 0.2) { badge.textContent = '✓ Consistent'; badge.style.background='var(--emerald-bg)'; badge.style.color='#065f46'; }
-    else if (t <= 0.5) { badge.textContent = 'Balanced'; badge.style.background='var(--amber-bg)'; badge.style.color='#92400e'; }
-    else { badge.textContent = 'Creative'; badge.style.background='var(--rose-bg)'; badge.style.color='#9f1239'; }
+// Skeleton Model Selection
+function selectModel(modelKey, element) {
+    // Update hidden input
+    document.getElementById('selectedModelKey').value = modelKey;
+    
+    // Update visual selection
+    document.querySelectorAll('.model-card').forEach(card => {
+        card.classList.remove('active');
+    });
+    element.classList.add('active');
+    
+    // Update temperature badge
+    const temp = element.querySelector('.model-params').textContent.match(/temp=([\d.]+)/);
+    if (temp) {
+        updateTempBadge(parseFloat(temp[1]));
+    }
 }
 
-document.addEventListener('DOMContentLoaded', updateModelInfo);
+// Temperature Badge Update
+function updateTempBadge(temp) {
+    const badge = document.getElementById('tempBadge');
+    if (!badge) return;
+    
+    if (temp <= 0.2) {
+        badge.textContent = '✓ Consistent';
+        badge.style.background = 'var(--emerald-bg)';
+        badge.style.color = '#065f46';
+    } else if (temp <= 0.4) {
+        badge.textContent = 'Balanced';
+        badge.style.background = 'var(--amber-bg)';
+        badge.style.color = '#92400e';
+    } else {
+        badge.textContent = 'Creative';
+        badge.style.background = 'var(--rose-bg)';
+        badge.style.color = '#9f1239';
+    }
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', function() {
+    const tempInput = document.getElementById('temperatureInput');
+    if (tempInput) {
+        updateTempBadge(parseFloat(tempInput.value));
+        tempInput.addEventListener('change', function() {
+            updateTempBadge(parseFloat(this.value));
+        });
+    }
+});
 </script>
 {% endblock %}

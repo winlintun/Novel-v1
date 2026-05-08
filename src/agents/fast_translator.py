@@ -9,7 +9,7 @@ from typing import Dict, List
 from src.utils.ollama_client import OllamaClient
 from src.memory.memory_manager import MemoryManager
 from src.utils.postprocessor import clean_output, validate_output
-from src.agents.prompt_patch import TRANSLATOR_SYSTEM_PROMPT
+from src.agents.prompts import TRANSLATOR_SYSTEM_PROMPT
 
 logger = logging.getLogger(__name__)
 

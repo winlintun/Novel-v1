@@ -1,0 +1,19 @@
+﻿{
+  "novel": "sample",
+  "last_updated": "2026-05-08T18:13:02.995550",
+  "total_chapters": 1,
+  "chapters": {
+    "1": {
+      "chapter": 1,
+      "translated_at": "2026-05-08T18:13:02.995401",
+      "source": "data/input/sample/sample_chapter_001.md",
+      "pipeline": "single_stage",
+      "model": "sailor2:8b",
+      "char_count": 452,
+      "myanmar_ratio": 0.737,
+      "duration_seconds": 226.2,
+      "chunk_count": 1,
+      "avg_quality_score": 95.0
+    }
+  }
+}

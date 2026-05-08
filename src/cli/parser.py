@@ -30,36 +30,39 @@ def create_parser() -> argparse.ArgumentParser:
 ║                    QUICKSTART EXAMPLES                              ║
 ╠══════════════════════════════════════════════════════════════════════╣
 ║                                                                      ║
-║  TRANSLATION:                                                        ║
-║    python -m src.main --novel reverend-insanity --chapter 1          ║
+║  🚀 QUICK START (Default: padauk-gemma:q8_0):                        ║
+║    python -m src.main --novel sample --chapter 1                     ║
+║    python -m src.main --novel wayfarer --chapter-range 21-35         ║
 ║    python -m src.main --novel reverend-insanity --all                ║
-║    python -m src.main --novel reverend-insanity --chapter-range 1-5 ║
-║    python -m src.main --novel reverend-insanity --all --start 10     ║
-║    python -m src.main --input data/input/reverend-insanity/ch001.md ║
-║    python -m src.main --novel reverend-insanity --all --mode fast    ║
 ║                                                                      ║
-║  WORKFLOW:                                                           ║
-║    python -m src.main --novel reverend-insanity --ch 1 --workflow way1  (EN→MM)
-║    python -m src.main --novel reverend-insanity --ch 1 --lang zh        (auto way2)
-║    python -m src.main --novel reverend-insanity --ch 1 --skip-refinement
+║  📊 COMPARE MODELS (Test ALL models on same chapter):                ║
+║    # Translate with all Myanmar models, save to logs/temp/           ║
+║    python -m src.main --novel sample --chapter 1 --compare-models    ║
+║    python compare_all_models.py --novel sample --chapter 1           ║
 ║                                                                      ║
-║  QUALITY & REVIEW:                                                   ║
-║    python -m src.main --review data/output/reverend-insanity/ch017.mm.md
+║  ⚙️  MODEL CONFIG (Skeleton System):                                 ║
+║    # 1. Edit config/models.skeleton.yaml → Set active_model         ║
+║    # 2. Run translation (auto-uses active model):                   ║
+║    python -m src.main --novel sample --chapter 1                     ║
+║    # Override for one run:                                          ║
+║    python -m src.main --novel sample --chapter 1 --model qwen:7b     ║
+║                                                                      ║
+║  🌐 WORKFLOW (Auto-detected):                                        ║
+║    python -m src.main --novel novel --ch 1 --workflow way1  (EN→MM)  ║
+║    python -m src.main --novel novel --ch 1 --lang zh        (CN→MM)  ║
+║                                                                      ║
+║  🔍 QUALITY & REVIEW:                                                ║
+║    python -m src.main --review output/reverend-insanity/ch017.mm.md  ║
 ║    python -m src.main --stats --novel reverend-insanity              ║
-║    python -m src.main --view data/output/reverend-insanity/ch017.mm.md
+║    python -m src.main --view output/reverend-insanity/ch017.mm.md    ║
 ║                                                                      ║
-║  GLOSSARY:                                                           ║
-║    python -m src.main --novel reverend-insanity --generate-glossary --chapter-range 1-5
-║    python -m src.main --auto-promote --novel reverend-insanity       ║
+║  📚 GLOSSARY:                                                        ║
+║    python -m src.main --novel novel --generate-glossary --ch-range 1-5
+║    python -m src.main --auto-promote --novel novel                   ║
 ║                                                                      ║
-║  WEB UI:                                                             ║
-║    python -m src.main --ui         (launch Flask web UI)             ║
-║    python -m src.main --flask      (launch Flask web UI)             ║
-║    python -m src.main --flask --port 8080  (custom port)             ║
-║                                                                      ║
-║  UTILITIES:                                                          ║
-║    python -m src.main --test       (run sample translation test)     ║
-║    python -m src.main --version    (show version)                    ║
+║  🖥️  WEB UI:                                                          ║
+║    python -m src.main --ui                                           ║
+║    python -m src.main --flask --port 8080                            ║
 ║                                                                      ║
 ╚══════════════════════════════════════════════════════════════════════╝
         """
@@ -262,6 +265,18 @@ def create_parser() -> argparse.ArgumentParser:
         "--stats",
         action="store_true",
         help="Show per-chapter quality score trends for a novel"
+    )
+    utility_group.add_argument(
+        "--compare-models",
+        action="store_true",
+        help="Translate chapter with ALL models and save to logs/temp/ for comparison"
+    )
+    utility_group.add_argument(
+        "--model-categories",
+        nargs="+",
+        choices=["myanmar", "pivot", "utility"],
+        default=["myanmar"],
+        help="Model categories to test with --compare-models (default: myanmar)"
     )
     utility_group.add_argument(
         "--version",

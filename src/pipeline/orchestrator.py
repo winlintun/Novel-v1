@@ -55,7 +55,11 @@ class TranslationPipeline:
         self._qa_tester = None
         self._context_updater = None
         self._memory_manager = None
-        self._ollama_client = None
+        
+        # Separate Ollama clients for each role (to support different models)
+        self._ollama_client_translator = None
+        self._ollama_client_refiner = None
+        self._ollama_client_checker = None
 
         # State
         self._shutdown_requested = False
@@ -251,27 +255,59 @@ class TranslationPipeline:
                 self._version_manager = None
         return self._version_manager
 
+    def _create_ollama_client(self, model: str) -> Any:
+        """Create an OllamaClient with the specified model."""
+        from src.utils.ollama_client import OllamaClient
+        return OllamaClient(
+            model=model,
+            base_url=self.config.models.ollama_base_url,
+            timeout=self.config.models.timeout,
+            temperature=getattr(self.config.processing, 'temperature', 0.3),
+            top_p=getattr(self.config.processing, 'top_p', 0.92),
+            top_k=getattr(self.config.processing, 'top_k', 50),
+            repeat_penalty=getattr(self.config.processing, 'repeat_penalty', 1.3),
+            max_retries=getattr(self.config.processing, 'max_retries', 2),
+            use_gpu=getattr(self.config.models, 'use_gpu', True),
+            use_generate_endpoint=getattr(self.config.models, 'use_generate_endpoint', False),
+            num_ctx=getattr(self.config.models, 'num_ctx', 8192),
+            gpu_layers=getattr(self.config.models, 'gpu_layers', -1),
+            main_gpu=getattr(self.config.models, 'main_gpu', 0)
+        )
+
+    @property
+    def ollama_client_translator(self):
+        """Lazy load Ollama client for translator."""
+        if self._ollama_client_translator is None:
+            self._ollama_client_translator = self._create_ollama_client(
+                self.config.models.translator
+            )
+        return self._ollama_client_translator
+
+    @property
+    def ollama_client_refiner(self):
+        """Lazy load Ollama client for refiner."""
+        if self._ollama_client_refiner is None:
+            # Use refiner model if specified, fallback to editor, then translator
+            model = getattr(self.config.models, 'refiner', None) or \
+                    getattr(self.config.models, 'editor', None) or \
+                    self.config.models.translator
+            self._ollama_client_refiner = self._create_ollama_client(model)
+        return self._ollama_client_refiner
+
+    @property
+    def ollama_client_checker(self):
+        """Lazy load Ollama client for checker."""
+        if self._ollama_client_checker is None:
+            # Use checker model if specified, fallback to translator
+            model = getattr(self.config.models, 'checker', None) or \
+                    self.config.models.translator
+            self._ollama_client_checker = self._create_ollama_client(model)
+        return self._ollama_client_checker
+
     @property
     def ollama_client(self):
-        """Lazy load Ollama client."""
-        if self._ollama_client is None:
-            from src.utils.ollama_client import OllamaClient
-            self._ollama_client = OllamaClient(
-                model=self.config.models.translator,
-                base_url=self.config.models.ollama_base_url,
-                timeout=self.config.models.timeout,
-                temperature=getattr(self.config.processing, 'temperature', 0.3),
-                top_p=getattr(self.config.processing, 'top_p', 0.92),
-                top_k=getattr(self.config.processing, 'top_k', 50),
-                repeat_penalty=getattr(self.config.processing, 'repeat_penalty', 1.3),
-                max_retries=getattr(self.config.processing, 'max_retries', 2),
-                use_gpu=getattr(self.config.models, 'use_gpu', True),
-                use_generate_endpoint=getattr(self.config.models, 'use_generate_endpoint', False),
-                num_ctx=getattr(self.config.models, 'num_ctx', 8192),
-                gpu_layers=getattr(self.config.models, 'gpu_layers', -1),
-                main_gpu=getattr(self.config.models, 'main_gpu', 0)
-            )
-        return self._ollama_client
+        """Lazy load Ollama client (backward compatibility - uses translator model)."""
+        return self.ollama_client_translator
 
     @property
     def preprocessor(self):
@@ -303,7 +339,7 @@ class TranslationPipeline:
         if self._refiner is None:
             from src.agents.refiner import Refiner
             self._refiner = Refiner(
-                ollama_client=self.ollama_client,
+                ollama_client=self.ollama_client_refiner,
                 batch_size=getattr(self.config.processing, 'batch_size', 1),
                 config=self.config.dict(),
                 memory_manager=self.memory_manager
@@ -316,7 +352,7 @@ class TranslationPipeline:
         if self._reflection_agent is None:
             from src.agents.reflection_agent import ReflectionAgent
             self._reflection_agent = ReflectionAgent(
-                ollama_client=self.ollama_client,
+                ollama_client=self.ollama_client_refiner,
                 config=self.config.dict(),
                 memory_manager=self.memory_manager
             )
@@ -328,7 +364,7 @@ class TranslationPipeline:
         if self._myanmar_checker is None:
             from src.agents.myanmar_quality_checker import MyanmarQualityChecker
             self._myanmar_checker = MyanmarQualityChecker(
-                ollama_client=self.ollama_client,
+                ollama_client=self.ollama_client_checker,
                 memory_manager=self.memory_manager,
                 config=self.config.dict()
             )
@@ -857,16 +893,21 @@ class TranslationPipeline:
         )
         return optimal
 
-    def _translate_chunks(self, chunks: List[str]) -> Tuple[List[str], List[Dict[str, Any]]]:
+    def _translate_chunks(
+        self,
+        chunks: List[str],
+        progress_logger: Optional[Any] = None
+    ) -> Tuple[List[str], List[Dict[str, Any]]]:
         """Translate chunks through the pipeline with rolling context.
-        
+
         Per need_to_fix.md: uses get_rolling_context() to pass tail of
         previous translated chunk as context. Token-limited to ≤400 tokens.
         Checkpoint logged after each chunk.
-        
+
         Args:
             chunks: List of text chunks (complete paragraphs, never split)
-            
+            progress_logger: Optional progress logger for file-based progress tracking
+
         Returns:
             Tuple of (translated chunks list, list of per-chunk quality metrics)
         """
@@ -1307,14 +1348,20 @@ class TranslationPipeline:
         self.logger.info("Cleaning up resources and freeing RAM...")
 
         # Unload all models from Ollama to free RAM
-        if self._ollama_client:
-            try:
-                self.logger.info("Unloading models from Ollama to free system RAM...")
-                self._ollama_client.unload_all_models()
-                self._ollama_client.cleanup()
-                self.logger.info("Models unloaded successfully - RAM freed")
-            except Exception as e:
-                self.logger.error(f"Error cleaning up Ollama client: {e}")
+        clients_to_cleanup = [
+            self._ollama_client_translator,
+            self._ollama_client_refiner,
+            self._ollama_client_checker,
+        ]
+        for client in clients_to_cleanup:
+            if client:
+                try:
+                    self.logger.info(f"Unloading model {client.model} from Ollama...")
+                    client.unload_all_models()
+                    client.cleanup()
+                    self.logger.info(f"Model {client.model} unloaded successfully")
+                except Exception as e:
+                    self.logger.error(f"Error cleaning up Ollama client: {e}")
 
         # Save memory manager state and close database connection
         if self._memory_manager:

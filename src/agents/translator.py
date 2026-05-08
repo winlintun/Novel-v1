@@ -13,7 +13,15 @@ from src.utils.progress_logger import ProgressLogger
 
 from src.utils.postprocessor import clean_output, validate_output, detect_language_leakage
 from src.agents.base_agent import BaseAgent
-from src.agents.prompt_patch import TRANSLATOR_SYSTEM_PROMPT
+from src.agents.prompts import (
+    LANGUAGE_GUARD,
+    TRANSLATOR_SYSTEM_PROMPT,
+    FAST_EN_MM_PROMPT,
+    FALLBACK_CN_RULES,
+    FALLBACK_EN_RULES,
+    build_translator_prompt,
+    get_fallback_rules,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -29,111 +37,11 @@ def get_language_prompt(source_lang: str, model_name: str = "") -> str:
         source_lang: Source language ("chinese" or "english")
         model_name: Model name for prompt optimization (fast prompt for padauk-gemma)
     """
-    from src.agents.prompt_patch import LANGUAGE_GUARD
-
-    source_lower = source_lang.lower() if source_lang else "english"
-    is_padauk = "padauk" in model_name.lower()
-
-    if source_lower == "chinese":
-        try:
-            from src.agents.prompts.cn_mm_rules import build_linguistic_context as cn_ling_ctx
-            ling_rules = cn_ling_ctx()
-        except ImportError:
-            ling_rules = _fallback_cn_rules()
-
-        return LANGUAGE_GUARD + f"""
-
-You are a master literary translator specializing in Chinese Xianxia and Wuxia novels.
-Translate the following Chinese text into natural, high-quality literary Myanmar (Burmese) language.
-
-{ling_rules}
-
-LITERARY TRANSLATION PRINCIPLES:
-- Literary, Not Literal: Avoid direct, word-for-word translation. Rephrase sentences and paragraphs to flow naturally in Burmese.
-- Tone and Formality: Adapt the tone to a polished, novelistic Burmese. Use sentence structures common in modern Burmese literature.
-- Idioms and Figurative Language: Do not translate Chinese idioms literally. Find the closest Burmese cultural equivalent.
-- Dialogue: Ensure spoken lines reflect each character's personality, status, and social hierarchy.
-- Show, Don't Tell: Convert abstract emotions to physical sensations.
-
-FORMATTING RULES:
-- Preserve ALL original Markdown formatting (#, **, *, lists, quotes, > blockquotes, ---)
-- Chapter headings MUST be "# အခန်း [number]\\n\\n## [Title in Myanmar]"
-- Preserve original paragraph breaks exactly — do NOT merge or split paragraphs
-- Keep ellipsis (......) as in source
-
-STRICT RULES:
-1. SYNTAX: Convert Chinese SVO structure to natural Myanmar SOV order.
-2. TERMINOLOGY: Use EXACT terms from the provided glossary. For unknown terms, output 【?term?】 placeholder.
-3. MARKDOWN: Preserve ALL formatting. Do not add or remove any Markdown.
-4. TONE: Formal/literary Myanmar (သည်/၏/၌/သော) for narrative. Natural spoken Myanmar (တယ်/ရဲ့/မှာ) for dialogue.
-5. REGISTER: Pick ONE register for narration — do NOT mix formal and colloquial particles.
-6. EMOTION: For aggressive/angry dialogue, use strong active verbs (သတ်မည်, ဖျက်ဆီးမည်).
-7. OUTPUT: Return ONLY Myanmar text. Zero preamble. No Chinese. No English. No Japanese.
-
-Text to translate:"""
-    else:
-        try:
-            from src.agents.prompts.en_mm_rules import build_linguistic_context as en_ling_ctx
-            ling_rules = en_ling_ctx(
-                source_lang="English",
-                scene_type="narration",
-                include_unicode_warning=True,
-            )
-        except ImportError:
-            ling_rules = _fallback_en_rules()
-
-        # Fast prompt for padauk-gemma: skip verbose rules (model is natively Burmese)
-        # But still include LANGUAGE_GUARD to prevent language leakage
-        if is_padauk:
-            return LANGUAGE_GUARD + FAST_EN_MM_PROMPT
-
-        return LANGUAGE_GUARD + f"""
-You are a master literary translator, specializing in converting English-language
-novels into rich, idiomatic Myanmar (Burmese). You are not a machine; you are a
-linguistic artist. Your goal is to produce a translation that reads as if it were
-originally written in Burmese.
-{ling_rules}
-LITERARY TRANSLATION PRINCIPLES:
-- Literary, Not Literal: Avoid direct, word-for-word translation
-- Tone and Formality: Adapt to polished, novelistic Burmese. Match scene's emotional tone
-- Idioms: Do not translate English idioms literally
-- Dialogue: Reflect character personality, status, relationship
-- Show, Don't Tell: Express emotions through physical sensation
-UNICODE SAFETY:
-- NEVER output Korean chars (봤자 해서 는데) — U+AC00-U+D7FF
-- NEVER output Bengali script (গাঢ় ক খ) — U+0980-U+09FF
-- NEVER use Arabic question mark (؟) — use standard ?
-- NEVER leave Chinese chars or English words in output
-- Use ONLY Myanmar Unicode (U+1000-U+109F, U+AA60-U+AA7F)
-FORMATTING RULES:
-- Preserve ALL Markdown formatting
-- Chapter heading: "# [Chapter Number]\n\n## [Chapter Title in Myanmar]"
-- Preserve paragraph breaks exactly
-- Keep ellipsis as in source
-STRICT RULES:
-1. COMPLETENESS: Translate every sentence
-2. TERMINOLOGY: Use EXACT glossary terms, unknown → 【?term?】
-3. MARKDOWN: Preserve ALL formatting
-4. TONE: Formal (သည်/၏/၌) for narration, natural (တယ်/မှာ/ဘူး) for dialogue
-5. REGISTER: Pick ONE register — don't mix
-6. EMOTION: Show physical sensations
-7. OUTPUT: Return ONLY Myanmar text, no preamble, no postamble
-8. ANTI-HALLUCINATION: Don't substitute glossary names for generic terms like "Brother Zhang"
-9. FOOTNOTES: Preserve (1), (2), [1], [2] markers
-10. PLACE NAMES: Use EXACT glossary terms
-Text to translate:"""
+    from src.agents.prompts import build_translator_prompt
+    return build_translator_prompt(source_lang, model_name)
 
 
-def _fallback_cn_rules() -> str:
-    """Fallback CN→MM rules when module import fails."""
-    return """
-[LINGUISTIC RULES - CN→MM]
-1. STRUCTURE: Convert Chinese SVO → Myanmar SOV.
-   CN: 他(主) + 吃(动) + 饭(宾) → MM: သူ(သည်) + ထမင်း(ကို) + စား(သည်)
-2. PARTICLES: Subject markers (သည်/က/မှာ), Object markers (ကို/သို့/အတွက်)
-3. PRONOUNS: Resolve based on hierarchy — ကျွန်တော်/ကျွန်မ (formal), မင်း (equal), နင် (hostile)
-4. CULTURAL: Adapt idioms by meaning, not literal translation. Use phonetic transliteration for names.
-"""
+
 
 
 def _fallback_en_rules() -> str:
@@ -147,6 +55,8 @@ def _fallback_en_rules() -> str:
 4. TENSE: Past = ခဲ့တယ်, Vivid accusation = drop ခဲ့, Continuous = နေတယ်
 5. EMOTIONS: Show physically (not abstract labels)
 """
+
+
 
 # Fast prompt for native Burmese models (padauk-gemma) — 6× faster than full prompt
 FAST_EN_MM_PROMPT = """You are a master literary translator, specializing in converting English-language

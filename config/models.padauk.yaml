@@ -1,0 +1,51 @@
+# Skeleton Model Config - Padauk-Gemma (DRY Principle)
+# =====================================================
+# This config follows the skeleton principle: ONLY override model-specific settings.
+# It inherits all other settings (paths, processing, quality, etc.) from settings.yaml
+# 
+# Usage with merge:
+#   config = load_and_merge_config(
+#       base_config="config/settings.yaml",
+#       override_config="config/models.padauk.yaml"
+#   )
+#
+# Or CLI (if your app supports config merging):
+#   python -m src.main --config config/settings.yaml --override-config config/models.padauk.yaml
+# =====================================================
+
+# Model Configuration - ONLY this section is overridden
+models:
+  provider: "ollama"
+  translator: "padauk-gemma:q8_0"
+  editor: "padauk-gemma:q8_0"
+  refiner: "padauk-gemma:q8_0"
+  checker: "padauk-gemma:q8_0"
+  ollama_base_url: "http://localhost:11434"
+  timeout: 300
+  num_ctx: 4096
+  use_gpu: true
+  gpu_layers: -1
+
+# Pipeline Model Assignments
+translation_pipeline:
+  mode: "single_stage"
+  stage1_model: "padauk-gemma:q8_0"
+  stage2_model: "padauk-gemma:q8_0"
+  reflection_model: "padauk-gemma:q8_0"
+  use_reflection: false
+
+# Model Role Router
+model_roles:
+  translator: ["padauk-gemma:q8_0"]
+  refiner: ["padauk-gemma:q8_0"]
+  checker: ["padauk-gemma:q8_0"]
+  qa_final: ["padauk-gemma:q8_0"]
+  glossary_sync: ["padauk-gemma:q8_0"]
+
+# Fast Mode Models (inherits from base when enabled)
+fast_config:
+  enabled: false
+  translator: "padauk-gemma:q8_0"
+  editor: "padauk-gemma:q8_0"
+  refiner: "padauk-gemma:q8_0"
+  checker: "padauk-gemma:q8_0"

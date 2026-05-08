@@ -72,6 +72,12 @@
       "context": "Chapter 003 translation failure — Myanmar ratio 0% after refinement",
       "lesson": "Refiner model (padauk-gemma) can output English instead of Myanmar for certain chunks, causing 0% Myanmar ratio. MYANMAR_PATTERN was missing Extended-B range (U+A9E0-U+A9FF), causing false Thai character detection.",
       "action": "Always include explicit Myanmar language guard in refiner prompts. MYANMAR_PATTERN must include all 3 Myanmar blocks: U+1000-U+109F, U+AA60-U+AA7F, U+A9E0-U+A9FF."
+    },
+    {
+      "date": "2026-05-08",
+      "context": "Wayfarer chapter 21 — sailor2:8b Myanmar translation test",
+      "lesson": "sailor2:8b model FAILED to produce adequate Myanmar translations. Myanmar ratios ranged from 11% to 55% (FAILING the 70% minimum threshold). Multiple chunks REJECTED due to high English content (55-152 English words per chunk). Even after retries, model continued outputting English instead of Myanmar. This is consistent with AGENTS.md warning that only padauk-gemma is proven to output Myanmar reliably.",
+      "action": "DO NOT use sailor2:8b as Myanmar output model. Use padauk-gemma:q8_0 (proven 98% Myanmar ratio) or test sailor2:20b before any production use. Add explicit LANGUAGE_GUARD to prompts and enable stricter quality gates when testing new models."
     }
   ],
   "known_patterns": [
@@ -111,6 +117,14 @@
       "chapters_tested": 0,
       "notes": "Registered GGUF model via Modelfile.burmese-gpt. Not yet production tested.",
       "last_used": null
+    },
+    "sailor2:8b": {
+      "avg_myanmar_ratio": 0.35,
+      "avg_quality_score": 89,
+      "chapters_tested": 1,
+      "notes": "FAILED - NOT SUITABLE for Myanmar translation. Produced only 35% Myanmar ratio (11-55% range), far below 70% minimum. Outputs English instead of Myanmar. 7 of 12 chunks REJECTED. Do NOT use for EN→MM translation.",
+      "last_used": "2026-05-08",
+      "status": "REJECTED"
     }
   }
 }

@@ -490,6 +490,45 @@ class MemoryManager:
         Validates that the target contains Myanmar text before accepting
         (skips validation for placeholder targets like 【?term?】).
         """
+        # SQL backend: use database directly
+        if self.use_sql:
+            # Check for duplicates in approved glossary
+            if self.get_term(source):
+                return False
+            
+            # Check if already in pending
+            existing = self.glossary_repo.get_term_by_source(self.novel_id, source)
+            if existing:
+                # Update chapter tracking
+                usage_count = existing.get('usage_count', 0) + 1
+                self.glossary_repo.update_term(
+                    existing['id'],
+                    usage_count=usage_count,
+                    updated_at=datetime.now().isoformat()
+                )
+                logger.debug(f"Updated pending term chapter count: {source} (usage_count={usage_count})")
+                return True
+            
+            # Validate target: reject pure non-Myanmar unless it's a placeholder
+            if target and not target.startswith("【?") and not target.startswith("["):
+                if not self._is_valid_myanmar_text(target):
+                    logger.warning(f"Rejected non-Myanmar pending target for '{source}': '{target}'")
+                    return False
+            
+            # Add new pending term
+            self.glossary_repo.add_term(
+                novel_id=self.novel_id,
+                source_term=source,
+                target_term=target,
+                category=category,
+                status='pending',
+                enforcement_level='soft',
+                usage_count=1 if chapter > 0 else 0
+            )
+            logger.info(f"Added pending glossary term (SQL): {source} -> {target}")
+            return True
+        
+        # JSON backend: use file-based storage
         # Load existing pending terms
         pending_data = FileHandler.read_json(self.pending_path)
         if not pending_data:

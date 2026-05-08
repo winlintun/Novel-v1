@@ -45,6 +45,7 @@ from src.cli.commands import (
     run_execute_sync,
     run_list_sync_jobs,
     run_audit_log,
+    run_compare_models,
 )
 
 
@@ -110,6 +111,10 @@ def main() -> int:
 
     if args.stats:
         return run_stats(args)
+
+    # ── Model comparison command ──
+    if args.compare_models:
+        return run_compare_models(args)
 
     # ── Version control commands ──
     if args.versions:

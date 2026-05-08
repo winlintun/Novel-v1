@@ -1,13 +1,15 @@
 # ollama list
-|-----------------------------|---------|
-| NAME                        | SIZE    |
-|-----------------------------|---------|
-| yxchia/seallms-v3-7b:Q4_K_M | 4.7 GB  | (skip)
-| alibayram/hunyuan:7b        | 4.6 GB  | (ch-en good)
-| gemma:7b                    | 5.0 GB  | (skip)
-| qwen2.5:14b                 | 9.0 GB  |
-| translategemma:12b          | 8.1 GB  | (ok)
-| qwen:7b                     | 8.1 GB  |
-| aya:8b                      | 4.8 GB  |
-| padauk-gemma:q8_0           | 8.0 GB  |
-| sailor2-20b                 | 13 GB   | (high quality multilingual)
+NAME                             ID              SIZE      MODIFIED    
+deepseek-coder-v2-lite:latest    7d268375bd57    11 GB     4 days ago (skip)    
+sailor2-20b:latest               85e2728151a7    11 GB     5 days ago (bad)    
+sailor2:8b                       f08f378f040a    5.2 GB    6 days ago  (bad)   
+burmese-gpt:7b                   f46b4a0cf040    13 GB     6 days ago (bad)    
+aya:8b                           7ef8c4942023    4.8 GB    11 days ago (bad)    
+padauk-gemma:q8_0                a4962ecc6483    8.0 GB    11 days ago (good)   
+yxchia/seallms-v3-7b:Q4_K_M      fd5a1a07786f    4.7 GB    2 weeks ago (ch-en)   
+alibayram/hunyuan:7b             de98471c69d6    4.6 GB    2 weeks ago (ch-en)   
+gemma:7b                         a72c7f4d0a15    5.0 GB    2 weeks ago (good)   
+qwen2.5:14b                      7cdf5a0187d5    9.0 GB    2 weeks ago (good)   
+kimi-k2.6:cloud                  a90cd0d1590c    -         2 weeks ago (skip)   
+translategemma:12b               c2f9a9ca1ec7    8.1 GB    2 weeks ago (good)   
+qwen:7b                          2091ee8c8d8f    4.5 GB    2 weeks ago (good)

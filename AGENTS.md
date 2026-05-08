@@ -525,6 +525,10 @@ padauk-gemma:q8_0  → PRIMARY Myanmar output model. The ONLY model proven to ou
 
 sailor2-20b        → Alternative Myanmar output model. Available as padauk-gemma backup.
 
+sailor2:8b         → TESTED 2026-05-08: FAILED. Myanmar ratio only 11-55% (minimum 70% required).
+                     Outputs English instead of Myanmar. 7/12 chunks REJECTED.
+                     DO NOT USE for Myanmar translation. Use padauk-gemma:q8_0 instead.
+
 alibayram/hunyuan:7b → CN→EN pivot Stage 1 ONLY. Good Chinese comprehension.
                        Does NOT output Myanmar. Use for way2 Stage 1 only.
 

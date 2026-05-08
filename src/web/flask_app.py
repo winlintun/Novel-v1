@@ -23,9 +23,10 @@ if project_root not in sys.path:
 
 # Import pipeline components (optional - for future use)
 try:
-    pass  # from src.config.loader import load_config
+    from src.config.skeleton_models import get_skeleton_manager, SkeletonModelManager
 except ImportError as e:
-    logging.warning(f"Could not import pipeline components: {e}")
+    logging.warning(f"Could not import skeleton models: {e}")
+    get_skeleton_manager = None
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -568,14 +569,32 @@ def glossary():
 
 @app.route('/settings', methods=['GET', 'POST'])
 def settings():
-    """Settings page"""
+    """Settings page with Skeleton Model support"""
     config = get_config()
     models = get_available_models()
+    
+    # Initialize skeleton model manager
+    skeleton_mgr = get_skeleton_manager() if get_skeleton_manager else None
     
     if request.method == 'POST':
         action = request.form.get('action')
         
-        if action == 'save_model':
+        if action == 'save_skeleton_model':
+            # New: Save active model from skeleton config
+            model_key = request.form.get('model_key')
+            if skeleton_mgr and skeleton_mgr.set_active_model(model_key):
+                # Apply model settings to config
+                config = skeleton_mgr.apply_model_to_config(model_key, config)
+                if save_config(config):
+                    model_data = skeleton_mgr.get_model(model_key)
+                    flash(f'Activated model: {model_data.get("display_name", model_key)}', 'success')
+                else:
+                    flash('Failed to save configuration', 'error')
+            else:
+                flash('Invalid model selected', 'error')
+        
+        elif action == 'save_model':
+            # Legacy: Direct model selection
             model = request.form.get('model')
             if 'models' not in config:
                 config['models'] = {}
@@ -617,15 +636,32 @@ def settings():
             else:
                 flash('Failed to save storage settings', 'error')
     
-    return render_template('settings.html',
-                         config=config,
-                         models=models,
-                         current_model=config.get('models', {}).get('translator', 'padauk-gemma:q8_0'),
-                         current_temp=config.get('processing', {}).get('temperature', 0.2),
-                         current_max_tokens=config.get('processing', {}).get('max_tokens', 2048),
-                         current_repeat_penalty=config.get('processing', {}).get('repeat_penalty', 1.15),
-                         storage_backend=config.get('storage', {}).get('backend', 'sqlite'),
-                         db_path=config.get('storage', {}).get('db_path', 'data/novel_translation.db'))
+    # Prepare template data
+    template_data = {
+        'config': config,
+        'models': models,
+        'current_model': config.get('models', {}).get('translator', 'padauk-gemma:q8_0'),
+        'current_temp': config.get('processing', {}).get('temperature', 0.2),
+        'current_max_tokens': config.get('processing', {}).get('max_tokens', 2048),
+        'current_repeat_penalty': config.get('processing', {}).get('repeat_penalty', 1.15),
+        'storage_backend': config.get('storage', {}).get('backend', 'sqlite'),
+        'db_path': config.get('storage', {}).get('db_path', 'data/novel_translation.db')
+    }
+    
+    # Add skeleton model data if available
+    if skeleton_mgr:
+        active_model = skeleton_mgr.get_active_model()
+        template_data.update({
+            'skeleton_models': skeleton_mgr.get_models_for_dropdown(),
+            'skeleton_categories': skeleton_mgr.get_models_by_category(),
+            'active_model_key': skeleton_mgr.get_active_model_key(),
+            'active_model': active_model,
+            'has_skeleton_config': True
+        })
+    else:
+        template_data['has_skeleton_config'] = False
+    
+    return render_template('settings.html', **template_data)
 
 
 @app.route('/reader')

@@ -6,6 +6,139 @@
 
 ---
 
+### COMPLETED: Model Comparison Tool - AttributeError on translate_text
+**Date**: 2026-05-08
+**Files**: `src/utils/compare_models.py`
+**Error Message**:
+```
+[ERROR: 'TranslationPipeline' object has no attribute 'translate_text']
+```
+
+**Issue Summary**:
+When running `python compare_all_models.py`, the tool failed with AttributeError because it tried to call `pipeline.translate_text()` which doesn't exist.
+
+**Root Cause**:
+The `TranslationPipeline` class has `translate_file()`, `translate_chapter()`, and `translate_novel()` methods, but no `translate_text()` method. The compare_models.py was written assuming the wrong method name.
+
+**Fix Applied**:
+Changed `translate_with_model()` function to use `pipeline.translate_file()` instead:
+```python
+# Before (WRONG):
+result = pipeline.translate_text(
+    text=source_text,
+    source_lang="english",
+    progress_logger=None
+)
+
+# After (CORRECT):
+result = pipeline.translate_file(
+    filepath=str(input_file),
+    novel_name=novel
+)
+```
+
+Also updated result handling to read the translated text from the output file.
+
+**Status**: ✅ FIXED
+
+---
+
+### COMPLETED: Context Update Failed - IsADirectoryError with SQL Backend
+**Date**: 2026-05-08
+**Files**: `src/memory/memory_manager.py`
+**Error Message**:
+```
+2026-05-08 00:43:07,460 - WARNING - Context update failed (non-fatal): [Errno 21] Is a directory: '.'
+```
+
+**Issue Summary**:
+1. During Chapter 19 translation, context update phase failed with `IsADirectoryError`
+2. The error occurred when extracting new entities and adding them to pending glossary
+3. Error was non-fatal (warning level) but prevented glossary updates from being saved
+
+**Root Cause**:
+The `add_pending_term()` method in `memory_manager.py` did not check if SQL backend was being used (`use_sql=True`). When using SQL backend:
+1. `self.pending_path` is set to empty string `""` in `__init__`
+2. `add_pending_term()` called `FileHandler.read_json(self.pending_path)` with empty string
+3. `Path("")` becomes `Path(".")` (current directory)
+4. `open(Path("."))` fails with "Is a directory" error
+
+The method had SQL backend support for `get_pending_terms()`, `promote_pending_to_glossary()`, and other methods, but `add_pending_term()` was missed.
+
+**Fix Applied**:
+Updated `add_pending_term()` to handle SQL backend:
+```python
+def add_pending_term(self, source: str, target: str, category: str = "general", chapter: int = 0) -> bool:
+    # SQL backend: use database directly
+    if self.use_sql:
+        # Check for duplicates in approved glossary
+        if self.get_term(source):
+            return False
+        
+        # Check if already in pending and update usage count
+        existing = self.glossary_repo.get_term_by_source(self.novel_id, source)
+        if existing:
+            usage_count = existing.get('usage_count', 0) + 1
+            self.glossary_repo.update_term(existing['id'], usage_count=usage_count, ...)
+            return True
+        
+        # Validate and add new pending term via SQL
+        self.glossary_repo.add_term(novel_id=self.novel_id, source_term=source, ...)
+        return True
+    
+    # JSON backend: use file-based storage (existing logic)
+    ...
+```
+
+**Files Modified**:
+- `src/memory/memory_manager.py` - Lines 478-600: Added SQL backend support to `add_pending_term()` method
+
+**Status**: RESOLVED
+**Verified By**:
+- `python3 -m py_compile src/memory/memory_manager.py` - Syntax OK
+- Context update will now work correctly with SQL backend
+
+---
+
+### COMPLETED: Web UI Translation Error - Method Signature Mismatch
+**Date**: 2026-05-08
+**Files**: `src/pipeline/orchestrator.py`
+**Error Message**:
+```
+TypeError: TranslationPipeline._translate_chunks() takes 2 positional arguments but 3 were given
+File "src/pipeline/orchestrator.py", line 422, in translate_file
+    translated_chunks, chunk_metrics = self._translate_chunks(chunks, progress_logger)
+```
+
+**Issue Summary**:
+1. Web UI "Start Translation" button failed immediately with "exit code: 1"
+2. Translation process crashed before any actual translation work started
+3. Error occurred consistently for all translation attempts via Web UI
+
+**Root Cause**:
+The `_translate_chunks()` method was being called with 2 arguments (`chunks` and `progress_logger`), but the method signature was defined to only accept 1 argument (`chunks`). This parameter mismatch caused a `TypeError` immediately when translation began.
+
+**Fix Applied**:
+Updated `_translate_chunks()` method signature to accept an optional `progress_logger` parameter:
+```python
+def _translate_chunks(
+    self,
+    chunks: List[str],
+    progress_logger: Optional[Any] = None
+) -> Tuple[List[str], List[Dict[str, Any]]]:
+```
+
+**Files Modified**:
+- `src/pipeline/orchestrator.py` - Line 860: Added optional `progress_logger` parameter to method signature
+
+**Status**: RESOLVED
+**Verified By**:
+- `python3 -m py_compile src/pipeline/orchestrator.py` - Syntax OK
+- `pytest tests/test_translator.py` - 29/29 tests PASSED
+- `pytest tests/test_agents.py` - 16/16 tests PASSED
+
+---
+
 ### COMPLETED: SQLite Database Lock Errors During Translation
 **Date**: 2026-05-06
 **Files**: `src/db/connection.py`, `src/pipeline/orchestrator.py`, `src/cli/commands.py`, `scripts/diagnose_db.py`

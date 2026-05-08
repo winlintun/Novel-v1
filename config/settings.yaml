@@ -23,8 +23,8 @@ model_roles:
   - padauk-gemma:q8_0
   - sailor2-20b
 models:
-  checker: sailor2:8b
-  editor: burmese-gpt:7b
+  checker: padauk-gemma:q8_0
+  editor: padauk-gemma:q8_0
   gpu_layers: -1
   main_gpu: 0
   num_ctx: 4096
@@ -32,7 +32,7 @@ models:
   provider: ollama
   refiner: padauk-gemma:q8_0
   timeout: 300
-  translator: burmese-gpt:7b
+  translator: padauk-gemma:q8_0
   use_gpu: true
 myanmar_readability:
   block_on_fail: false
