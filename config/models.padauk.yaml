@@ -28,11 +28,11 @@ models:
 
 # Pipeline Model Assignments
 translation_pipeline:
-  mode: "single_stage"
+  mode: "full"
   stage1_model: "padauk-gemma:q8_0"
   stage2_model: "padauk-gemma:q8_0"
   reflection_model: "padauk-gemma:q8_0"
-  use_reflection: false
+  use_reflection: true
 
 # Model Role Router
 model_roles:

@@ -1042,8 +1042,16 @@ class MemoryManager:
         logger.debug("Memory saved to disk")
 
     def add_term(self, source: str, target: str, category: str = "general",
-                 chapter: int = 0) -> bool:
-        """Add a new term to glossary (SQL or JSON backend)."""
+                 chapter: int = 0, scope: str = "novel") -> bool:
+        """Add a new term to glossary (SQL or JSON backend).
+        
+        Args:
+            source: Source term text
+            target: Myanmar translation
+            category: Term category
+            chapter: Chapter number where term was found
+            scope: 'novel' (novel-specific) or 'global' (all novels)
+        """
         if self.use_sql:
             if not self._is_valid_myanmar_text(target):
                 logger.warning(f"Rejected non-Myanmar target for '{source}': '{target}'")
@@ -1054,10 +1062,35 @@ class MemoryManager:
             self.glossary_repo.add_term(
                 novel_id=self.novel_id, source_term=source, target_term=target,
                 category=category, status="pending", enforcement_level="soft",
+                scope=scope,
             )
-            logger.info(f"Added glossary term (SQL): {source} -> {target}")
+            logger.info(f"Added glossary term (SQL): {source} -> {target} (scope={scope})")
             return True
         return self._json_add_term(source, target, category, chapter)
+
+    def add_global_term(self, source: str, target: str,
+                        category: str = "general", status: str = "approved",
+                        confidence: float = 0.95) -> bool:
+        """Add a global xianxia term available to ALL novels.
+        
+        Global terms are automatically included in every novel's glossary prompt.
+        Only works with SQL backend.
+        """
+        if not self.use_sql:
+            logger.error("Global terms require SQL backend")
+            return False
+        if not self._is_valid_myanmar_text(target):
+            logger.warning(f"Rejected non-Myanmar target for global term '{source}': '{target}'")
+            return False
+        existing = self.glossary_repo.get_term_by_source(self.novel_id, source)
+        if existing:
+            return False
+        self.glossary_repo.add_global_term(
+            source_term=source, target_term=target,
+            category=category, status=status, confidence=confidence,
+        )
+        logger.info(f"Added global glossary term: {source} -> {target}")
+        return True
 
     def _json_add_term(self, source: str, target: str, category: str, chapter: int) -> bool:
         """JSON backend add_term (original logic preserved)."""
@@ -1108,14 +1141,15 @@ class MemoryManager:
         return None
 
     def get_all_terms(self) -> List[Dict[str, Any]]:
-        """Get all glossary terms (SQL or JSON)."""
+        """Get all glossary terms (SQL or JSON), including global xianxia terms."""
         if self.use_sql:
-            terms = self.glossary_repo.get_terms_by_novel(self.novel_id)
+            terms = self.glossary_repo.get_terms_by_novel(self.novel_id, include_global=True)
             return [
                 {
                     "id": t["id"], "source": t["source_term"], "target": t["target_term"],
                     "category": t["category"], "verified": t["status"] == "approved",
                     "chapter_last_seen": t["usage_count"],
+                    "scope": t.get("scope", "novel"),
                 }
                 for t in terms
             ]
@@ -1130,6 +1164,20 @@ class MemoryManager:
                 if source not in per_novel_sources:
                     combined.append(term)
         return combined
+
+    def get_global_terms(self, status: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Get global xianxia terms (SQL only)."""
+        if not self.use_sql:
+            return []
+        terms = self.glossary_repo.get_global_terms(status=status)
+        return [
+            {
+                "id": t["id"], "source": t["source_term"], "target": t["target_term"],
+                "category": t["category"], "verified": t["status"] == "approved",
+                "scope": "global",
+            }
+            for t in terms
+        ]
 
     def get_glossary_for_prompt(self, limit: int = 20) -> str:
         """Get formatted glossary for prompt injection (SQL or JSON)."""
@@ -1193,3 +1241,60 @@ class MemoryManager:
         """Close SQL connection if using SQL backend."""
         if self.use_sql and hasattr(self, "db"):
             self.db.close()
+
+    def log_term_usage_for_chapter(self, chapter_num: int, translated_text: str) -> int:
+        """Scan translated text for glossary terms and log their usage.
+        
+        For each approved glossary term (novel-specific + global), checks if
+        the Myanmar translation appears in the translated text. If found,
+        logs the usage to the term_usage table.
+        
+        Args:
+            chapter_num: Current chapter number
+            translated_text: Full translated Myanmar text
+            
+        Returns:
+            Number of term usages logged
+        """
+        if not self.use_sql:
+            return 0
+        
+        from src.db.repositories.glossary_repo import GLOBAL_NOVEL_ID
+        
+        # Get all approved terms (novel-specific + global)
+        all_terms = self.glossary_repo.get_terms_by_novel(
+            self.novel_id, status="approved", include_global=True, limit=500
+        )
+        
+        chapter_id = f"chapter_{self.novel_id}_{chapter_num:04d}"
+        logged_count = 0
+        
+        for term in all_terms:
+            target = term.get("target_term", "")
+            if not target or target.startswith("【?"):
+                continue
+            
+            # Check if the Myanmar translation appears in the text
+            if target in translated_text:
+                # Find the first paragraph where it appears for context snippet
+                paragraphs = translated_text.split("\n\n")
+                for idx, para in enumerate(paragraphs):
+                    if target in para:
+                        snippet = para[:200] if len(para) > 200 else para
+                        self.glossary_repo.log_term_usage(
+                            term_id=term["id"],
+                            chapter_id=chapter_id,
+                            paragraph_idx=idx,
+                            variant_used=target,
+                            confidence=1.0,
+                            context_snippet=snippet,
+                        )
+                        # Increment usage_count on the term itself
+                        self.glossary_repo.increment_usage(term["id"])
+                        logged_count += 1
+                        break
+        
+        if logged_count > 0:
+            logger.info(f"Logged {logged_count} term usages for chapter {chapter_num}")
+        
+        return logged_count

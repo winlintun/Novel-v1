@@ -94,12 +94,10 @@ class ModelsConfig(BaseModel):
         le=600,
         description="API timeout in seconds"
     )
-    # GPU Configuration
     use_gpu: bool = Field(
         default=True,
         description="Enable GPU acceleration for model inference"
     )
-    # Context & endpoint configuration
     num_ctx: int = Field(
         default=8192,
         ge=512,
@@ -108,7 +106,7 @@ class ModelsConfig(BaseModel):
     )
     use_generate_endpoint: bool = Field(
         default=False,
-        description="Use /api/generate endpoint instead of /api/chat (for models without chat templates)"
+        description="Use /api/generate endpoint instead of /api/chat"
     )
     gpu_layers: int = Field(
         default=-1,
@@ -121,6 +119,14 @@ class ModelsConfig(BaseModel):
         ge=0,
         le=16,
         description="Primary GPU device index for multi-GPU setups"
+    )
+    gemma_4_e4b: dict = Field(
+        default_factory=dict,
+        description="gemma-4-e4b-it model parameters"
+    )
+    padauk_gemma: dict = Field(
+        default_factory=dict,
+        description="padauk-gemma model parameters"
     )
 
 
@@ -411,9 +417,14 @@ class AppConfig(BaseModel):
         default_factory=StorageConfig,
         description="Storage backend configuration"
     )
+    rag: dict = Field(
+        default_factory=dict,
+        description="RAG configuration"
+    )
 
     model_config = ConfigDict(
         env_prefix="NOVEL_",
         case_sensitive=False,
-        validate_assignment=True
+        validate_assignment=True,
+        extra="ignore"
     )

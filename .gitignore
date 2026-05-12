@@ -109,6 +109,10 @@ need_fix_bug.md
 need_to_fix_bug.md
 backup
 backup/*
+pytest.ini
+CUSTOM_PROMPT_SETUP_GUIDE.md
+todo.md
+guile.md
 
 # Runtime progress logs (transient per-run artifacts)
 logs/progress/
@@ -132,3 +136,9 @@ data/*.db
 data/*.db-shm
 data/*.db-wal
 logs/report/
+
+
+# Dataset novel
+data/datasets_novels
+data/datasets_novels/
+data/datasets_novels/*

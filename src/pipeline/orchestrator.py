@@ -61,6 +61,10 @@ class TranslationPipeline:
         self._ollama_client_refiner = None
         self._ollama_client_checker = None
 
+        # RAG components
+        self._rag_retriever = None
+        self._feedback_loop = None
+
         # State
         self._shutdown_requested = False
         self._current_novel: Optional[str] = None
@@ -329,9 +333,47 @@ class TranslationPipeline:
             self._translator = Translator(
                 ollama_client=self.ollama_client,
                 memory_manager=self.memory_manager,
-                config=self.config.dict()
+                config=self.config.dict(),
+                rag_retriever=self.rag_retriever,
             )
         return self._translator
+
+    @property
+    def rag_retriever(self):
+        """Lazy load RAG retriever."""
+        if self._rag_retriever is None:
+            rag_config = self.config.dict().get('rag', {})
+            if rag_config.get('enabled', False):
+                from src.data.rag_retriever import RAGRetriever
+                self._rag_retriever = RAGRetriever(
+                    chroma_path=rag_config.get('chroma_path', 'data/chroma_db'),
+                    db_path=rag_config.get('db_path', 'data/novel_v1_dataset.db'),
+                    top_k=rag_config.get('top_k', 3),
+                    min_score=2.5,
+                    novel_filter=rag_config.get('novel_filter') or self._current_novel,
+                )
+                self.logger.info(f"RAG Retriever initialized: {rag_config.get('db_path')}")
+            else:
+                self._rag_retriever = None
+        return self._rag_retriever
+
+    @property
+    def feedback_loop(self):
+        """Lazy load feedback loop."""
+        if self._feedback_loop is None:
+            rag_config = self.config.dict().get('rag', {})
+            if rag_config.get('enabled', False):
+                from src.data.feedback_loop import FeedbackLoop
+                self._feedback_loop = FeedbackLoop(
+                    db_path=rag_config.get('feedback_db', 'data/novel_v1_dataset.db'),
+                    chroma_path=rag_config.get('feedback_chroma', 'data/chroma_db'),
+                    min_score=rag_config.get('feedback_min_score', 3.0),
+                    min_myanmar_ratio=rag_config.get('feedback_min_myanmar_ratio', 0.70),
+                )
+                self.logger.info(f"Feedback Loop initialized: {rag_config.get('feedback_db')}")
+            else:
+                self._feedback_loop = None
+        return self._feedback_loop
 
     @property
     def refiner(self):
@@ -552,6 +594,18 @@ class TranslationPipeline:
                     )
             except Exception as e:
                 self.logger.warning(f"Context update failed (non-fatal): {e}")
+
+            # Log term usage: track which glossary terms appeared in this chapter
+            try:
+                if self.memory_manager and result_text:
+                    usage_logged = self.memory_manager.log_term_usage_for_chapter(
+                        chapter_num=chapter_num or 0,
+                        translated_text=result_text
+                    )
+                    if usage_logged > 0:
+                        self.logger.debug(f"Term usage logged: {usage_logged} terms used in chapter {chapter_num or 0}")
+            except Exception as e:
+                self.logger.warning(f"Term usage logging failed (non-fatal): {e}")
 
             # Update context_memory.json with chapter data
             try:
@@ -1062,6 +1116,24 @@ class TranslationPipeline:
             })
 
             translated.append(translated_chunk)
+
+            # Feedback Loop: ingest high-quality pairs back to database
+            if self.feedback_loop is not None:
+                try:
+                    feedback_result = self.feedback_loop.rate_and_ingest(
+                        en_text=chunk,
+                        my_text=translated_chunk,
+                        novel_slug=self._current_novel,
+                        chapter_num=None,
+                        source_file=filepath if hasattr(self, 'filepath') else None,
+                    )
+                    if feedback_result.get("ingested"):
+                        self.logger.info(
+                            f"Feedback: pair ingested (score={feedback_result['score']:.2f}, "
+                            f"my_ratio={feedback_result['myanmar_ratio']:.2f})"
+                        )
+                except Exception as e:
+                    self.logger.debug(f"Feedback loop failed (non-fatal): {e}")
 
             # Checkpoint: log progress after each chunk (resumability)
             self.logger.info(

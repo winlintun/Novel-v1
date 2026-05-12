@@ -25,6 +25,7 @@ from src.agents.prompts.system_prompts import (
     EDITOR_SYSTEM_PROMPT,
     EXTRACTOR_SYSTEM_PROMPT,
     FAST_EN_MM_PROMPT,
+    CUSTOM_PADAUK_EN_MM_PROMPT,
     FALLBACK_CN_RULES,
     FALLBACK_EN_RULES,
     build_translator_prompt,
@@ -68,6 +69,7 @@ __all__ = [
     "EDITOR_SYSTEM_PROMPT",
     "EXTRACTOR_SYSTEM_PROMPT",
     "FAST_EN_MM_PROMPT",
+    "CUSTOM_PADAUK_EN_MM_PROMPT",
     "FALLBACK_CN_RULES",
     "FALLBACK_EN_RULES",
     # Builder functions

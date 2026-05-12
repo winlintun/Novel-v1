@@ -43,7 +43,6 @@ def get_language_prompt(source_lang: str, model_name: str = "") -> str:
 
 
 
-
 def _fallback_en_rules() -> str:
     """Fallback EN→MM rules when module import fails."""
     return """
@@ -117,35 +116,35 @@ Concrete failure example:
 ## STRICT RULES
 
 1. COMPLETENESS    — Translate every sentence, every paragraph.
-                     No skipping, no summarizing.
+                      No skipping, no summarizing.
 
 2. TERMINOLOGY     — Use EXACT glossary terms when provided.
-                     Unknown proper noun or name → output 【?term?】 placeholder.
-                     Never guess a name.
+                      Unknown proper noun or name → output 【?term?】 placeholder.
+                      Never guess a name.
 
 3. ANTI-HALLUCINATION (Critical)
-                   — If source says "Brother Zhang" → translate as အစ်ကိုကျန်း
-                     Do NOT substitute with a glossary character name like ဖန်ကျန်း.
-                     Only use a glossary term when its EXACT source form
-                     appears in the input text.
+                    — If source says "Brother Zhang" → translate as အစ်ကိုကျန်း
+                      Do NOT substitute with a glossary character name like ဖန်ကျန်း.
+                      Only use a glossary term when its EXACT source form
+                      appears in the input text.
 
 4. PLACE NAMES     — Use EXACT glossary terms for locations.
-                     Example: Gu Yue Village → ကူယွဲ့ကျေးရွာ
-                     Do not re-transliterate.
+                      Example: Gu Yue Village → ကူယွဲ့ကျေးရွာ
+                      Do not re-transliterate.
 
 5. TRANSLATOR'S NOTES
-                   — If culturally significant idioms or terms require annotation,
-                     add at the end of the chapter:
+                    — If culturally significant idioms or terms require annotation,
+                      add at the end of the chapter:
 
-                     ---
-                     **Translator's Notes:**
-                     - [term]: [brief explanation]
+                      ---
+                      **Translator's Notes:**
+                      - [term]: [brief explanation]
 
-                     Omit this section entirely if there is nothing to annotate.
+                      Omit this section entirely if there is nothing to annotate.
 
 6. OUTPUT          — Return ONLY the translated Myanmar text.
-                     No English, no explanations, no preamble, no postamble,
-                     no thinking tags."""
+                      No English, no explanations, no preamble, no postamble,
+                      no thinking tags."""
 
 
 
@@ -160,15 +159,23 @@ class Translator(BaseAgent):
         self,
         ollama_client: Optional[OllamaClient] = None,
         memory_manager: Optional[MemoryManager] = None,
-        config: Optional[Dict[str, Any]] = None
+        config: Optional[Dict[str, Any]] = None,
+        rag_retriever: Optional[Any] = None,
     ):
         super().__init__(ollama_client, memory_manager, config)
         self.ollama = ollama_client
+        self.rag_retriever = rag_retriever
 
         pipeline = self.config.get('translation_pipeline', {})
         self._custom_system_prompt = pipeline.get('stage1_system_prompt')
         self._custom_prompt_template = pipeline.get('stage1_prompt', '{text}')
         self._fallback_system_prompt = TRANSLATOR_SYSTEM_PROMPT
+
+        # RAG config
+        rag_config = self.config.get('rag', {})
+        self.rag_enabled = rag_config.get('enabled', False)
+        self.rag_top_k = rag_config.get('top_k', 3)
+        self.rag_min_similarity = rag_config.get('min_similarity', 0.3)
 
     def get_system_prompt(self, source_lang: str = "english") -> str:
         """Get system prompt based on source language (chinese or english)."""
@@ -203,6 +210,13 @@ class Translator(BaseAgent):
             prompt_parts.append(mem['glossary'])
             prompt_parts.append("")
 
+        # Add RAG examples (few-shot translation examples)
+        if self.rag_enabled and self.rag_retriever:
+            rag_examples = self._build_rag_examples(text)
+            if rag_examples:
+                prompt_parts.append(rag_examples)
+                prompt_parts.append("")
+
         # Add rolling context (tail of previous translated chunk)
         if rolling_context:
             prompt_parts.append("PREVIOUS CONTEXT (translated Myanmar, for continuity):")
@@ -225,6 +239,43 @@ class Translator(BaseAgent):
         prompt_parts.append("MYANMAR TRANSLATION:")
 
         return "\n".join(prompt_parts)
+
+    def _build_rag_examples(self, source_text: str) -> str:
+        """Build few-shot examples from RAG retrieval.
+        
+        Args:
+            source_text: Current source text to find similar examples for
+            
+        Returns:
+            Formatted string with translation examples, or empty string if none found
+        """
+        try:
+            examples = self.rag_retriever.retrieve_similar(
+                query_text=source_text,
+                top_k=self.rag_top_k,
+            )
+
+            if not examples:
+                return ""
+
+            # Filter by minimum similarity
+            examples = [e for e in examples if e.similarity >= self.rag_min_similarity]
+
+            if not examples:
+                return ""
+
+            parts = ["REFERENCE TRANSLATION EXAMPLES (match style and terminology):"]
+            for i, ex in enumerate(examples, 1):
+                parts.append(f"Example {i}:")
+                parts.append(f"EN: {ex.en_text[:200]}")
+                parts.append(f"MY: {ex.my_text[:200]}")
+                parts.append("")
+
+            return "\n".join(parts)
+
+        except Exception as e:
+            logger.warning(f"RAG retrieval failed: {e}")
+            return ""
 
     def translate_paragraph(
         self,

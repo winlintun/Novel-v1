@@ -1,5 +1,6 @@
 # ollama list
-NAME                             ID              SIZE      MODIFIED    
+NAME                             ID              SIZE      MODIFIED
+gemma-4-e4b-it:q8_0              d62c2da45819    8.2 GB    2 days ago     
 deepseek-coder-v2-lite:latest    7d268375bd57    11 GB     4 days ago (skip)    
 sailor2-20b:latest               85e2728151a7    11 GB     5 days ago (bad)    
 sailor2:8b                       f08f378f040a    5.2 GB    6 days ago  (bad)   

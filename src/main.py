@@ -84,6 +84,8 @@ def main() -> int:
             os.environ["NOVEL_TRANSLATE_START"] = str(args.start)
         if args.generate_glossary:
             os.environ["NOVEL_TRANSLATE_GEN_GLOSSARY"] = "1"
+        if args.init_glossary:
+            os.environ["NOVEL_TRANSLATE_INIT_GLOSSARY"] = "1"
         
         # Pass port to launcher
         if hasattr(args, 'port') and args.port:
@@ -142,9 +144,12 @@ def main() -> int:
         return run_audit_log(args)
 
     # ── Glossary generation (standalone or pre-translation) ──
-    if args.generate_glossary:
+    if args.generate_glossary or args.init_glossary:
         result = run_glossary_generation(args)
         if result != 0:
+            return result
+        # For --init-glossary: always stop after glossary generation
+        if args.init_glossary:
             return result
         # Standalone glossary run — no chapter/all specified, stop here
         if not (args.chapter or args.all or getattr(args, 'chapter_range', None) or args.input_file):

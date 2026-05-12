@@ -8,7 +8,7 @@ from src.db.connection import DatabaseConnection
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 CREATE_TABLES = """
 -- novels
@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS glossary_terms (
     context_condition TEXT,
     confidence REAL NOT NULL DEFAULT 0.0,
     usage_count INTEGER NOT NULL DEFAULT 0,
+    scope TEXT NOT NULL DEFAULT 'novel',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     reviewed_at TEXT,
     FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE
@@ -137,6 +138,8 @@ CREATE INDEX IF NOT EXISTS idx_glossary_status ON glossary_terms(status);
 CREATE INDEX IF NOT EXISTS idx_glossary_source ON glossary_terms(source_term);
 CREATE INDEX IF NOT EXISTS idx_glossary_category ON glossary_terms(category);
 CREATE INDEX IF NOT EXISTS idx_glossary_novel_status ON glossary_terms(novel_id, status);
+CREATE INDEX IF NOT EXISTS idx_glossary_scope ON glossary_terms(scope);
+CREATE INDEX IF NOT EXISTS idx_glossary_scope_status ON glossary_terms(scope, status);
 
 CREATE INDEX IF NOT EXISTS idx_variants_term ON term_variants(term_id);
 
@@ -168,11 +171,14 @@ class SchemaManager:
         self.db = db
 
     def create_all(self) -> None:
-        """Create all tables and indexes."""
+        """Create all tables and indexes, then run migrations."""
         conn = self.db.connect()
         conn.executescript(CREATE_TABLES)
         conn.executescript(CREATE_INDEXES)
         logger.info("Schema created: all tables and indexes")
+        
+        # Run migrations for existing databases
+        self.migrate_to_v2()
 
     def drop_all(self) -> None:
         """Drop all tables (DANGEROUS — for testing only)."""
@@ -205,3 +211,31 @@ class SchemaManager:
         if result:
             return result["cnt"]
         return 0
+
+    def migrate_to_v2(self) -> bool:
+        """Add scope column to glossary_terms for v1→v2 migration.
+        
+        Returns True if migration was applied, False if already done.
+        """
+        # Check if column already exists
+        result = self.db.fetchone(
+            "PRAGMA table_info(glossary_terms)"
+        )
+        columns = self.db.fetchall("PRAGMA table_info(glossary_terms)")
+        has_scope = any(c["name"] == "scope" for c in columns)
+        
+        if has_scope:
+            logger.info("Schema v2: scope column already exists")
+            return False
+        
+        # Add scope column with default 'novel'
+        self.db.execute(
+            "ALTER TABLE glossary_terms ADD COLUMN scope TEXT NOT NULL DEFAULT 'novel'"
+        )
+        
+        # Create new indexes
+        self.db.execute("CREATE INDEX IF NOT EXISTS idx_glossary_scope ON glossary_terms(scope)")
+        self.db.execute("CREATE INDEX IF NOT EXISTS idx_glossary_scope_status ON glossary_terms(scope, status)")
+        
+        logger.info("Schema v2 migration complete: added scope column")
+        return True

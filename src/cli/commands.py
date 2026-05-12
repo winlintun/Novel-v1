@@ -134,7 +134,12 @@ def run_translation_pipeline(args: argparse.Namespace) -> int:
         config = load_config(args.config)
 
         # Apply skeleton model config if available and no CLI model override
-        if get_skeleton_manager and not args.model:
+        # Skip skeleton model if config has different models for different roles (HYBRID mode)
+        config_translator = getattr(config.models, 'translator', None)
+        config_editor = getattr(config.models, 'editor', None)
+        is_hybrid_config = config_translator and config_editor and config_translator != config_editor
+        
+        if get_skeleton_manager and not args.model and not is_hybrid_config:
             try:
                 skeleton_mgr = get_skeleton_manager()
                 active_model_key = skeleton_mgr.get_active_model_key()
@@ -147,6 +152,8 @@ def run_translation_pipeline(args: argparse.Namespace) -> int:
                 logger.info(f"Applied skeleton model: {active_model_key}")
             except Exception as e:
                 logger.debug(f"Could not apply skeleton model config: {e}")
+        elif is_hybrid_config:
+            logger.info(f"🔀 HYBRID config detected: {config_translator} → {config_editor}. Skipping skeleton model.")
 
         # Apply command line overrides
         if args.model:
@@ -197,7 +204,9 @@ def run_translation_pipeline(args: argparse.Namespace) -> int:
 
         if workflow:
             cli_model = args.model if hasattr(args, 'model') and args.model else None
-            config = _apply_workflow_config(config, workflow, logger, cli_model)
+            cli_mode = args.mode if hasattr(args, 'mode') and args.mode else None
+            cli_use_reflection = args.use_reflection if hasattr(args, 'use_reflection') and args.use_reflection else None
+            config = _apply_workflow_config(config, workflow, logger, cli_model, cli_mode, cli_use_reflection)
 
         # Get chapters to translate
         chapters = get_chapter_list(args)
@@ -362,21 +371,26 @@ def run_glossary_generation(args: argparse.Namespace) -> int:
             logger.error("--novel is required for glossary generation")
             return 1
 
-        # Get chapter range
-        # Handle --all flag for glossary generation (like translation does)
-        if getattr(args, 'all', False):
-            # Discover all chapters in the input folder
-            novel_dir = Path(INPUT_DIR) / args.novel
-            if novel_dir.exists():
-                chapters = _discover_chapters(novel_dir)
-                logger.info(f"--all flag detected: will scan {len(chapters)} chapters")
-            else:
-                logger.warning(f"Novel directory not found: {novel_dir}")
-                chapters = []
+        # Handle --init-glossary: only first 5 chapters, then stop
+        is_init = getattr(args, 'init_glossary', False)
+        if is_init:
+            chapters = list(range(1, 6))  # Always 1-5 for init
         else:
-            chapters = get_chapter_list(args)
-            if not chapters:
-                chapters = list(range(1, 6))  # Default to first 5 chapters
+            # Get chapter range
+            # Handle --all flag for glossary generation (like translation does)
+            if getattr(args, 'all', False):
+                # Discover all chapters in the input folder
+                novel_dir = Path(INPUT_DIR) / args.novel
+                if novel_dir.exists():
+                    chapters = _discover_chapters(novel_dir)
+                    logger.info(f"--all flag detected: will scan {len(chapters)} chapters")
+                else:
+                    logger.warning(f"Novel directory not found: {novel_dir}")
+                    chapters = []
+            else:
+                chapters = get_chapter_list(args)
+                if not chapters:
+                    chapters = list(range(1, 6))  # Default to first 5 chapters
 
         # Resolve chapter file paths first (outside thread pool)
         chapter_files = []
@@ -440,6 +454,29 @@ def run_glossary_generation(args: argparse.Namespace) -> int:
         # exist after glossary generation, even when the novel is brand new.
         memory.save_memory()
         logger.info(f"Glossary generation completed: {completed} chapters processed, {total_terms} terms extracted")
+
+        # For --init-glossary: print review instructions and exit cleanly
+        if is_init:
+            pending = memory.get_pending_terms()
+            print(f"\n{'='*60}")
+            print(f"  📚 Initial Glossary Generated — {args.novel}")
+            print(f"{'='*60}")
+            print(f"  Chapters processed: {completed}")
+            print(f"  Terms extracted: {total_terms}")
+            print(f"  Terms pending review: {len(pending)}")
+            print(f"{'='*60}")
+            print(f"\n  ⚠️  NEXT STEPS:")
+            print(f"  1. Review pending terms in Web UI or by editing:")
+            print(f"     data/output/{args.novel}/glossary/glossary_pending.json")
+            print(f"  2. Approve terms:")
+            print(f"     python -m src.main --approve-glossary --novel {args.novel}")
+            print(f"  3. Then translate:")
+            print(f"     python -m src.main --novel {args.novel} --all")
+            print(f"\n  ℹ️  Global Xianxia terms are automatically included.")
+            print(f"  ℹ️  Term usage will be tracked after translation starts.")
+            print(f"{'='*60}\n")
+            return 0
+
         return 0
 
     except Exception as e:
@@ -672,7 +709,7 @@ def run_review(args: argparse.Namespace) -> int:
     return 0 if report.total_score >= 70 else 1
 
 
-def _apply_workflow_config(config: AppConfig, workflow: str, logger: Optional[logging.Logger] = None, cli_model: Optional[str] = None) -> AppConfig:
+def _apply_workflow_config(config: AppConfig, workflow: str, logger: Optional[logging.Logger] = None, cli_model: Optional[str] = None, cli_mode: Optional[str] = None, cli_use_reflection: Optional[bool] = None) -> AppConfig:
     """Apply workflow-specific configuration overrides with automatic model selection.
     
     Args:
@@ -680,6 +717,7 @@ def _apply_workflow_config(config: AppConfig, workflow: str, logger: Optional[lo
         workflow: Workflow name (way1 or way2)
         logger: Optional logger for reporting auto-detected settings
         cli_model: Model explicitly specified via CLI --model flag (preserves user choice)
+        cli_mode: Mode explicitly specified via CLI --mode flag (preserves user choice)
         
     Returns:
         Modified configuration
@@ -696,44 +734,80 @@ def _apply_workflow_config(config: AppConfig, workflow: str, logger: Optional[lo
         # and degrade output quality. See ERROR-050.
         
         # Priority: CLI --model > config file > default (padauk-gemma:q8_0)
+        # For HYBRID mode: preserve different models for different roles
         config_translator = getattr(config.models, 'translator', None)
+        config_editor = getattr(config.models, 'editor', None)
+        config_refiner = getattr(config.models, 'refiner', None)
+        
         if cli_model:
-            # User explicitly passed --model
+            # User explicitly passed --model - use for all roles
             translator_model = cli_model
             editor_model = cli_model
+            refiner_model = cli_model
         elif config_translator and config_translator != "qwen2.5:14b":  # Not default
-            # Config file has a specific model set
+            # Config file has specific models set (support HYBRID mode)
+            # Use config file values as-is to allow different models per role
             translator_model = config_translator
-            editor_model = getattr(config.models, 'editor', config_translator)
+            editor_model = config_editor if config_editor else config_translator
+            refiner_model = config_refiner if config_refiner else (config_editor if config_editor else config_translator)
         else:
             # Use default
             translator_model = "padauk-gemma:q8_0"
             editor_model = "padauk-gemma:q8_0"
+            refiner_model = "padauk-gemma:q8_0"
+        
+        # Respect CLI mode override if provided, otherwise use single_stage default
+        # Priority: CLI --mode > config file mode > default (single_stage)
+        if cli_mode:
+            pipeline_mode = cli_mode
+        else:
+            pipeline_mode = getattr(config.translation_pipeline, 'mode', 'single_stage')
+        
+        # Respect CLI --use-reflection flag if provided, otherwise use config file setting
+        # Priority: CLI --use-reflection > config file > default (False)
+        if cli_use_reflection is not None:
+            use_reflection = cli_use_reflection
+        else:
+            use_reflection = getattr(config.translation_pipeline, 'use_reflection', False)
+        
+        # Detect if this is a hybrid setup (different models for different roles)
+        is_hybrid = (translator_model != editor_model) or (translator_model != refiner_model)
         
         overrides = {
             "project": {
                 "source_language": "en-US"
             },
             "translation_pipeline": {
-                "mode": "single_stage",
-                "use_reflection": False,
+                "mode": pipeline_mode,
+                "use_reflection": use_reflection,
                 "stage1_model": translator_model,
-                "stage2_model": translator_model
+                "stage2_model": editor_model
             },
             "models": {
                 "translator": translator_model,
                 "editor": editor_model,
-                "refiner": "padauk-gemma:q8_0"
+                "refiner": refiner_model
             }
         }
         if logger:
-            logger.info("🔄 Auto-detected ENGLISH source → Using way1 (EN→MM direct, single-stage)")
-            if cli_model:
+            mode_display = cli_mode if cli_mode else pipeline_mode
+            logger.info(f"🔄 Auto-detected ENGLISH source → Using way1 (EN→MM direct, {mode_display})")
+            if is_hybrid:
+                logger.info("🔀 HYBRID mode detected - using different models for different stages:")
+                logger.info(f"   - Stage 1 (Translation): {translator_model}")
+                logger.info(f"   - Stage 2+ (Refinement/Quality): {editor_model}")
+            elif cli_model:
                 logger.info(f"🤖 Using CLI-specified model: {cli_model}")
             elif config_translator and config_translator != "qwen2.5:14b":
                 logger.info(f"🤖 Using config file model: {translator_model}")
             else:
                 logger.info("🤖 Auto-selected models: padauk-gemma:q8_0 (best for Myanmar)")
+            if cli_mode:
+                logger.info(f"⚙️  Using CLI-specified mode: {cli_mode}")
+            if cli_use_reflection is not None:
+                logger.info(f"🪞 Reflection agent: {'ENABLED' if cli_use_reflection else 'DISABLED'} (CLI override)")
+            elif use_reflection:
+                logger.info("🪞 Reflection agent: ENABLED (from config)")
 
     elif workflow == 'way2':
         # way2: Chinese -> English -> Myanmar pivot
@@ -748,12 +822,26 @@ def _apply_workflow_config(config: AppConfig, workflow: str, logger: Optional[lo
         else:
             stage2_model = "padauk-gemma:q8_0"
         
+        # Respect CLI mode override if provided, otherwise use two_stage default
+        # Note: way2 is inherently two-stage (CN→EN→MM), but we still respect user's choice
+        if cli_mode:
+            pipeline_mode = cli_mode
+        else:
+            pipeline_mode = getattr(config.translation_pipeline, 'mode', 'two_stage')
+        
+        # Respect CLI --use-reflection flag if provided, otherwise use config file setting
+        if cli_use_reflection is not None:
+            use_reflection = cli_use_reflection
+        else:
+            use_reflection = getattr(config.translation_pipeline, 'use_reflection', False)
+        
         overrides = {
             "project": {
                 "source_language": "zh-CN"
             },
             "translation_pipeline": {
-                "mode": "two_stage",
+                "mode": pipeline_mode,
+                "use_reflection": use_reflection,
                 "stage1_model": "alibayram/hunyuan:7b",
                 "stage2_model": stage2_model
             },
@@ -773,6 +861,10 @@ def _apply_workflow_config(config: AppConfig, workflow: str, logger: Optional[lo
                 logger.info("🤖 Auto-selected models:")
             logger.info("   - Stage 1 (CN→EN): alibayram/hunyuan:7b")
             logger.info(f"   - Stage 2 (EN→MM): {stage2_model}")
+            if cli_use_reflection is not None:
+                logger.info(f"🪞 Reflection agent: {'ENABLED' if cli_use_reflection else 'DISABLED'} (CLI override)")
+            elif use_reflection:
+                logger.info("🪞 Reflection agent: ENABLED (from config)")
     else:
         return config
 
