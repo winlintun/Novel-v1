@@ -186,8 +186,8 @@ class TestMemoryManager(unittest.TestCase):
         # Save
         self.memory.save_memory()
 
-        # Load in new instance
-        new_memory = MemoryManager(str(self.glossary_path), str(self.context_path))
+        # Load in new instance (must use same backend)
+        new_memory = MemoryManager(str(self.glossary_path), str(self.context_path), use_sql=False)
 
         self.assertEqual(new_memory.get_term("测试"), "စမ်းသပ်")
 

@@ -48,10 +48,14 @@ class TestMemoryManagerSQLBackend:
 
     def test_get_all_terms(self, db_path):
         mm = MemoryManager(novel_name="test-novel", use_sql=True, db_path=db_path)
-        mm.add_term("A", "အေ", "general")
-        mm.add_term("B", "ဘီ", "general")
+        mm.add_term("လမ်း", "လမ်းကြောင်း", "general")
+        mm.add_term("မြစ်", "မြစ်ကြီး", "general")
+        # Use get_term to verify our specific terms exist (get_all_terms has limit=100)
+        assert mm.get_term("လမ်း") == "လမ်းကြောင်း"
+        assert mm.get_term("မြစ်") == "မြစ်ကြီး"
+        # get_all_terms returns at least our 2 terms (may include synced globals)
         terms = mm.get_all_terms()
-        assert len(terms) == 2
+        assert len(terms) >= 2
         mm.close()
 
     def test_get_glossary_for_prompt(self, db_path):

@@ -60,33 +60,45 @@ def load_jsonl(path: str) -> list[dict]:
 
 def extract_pair(record: dict) -> Optional[tuple[str, str]]:
     """
-    Extract (english_source, myanmar_translation) from OpenAI-chat JSONL format.
+    Extract (english_source, myanmar_translation) from JSONL records.
+    Supports two formats:
+      1. OpenAI-chat: {"messages": [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}]}
+      2. Flat src/tgt: {"src": "...", "tgt": "..."}
     Returns None if structure is wrong.
     """
+    # ── Format 1: OpenAI-chat messages array ──
     messages = record.get("messages", [])
-    
-    user_text = None
-    assistant_text = None
-    
-    for msg in messages:
-        role = msg.get("role", "")
-        content = msg.get("content", "").strip()
-        
-        if role == "user":
-            # Remove the "Translate to Myanmar:\n" prefix
-            cleaned = re.sub(r"^Translate to Myanmar:\s*", "", content, flags=re.IGNORECASE).strip()
-            # Remove chapter header metadata lines (--- novel: ... ---)
-            cleaned = re.sub(r"^---.*?---\s*", "", cleaned, flags=re.DOTALL).strip()
-            # Remove markdown headings that are just chapter numbers
-            cleaned = re.sub(r"^#+\s*Chapter\s+\d+.*$", "", cleaned, flags=re.MULTILINE).strip()
-            if cleaned:
-                user_text = cleaned
-                
-        elif role == "assistant":
-            assistant_text = content
-    
-    if user_text and assistant_text:
-        return (user_text, assistant_text)
+    if messages:
+        user_text = None
+        assistant_text = None
+
+        for msg in messages:
+            role = msg.get("role", "")
+            content = msg.get("content", "").strip()
+
+            if role == "user":
+                # Remove the "Translate to Myanmar:\n" prefix
+                cleaned = re.sub(r"^Translate to Myanmar:\s*", "", content, flags=re.IGNORECASE).strip()
+                # Remove chapter header metadata lines (--- novel: ... ---)
+                cleaned = re.sub(r"^---.*?---\s*", "", cleaned, flags=re.DOTALL).strip()
+                # Remove markdown headings that are just chapter numbers
+                cleaned = re.sub(r"^#+\s*Chapter\s+\d+.*$", "", cleaned, flags=re.MULTILINE).strip()
+                if cleaned:
+                    user_text = cleaned
+
+            elif role == "assistant":
+                assistant_text = content
+
+        if user_text and assistant_text:
+            return (user_text, assistant_text)
+        return None
+
+    # ── Format 2: Flat src/tgt keys ──
+    src = record.get("src", "").strip()
+    tgt = record.get("tgt", "").strip()
+    if src and tgt:
+        return (src, tgt)
+
     return None
 
 

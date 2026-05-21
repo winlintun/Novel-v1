@@ -106,9 +106,25 @@ class MemoryManager:
             self.chapter_repo = ChapterRepository(self.db)
             self.context_repo = ContextRepository(self.db)
 
-            self.novel_id = f"novel_{novel_name}" if novel_name else "novel_default"
+            from src.db.sync_external import make_novel_id, sync_external_glossary
+
+            self.novel_id = make_novel_id(novel_name) if novel_name else "novel_default"
             if not self.novel_repo.exists(self.novel_id):
                 self.novel_repo.create(self.novel_id, novel_name or "default", "chinese")
+
+            # Sync terms from external Glossary System DB on startup
+            if novel_name:
+                conn = self.db.connect()
+                sync_result = sync_external_glossary(conn, novel_name)
+                if sync_result["errors"]:
+                    logger.warning(f"External glossary sync errors: {sync_result['errors']}")
+                else:
+                    total = sync_result["synced"] + sync_result["global_synced"]
+                    if total > 0:
+                        logger.info(
+                            f"Synced {total} terms from external glossary "
+                            f"({sync_result['synced']} novel + {sync_result['global_synced']} global)"
+                        )
 
             self.glossary_path = ""
             self.context_path = ""
