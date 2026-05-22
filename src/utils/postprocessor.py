@@ -572,6 +572,105 @@ def remove_inline_markdown_artifacts(text: str) -> str:
     return '\n'.join(result)
 
 
+def check_paragraph_count(source: str, translation: str, tolerance: float = 0.15) -> dict:
+    """Check if translation has significantly fewer paragraphs than source.
+    
+    The AI translator sometimes compresses or skips content. This validator
+    flags chapters where the paragraph count differs by more than the tolerance.
+    
+    Args:
+        source: Original source text
+        translation: Translated text
+        tolerance: Maximum allowed ratio of missing paragraphs (0.15 = 15%)
+    
+    Returns:
+        Dict with 'pass' (bool), 'source_count', 'trans_count', 'missing_count', 'ratio'
+    """
+    def count_paragraphs(text: str) -> int:
+        """Count non-empty paragraphs."""
+        return len([p for p in text.split('\n\n') if p.strip()])
+    
+    src_count = count_paragraphs(source)
+    trans_count = count_paragraphs(translation)
+    
+    if src_count == 0:
+        return {"pass": True, "source_count": 0, "trans_count": 0, "missing_count": 0, "ratio": 1.0}
+    
+    missing = max(0, src_count - trans_count)
+    ratio = trans_count / src_count
+    passed = ratio >= (1.0 - tolerance)
+    
+    return {
+        "pass": passed,
+        "source_count": src_count,
+        "trans_count": trans_count,
+        "missing_count": missing,
+        "ratio": round(ratio, 3),
+    }
+
+
+def check_name_consistency(text: str, glossary_terms: dict[str, str]) -> list[dict]:
+    """Detect multiple spellings of the same character name in translated text.
+    
+    For each glossary term, finds all occurrences in the text and checks
+    if there are variant spellings that might indicate inconsistency.
+    
+    Args:
+        text: Translated Myanmar text
+        glossary_terms: Dict mapping source_term -> target_term (approved translations)
+    
+    Returns:
+        List of dicts with 'source', 'expected', 'found_variants', 'locations'
+    """
+    issues = []
+    
+    for source, expected_target in glossary_terms.items():
+        if not expected_target or len(expected_target) < 2:
+            continue
+        
+        # Find all occurrences of the expected target
+        locations = []
+        start = 0
+        while True:
+            idx = text.find(expected_target, start)
+            if idx == -1:
+                break
+            locations.append(idx)
+            start = idx + 1
+        
+        if not locations:
+            continue
+        
+        # Check for similar-looking variants (potential misspellings)
+        # Look for Myanmar sequences near the expected length that appear
+        # in similar contexts (before သည်/က/မှာ particles)
+        import re
+        name_pattern = re.compile(
+            r'([\u1000-\u109F]{2,8})\s*(?:သည်|က|မှာ|ကို|၏|ပြော|ကြည့်|ရပ်|သွား|လာ)',
+            re.MULTILINE
+        )
+        
+        found_names = set()
+        for match in name_pattern.finditer(text):
+            candidate = match.group(1)
+            # Check if candidate is similar to expected (same length, some overlap)
+            if (abs(len(candidate) - len(expected_target)) <= 2
+                and len(set(candidate) & set(expected_target)) >= min(len(candidate), len(expected_target)) * 0.5):
+                found_names.add(candidate)
+        
+        # If we found variants that aren't the expected target, flag it
+        variants = found_names - {expected_target}
+        if variants:
+            issues.append({
+                "source": source,
+                "expected": expected_target,
+                "found_variants": list(variants),
+                "occurrences": len(locations),
+            })
+    
+    return issues
+
+
 def detect_potential_hallucinations(text: str, known_terms: Optional[set] = None) -> List[str]:
     """Detect Myanmar proper names that may be LLM hallucinations.
     

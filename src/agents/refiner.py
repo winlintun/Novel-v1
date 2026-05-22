@@ -23,12 +23,36 @@ STRICT GLOSSARY RULES:
 - If you see a character name or place name, check the GLOSSARY above for the correct spelling.
 - NEVER invent or change phonetic spellings — only use the glossary-approved forms.
 - If a term is not in the glossary, preserve the existing translation unchanged.
+- NEVER translate Chinese character names as Myanmar color/meaning words.
+  Example: 紫 in a name → use glossary transliteration, NOT ခရမ်း (color word).
 
 PARTICLE DIVERSITY RULE:
 - Avoid CONSECUTIVE repetition of the same particle (e.g., "သည်...သည်...သည်").
 - Normal single use of သည် per sentence is correct grammar — do NOT remove it.
 - If you see 3+ consecutive sentences all ending with the same particle, vary 1-2 of them.
-- Use ကို, မှာ, ၏, ၌, ဖြင့် as alternatives where appropriate.
+- Use ကို, မှာ, ၏, ၌, ဖြင့် as alternatives where appropriate.
+
+DIALOGUE REGISTER CHECK (CRITICAL):
+- Confrontation scenes: characters use ငါ/နင် (casual/aggressive), NOT ကျွန်ုပ်/သင်
+- Respectful dialogue: use ခင်ဗျား/ကျုပ်, NOT ကျွန်ုပ်၏/သင်၏
+- NEVER use ရှိပါတယ်/မတရားပါသလား in dramatic/life-and-death scenes
+- Use natural endings: ဖြစ်တယ်, မသင့်ဘူးလား, ငါ့ဟာ
+
+LITERARY IDIOM INJECTION:
+- Replace literal translations with Myanmar literary equivalents:
+  "echoed everywhere" → အရပ်ရှစ်မျက်နှာသို့ ပဲ့တင်ထပ် (eight directions idiom)
+  "bewildered" → မိန်းမောတွေဝေ (classic literary expression)
+  "like lightning" → မိုးကြိုးပစ်ချလိုက်သည့်ပမာ (dramatic)
+  "wind blowing" → လေတဟူးဟူး တိုက်ခတ် (reduplication for sound)
+- Use Myanmar reduplication (ထပ်ကိန်း) for vivid description:
+  Movement: လှုပ်လှုပ်ရှားရှား, တုန်တုန်ယင်ယင်
+  Sound: ဝှီးခနဲ, ဟိန်းခနဲ, တဖျပ်ဖျပ်
+  Extent: ကျယ်ကျယ်ပြန့်ပြန့်, နက်နက်ရှိုင်းရှိုင်း
+
+CONTENT COMPLETENESS CHECK:
+- Verify ALL source paragraphs are translated — no skipping or compressing.
+- ALL dialogue lines must be present — no missing exchanges.
+- If source has N paragraphs, output must have N paragraphs.
 """
 
 # Derived from EDITOR_SYSTEM_PROMPT for batch mode — adds separator output format

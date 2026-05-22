@@ -25,7 +25,8 @@ class GlossaryRepository:
     def add_term(self, novel_id: str, source_term: str, target_term: str,
                  category: str = "general", status: str = "pending",
                  enforcement_level: str = "soft", context_condition: Optional[str] = None,
-                 confidence: float = 0.0, scope: str = "novel") -> dict:
+                 confidence: float = 0.0, scope: str = "novel",
+                 variants: Optional[list[str]] = None) -> dict:
         """Insert a new glossary term.
         
         Args:
@@ -38,6 +39,7 @@ class GlossaryRepository:
             context_condition: Optional context condition
             confidence: Confidence score
             scope: 'novel' (novel-specific) or 'global' (all novels)
+            variants: Optional list of alternate spellings/variants
         """
         term_id = f"term_{novel_id}_{hashlib.md5(source_term.encode()).hexdigest()[:8]}"
         now = datetime.now().isoformat()
@@ -49,6 +51,12 @@ class GlossaryRepository:
             (term_id, novel_id, source_term, target_term, source_term, category,
              status, enforcement_level, context_condition, confidence, scope, now),
         )
+        
+        # Add variants if provided
+        if variants:
+            for variant in variants:
+                self.add_variant(term_id, variant, match_type="exact")
+        
         logger.debug(f"Glossary term added: {source_term} -> {target_term} (scope={scope})")
         return self.get_term(term_id)
 
@@ -81,6 +89,7 @@ class GlossaryRepository:
         """Fetch a term by novel_id and source_term.
         
         Checks novel-specific terms first, then falls back to global terms.
+        Also checks term_variants table for alternate spellings.
         """
         row = self.db.fetchone(
             "SELECT * FROM glossary_terms WHERE novel_id = ? AND source_term = ? AND scope = 'novel'",
@@ -89,12 +98,32 @@ class GlossaryRepository:
         if row:
             return dict(row)
         
+        # Check variants table for alternate spellings
+        variant_row = self.db.fetchone(
+            """SELECT gt.* FROM term_variants tv
+               JOIN glossary_terms gt ON tv.term_id = gt.id
+               WHERE gt.novel_id = ? AND tv.variant_text = ? AND gt.scope = 'novel'""",
+            (novel_id, source_term),
+        )
+        if variant_row:
+            return dict(variant_row)
+        
         # Fall back to global terms
         row = self.db.fetchone(
             "SELECT * FROM glossary_terms WHERE scope = 'global' AND source_term = ? AND status = 'approved'",
             (source_term,),
         )
-        return dict(row) if row else None
+        if row:
+            return dict(row)
+        
+        # Check global variants
+        variant_row = self.db.fetchone(
+            """SELECT gt.* FROM term_variants tv
+               JOIN glossary_terms gt ON tv.term_id = gt.id
+               WHERE gt.scope = 'global' AND tv.variant_text = ? AND gt.status = 'approved'""",
+            (source_term,),
+        )
+        return dict(variant_row) if variant_row else None
 
     def get_terms_by_novel(self, novel_id: str, status: Optional[str] = None,
                            limit: int = 100, include_global: bool = True) -> list[dict]:

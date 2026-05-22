@@ -33,7 +33,7 @@ class FastTranslator:
         # Initialize glossary matcher for dynamic term extraction
         try:
             from src.utils.glossary_matcher import GlossaryMatcher
-            self.glossary_matcher = GlossaryMatcher(memory_manager.glossary_path)
+            self.glossary_matcher = GlossaryMatcher(memory_manager=memory_manager)
         except Exception as e:
             logging.warning(f"Could not initialize GlossaryMatcher: {e}")
             self.glossary_matcher = None
