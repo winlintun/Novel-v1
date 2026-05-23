@@ -10,12 +10,14 @@ import sys
 import json
 from pathlib import Path
 from datetime import datetime
+from functools import lru_cache
 from typing import Optional, List
 
 project_root = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.utils.translation_reviewer import review_translation, save_review_report, ReviewReport
+from src.utils.translation_reviewer import review_translation
+from src.utils.file_handler import FileHandler
 
 DATASET_DIR = project_root.parent.parent / "DownloadNovel" / "CreateNovelDataSet"
 OUTPUT_DIR = project_root / "data" / "output"
@@ -35,31 +37,40 @@ HUMAN_FILE_PATTERNS = {
     "default": "{novel}_chapter_{ch:04d}.md",
 }
 
+# Per-novel MM file naming patterns for glossary miner
+MM_FILE_PATTERNS = {
+    "outside-of-time": lambda n, ch: f"{n}_myanmar_chapter_{ch:04d}.md",
+    "a-will-eternal": lambda n, ch: f"{n}_chapter_{ch:04d}.md",
+    "we-agreed-on-experiencing-life-so-why-did-you-immortals-become-real": lambda n, ch: None,
+    "default": lambda n, ch: f"{n}_chapter_{ch:04d}.md",
+}
+
+
+@lru_cache(maxsize=1)
+def _get_embedding_model():
+    """Lazy-load sentence-transformers model (cached singleton)."""
+    from sentence_transformers import SentenceTransformer
+    return SentenceTransformer('all-MiniLM-L6-v2')
+
+
 def find_human_reference(novel: str, chapter: int) -> Optional[Path]:
     dataset_novel = NOVEL_MAP.get(novel, novel)
     mm_dir = DATASET_DIR / dataset_novel / "mm"
     if not mm_dir.exists():
         return None
-    
+
     pattern = HUMAN_FILE_PATTERNS.get(novel, HUMAN_FILE_PATTERNS["default"])
-    
-    # Try primary pattern
     fname = pattern.format(novel=novel, ch=chapter)
     fpath = mm_dir / fname
     if fpath.exists():
         return fpath
-    
-    # Try with leading zeros variation
+
     for f in mm_dir.iterdir():
         if f.suffix in (".md", ".txt"):
-            # Extract chapter number from filename
             nums = re.findall(r'(\d+)', f.stem)
-            if nums:
-                # Try the last number cluster (most specific)
-                f_ch = int(nums[-1])
-                if f_ch == chapter:
-                    return f
-    
+            if nums and int(nums[-1]) == chapter:
+                return f
+
     return None
 
 
@@ -67,54 +78,44 @@ def find_model_output(novel: str, chapter: int) -> Optional[Path]:
     novel_dir = OUTPUT_DIR / novel
     if not novel_dir.exists():
         return None
-    
+
     pattern = f"{novel}_chapter_{chapter:04d}.mm.md"
     fpath = novel_dir / pattern
     if fpath.exists():
         return fpath
-    
+
     for f in novel_dir.iterdir():
         if f.suffix == ".md" and not f.name.endswith(".human.md"):
             nums = re.findall(r'(\d+)', f.stem)
             if nums and int(nums[-1]) == chapter:
                 return f
-    
+
     return None
 
 
 def compute_semantic_similarity(text_a: str, text_b: str) -> dict:
-    """Compute semantic similarity between two texts using sentence-transformers."""
+    """Compute semantic similarity using sentence-transformers (model cached)."""
     try:
-        from sentence_transformers import SentenceTransformer
-        
-        model = SentenceTransformer('all-MiniLM-L6-v2')
-        
+        import numpy as np
+        model = _get_embedding_model()
+
         emb_a = model.encode(text_a, normalize_embeddings=True)
         emb_b = model.encode(text_b, normalize_embeddings=True)
-        
-        import numpy as np
         cosine = float(np.dot(emb_a, emb_b))
-        
-        # Also compute paragraph-level similarity
+
         paras_a = [p.strip() for p in text_a.split('\n\n') if p.strip() and not p.strip().startswith('#')]
         paras_b = [p.strip() for p in text_b.split('\n\n') if p.strip() and not p.strip().startswith('#')]
-        
+
         if not paras_a or not paras_b:
             return {"cosine_similarity": cosine, "paragraph_similarity": None}
-        
+
         emb_paras_a = model.encode(paras_a, normalize_embeddings=True)
         emb_paras_b = model.encode(paras_b, normalize_embeddings=True)
-        
-        import numpy as np
         sim_matrix = np.dot(emb_paras_a, emb_paras_b.T)
-        
-        # Best match per human paragraph
         best_matches = sim_matrix.max(axis=1)
         paragraph_sim = float(best_matches.mean())
-        
-        # Coverage: how many human paragraphs have a good match (>.70)
         coverage = float((best_matches > 0.70).mean())
-        
+
         return {
             "cosine_similarity": round(cosine, 4),
             "paragraph_similarity": round(paragraph_sim, 4),
@@ -138,7 +139,6 @@ def analyze_archaic(text: str) -> dict:
 
 
 def compute_myanmar_ratio(text: str) -> float:
-    """Compute Myanmar character ratio."""
     MYANMAR_RANGES = [(0x1000, 0x109F), (0xAA60, 0xAA7F), (0xA9E0, 0xA9FF)]
     non_ws = [c for c in text if not c.isspace()]
     if not non_ws:
@@ -151,7 +151,7 @@ def run_benchmark(novel: str, chapter: int) -> dict:
     """Run full benchmark for one chapter."""
     model_path = find_model_output(novel, chapter)
     human_path = find_human_reference(novel, chapter)
-    
+
     result = {
         "novel": novel,
         "chapter": chapter,
@@ -162,18 +162,17 @@ def run_benchmark(novel: str, chapter: int) -> dict:
         "semantic": None,
         "gap_analysis": {},
     }
-    
+
     if not model_path:
         result["error"] = "Model output not found"
         return result
     if not human_path:
         result["error"] = "Human reference not found"
         return result
-    
+
     model_text = model_path.read_text(encoding='utf-8-sig')
     human_text = human_path.read_text(encoding='utf-8-sig')
-    
-    # 1. Run translation_reviewer on both
+
     try:
         model_report = review_translation(str(model_path), chapter=chapter, novel=novel)
         human_report = review_translation(str(human_path), chapter=chapter, novel=novel)
@@ -191,20 +190,17 @@ def run_benchmark(novel: str, chapter: int) -> dict:
         }
     except Exception as e:
         result["reviewer_error"] = str(e)
-    
-    # 2. Archaic word comparison
+
     result["gap_analysis"]["archaic"] = {
         "model": analyze_archaic(model_text),
         "human": analyze_archaic(human_text),
     }
-    
-    # 3. Myanmar ratio
+
     result["gap_analysis"]["myanmar_ratio"] = {
         "model": compute_myanmar_ratio(model_text),
         "human": compute_myanmar_ratio(human_text),
     }
-    
-    # 4. Length comparison
+
     result["gap_analysis"]["length"] = {
         "model_chars": len(model_text),
         "human_chars": len(human_text),
@@ -212,72 +208,67 @@ def run_benchmark(novel: str, chapter: int) -> dict:
         "human_paragraphs": len([p for p in human_text.split('\n\n') if p.strip()]),
         "ratio": round(len(model_text) / max(len(human_text), 1), 4),
     }
-    
-    # 5. Semantic similarity
+
     try:
         result["semantic"] = compute_semantic_similarity(model_text, human_text)
     except Exception as e:
         result["semantic"] = {"error": str(e)}
-    
+
     return result
 
 
-def print_benchmark(results: List[dict], format: str = "table"):
+def print_benchmark(results: List[dict], fmt: str = "table"):
     """Print benchmark results."""
-    if format == "json":
+    if fmt == "json":
         print(json.dumps(results, ensure_ascii=False, indent=2))
         return
-    
+
     for r in results:
         print(f"\n{'='*70}")
         print(f"  BENCHMARK: {r['novel']} chapter {r['chapter']}")
         print(f"{'='*70}")
-        
+
         if "error" in r:
             print(f"  ❌ {r['error']}")
             continue
-        
-        # Quality scores
+
         mq = r.get("model_quality") or {}
         hq = r.get("human_quality") or {}
         s = r.get("semantic") or {}
         gap = r.get("gap_analysis") or {}
-        
+
         print(f"\n  📊 QUALITY SCORES")
         print(f"  {'Metric':<35} {'Model':>8} {'Human':>8} {'Diff':>8}")
         print(f"  {'─'*35} {'─'*8} {'─'*8} {'─'*8}")
-        
+
         model_score = mq.get("total_score", "N/A")
         human_score = hq.get("total_score", "N/A")
         diff = ""
         if isinstance(model_score, int) and isinstance(human_score, int):
             diff = f"{model_score - human_score:+d}"
         print(f"  {'Overall Score':<35} {str(model_score):>8} {str(human_score):>8} {diff:>8}")
-        
+
         print(f"  {'Critical Issues':<35} {str(mq.get('critical_count', 'N/A')):>8} {str(hq.get('critical_count', 'N/A')):>8}")
         print(f"  {'Warnings':<35} {str(mq.get('warning_count', 'N/A')):>8} {str(hq.get('warning_count', 'N/A')):>8}")
-        
+
         print(f"\n  🔤 ARCHAIC WORDS")
         arch = gap.get("archaic", {})
         m_arch = arch.get("model", {})
         h_arch = arch.get("human", {})
         for word in ['ဤ', 'ထို', 'သင်သည်']:
             print(f"  {word:<35} {str(m_arch.get(word, 0)):>8} {str(h_arch.get(word, 0)):>8}")
-        
+
         print(f"\n  📐 CONTENT METRICS")
         l = gap.get("length", {})
         print(f"  {'Chars':<35} {str(l.get('model_chars', 'N/A')):>8} {str(l.get('human_chars', 'N/A')):>8}")
         print(f"  {'Paragraphs':<35} {str(l.get('model_paragraphs', 'N/A')):>8} {str(l.get('human_paragraphs', 'N/A')):>8}")
         print(f"  {'Length ratio (model/human)':<35} {str(l.get('ratio', 'N/A')):>8}")
-        
+
         print(f"\n  🧠 SEMANTIC SIMILARITY")
         print(f"  {'Cosine similarity':<35} {str(s.get('cosine_similarity', 'N/A')):>8}")
         print(f"  {'Paragraph similarity (avg)':<35} {str(s.get('paragraph_similarity', 'N/A')):>8}")
         print(f"  {'Paragraph coverage (>.70)':<35} {str(s.get('paragraph_coverage', 'N/A')):>8}")
-        print(f"  {'Model paragraphs':<35} {str(s.get('model_paragraphs', 'N/A')):>8}")
-        print(f"  {'Human paragraphs':<35} {str(s.get('human_paragraphs', 'N/A')):>8}")
-        
-        # Check-by-check comparison
+
         model_checks = mq.get("checks", {})
         human_checks = hq.get("checks", {})
         if model_checks and human_checks:
@@ -298,11 +289,10 @@ def main():
     parser.add_argument("--all-chapters", action="store_true", help="Benchmark all available model outputs")
     parser.add_argument("--json", action="store_true", help="Output JSON")
     args = parser.parse_args()
-    
+
     results = []
-    
+
     if args.all_chapters:
-        # Find all model outputs
         for novel_dir in sorted(OUTPUT_DIR.iterdir()):
             if not novel_dir.is_dir() or novel_dir.name.startswith('.'):
                 continue
@@ -322,14 +312,13 @@ def main():
     else:
         parser.print_help()
         return
-    
-    print_benchmark(results, format="json" if args.json else "table")
-    
-    # Save results
+
+    print_benchmark(results, fmt="json" if args.json else "table")
+
     ts = datetime.now().strftime('%Y%m%d_%H%M%S')
     out_path = project_root / "logs" / "report" / f"benchmark_{ts}.json"
-    with open(out_path, 'w', encoding='utf-8') as f:
-        json.dump(results, f, ensure_ascii=False, indent=2)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    FileHandler.write_json(str(out_path), results)
     print(f"\n  💾 Results saved: {out_path}")
 
 

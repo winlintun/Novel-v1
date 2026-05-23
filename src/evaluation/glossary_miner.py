@@ -22,6 +22,9 @@ from datetime import datetime
 from typing import List, Tuple, Dict, Optional
 import math
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+from src.utils.file_handler import FileHandler
+
 project_root = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(project_root))
 
@@ -64,6 +67,13 @@ EN_STOP_WORDS = {
 }
 
 # Novel titles to filter out
+MM_FILE_PATTERNS = {
+    "outside-of-time": lambda n, ch: f"{n}_myanmar_chapter_{ch:04d}.md",
+    "a-will-eternal": lambda n, ch: f"{n}_chapter_{ch:04d}.md",
+    "we-agreed-on-experiencing-life-so-why-did-you-immortals-become-real": lambda n, ch: None,
+    "default": lambda n, ch: f"{n}_chapter_{ch:04d}.md",
+}
+
 NOVEL_TITLES = {
     'a-will-eternal': {'A Will Eternal'},
     'outside-of-time': {'Outside Of Time', 'Outside Of'},
@@ -193,32 +203,34 @@ def scan_novel(novel: str, sample_limit: int = 0) -> Tuple[Counter, Counter, int
         en_files = en_files[:sample_limit]
     
     for f in en_files:
-        # Find corresponding MM file
         chapter_num = re.findall(r'(\d+)', f.stem)
         if not chapter_num:
             continue
         ch = int(chapter_num[-1])
-        
-        # Try multiple MM naming patterns
-        mm_candidates_files = []
-        for pat in [
-            f"{novel}_myanmar_chapter_{ch:04d}.md",
-            f"{novel}_chapter_{ch:04d}.md",
-            str(f.name).replace(".md", "_chapter_" + str(ch).zfill(4) + ".md"),
-        ]:
-            p = mm_dir / pat
+
+        mm_filepaths = []
+        pattern_fn = MM_FILE_PATTERNS.get(novel, MM_FILE_PATTERNS["default"])
+        expected_name = pattern_fn(novel, ch)
+        if expected_name:
+            p = mm_dir / expected_name
             if p.exists():
-                mm_candidates_files.append(p)
-                break
-        else:
-            # Fallback: scan by chapter number
+                mm_filepaths.append(p)
+
+        if not mm_filepaths:
+            for alt_name in [f"{novel}_chapter_{ch:04d}.md"]:
+                p = mm_dir / alt_name
+                if p.exists() and alt_name != expected_name:
+                    mm_filepaths.append(p)
+                    break
+
+        if not mm_filepaths:
             for mf in mm_dir.iterdir():
                 nums = re.findall(r'(\d+)', mf.stem)
                 if nums and int(nums[-1]) == ch:
-                    mm_candidates_files.append(mf)
+                    mm_filepaths.append(mf)
                     break
-        
-        if not mm_candidates_files:
+
+        if not mm_filepaths:
             continue
         
         # Extract entities from EN
@@ -237,7 +249,7 @@ def scan_novel(novel: str, sample_limit: int = 0) -> Tuple[Counter, Counter, int
             en_entities[e] += 1
         
         # Extract candidates from MM
-        for mf in mm_candidates_files:
+        for mf in mm_filepaths:
             candidates = extract_mm_candidates(mf)
             for c in candidates:
                 mm_candidates[c] += 1
@@ -333,7 +345,7 @@ def build_blueprint(all_en_entities: Dict[str, Counter], novel_info: Dict[str, i
                 "to_enemy": {"self": "ငါ", "target": "နင်", "honorific": "မိစ္ဆာကောင်"}
             },
             "ai_injection_limit": {
-                "max_terms_per_prompt": 60,
+                "max_terms_per_prompt": 20,  # AGENTS.md budget: glossary top_n=20
                 "priority_cutoff": 2,
                 "fallback_placeholder": "【?term?】",
                 "scene_tone_keys": ["formal", "casual", "hostile", "pleading", "intimate"]
@@ -386,26 +398,13 @@ def build_blueprint(all_en_entities: Dict[str, Counter], novel_info: Dict[str, i
         
         total_count = sum(novel_counts.values())
         novel_count = len(novel_counts)
-        
-        # Only include terms with enough evidence
+
         if total_count < 5:
             continue
         if novel_count < 2 and total_count < 20:
             continue
-        # Filter single-word terms unless they are title+name (e.g., "Elder Wang")
         words = source_term.split()
         if len(words) <= 1:
-            continue
-        if source_term in EN_STOP_WORDS:
-            continue
-        
-        total_count = sum(novel_counts.values())
-        novel_count = len(novel_counts)
-        
-        # Only include terms with enough evidence
-        if novel_count < 2 and total_count < 5:
-            continue
-        if total_count < 3:
             continue
         
         seen_sources.add(source_term)
@@ -521,10 +520,9 @@ def main():
     
     # Write
     output_path = Path(args.output)
-    output_path.write_text(json.dumps(blueprint, ensure_ascii=False, indent=2), encoding='utf-8')
+    FileHandler.write_json(str(output_path), blueprint)
     print(f"\n  💾 Glossary saved: {output_path}")
-    
-    # Also save a summary
+
     summary_path = output_path.with_name("universal_glossary_summary.json")
     summary = {
         "last_updated": datetime.now().isoformat(),
@@ -547,7 +545,7 @@ def main():
             if not t["source_term"].startswith("<")
         ]
     }
-    summary_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding='utf-8')
+    FileHandler.write_json(str(summary_path), summary)
     print(f"  💾 Summary saved: {summary_path}")
     
     print(f"\n  ✅ Done! Run with --sample 0 to scan ALL chapters.")

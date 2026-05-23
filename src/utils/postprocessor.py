@@ -727,6 +727,20 @@ def detect_potential_hallucinations(text: str, known_terms: Optional[set] = None
     return warnings
 
 
+# Myanmar consonant range: U+1000-U+1021 (က-အ) + independent vowels U+1023-U+102A
+_MYANMAR_CONSONANT = r'[\u1000-\u1021\u1023-\u102A]'
+
+# Known compounds containing ထို as a syllable (protected from replacement)
+# Sorted by length descending so "ထိုက်တန်" is protected before "ထိုက်"
+_COMPOUND_PROTECT = {
+    'ထိုက်တန်': '__MYAN_DESERVE__',
+    'ထိုင်':    '__MYAN_SIT__',
+    'ထိုင်း':   '__MYAN_THAI__',
+    'ထိုး':    '__MYAN_STAB__',
+    'ထိုက်':   '__MYAN_WORTHY__',
+}
+
+
 def replace_archaic_words(text: str) -> str:
     """Replace archaic Myanmar words with modern alternatives.
     
@@ -747,32 +761,13 @@ def replace_archaic_words(text: str) -> str:
     if not text:
         return text
 
-    # Myanmar consonant range: U+1000-U+1021 (က-အ) + independent vowels U+1023-U+102A
-    _MYANMAR_CONSONANT = r'[\u1000-\u1021\u1023-\u102A]'
-
     # ── Step 1: Protect known compounds (temporary placeholders) ──
-    # Sort by length descending so "ထိုက်တန်" is protected before "ထိုက်"
-    # (otherwise ထိုက်'s replacement corrupts the longer compound)
-    _COMPOUND_PROTECT = {
-        'ထိုက်တန်': '__MYAN_DESERVE__', # deserve (must come BEFORE ထိုက်)
-        'ထိုင်':    '__MYAN_SIT__',      # to sit (ထ + ိ + င်)
-        'ထိုင်း':   '__MYAN_THAI__',     # Thai / lazy (ထ + ိ + င်း)
-        'ထိုး':    '__MYAN_STAB__',     # to stab (ထ + ိ + း)
-        'ထိုက်':   '__MYAN_WORTHY__',   # worthy (ထ + ိ + က်)
-    }
-    for comp, guard in sorted(
-        _COMPOUND_PROTECT.items(),
-        key=lambda x: len(x[0]),
-        reverse=True
-    ):
+    for comp, guard in _COMPOUND_PROTECT.items():
         text = text.replace(comp, guard)
 
     # ── Step 2: Replace standalone archaic words ──
-    # ဤ → ဒီ: standalone ဤ not preceded by Myanmar consonant
     text = re.sub(r'(?<!' + _MYANMAR_CONSONANT + r')ဤ(?![\u1039])', 'ဒီ', text)
-    # ထို → အဲဒီ: standalone determiners only (not compounds)
     text = re.sub(r'(?<!' + _MYANMAR_CONSONANT + r')ထို(?![\u1039])', 'အဲဒီ', text)
-    # သင်သည် → မင်း
     text = re.sub(
         r'(?<!' + _MYANMAR_CONSONANT + r')သင်သည်(?![\u1039])',
         'မင်း', text
@@ -783,9 +778,7 @@ def replace_archaic_words(text: str) -> str:
         text = text.replace(guard, comp)
 
     # ── Step 4: Fix ထို့ variants that became အဲဒီ့ (tone mark issue) ──
-    # ထို့ → အဲဒီ့ during replacement, but should be အဲဒီ (drop the tone mark ့)
-    # when the original ထို့ was a prefix (e.g., ထို့နောက်, ထို့ကြောင့်, ထို့အတူ, etc.)
-    text = re.sub(r'အဲဒီ့(?=[\u1000-\u1021\u1023-\u102A])', 'အဲဒီ', text)
+    text = re.sub(r'အဲဒီ့(?=[' + _MYANMAR_CONSONANT[1:-1] + r'])', 'အဲဒီ', text)
 
     return text
 
