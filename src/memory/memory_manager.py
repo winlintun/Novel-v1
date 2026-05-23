@@ -10,6 +10,8 @@ They are NOT written to - only used as optional read-only fallback.
 
 import logging
 import os
+import re
+import json as _json
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 from collections import deque
@@ -140,8 +142,11 @@ class MemoryManager:
             self.universal_glossary: Dict[str, Any] = {}
             self.universal_pending: Dict[str, Any] = {}
             self.universal_context: Dict[str, Any] = {}
-            self.use_universal = False
-            logger.info(f"MemoryManager initialized with SQL backend (novel={novel_name})")
+            self.use_universal = use_universal
+            # Load universal glossary if enabled (SQL path fix per report.md §2)
+            if self.use_universal:
+                self._load_universal_glossary()
+            logger.info(f"MemoryManager initialized with SQL backend (novel={novel_name}, use_universal={self.use_universal})")
             return
 
         # Resolve novel-specific paths when novel_name is provided
@@ -169,49 +174,49 @@ class MemoryManager:
         # Tier 3: Session Rules
         self.session_rules: Dict[str, str] = {}
 
-        # Load all memory
+        # Load all memory (_load_memory handles universal glossary if use_universal=True)
         self._load_memory()
 
-    def _load_memory(self):
+    def _load_universal_glossary(self) -> None:
+        """Load universal (shared) glossary reference data for both SQL and JSON paths."""
+        self.universal_glossary = FileHandler.read_json(UNIVERSAL_GLOSSARY_REF)
+        if not self.universal_glossary:
+            self.universal_glossary = {
+                "metadata": {"schema_version": "3.2.1"},
+                "terms": []
+            }
+        else:
+            raw = self.universal_glossary.get("terms", [])
+            self.universal_glossary["terms"] = [
+                t for t in raw
+                if not (
+                    (t.get("source_term") or t.get("source", "")).startswith("<")
+                    and (t.get("source_term") or t.get("source", "")).endswith(">")
+                )
+            ]
+            logger.info(f"Loaded universal glossary: {len(self.universal_glossary.get('terms', []))} terms")
+
+        self.universal_pending = FileHandler.read_json(UNIVERSAL_PENDING_REF)
+        if not self.universal_pending:
+            self.universal_pending = {
+                "metadata": {"schema_version": "3.2.1-pending"},
+                "pending_terms": []
+            }
+
+        self.universal_context = FileHandler.read_json(UNIVERSAL_CONTEXT_REF)
+        if not self.universal_context:
+            self.universal_context = {
+                "metadata": {"schema_version": "3.2.1"},
+                "dynamic_character_states": [],
+                "translation_flow_buffer": []
+            }
+
+    def _load_memory(self) -> None:
         """Load all memory files including universal (shared) glossary."""
         
         # Load Universal (shared) glossary first if enabled
         if self.use_universal:
-            self.universal_glossary = FileHandler.read_json(UNIVERSAL_GLOSSARY_REF)
-            if not self.universal_glossary:
-                self.universal_glossary = {
-                    "metadata": {"schema_version": "3.2.1"},
-                    "terms": []
-                }
-            else:
-                # Strip template placeholder terms (e.g. <MAIN_CHARACTER> / <MYANMAR_NAME>)
-                # so blueprint files can exist as reference docs without polluting prompts.
-                raw = self.universal_glossary.get("terms", [])
-                self.universal_glossary["terms"] = [
-                    t for t in raw
-                    if not (
-                        (t.get("source_term") or t.get("source", "")).startswith("<")
-                        and (t.get("source_term") or t.get("source", "")).endswith(">")
-                    )
-                ]
-                logger.info(f"Loaded universal glossary: {len(self.universal_glossary.get('terms', []))} terms")
-            
-            # Load universal pending terms
-            self.universal_pending = FileHandler.read_json(UNIVERSAL_PENDING_REF)
-            if not self.universal_pending:
-                self.universal_pending = {
-                    "metadata": {"schema_version": "3.2.1-pending"},
-                    "pending_terms": []
-                }
-            
-            # Load universal context
-            self.universal_context = FileHandler.read_json(UNIVERSAL_CONTEXT_REF)
-            if not self.universal_context:
-                self.universal_context = {
-                    "metadata": {"schema_version": "3.2.1"},
-                    "dynamic_character_states": [],
-                    "translation_flow_buffer": []
-                }
+            self._load_universal_glossary()
         
         # Load per-novel glossary
         self.glossary = FileHandler.read_json(self.glossary_path)
@@ -243,6 +248,7 @@ class MemoryManager:
                 "last_translated_chapter": 0,
                 "summary": "",
                 "active_characters": {},
+                "character_voices": {},
                 "recent_events": [],
                 "paragraph_buffer": []
             }
@@ -461,6 +467,149 @@ class MemoryManager:
         return self._sanitize_for_prompt(summary)
 
     # -------------------------------------------------------------------------
+    # Character Voice Registry
+    # -------------------------------------------------------------------------
+
+    def set_character_voice(
+        self,
+        name: str,
+        target: str,
+        pronoun_self: str = "",
+        pronoun_other: str = "",
+        register: str = "neutral",
+        speech_style: str = "",
+        chapter: int = 0,
+    ) -> None:
+        """Register or update a character's voice profile.
+
+        Args:
+            name: Source name (e.g., "Fang Yuan")
+            target: Myanmar translation (e.g., "ဖန်ယွမ်")
+            pronoun_self: Self-reference pronoun (e.g., "ငါ", "ကျွန်တော်")
+            pronoun_other: Other-reference pronoun (e.g., "နင်", "မင်း")
+            register: Speech register ("formal", "casual", "blunt_casual", "respectful", "neutral")
+            speech_style: Description of speech patterns (e.g., "cold and direct")
+            chapter: Current chapter number
+        """
+        voices = self.context_memory.setdefault("character_voices", {})
+        if name in voices:
+            existing = voices[name]
+            existing["pronoun_self"] = pronoun_self or existing.get("pronoun_self", "")
+            existing["pronoun_other"] = pronoun_other or existing.get("pronoun_other", "")
+            existing["register"] = register or existing.get("register", "neutral")
+            existing["speech_style"] = speech_style or existing.get("speech_style", "")
+            if chapter and chapter not in existing.get("chapters_active", []):
+                existing.setdefault("chapters_active", []).append(chapter)
+        else:
+            voices[name] = {
+                "target": target,
+                "pronoun_self": pronoun_self,
+                "pronoun_other": pronoun_other,
+                "register": register,
+                "speech_style": speech_style,
+                "chapters_active": [chapter] if chapter else [],
+            }
+        logger.debug(f"Character voice registered: {name} ({register})")
+
+    def get_character_voices(self, active_only: bool = True, current_chapter: int = 0) -> str:
+        """Get formatted character voice profiles for prompt injection.
+
+        Args:
+            active_only: If True, only include characters active in current chapter.
+            current_chapter: Current chapter number for active filtering.
+
+        Returns:
+            Formatted string for prompt injection, or empty string if no voices.
+        """
+        voices = self.context_memory.get("character_voices", {})
+        if not voices:
+            return ""
+
+        lines = ["CHARACTER VOICE PROFILES:"]
+        for name, profile in voices.items():
+            if active_only and current_chapter > 0:
+                if current_chapter not in profile.get("chapters_active", []):
+                    continue
+            parts = [f"  {name} ({profile.get('target', '')})"]
+            if profile.get("pronoun_self"):
+                parts.append(f"self={profile['pronoun_self']}")
+            if profile.get("pronoun_other"):
+                parts.append(f"other={profile['pronoun_other']}")
+            if profile.get("register"):
+                parts.append(f"register={profile['register']}")
+            if profile.get("speech_style"):
+                parts.append(f"style={profile['speech_style']}")
+            lines.append(" | ".join(parts))
+
+        return "\n".join(lines) if len(lines) > 1 else ""
+
+    def extract_character_voices_from_text(
+        self,
+        source_text: str,
+        translated_text: str,
+        chapter: int = 0,
+    ) -> None:
+        """Extract character voice profiles from translated dialogue.
+
+        Scans translated text for dialogue patterns and infers
+        character voice attributes (pronouns, register) from how
+        characters speak.
+
+        Args:
+            source_text: Original chapter text (for character name lookup)
+            translated_text: Translated Myanmar text
+            chapter: Current chapter number
+        """
+        voices = self.context_memory.setdefault("character_voices", {})
+        active_chars = self.context_memory.get("active_characters", {})
+        if not active_chars:
+            return
+
+        # For each active character, scan translated text for their dialogue
+        for src_name, info in active_chars.items():
+            target_name = info.get("target", "")
+            if not target_name or target_name not in translated_text:
+                continue
+
+            if src_name not in voices:
+                register = "neutral"
+                pronoun_self = ""
+                pronoun_other = ""
+
+                # Infer register from how the character speaks in translation
+                # Look for patterns near the character's name
+                lines = translated_text.split("\n")
+                for line in lines:
+                    if target_name not in line:
+                        continue
+                    # Check for casual markers
+                    if re.search(r'(?<!\S)(တယ်|ဘူး|ပါ့|လား|နော်)(?!\S)', line):
+                        register = "casual"
+                        pronoun_self = "ငါ"
+                        pronoun_other = "နင်"
+                    # Check for respectful markers
+                    elif re.search(r'(?<!\S)(ပါသည်|ပါတယ်|ရှင်)(?!\S)', line):
+                        if register == "neutral":
+                            register = "respectful"
+                            pronoun_self = "ကျွန်တော်"
+                            pronoun_other = "ရှင်"
+                    # Check for formal narration markers
+                    elif re.search(r'(?<!\S)သည်(?!\S)', line) and "တယ်" not in line:
+                        if register == "neutral":
+                            register = "formal"
+                            pronoun_self = "ငါ"
+                            pronoun_other = "မင်း"
+
+                self.set_character_voice(
+                    name=src_name,
+                    target=target_name,
+                    pronoun_self=pronoun_self,
+                    pronoun_other=pronoun_other,
+                    register=register,
+                    chapter=chapter,
+                )
+
+    # -------------------------------------------------------------------------
     # Tier 3: Session Rules
     # -------------------------------------------------------------------------
 
@@ -479,6 +628,11 @@ class MemoryManager:
             lines.append(f"  {self._sanitize_for_prompt(incorrect)} -> {self._sanitize_for_prompt(correct)}")
 
         return "\n".join(lines)
+
+    def clear_session_rules(self) -> None:
+        """Clear all session rules (called at chapter start)."""
+        self.session_rules.clear()
+        logger.debug("Session rules cleared for new chapter")
 
     def promote_rule_to_glossary(self, incorrect: str, correct: str, chapter: int = 0):
         """Promote a session rule to permanent glossary entry."""
@@ -1050,11 +1204,13 @@ class MemoryManager:
 
     def get_all_memory_for_prompt(self) -> Dict[str, str]:
         """Get all memory tiers formatted for prompts."""
+        current_chapter = self.context_memory.get("current_chapter", 0)
         return {
             "glossary": self.get_glossary_for_prompt(),
             "context": self.get_context_buffer(),
             "rules": self.get_session_rules(),
-            "summary": self.get_summary()
+            "summary": self.get_summary(),
+            "voices": self.get_character_voices(active_only=True, current_chapter=current_chapter),
         }
 
     # ── SQL Backend Overrides ─────────────────────────────────────────────
@@ -1226,7 +1382,7 @@ class MemoryManager:
             lines.append(f"  [{verified}] {source} = {target} ({category})")
         return "\n".join(lines)
 
-    def update_chapter_context(self, chapter_num: int, translated_text: str = "", summary: str = ""):
+    def update_chapter_context(self, chapter_num: int, translated_text: str = "", summary: str = "", source_text: str = "") -> None:
         """Update context after chapter translation (SQL or JSON)."""
         if self.use_sql:
             chapter_id = f"chapter_{self.novel_id}_{chapter_num:04d}"
@@ -1238,13 +1394,35 @@ class MemoryManager:
                 )
             if translated_text or summary:
                 snap_summary = summary or self._generate_summary_from_text(translated_text)
+                # Extract active characters and events like JSON path does
+                active_chars = []
+                try:
+                    self._update_active_characters(translated_text)
+                    active_chars = list(self.context_memory.get("active_characters", {}).keys())
+                except Exception as e:
+                    logger.debug(f"Active characters extraction failed: {e}")
+                events = []
+                try:
+                    self._update_recent_events(translated_text, chapter_num)
+                    events = self.context_memory.get("recent_events", [])
+                except Exception as e:
+                    logger.debug(f"Recent events extraction failed: {e}")
+                # Extract character voices
+                try:
+                    if source_text:
+                        self.extract_character_voices_from_text(source_text, translated_text, chapter_num)
+                except Exception as e:
+                    logger.debug(f"Character voice extraction failed: {e}")
                 snapshot = {
-                    "active_chars": [], "events": [],
-                    "summary": snap_summary, "new_terms": [],
+                    "active_chars": active_chars,
+                    "events": events,
+                    "summary": snap_summary,
+                    "new_terms": [],
+                    "updated_at": datetime.now().isoformat(),
                 }
-                import json as _json
                 self.context_repo.create_snapshot(chapter_id, _json.dumps(snapshot, ensure_ascii=False))
             self.chapter_repo.update_status(chapter_id, "translated")
+            logger.info(f"SQL context updated for chapter {chapter_num}: {len(active_chars)} active chars, {len(events)} events")
             return
 
         self.context_memory["last_translated_chapter"] = self.context_memory.get("current_chapter", 0)
@@ -1262,6 +1440,10 @@ class MemoryManager:
                 self._update_recent_events(translated_text, chapter_num)
             except Exception as e:
                 logger.warning(f"Recent events update failed: {e}")
+            try:
+                self.extract_character_voices_from_text(source_text or "", translated_text, chapter_num)
+            except Exception as e:
+                logger.debug(f"Character voice extraction failed (non-fatal): {e}")
         self.save_memory()
 
     def close(self):

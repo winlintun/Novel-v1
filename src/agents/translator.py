@@ -130,6 +130,16 @@ class Translator(BaseAgent):
             prompt_parts.append(mem['voices'])
             prompt_parts.append("")
 
+        # Add chapter summary memory for long-range continuity
+        if mem.get('summary') and mem['summary'] not in ("", "No summary yet."):
+            prompt_parts.append("CHAPTER SUMMARY (events so far in this chapter):")
+            from src.utils.chunker import estimate_tokens
+            summary_text = mem['summary']
+            if estimate_tokens(summary_text) > 200:
+                summary_text = summary_text[:600] + "..."
+            prompt_parts.append(summary_text)
+            prompt_parts.append("")
+
         # Add source text
         prompt_parts.append("SOURCE TEXT TO TRANSLATE:")
         prompt_parts.append(text)

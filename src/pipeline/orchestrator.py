@@ -110,6 +110,7 @@ class TranslationPipeline:
                 pass  # Never let progress reporting break the pipeline
         # Write live progress to file so the Flask web UI can poll it
         try:
+            from src.utils.file_handler import FileHandler
             event_type = event.get("type", "")
             progress_file = Path("logs/progress_current.json")
             if progress_file.exists() and event_type in (
@@ -127,8 +128,7 @@ class TranslationPipeline:
                 elif event_type == "summary":
                     pdata["status"] = "completed"
                     pdata["message"] = "Translation completed!"
-                with open(progress_file, "w", encoding="utf-8") as _f:
-                    json.dump(pdata, _f)
+                FileHandler.write_json(str(progress_file), pdata)
         except Exception:
             pass  # Never let progress reporting break the pipeline
 
@@ -148,7 +148,8 @@ class TranslationPipeline:
         """
         try:
             from datetime import datetime
-            
+            from src.utils.file_handler import FileHandler
+
             # Calculate duration in hours, minutes, seconds
             hours = int(duration // 3600)
             minutes = int((duration % 3600) // 60)
@@ -208,8 +209,7 @@ class TranslationPipeline:
             report_file = report_dir / f"{novel_name}{chapter_str}_completion_{timestamp}.log"
             
             # Write report
-            with open(report_file, 'w', encoding='utf-8') as f:
-                f.write('\n'.join(report_lines))
+            FileHandler.write_text(str(report_file), '\n'.join(report_lines))
             
             self.logger.info(f"Completion report saved: {report_file}")
             
@@ -504,6 +504,7 @@ class TranslationPipeline:
             m = re.search(r'(\d+)', Path(filepath).stem)
             if m:
                 chapter_num = int(m.group(1))
+            self._current_chapter = chapter_num
 
             # Preprocess
             chunks = self._preprocess(text, chapter_label)
@@ -1304,6 +1305,27 @@ class TranslationPipeline:
                 f"✓ Chunk {i+1}/{total} complete in {chunk_duration:.0f}s. "
                 f"Quality: {quality_score}, Ratio: {mm_ratio:.1%}, Issues: {total_issues}"
             )
+
+            # Write orchestration checkpoint to session_memory.json (report.md §6)
+            try:
+                from src.utils.file_handler import FileHandler
+                session_cp = Path(".agent") / "session_memory.json"
+                if session_cp.exists():
+                    cp_data = FileHandler.read_json(str(session_cp)) or {}
+                else:
+                    cp_data = {}
+                cp_data["last_checkpoint"] = {
+                    "chapter": getattr(self, '_current_chapter', None),
+                    "chunk_index": i + 1,
+                    "total_chunks": total,
+                    "stage": "translate",
+                    "timestamp": datetime.now().isoformat(),
+                    "quality_score": quality_score,
+                    "myanmar_ratio": mm_ratio,
+                }
+                FileHandler.write_json(str(session_cp), cp_data)
+            except Exception as e:
+                self.logger.debug(f"Session checkpoint write failed (non-fatal): {e}")
 
             # Auto-update paragraph buffer for context memory
             if self._memory_manager:

@@ -41,14 +41,20 @@ class FileHandler:
 
     @staticmethod
     def write_text(filepath: str, content: str) -> None:
-        """Write text file with UTF-8 encoding."""
+        """Write text file atomically (temp file → rename).
+
+        Prevents partial/corrupted files on crash during write.
+        Follows same temp-rename pattern as write_json().
+        """
         path = Path(filepath)
         path.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(path, 'w', encoding='utf-8-sig') as f:
+        temp_path = path.with_suffix('.tmp')
+        with open(temp_path, 'w', encoding='utf-8-sig') as f:
             f.write(content)
+        temp_path.replace(path)
 
-        logger.info(f"Written: {filepath}")
+        logger.debug(f"Written: {filepath}")
 
     @staticmethod
     def read_json(filepath: str) -> Dict[str, Any]:

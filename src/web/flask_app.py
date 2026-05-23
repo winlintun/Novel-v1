@@ -1276,17 +1276,14 @@ def api_editor_save():
     try:
         content = '\n\n'.join(paragraphs)
         # Write a backup first
-        backup_path = Path(file_path).with_suffix('.bak.md')
+        backup_path = str(Path(file_path).with_suffix('.bak.md'))
         try:
-            with open(file_path, 'r', encoding='utf-8-sig') as f:
-                original = f.read()
-            with open(backup_path, 'w', encoding='utf-8') as f:
-                f.write(original)
+            original = FileHandler.read_text(file_path)
+            FileHandler.write_text(backup_path, original)
         except Exception:
             pass  # backup is best-effort
 
-        with open(file_path, 'w', encoding='utf-8') as f:
-            f.write(content)
+        FileHandler.write_text(file_path, content)
 
         return jsonify({'status': 'saved', 'file': file_path, 'paragraphs': len(paragraphs)})
     except Exception as e:
