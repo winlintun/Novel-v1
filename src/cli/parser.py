@@ -272,6 +272,11 @@ def create_parser() -> argparse.ArgumentParser:
         help="Show per-chapter quality score trends for a novel"
     )
     utility_group.add_argument(
+        "--compare-human",
+        action="store_true",
+        help="Compare AI output against human reference chapter (requires --novel and --chapter)"
+    )
+    utility_group.add_argument(
         "--compare-models",
         action="store_true",
         help="Translate chapter with ALL models and save to logs/temp/ for comparison"
@@ -371,7 +376,7 @@ def validate_arguments(args: argparse.Namespace) -> None:
     # Check for required arguments when not running utility commands
     # --generate-glossary --novel X is a standalone command (no chapter required)
     versioning_commands = [args.versions, args.rollback, args.diff, args.preview_sync, args.create_sync_job, args.execute_sync, args.list_sync_jobs, args.audit_log]
-    utility_commands = [args.ui, args.test, args.generate_glossary, args.init_glossary, args.approve_glossary, args.view_file, args.review_file, args.auto_promote, args.stats] + versioning_commands
+    utility_commands = [args.ui, args.test, args.generate_glossary, args.init_glossary, args.approve_glossary, args.view_file, args.review_file, args.auto_promote, args.stats, args.compare_models, args.compare_human] + versioning_commands
 
     if not any(utility_commands):
         if not args.novel and not args.input_file:

@@ -1665,6 +1665,64 @@ def run_audit_log(args: argparse.Namespace) -> int:
         return 1
 
 
+def run_compare_human(args: argparse.Namespace) -> int:
+    """Compare AI output against human reference chapter.
+    
+    Args:
+        args: Command line arguments with --novel and --chapter
+        
+    Returns:
+        Exit code (0 for success, 1 for failure)
+    """
+    logger = setup_logging()
+
+    if not args.novel or not args.chapter:
+        logger.error("--compare-human requires both --novel and --chapter")
+        return 1
+
+    try:
+        from src.evaluation.benchmark import run_benchmark, find_human_reference, find_model_output
+
+        logger.info(f"\n{'='*60}")
+        logger.info("  HUMAN-REFERENCE COMPARISON")
+        logger.info(f"{'='*60}")
+        logger.info(f"Novel: {args.novel}")
+        logger.info(f"Chapter: {args.chapter}")
+        logger.info(f"{'='*60}\n")
+
+        human_path = find_human_reference(args.novel, args.chapter)
+        ai_path = find_model_output(args.novel, args.chapter)
+
+        if not human_path:
+            logger.error(f"No human reference found for {args.novel} chapter {args.chapter}")
+            return 1
+        if not ai_path:
+            logger.error(f"No AI output found for {args.novel} chapter {args.chapter}")
+            return 1
+
+        logger.info(f"Human reference: {human_path}")
+        logger.info(f"AI output:       {ai_path}")
+
+        result = run_benchmark(args.novel, args.chapter)
+
+        print(f"\n{'='*60}")
+        print(f"  COMPARISON RESULTS")
+        print(f"{'='*60}")
+        print(f"  Cosine Similarity:  {result.get('cosine_similarity', 'N/A')}")
+        print(f"  Paragraph Similarity: {result.get('paragraph_similarity', 'N/A')}")
+        print(f"  Paragraph Coverage: {result.get('paragraph_coverage', 'N/A')}")
+        print(f"  AI Paragraphs:      {result.get('model_paragraphs', 'N/A')}")
+        print(f"  Human Paragraphs:   {result.get('human_paragraphs', 'N/A')}")
+        print(f"{'='*60}\n")
+
+        logger.info("Comparison complete")
+        return 0
+
+    except Exception as e:
+        logger.error(f"Human comparison failed: {e}", exc_info=True)
+        return 1
+
+
 def run_compare_models(args: argparse.Namespace) -> int:
     """Run model comparison - translate chapter with all models.
     

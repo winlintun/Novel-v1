@@ -11,12 +11,14 @@ Usage:
 
 import sqlite3
 import hashlib
+import logging
 from pathlib import Path
 from typing import Optional
 from dataclasses import dataclass
 
 try:
     import chromadb
+    from chromadb.utils import embedding_functions
     CHROMA_AVAILABLE = True
 except ImportError:
     CHROMA_AVAILABLE = False
@@ -61,16 +63,43 @@ class RAGRetriever:
         self._chroma_client = None
         self._chroma_collection = None
         self._sqlite_conn = None
+        self.logger = logging.getLogger(__name__)
 
         self._init_chroma()
         self._init_sqlite()
 
     def _init_chroma(self) -> None:
-        """Initialize ChromaDB connection. Skipped to avoid model downloads."""
-        # Skip ChromaDB to avoid model downloads
-        # SQLite keyword-based retrieval is sufficient
-        self._chroma_client = None
-        self._chroma_collection = None
+        """Initialize ChromaDB connection with BGE-M3 embedding model."""
+        if not CHROMA_AVAILABLE:
+            self.logger.warning("chromadb not installed — Chroma RAG disabled")
+            self._chroma_client = None
+            self._chroma_collection = None
+            return
+
+        chroma_path = Path(self.chroma_path)
+        if not chroma_path.exists():
+            self.logger.warning(f"ChromaDB path not found: {self.chroma_path} — RAG will use SQLite fallback")
+            self._chroma_client = None
+            self._chroma_collection = None
+            return
+
+        try:
+            self._chroma_client = chromadb.PersistentClient(path=str(chroma_path))
+            self._chroma_collection = self._chroma_client.get_collection(
+                name="alignment_pairs",
+                embedding_function=embedding_functions.SentenceTransformerEmbeddingFunction(
+                    model_name="all-MiniLM-L6-v2"
+                ),
+            )
+            count = self._chroma_collection.count()
+            self.logger.info(f"ChromaDB initialized at {chroma_path} ({count} embeddings)")
+            if count == 0:
+                self.logger.warning("ChromaDB collection 'alignment_pairs' is empty — RAG will use SQLite fallback")
+                self._chroma_collection = None
+        except Exception as e:
+            self.logger.warning(f"ChromaDB init failed: {e} — falling back to SQLite")
+            self._chroma_client = None
+            self._chroma_collection = None
 
     def _init_sqlite(self) -> None:
         """Initialize SQLite connection."""
@@ -232,9 +261,17 @@ class RAGRetriever:
 
     def close(self) -> None:
         """Close database connections."""
-        if self._sqlite_conn:
+        if hasattr(self, '_sqlite_conn') and self._sqlite_conn:
             self._sqlite_conn.close()
             self._sqlite_conn = None
+        if hasattr(self, '_chroma_client') and self._chroma_client:
+            try:
+                self._chroma_client.clear_system_cache()
+            except Exception:
+                pass
 
     def __del__(self) -> None:
-        self.close()
+        try:
+            self.close()
+        except Exception:
+            pass

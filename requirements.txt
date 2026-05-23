@@ -12,6 +12,20 @@ requests>=2.28.0
 flask>=3.0.0
 markdown>=3.4.0
 
+# RAG and embeddings
+chromadb>=0.5.0
+sentence-transformers>=3.0.0
+
+# Fuzzy matching
+rapidfuzz>=3.0.0
+
+# ML and NLP
+scikit-learn>=1.5.0
+
+# Translation evaluation
+evaluate>=0.4.0
+bert-score>=0.3.13
+
 # Testing
 pytest>=7.0.0
 pytest-cov>=4.0.0

@@ -9,11 +9,15 @@ This is a production-grade local novel translation system that translates Chines
 ## Features
 
 - **Multi-language support**: Chinese→Myanmar and English→Myanmar translation
-- **6-stage pipeline**: Preprocess → Translate → Refine → Reflect → Quality Check → QA Review
+- **8-stage pipeline**: Preprocess → Translate → Refine → Reflect → Quality → Consistency → **FictionEditor** → QA Review
 - **3-tier memory**: Glossary + Context + Session rules
-- **Quality gates**: Myanmar ratio ≥70%, quality score ≥70
+- **Semantic RAG**: ChromaDB with BGE-M3/all-MiniLM-L6-v2 embeddings for paragraph-level reference retrieval
+- **Self-correction**: Reflection agent enabled by default for iterative improvement
+- **Literary humanization**: FictionEditor with 6 tone presets (humanize, dramatic, casual, literary, action, romantic)
+- **Quality gates**: Myanmar ratio ≥70%, quality score ≥70, +7 validation checks
 - **Per-novel glossary**: Isolated terminology per novel
 - **Auto-promotion**: High-confidence terms auto-approved
+- **Human-reference comparison**: `--compare-human` CLI benchmarking against human chapter corpus
 - **Web UI**: Flask-based interface for translations
 - **Version Control**: Chapter snapshots, rollback, diff, and glossary sync jobs
 - **Audit Logging**: Track who changed what and when across all chapters
@@ -23,6 +27,11 @@ This is a production-grade local novel translation system that translates Chines
 ```bash
 # Clone and install dependencies
 pip install -r requirements.txt
+
+# For semantic RAG with ChromaDB (recommended):
+# The system auto-detects if chromadb/sentence-transformers are installed.
+# Without them, RAG falls back to SQLite keyword-overlap retrieval.
+pip install chromadb sentence-transformers
 
 # Pull required Ollama models
 ollama pull padauk-gemma:q8_0
@@ -47,13 +56,35 @@ python -m src.main --novel reverend-insanity --chapter-range 1-10
 python -m src.main --novel reverend-insanity --all --start 10
 
 # Single file
-python -m src.main --input data/input/ Novel/chapter_001.md
+python -m src.main --input data/input/Novel/chapter_001.md
+
+# Compare output against human reference (requires human chapter corpus)
+python -m src.main --novel outside-of-time --chapter 1 --compare-human
 ```
 
 ### Web UI
 
 ```bash
 python -m src.main --ui
+```
+
+### Pipeline Modes
+
+```bash
+# Default mode: Translate → Refine → Reflect → FictionEditor
+python -m src.main --novel novel --chapter 1
+
+# Fast mode: Translate → Quality only (skip refinement/reflection/editor)
+python -m src.main --novel novel --chapter 1 --mode fast
+
+# Single-stage: Translate only
+python -m src.main --novel novel --chapter 1 --mode single_stage
+
+# Full mode: Translate → Refine → Reflect → Quality → Consistency → Editor → QA
+python -m src.main --novel novel --chapter 1 --mode full
+
+# Explicit Chinese pivot workflow
+python -m src.main --novel novel --chapter 1 --config config/settings.pivot.yaml
 ```
 
 ## File Structure
@@ -74,6 +105,7 @@ novel_translation_project/
 │   │   ├── translator.py        # Core translator (stage 1)
 │   │   ├── refiner.py           # Literary refiner (stage 2)
 │   │   ├── reflection_agent.py  # Self-correction (stage 3)
+│   │   ├── fiction_editor.py    # Literary humanization (stage 5b)
 │   │   ├── preprocessor.py   # Text preprocessing
 │   │   ├── checker.py        # Glossary consistency
 │   │   ├── myanmar_quality_checker.py  # Myanmar linguistic validation
@@ -105,6 +137,13 @@ novel_translation_project/
 │   ├── types/               # Type definitions
 │   │   ├── __init__.py
 │   │   └── definitions.py # Type definitions
+│   ├── data/                # RAG and data pipelines
+│   │   ├── rag_retriever.py       # ChromaDB + SQLite semantic retrieval
+│   │   ├── dataset_pipeline.py    # JSONL ingest → ChromaDB/SQLite
+│   │   └── feedback_loop.py       # Quality-based pair ingestion
+│   ├── evaluation/           # Benchmarking
+│   │   ├── benchmark.py          # Human-reference comparison
+│   │   └── glossary_miner.py     # Term extraction from corpus
 │   ├── utils/               # Utility modules
 │   │   ├── __init__.py
 │   │   ├── ollama_client.py       # Ollama API wrapper
@@ -162,8 +201,11 @@ novel_translation_project/
 | `--novel X --chapter-range 1-10` | Translate range |
 | `--novel X --start N` | Start from chapter N |
 | `--input PATH` | Translate single file |
-| `--mode full/lite/fast` | Pipeline mode |
+| `--mode full/lite/fast/single_stage` | Pipeline mode |
 | `--workflow way1/way2` | Translation workflow |
+| `--use-reflection` | Enable reflection agent (default: on in settings.yaml) |
+| `--config FILE` | Config file path |
+| `--model NAME` | Override translation model |
 
 ### Workflow Options
 
@@ -183,6 +225,8 @@ novel_translation_project/
 | `--generate-glossary` | Generate glossary |
 | `--auto-promote` | Auto-promote terms |
 | `--approve-glossary` | Bulk approve terms |
+| `--compare-human` | Benchmark AI output vs human reference (requires --novel + --chapter) |
+| `--compare-models` | Translate same chapter with ALL models to logs/temp/ |
 | `--clean` | ~~Clear cache~~ (use `./clean_run.sh`) |
 | `--test` | Run test |
 | `--rebuild-meta` | Rebuild metadata |
@@ -312,10 +356,13 @@ class TranslationPipeline:
 - `translator` - Lazy-loaded Translator
 - `refiner` - Lazy-loaded Refiner
 - `reflection_agent` - Lazy-loaded ReflectionAgent
+- `fiction_editor` - Lazy-loaded FictionEditor (6 tone presets)
 - `myanmar_checker` - Lazy-loaded MyanmarQualityChecker
 - `checker` - Lazy-loaded Checker
 - `qa_tester` - Lazy-loaded QATesterAgent
 - `context_updater` - Lazy-loaded ContextUpdater
+- `rag_retriever` - Lazy-loaded RAGRetriever (ChromaDB + SQLite)
+- `feedback_loop` - Lazy-loaded FeedbackLoop
 
 **Private Methods:**
 
@@ -385,6 +432,20 @@ class ReflectionAgent(BaseAgent):
     def __init__(self, ollama_client, config, memory_manager)
     def reflect_and_improve(self, text: str, source_text: str = "") -> str
 ```
+
+#### `src/agents/fiction_editor.py`
+
+Literary humanization agent with tone presets. Rewrites Myanmar text for natural fiction prose flow.
+
+```python
+class FictionEditor:
+    def __init__(self, model, config)
+    def rewrite(self, text: str, tone: str = "humanize", custom_instruction: str = "") -> str
+    def humanize(self, text: str) -> str
+    def suggest_alternatives(self, text: str, tone: str = "humanize", n: int = 2) -> list[str]
+```
+
+**Tone presets:** `humanize` (fix robotic phrasing), `dramatic` (confrontation), `casual` (conversation), `literary` (formal narrative), `action` (fast combat), `romantic` (poetic).
 
 #### `src/agents/preprocessor.py`
 
@@ -584,6 +645,55 @@ class VersionManager:
 
 ---
 
+### RAG & Data
+
+#### `src/data/rag_retriever.py`
+
+Semantic retrieval using ChromaDB (primary) + SQLite (fallback). Provides few-shot translation examples for prompt injection.
+
+```python
+@dataclass
+class TranslationExample:
+    en_text: str
+    my_text: str
+    score: float
+    source_file: str
+    similarity: float = 0.0
+
+class RAGRetriever:
+    def __init__(self, chroma_path, db_path, top_k, min_score, novel_filter)
+    def retrieve_similar(self, query_text, top_k=None, novel_filter=None) -> list[TranslationExample]
+    def retrieve_by_novel(self, novel_slug, top_k=5) -> list[TranslationExample]
+```
+
+#### `src/data/dataset_pipeline.py`
+
+Batch ingest JSONL datasets → SQLite + ChromaDB. Supports sentence-transformers embeddings.
+
+```bash
+python src/data/dataset_pipeline.py --input export_rag.jsonl --enable-chroma
+```
+
+### Evaluation
+
+#### `src/evaluation/benchmark.py`
+
+Human-reference comparison for measuring translation quality against human chapter corpus.
+
+```python
+def find_human_reference(novel: str, chapter: int) -> Optional[Path]
+def find_model_output(novel: str, chapter: int) -> Optional[Path]
+def compute_semantic_similarity(text_a, text_b) -> dict
+def run_benchmark(novel: str, chapter: int) -> dict
+```
+
+Run via CLI:
+```bash
+python -m src.main --novel outside-of-time --chapter 1 --compare-human
+```
+
+---
+
 ### Configuration
 
 #### `src/config/loader.py`
@@ -749,14 +859,34 @@ data/output/{novel}/glossary/context_memory.json  # Context buffer
 ## Testing
 
 ```bash
-# Run all tests
+# Run all tests (535+ passing)
 pytest tests/ -v
 
 # Run specific test file
 pytest tests/test_translator.py -v
+pytest tests/test_postprocessor.py -v
+pytest tests/test_chunker.py -v
 
 # Run with coverage
 pytest tests/ --cov=src
+```
+
+## Human Reference Corpus
+
+The project includes a benchmark system that compares AI output against human-translated Myanmar chapters.
+
+**Source:** `/home/wangyi/Desktop/DownloadNovel/CreateNovelDataSet`
+
+Available novels:
+- `outside-of-time` (1847 en / 771 mm chapters)
+- `eternal-sacred-king` (1981 en / 1348 mm chapters)
+- `a-will-eternal` (1315 en / 1315 mm chapters)
+- `renegade-immortal` (2083 en / 1268 mm chapters)
+- `daoist-master-of-qing-xuan` (308 en / 1023 mm chapters)
+
+Compare your latest translation:
+```bash
+python -m src.main --novel outside-of-time --chapter 1 --compare-human
 ```
 
 ## Linting

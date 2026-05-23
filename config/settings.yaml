@@ -99,17 +99,18 @@ translation_pipeline:
     lite: "3-stage pipeline: Translate -> Refine -> Quality"
     single_stage: "1-stage pipeline: Direct translation only"
     two_stage: "2-stage pipeline: Stage 1(gemma-4-e4b) -> Stage 2(padauk-gemma:refinement)"
-  use_reflection: false
+  use_reflection: true
+  use_fiction_editor: true
   stage1_model: gemma-4-e4b-it:q8_0
   stage2_model: padauk-gemma:q8_0
   reflection_model: padauk-gemma:q8_0
 
 rag:
   enabled: true
-  chroma_path: data/chroma_db
-  db_path: data/novel_v1_dataset.db
-  feedback_db: data/novel_v1_dataset.db
-  feedback_chroma: data/chroma_db
+  chroma_path: /home/wangyi/Desktop/DownloadNovel/CreateNovelDataSet/dataset_alignment_project/data/chroma
+  db_path: /home/wangyi/Desktop/DownloadNovel/CreateNovelDataSet/dataset_alignment_project/data/alignment.db
+  feedback_db: /home/wangyi/Desktop/DownloadNovel/CreateNovelDataSet/dataset_alignment_project/data/alignment.db
+  feedback_chroma: /home/wangyi/Desktop/DownloadNovel/CreateNovelDataSet/dataset_alignment_project/data/chroma
   feedback_min_score: 3.0
   feedback_min_myanmar_ratio: 0.70
   top_k: 3

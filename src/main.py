@@ -46,6 +46,7 @@ from src.cli.commands import (
     run_list_sync_jobs,
     run_audit_log,
     run_compare_models,
+    run_compare_human,
 )
 
 
@@ -113,6 +114,10 @@ def main() -> int:
 
     if args.stats:
         return run_stats(args)
+
+    # ── Human-reference comparison ──
+    if args.compare_human:
+        return run_compare_human(args)
 
     # ── Model comparison command ──
     if args.compare_models:

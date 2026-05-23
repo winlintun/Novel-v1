@@ -51,6 +51,7 @@ class TranslationPipeline:
         self._translator = None
         self._refiner = None
         self._reflection_agent = None
+        self._fiction_editor = None
         self._myanmar_checker = None
         self._checker = None
         self._qa_tester = None
@@ -403,6 +404,17 @@ class TranslationPipeline:
                 memory_manager=self.memory_manager
             )
         return self._reflection_agent
+
+    @property
+    def fiction_editor(self):
+        """Lazy load fiction editor for literary humanization."""
+        if self._fiction_editor is None:
+            from src.agents.fiction_editor import FictionEditor
+            self._fiction_editor = FictionEditor(
+                model=getattr(self.config.models, 'editor', None) or self.config.models.translator,
+                config=self.config.dict(),
+            )
+        return self._fiction_editor
 
     @property
     def myanmar_checker(self):
@@ -1220,6 +1232,31 @@ class TranslationPipeline:
                 "issue_count": cons_count,
             })
 
+            # Stage 5b: Fiction Editor — literary humanization (if enabled)
+            use_fe = getattr(self.config.translation_pipeline, 'use_fiction_editor', False)
+            if use_fe:
+                self.logger.info(f"Step 5b/7: Humanizing chunk {i+1}/{total} via FictionEditor...")
+                scene_type = self._detect_scene_type(translated_chunk)
+                tone_map = {
+                    "confrontation": "dramatic",
+                    "dialogue": "humanize",
+                    "action": "action",
+                    "narration": "literary",
+                }
+                tone = tone_map.get(scene_type, "humanize")
+                t_fe = time.time()
+                try:
+                    translated_chunk = self.fiction_editor.rewrite(translated_chunk, tone=tone)
+                except Exception as e:
+                    self.logger.warning(f"FictionEditor failed for chunk {i+1}: {e} — using original")
+                self._report({
+                    "type": "chunk_humanized",
+                    "chunk_index": i + 1,
+                    "total_chunks": total,
+                    "tone": tone,
+                    "duration": time.time() - t_fe,
+                })
+
             total_issues = quality_issues + cons_count
             chunk_duration = time.time() - chunk_t0
             self._report({
@@ -1420,12 +1457,11 @@ class TranslationPipeline:
 
         def chars_overlap_ratio(p1: str, p2: str) -> float:
             """Compute sequence similarity between two strings.
-            Uses SequenceMatcher to avoid false positives from Myanmar
-            sentences that share common particles/characters."""
-            from difflib import SequenceMatcher
+            Uses rapidfuzz for 10-100x speed over difflib.SequenceMatcher."""
+            from rapidfuzz import fuzz
             if not p1 or not p2:
                 return 0.0
-            return SequenceMatcher(None, p1, p2).ratio()
+            return fuzz.ratio(p1, p2) / 100.0
 
         result = [chunks[0]]
 
@@ -1495,7 +1531,7 @@ class TranslationPipeline:
         confrontation_count = sum(1 for kw in confrontation_keywords if kw.lower() in text.lower())
         
         # Count exclamation marks (emotional intensity)
-        exclamation_count = text.count('!') + text.count('။')
+        exclamation_count = text.count('!')
         
         total_lines = len([l for l in text.split('\n') if l.strip()])
         dialogue_ratio = dialogue_lines / total_lines if total_lines > 0 else 0

@@ -166,6 +166,10 @@ class TranslationPipelineConfig(BaseModel):
         default=False,
         description="Whether to use reflection agent"
     )
+    use_fiction_editor: bool = Field(
+        default=False,
+        description="Whether to use fiction editor for literary humanization"
+    )
     stage1_model: str = Field(
         default="qwen2.5:14b",
         description="Model for stage 1 (two-stage mode)"
