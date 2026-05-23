@@ -511,6 +511,37 @@ class MemoryManager:
             }
         logger.debug(f"Character voice registered: {name} ({register})")
 
+    def _load_voices_from_sql(self) -> Dict[str, Any]:
+        """Load character voices from the latest context snapshot (SQL path)."""
+        if not self.use_sql or not hasattr(self, 'context_repo'):
+            return {}
+        try:
+            chapters = self.chapter_repo.get_chapters_by_novel(self.novel_id)
+            chapter_ids = [c["id"] for c in chapters if c.get("id")]
+            if not chapter_ids:
+                return {}
+            snapshots = self.context_repo.get_rolling_context(chapter_ids, limit=5)
+            merged: Dict[str, Any] = {}
+            for snap in snapshots:
+                raw = snap.get("summary_json", "{}")
+                try:
+                    data = _json.loads(raw) if isinstance(raw, str) else raw
+                except (ValueError, TypeError):
+                    continue
+                snap_voices = data.get("character_voices", {}) if isinstance(data, dict) else {}
+                for name, profile in snap_voices.items():
+                    if name not in merged:
+                        merged[name] = profile
+                    else:
+                        # Merge chapters_active
+                        existing_active = merged[name].get("chapters_active", [])
+                        new_active = profile.get("chapters_active", [])
+                        merged[name]["chapters_active"] = list(set(existing_active + new_active))
+            return merged
+        except Exception as e:
+            logger.debug(f"Could not load voices from SQL: {e}")
+            return {}
+
     def get_character_voices(self, active_only: bool = True, current_chapter: int = 0) -> str:
         """Get formatted character voice profiles for prompt injection.
 
@@ -521,7 +552,12 @@ class MemoryManager:
         Returns:
             Formatted string for prompt injection, or empty string if no voices.
         """
-        voices = self.context_memory.get("character_voices", {})
+        # SQL path: load voices from context snapshots
+        if self.use_sql:
+            voices = self._load_voices_from_sql()
+        else:
+            voices = self.context_memory.get("character_voices", {})
+
         if not voices:
             return ""
 
@@ -1413,10 +1449,16 @@ class MemoryManager:
                         self.extract_character_voices_from_text(source_text, translated_text, chapter_num)
                 except Exception as e:
                     logger.debug(f"Character voice extraction failed: {e}")
+                # Collect extracted voices for snapshot persistence
+                try:
+                    voice_data = self.context_memory.get("character_voices", {})
+                except Exception:
+                    voice_data = {}
                 snapshot = {
                     "active_chars": active_chars,
                     "events": events,
                     "summary": snap_summary,
+                    "character_voices": voice_data,
                     "new_terms": [],
                     "updated_at": datetime.now().isoformat(),
                 }
