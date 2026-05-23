@@ -572,7 +572,7 @@ class TranslationPipeline:
                 "avg_quality_score": round(
                     sum(m["quality_score"] for m in chunk_metrics) / len(chunk_metrics), 1
                 ) if chunk_metrics else None,
-            })
+            }, source_text=text)
 
             # Auto-review: generate quality report after saving
             try:
