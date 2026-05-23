@@ -13,6 +13,7 @@ Coordinates all translation stages:
 """
 
 import json
+import re
 import time
 import signal
 import logging
@@ -164,6 +165,8 @@ class TranslationPipeline:
             # Get pipeline info from config
             pipeline_mode = getattr(self.config.translation_pipeline, 'mode', 'unknown')
             model_name = getattr(self.config.models, 'translator', 'unknown')
+            refiner_model = getattr(self.config.models, 'refiner', None) or \
+                            getattr(self.config.models, 'editor', None) or 'N/A'
             
             # Build report content
             report_lines = [
@@ -181,6 +184,7 @@ class TranslationPipeline:
                 "-" * 40,
                 f"Pipeline Mode: {pipeline_mode}",
                 f"Model Name:    {model_name}",
+                f"Refiner Model: {refiner_model}",
                 "",
                 "-" * 40,
                 "TRANSLATION METRICS",
@@ -457,6 +461,17 @@ class TranslationPipeline:
             Pipeline result dictionary
         """
         self.logger.info(f"Starting translation of file: {filepath}")
+        pipeline_mode = getattr(self.config.translation_pipeline, 'mode', 'unknown')
+        translator_model = self.config.models.translator
+        refiner_model = getattr(self.config.models, 'refiner', None) or \
+                        getattr(self.config.models, 'editor', None) or 'N/A'
+        checker_model = getattr(self.config.models, 'checker', None) or 'N/A'
+        self.logger.info(
+            f"Pipeline: {pipeline_mode} | "
+            f"Translator: {translator_model} | "
+            f"Refiner: {refiner_model} | "
+            f"Checker: {checker_model}"
+        )
         start_time = time.time()
 
         # Resolve novel name from filepath if not provided
@@ -465,7 +480,17 @@ class TranslationPipeline:
         else:
             self._current_novel = self._extract_novel_from_path(filepath)
 
+        # Store filepath for use by sibling methods (_translate_chunks, feedback loop)
+        self._current_filepath = filepath
+
         try:
+            # Clear session rules from previous chapter
+            try:
+                if self._memory_manager:
+                    self._memory_manager.clear_session_rules()
+            except Exception:
+                pass
+
             # Read file
             from src.utils.file_handler import FileHandler
             text = FileHandler.read_text(filepath)
@@ -506,7 +531,7 @@ class TranslationPipeline:
             # Runs after postprocessing so it checks the full, clean output
             qa_result = None
             try:
-                if self.config.translation_pipeline.mode in ('full', 'lite'):
+                if self.config.translation_pipeline.mode in ('full', 'lite', 'two_stage'):
                     qa_result = self.qa_tester.validate_output(result_text, chapter_num or 0)
                     if qa_result.get("issues"):
                         self.logger.warning(
@@ -612,7 +637,8 @@ class TranslationPipeline:
                 if self.memory_manager:
                     self.memory_manager.update_chapter_context(
                         chapter_num=chapter_num or 0,
-                        translated_text=result_text
+                        translated_text=result_text,
+                        source_text=text,
                     )
                     self.logger.debug(f"Context memory updated for chapter {chapter_num or 0}")
             except Exception as e:
@@ -645,6 +671,24 @@ class TranslationPipeline:
                 total_chunks=len(chunk_metrics),
                 avg_score=avg_score
             )
+
+            # Log to model registry
+            try:
+                from src.utils.model_registry import log_run
+                overall_mm = self._calc_myanmar_ratio(result_text)
+                log_run(
+                    model_name=self.config.models.translator,
+                    novel=self._current_novel or "unknown",
+                    chapter=chapter_num or 0,
+                    avg_quality_score=avg_score,
+                    avg_myanmar_ratio=overall_mm,
+                    total_chunks=len(chunk_metrics),
+                    pipeline_mode=getattr(self.config.translation_pipeline, 'mode', 'unknown'),
+                    duration_seconds=duration,
+                    chunk_metrics=chunk_metrics,
+                )
+            except Exception as e:
+                self.logger.debug(f"Model registry update failed (non-fatal): {e}")
 
             # Finalize progress logger
             if progress_logger:
@@ -893,19 +937,18 @@ class TranslationPipeline:
 
     def _auto_detect_chunk_size(self, source_text: str = "") -> int:
         """Auto-detect optimal chunk size based on model context window.
-        
+
         Formula:
-          optimal = min(
-              model_num_ctx * 0.35,     # 35% of model context window
-              max_chunk_size,           # config ceiling (default 2000)
-              len(source) * 1.5,        # don't chunk if source is tiny
-          )
-          clamp(optimal, 600, 2000)     # safety bounds
-        
+          1. Query Ollama /api/show for model's num_ctx (fallback to config default)
+          2. optimal = model_num_ctx * 0.35 (35% of model context window)
+          3. Cap by config max (chunk_size or 2500)
+          4. If source is short enough for single chunk: optimal = source_tokens
+          5. Clamp: max(600, min(optimal, 2500))
+
         The token budget is:
           system(400) + glossary(300) + context(400) + chunk + output(400) ≤ model_ctx
         So chunk ≤ model_ctx - 1500, but we use 35% for safety margin.
-        
+
         Returns:
             Optimal max_tokens value for smart_chunk()
         """
@@ -915,14 +958,18 @@ class TranslationPipeline:
         model_ctx = None
         try:
             client = self.ollama_client
-            if hasattr(client, '_client') and client._client:
-                # Ollama Python client
-                pass
-            # Fallback: use config or default
-            model_ctx = getattr(self.config.models, 'num_ctx', 4096)
+            if hasattr(client, 'get_model_info'):
+                info = client.get_model_info()
+                if info and 'num_ctx' in info:
+                    model_ctx = info['num_ctx']
+                    self.logger.debug(f"Queried Ollama model info: num_ctx={model_ctx}")
             if not model_ctx:
-                model_ctx = 4096
-        except Exception:
+                # Fallback: use config or default
+                model_ctx = getattr(self.config.models, 'num_ctx', 4096)
+                if not model_ctx:
+                    model_ctx = 4096
+        except Exception as e:
+            self.logger.debug(f"Failed to query Ollama model info: {e}. Using config default.")
             model_ctx = 4096
 
         # Calculate optimal: 35% of context window, capped by config max
@@ -935,7 +982,7 @@ class TranslationPipeline:
         if source_text:
             source_tokens = int(len(source_text) * 1.5)
             if source_tokens <= optimal:
-                optimal = max(optimal, source_tokens)  # single chunk
+                optimal = source_tokens  # single chunk: exact fit
 
         # Safety bounds
         optimal = max(optimal, 600)   # minimum 600 tokens
@@ -971,7 +1018,37 @@ class TranslationPipeline:
         chunk_metrics = []
         rolling_context = ""  # first chunk: empty
 
+        # Try to resume from checkpoints (2.1: chunk-level resume)
+        last_completed = -1
+        if self._current_novel:
+            checkpoint_dir = Path("data/working") / self._current_novel
+            if checkpoint_dir.exists():
+                existing = sorted(checkpoint_dir.glob("ch*_checkpoint.txt"))
+                for cp in existing:
+                    m = re.match(r'ch(\d+)_checkpoint\.txt', cp.name)
+                    if m:
+                        idx = int(m.group(1)) - 1
+                        if 0 <= idx < len(chunks):
+                            try:
+                                text = cp.read_text(encoding="utf-8")
+                            except OSError:
+                                self.logger.warning(f"Corrupted checkpoint {cp.name}, skipping")
+                                continue
+                            while len(translated) <= idx:
+                                translated.append(None)
+                            translated[idx] = text
+                            last_completed = idx
+                            self.logger.info(f"Resumed checkpoint: chunk {idx+1}/{len(chunks)}")
+
+                # Build rolling context from last completed chunk
+                if last_completed >= 0 and translated[last_completed]:
+                    rolling_context = get_rolling_context(translated[last_completed], max_context_tokens=400)
+
         for i, chunk in enumerate(chunks):
+            # Skip already-checkpointed chunks
+            if i <= last_completed:
+                if i < len(translated) and translated[i] is not None:
+                    continue
             if self._shutdown_requested:
                 break
 
@@ -1005,9 +1082,10 @@ class TranslationPipeline:
                     rolling_context = get_rolling_context(rolling_context, max_context_tokens=200)
                     est_context = estimate_tokens(rolling_context)
 
+            translator_model = self.config.models.translator
             self.logger.info(f"Step 2/7: Translating chunk {i+1}/{total}... "
-                           f"[{len(chunk)} chars, est {est_chunk} tokens, "
-                           f"ctx: {len(rolling_context)} chars]")
+                           f"[model={translator_model}, {len(chunk)} chars, "
+                           f"est {est_chunk} tokens, ctx: {len(rolling_context)} chars]")
 
             # Stage 1: Translation with rolling context
             t1 = time.time()
@@ -1022,8 +1100,12 @@ class TranslationPipeline:
             })
 
             # Stage 2: Refinement (if enabled and not skipped)
-            if self.config.translation_pipeline.mode in ('full', 'lite'):
+            if self.config.translation_pipeline.mode in ('full', 'lite', 'two_stage'):
                 self.logger.info(f"Step 3/7: Refining chunk {i+1}/{total}...")
+                refiner_model = getattr(self.config.models, 'refiner', None) or \
+                                getattr(self.config.models, 'editor', None) or \
+                                self.config.models.translator
+                self.logger.info(f"  Refiner model: {refiner_model}")
                 t2 = time.time()
                 translated_chunk = self.refiner.refine_paragraph(translated_chunk)
                 self._report({
@@ -1065,6 +1147,65 @@ class TranslationPipeline:
                 "myanmar_ratio": mm_ratio,
             })
 
+            # Adaptive feedback: inject correction rules from low-scoring chunks
+            if quality_score < 80 and quality_issues > 0 and self._memory_manager:
+                rules_added = 0
+                for issue in quality_result.get("issues", []):
+                    if "Archaic" in issue or "archaic" in issue:
+                        self._memory_manager.add_session_rule(
+                            "avoid_archaic",
+                            "Use modern Myanmar words. Avoid archaic terms like သင်သည်/ဤ/ထို. Use မင်း/ဒီ/အဲဒီ instead."
+                        )
+                        rules_added += 1
+                    elif "Repeated" in issue or "repetition" in issue.lower():
+                        self._memory_manager.add_session_rule(
+                            "avoid_repetition",
+                            "Vary word choice in this chunk. Do not repeat the same word 3+ times in close succession."
+                        )
+                        rules_added += 1
+                    elif "particle" in issue.lower():
+                        self._memory_manager.add_session_rule(
+                            "diversify_particles",
+                            "Use diverse Myanmar particles. Avoid overusing သည်/ကို/မှာ in the same paragraph."
+                        )
+                        rules_added += 1
+                    elif "flow" in issue.lower() or "sentence" in issue.lower():
+                        self._memory_manager.add_session_rule(
+                            "improve_flow",
+                            "Vary sentence structure. Mix short and long sentences for better narrative flow."
+                        )
+                        rules_added += 1
+                if rules_added:
+                    self.logger.info(
+                        f"Adaptive feedback: {rules_added} correction rule(s) added "
+                        f"from chunk {i+1} quality issues (score={quality_score})"
+                    )
+
+            # Save rejected chunks for future training data
+            if quality_score < 70 or mm_ratio < 0.7:
+                try:
+                    from src.utils.file_handler import FileHandler
+                    safe_novel = re.sub(r'[^a-zA-Z0-9_-]', '_', self._current_novel or "unknown")
+                    rejected_dir = Path("data/training/rejected") / safe_novel
+                    rejected_dir.mkdir(parents=True, exist_ok=True)
+                    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    FileHandler.write_text(
+                        str(rejected_dir / f"chunk_{i+1:03d}_{ts}_source.txt"), chunk
+                    )
+                    FileHandler.write_text(
+                        str(rejected_dir / f"chunk_{i+1:03d}_{ts}_output.txt"), translated_chunk
+                    )
+                    FileHandler.write_text(
+                        str(rejected_dir / f"chunk_{i+1:03d}_{ts}_reason.txt"),
+                        f"quality={quality_score}\nmm_ratio={mm_ratio:.2f}"
+                    )
+                    self.logger.info(
+                        f"Rejected chunk {i+1} saved to {rejected_dir} "
+                        f"(quality={quality_score}, mm_ratio={mm_ratio:.2f})"
+                    )
+                except Exception as e:
+                    self.logger.warning(f"Failed to save rejected chunk {i+1}: {e}")
+
             # Stage 5: Consistency Check
             self.logger.info(f"Step 6/7: Checking consistency for chunk {i+1}/{total}...")
             consistency_issues = self.checker.check_glossary_consistency(translated_chunk)
@@ -1087,13 +1228,39 @@ class TranslationPipeline:
                 "duration": chunk_duration,
             })
 
+            # Always preserve translated output BEFORE timeout check, so partial
+            # progress is never lost even if a chunk is slow (report.md 2.4).
+            translated.append(translated_chunk)
+
+            # Save checkpoint immediately for resumability (report.md 2.1)
+            try:
+                if self._current_novel:
+                    from src.utils.file_handler import FileHandler
+                    checkpoint_dir = Path("data/working") / self._current_novel
+                    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+                    checkpoint_path = checkpoint_dir / f"ch{i+1:03d}_checkpoint.txt"
+                    FileHandler.write_text(str(checkpoint_path), translated_chunk)
+            except Exception as e:
+                self.logger.debug(f"Checkpoint write failed (non-fatal): {e}")
+
+            # Log per-chunk progress if logger is provided
+            if progress_logger:
+                try:
+                    progress_logger.log_chunk(
+                        chunk_index=i,
+                        chunk_text=translated_chunk,
+                        source_text=chunk,
+                    )
+                except Exception as e:
+                    self.logger.debug(f"Per-chunk progress log failed (non-fatal): {e}")
+
             # Per-chunk timeout guard: if a single chunk exceeds 15 min,
-            # log an error and continue to the next chunk. Prevents
-            # 4.8-hour sessions from stuck retry loops (e.g., Ch 15).
+            # log an error and abort. Progress is already saved via checkpoint.
+            # Per report.md 2.4: no longer passes untranslated source text.
             if chunk_duration > 900:
                 self.logger.error(
                     f"⚠ Chunk {i+1}/{total} exceeded 15-min timeout ({chunk_duration:.0f}s). "
-                    f"Translation may be degraded. Skipping to next chunk."
+                    f"Progress saved via checkpoints. Aborting to prevent garbage output."
                 )
                 chunk_metrics.append({
                     "chunk": i + 1,
@@ -1103,9 +1270,8 @@ class TranslationPipeline:
                     "issues": 99,
                     "timed_out": True,
                 })
-                translated.append(chunk)  # Keep original untranslated text
-                rolling_context = get_rolling_context("", max_context_tokens=400)
-                continue
+                self._shutdown_requested = True
+                break
 
             chunk_metrics.append({
                 "chunk": i + 1,
@@ -1115,17 +1281,16 @@ class TranslationPipeline:
                 "issues": total_issues,
             })
 
-            translated.append(translated_chunk)
-
             # Feedback Loop: ingest high-quality pairs back to database
             if self.feedback_loop is not None:
                 try:
+                    source_path = getattr(self, '_current_filepath', None)
                     feedback_result = self.feedback_loop.rate_and_ingest(
                         en_text=chunk,
                         my_text=translated_chunk,
                         novel_slug=self._current_novel,
                         chapter_num=None,
-                        source_file=filepath if hasattr(self, 'filepath') else None,
+                        source_file=source_path,
                     )
                     if feedback_result.get("ingested"):
                         self.logger.info(
@@ -1135,7 +1300,6 @@ class TranslationPipeline:
                 except Exception as e:
                     self.logger.debug(f"Feedback loop failed (non-fatal): {e}")
 
-            # Checkpoint: log progress after each chunk (resumability)
             self.logger.info(
                 f"✓ Chunk {i+1}/{total} complete in {chunk_duration:.0f}s. "
                 f"Quality: {quality_score}, Ratio: {mm_ratio:.1%}, Issues: {total_issues}"
@@ -1340,15 +1504,18 @@ class TranslationPipeline:
             check_ordinal_numbers,
             check_latin_script,
             check_particle_repetition,
+            check_sentence_completion,
+            detect_ngram_repetition,
+            check_source_aligned_ordinals,
         )
-        
+
         report = {
             'chapter': chapter_num,
             'pass': True,
             'issues': [],
             'warnings': [],
         }
-        
+
         # Check content completeness
         completeness = check_content_completeness(source_text, translated_text)
         if not completeness['pass']:
@@ -1363,8 +1530,8 @@ class TranslationPipeline:
                 f"Minor content loss: {completeness['missing_paragraphs']} paragraphs "
                 f"({completeness['paragraph_ratio']:.0%} coverage)"
             )
-        
-        # Check ordinal numbers
+
+        # Check ordinal numbers (legacy: translated-text-only check)
         ordinal_issues = check_ordinal_numbers(translated_text)
         if ordinal_issues:
             report['pass'] = False
@@ -1373,27 +1540,56 @@ class TranslationPipeline:
                     f"Wrong ordinal at line {issue['line']}: "
                     f"'{issue['found']}' should be '{issue['expected']}' ({issue['meaning']})"
                 )
-        
+
+        # Check source-aligned ordinal numbers (4.2: compare source vs translation)
+        aligned_ordinal_issues = check_source_aligned_ordinals(source_text, translated_text)
+        if aligned_ordinal_issues:
+            report['pass'] = False
+            for issue in aligned_ordinal_issues[:5]:
+                report['issues'].append(
+                    f"Ordinal mismatch: {issue['meaning']}"
+                )
+
         # Check Latin script leakage
         latin_issues = check_latin_script(translated_text)
         if latin_issues:
-            # Report as warning (not blocker — some terms like D132 may be intentional)
             latin_texts = [i['text'] for i in latin_issues[:5]]
+            extra = f"and {len(latin_issues) - 5} more" if len(latin_issues) > 5 else ""
             report['warnings'].append(
-                f"Latin script found: {', '.join(latin_texts)} "
-                f"({'and {len(latin_issues) - 5} more' if len(latin_issues) > 5 else ''})"
+                f"Latin script found: {', '.join(latin_texts)}"
+                + (f" ({extra})" if extra else "")
             )
-        
+
         # Check particle repetition
         particle_issues = check_particle_repetition(translated_text)
         if particle_issues:
-            for issue in particle_issues[:3]:  # Report first 3 issues
+            for issue in particle_issues[:3]:
                 report['warnings'].append(
                     f"Particle overuse in paragraph {issue['paragraph']}: "
                     f"'{issue['particle']}' appears {issue['count']} times "
                     f"(max {issue['max_allowed']})"
                 )
-        
+
+        # Check sentence completion (4.3: lines ending mid-sentence)
+        sentence_issues = check_sentence_completion(translated_text)
+        if sentence_issues:
+            report['pass'] = False
+            for issue in sentence_issues[:5]:
+                report['issues'].append(
+                    f"Incomplete sentence at line {issue['line']}: '{issue['text']}'"
+                )
+
+        # Check n-gram repetition (4.1: garbled repetition passes ratio gate)
+        ngram_result = detect_ngram_repetition(translated_text)
+        if ngram_result['has_repetition']:
+            ngram_detail = ', '.join(
+                f"'{g['ngram']}' ×{g['count']}"
+                for g in ngram_result['repeated_ngrams'][:3]
+            )
+            report['issues'].append(
+                f"Repetition detected: {ngram_detail}"
+            )
+
         return report
 
     def _save_output(self, input_path: str, text: str, extra_meta: Optional[Dict[str, Any]] = None, source_text: str = "") -> Path:
@@ -1472,12 +1668,15 @@ class TranslationPipeline:
                     existing_meta = {}
 
             # Build chapter entry
+            refiner_model = getattr(self.config.models, 'refiner', None) or \
+                            getattr(self.config.models, 'editor', None) or 'N/A'
             chapter_entry = {
                 "chapter": chapter_num,
                 "translated_at": datetime.now().isoformat(),
                 "source": str(input_path),
                 "pipeline": self.config.translation_pipeline.mode,
                 "model": self.config.models.translator,
+                "refiner_model": refiner_model,
                 "char_count": len(text) if text else 0,
                 "myanmar_ratio": round(
                     self._calc_myanmar_ratio(text), 3

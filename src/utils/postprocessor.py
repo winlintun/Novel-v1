@@ -124,9 +124,8 @@ def strip_reasoning_process(text: str) -> str:
         # Remove inline *Drafting:* and *Refinement:* markers
         line = re.sub(r'\*Drafting:\*|\*Refinement:\*', '', line, flags=re.IGNORECASE)
 
-        # Remove parenthetical English explanations
+        # Remove only parenthetical English explanations (NOT literary asides)
         line = re.sub(r'\(This is.*?\)', '', line, flags=re.IGNORECASE)
-        line = re.sub(r'\(.*?\)', '', line)  # Remove all parenthetical content
 
         # Skip padauk-gemma glossary comparison garbage lines (*:* pattern)
         # These look like: *:* "word" is . "other" is .
@@ -1003,6 +1002,170 @@ def check_particle_repetition(text: str, max_per_paragraph: int = 2) -> list[dic
                     'snippet': snippet,
                 })
     
+    return issues
+
+
+def check_sentence_completion(text: str) -> list[dict]:
+    """Detect incomplete sentences ending with Myanmar particles without sentence enders.
+
+    Report issue 4.3: Lines ending with (၏|သည်|သော|ကို) without ္။
+    These indicate truncation — the model stopped mid-sentence.
+
+    Returns list of issues with line number and truncated text.
+    """
+    if not text:
+        return []
+
+    issues = []
+    lines = text.split('\n')
+    for i, line in enumerate(lines, 1):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        # Check for lines ending with a possessive/attributive particle but no sentence ender
+        # Uses alternation to avoid character class decomposing multi-codepoint particles.
+        # E.g., "သည်" = U+101E U+103A — a character class would match '်' (U+103A) alone.
+        # No lookbehind needed: if line ends with ္။ before the particle, the alternation won't match.
+        if re.search(r'(၏|သည်|သော|ကို|မှာ)$', stripped):
+            # Skip headings and short lines (likely not truncated)
+            if not stripped.startswith('#') and len(stripped) > 10:
+                issues.append({
+                    'line': i,
+                    'text': stripped[-60:],
+                    'issue': 'incomplete_sentence',
+                })
+    return issues
+
+
+def detect_ngram_repetition(text: str, n: int = 4, max_repeats: int = 3) -> dict:
+    """Detect n-gram repetition in Myanmar text.
+
+    Report issue 4.1: If any n-gram appears more than max_repeats times,
+    flag for review regardless of Myanmar ratio.
+
+    Args:
+        text: Text to analyze
+        n: Gram size (default 4 characters)
+        max_repeats: Max allowed occurrences before flagging
+
+    Returns:
+        Dict with repetition metrics
+    """
+    if not text or len(text) < n * max_repeats:
+        return {"has_repetition": False, "repeated_ngrams": []}
+
+    from collections import Counter
+
+    # Extract n-grams (character-level for Myanmar)
+    ngrams = [text[i:i+n] for i in range(len(text) - n + 1)]
+    # Filter to only Myanmar-containing n-grams
+    myanmar_ngrams = [g for g in ngrams if re.search(r'[\u1000-\u109F]', g)]
+
+    if not myanmar_ngrams:
+        return {"has_repetition": False, "repeated_ngrams": []}
+
+    counts = Counter(myanmar_ngrams)
+    repeated = []
+    for gram, count in counts.most_common(20):
+        if count > max_repeats:
+            repeated.append({
+                "ngram": gram,
+                "count": count,
+            })
+
+    return {
+        "has_repetition": len(repeated) > 0,
+        "repeated_ngrams": repeated,
+    }
+
+
+def check_source_aligned_ordinals(source: str, translation: str) -> list[dict]:
+    """Compare ordinal numbers between source and translation for +1 shift errors.
+
+    Report issue 4.2: Source says '9th stage' → translation says '10th stage'.
+    Extracts ordinal patterns from both and flags mismatches.
+
+    Args:
+        source: Source English/Chinese text
+        translation: Myanmar translation text
+
+    Returns:
+        List of issues with source ordinal and mismatched translation ordinal
+    """
+    issues = []
+
+    # English ordinal patterns: 1st, 2nd, 3rd, 4th, ... 9th, 10th, etc.
+    _EN_ORDINAL = re.compile(r'(\d+)(st|nd|rd|th)', re.IGNORECASE)
+    en_ordinals = _EN_ORDINAL.findall(source)
+
+    # Chinese ordinal patterns: 第N (e.g., 第九 = 9th, 第10 = 10th)
+    _CN_ORDINAL = re.compile(r'第(\d+)')
+    cn_ordinals = _CN_ORDINAL.findall(source)
+
+    if not en_ordinals and not cn_ordinals:
+        return issues
+
+    # Myanmar ordinal patterns: နဝမ (9th), ဒသမ (10th), ဧကာဒသမ (11th), etc.
+    _MM_ORDINAL = re.compile(
+        r'(ပထမ|ဒုတိယ|တတိယ|စတုတ္ထ|ပဉ္စမ|ဆဋ္ဌမ|သတ္တမ|အဋ္ဌမ|နဝမ|ဒသမ|ဧကာဒသမ|ဒွါဒသမ)'
+    )
+    mm_ordinals = _MM_ORDINAL.findall(translation)
+
+    # Mapping English ordinals to their numeric values
+    en_num_map = {
+        '1st': 1, '2nd': 2, '3rd': 3, '4th': 4, '5th': 5,
+        '6th': 6, '7th': 7, '8th': 8, '9th': 9, '10th': 10,
+        '11th': 11, '12th': 12,
+    }
+
+    # Mapping Myanmar ordinals to their numeric values
+    mm_num_map = {
+        'ပထမ': 1, 'ဒုတိယ': 2, 'တတိယ': 3, 'စတုတ္ထ': 4, 'ပဉ္စမ': 5,
+        'ဆဋ္ဌမ': 6, 'သတ္တမ': 7, 'အဋ္ဌမ': 8, 'နဝမ': 9, 'ဒသမ': 10,
+        'ဧကာဒသမ': 11, 'ဒွါဒသမ': 12,
+    }
+
+    # Positional matching: compare i-th English ordinal to i-th Myanmar ordinal
+    # to avoid false cross-product mismatches (e.g., "1st, 2nd" vs "ပထမ, ဒုတိယ")
+    for i, (num_str, suffix) in enumerate(en_ordinals):
+        full = num_str + suffix
+        expected_num = en_num_map.get(full.lower())
+        if expected_num is None:
+            continue
+
+        if i < len(mm_ordinals):
+            mm_ord = mm_ordinals[i]
+            actual_num = mm_num_map.get(mm_ord)
+            if actual_num and actual_num != expected_num:
+                issues.append({
+                    'source': full,
+                    'expected_ordinal': expected_num,
+                    'found_ordinal': mm_ord,
+                    'found_numeric': actual_num,
+                    'meaning': f"Source says '{full}' ({expected_num}) but translation has '{mm_ord}' ({actual_num})",
+                })
+
+    # Chinese ordinal patterns: 第N (e.g., 第9 = 9th, 第12 = 12th)
+    for i, num_str in enumerate(cn_ordinals):
+        try:
+            expected_num = int(num_str)
+        except ValueError:
+            continue
+
+        # Shift index by en_ordinals count for positional matching
+        mm_idx = len(en_ordinals) + i
+        if mm_idx < len(mm_ordinals):
+            mm_ord = mm_ordinals[mm_idx]
+            actual_num = mm_num_map.get(mm_ord)
+            if actual_num and actual_num != expected_num:
+                issues.append({
+                    'source': f'第{num_str}',
+                    'expected_ordinal': expected_num,
+                    'found_ordinal': mm_ord,
+                    'found_numeric': actual_num,
+                    'meaning': f"Source says '第{num_str}' ({expected_num}) but translation has '{mm_ord}' ({actual_num})",
+                })
+
     return issues
 
 

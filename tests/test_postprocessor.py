@@ -19,6 +19,9 @@ from src.utils.postprocessor import (
     validate_output,
     remove_chinese_characters,
     fix_chapter_heading_format,
+    check_sentence_completion,
+    detect_ngram_repetition,
+    check_source_aligned_ordinals,
 )
 
 
@@ -335,6 +338,148 @@ Some content without subtitle."""
         result = fix_chapter_heading_format(text)
         # Should remain unchanged since no subtitle follows
         self.assertIn("# ၁၀", result)
+
+
+class TestParentheticalPreservation(unittest.TestCase):
+    """Test that literary parenthetical content is preserved."""
+
+    def test_parenthetical_myanmar_aside_preserved(self):
+        """Myanmar literary asides in parentheses must survive clean_output."""
+        text = "သူသည် ထိုအကြောင်းကို စဉ်းစားနေတယ် (သူ့ရဲ့နောက်ဆုံးရွေးချယ်မှု) ဒါပေမဲ့ ဆုံးဖြတ်ချက်မချနိုင်သေးဘူး။"
+        result = clean_output(text)
+        self.assertIn("(", result)
+        self.assertIn(")", result)
+        self.assertIn("သူ့ရဲ့နောက်ဆုံးရွေးချယ်မှု", result)
+
+    def test_english_explanation_stripped(self):
+        """English explanation patterns (This is ...) should still be stripped."""
+        text = "Some Myanmar text (This is an explanation of the term) continues here."
+        result = clean_output(text)
+        self.assertNotIn("This is an explanation", result)
+
+    def test_mixed_parenthetical_preserved(self):
+        """Multiple parenthetical asides should all survive."""
+        text = "Character A (the elder) spoke to B (the younger) about the plan."
+        result = clean_output(text)
+        self.assertIn("(the elder)", result)
+        self.assertIn("(the younger)", result)
+
+    def test_no_false_positive_strip(self):
+        """Parentheses used in Myanmar literary text must be kept."""
+        text = "ငါသာ (တစ်ကယ်တော့) ဒီကိစ္စကို သိပါတယ်။"
+        result = clean_output(text)
+        self.assertIn("(", result)
+        self.assertIn(")", result)
+
+
+class TestCheckSentenceCompletion(unittest.TestCase):
+    """Test sentence completion detection (report.md 4.3)."""
+
+    def test_complete_sentence_passes(self):
+        """Sentences ending with ္။ should not be flagged."""
+        text = "သူသည် ကျောင်းသားဖြစ်သည်။"
+        issues = check_sentence_completion(text)
+        self.assertEqual(len(issues), 0)
+
+    def test_incomplete_particle_end_detected(self):
+        """Lines ending with particle without ္။ should be flagged."""
+        text = "သူမသည် ထိုအရာကို ယူဆောင်သွားခဲ့၏"
+        issues = check_sentence_completion(text)
+        self.assertGreater(len(issues), 0)
+        self.assertIn('incomplete_sentence', issues[0]['issue'])
+
+    def test_heading_not_flagged(self):
+        """Markdown headings should not be flagged as incomplete."""
+        text = "# Chapter 1"
+        issues = check_sentence_completion(text)
+        self.assertEqual(len(issues), 0)
+
+    def test_short_line_not_flagged(self):
+        """Short lines (<10 chars) should be ignored."""
+        text = "ပြီး"
+        issues = check_sentence_completion(text)
+        self.assertEqual(len(issues), 0)
+
+    def test_complete_sentence_with_common_endings_not_flagged(self):
+        """Common complete Myanmar sentence endings must NOT be flagged as incomplete."""
+        endings = [
+            "သူသည် ကျောင်းသားဖြစ်တယ်။",
+            "ငါ သွားမယ်။",
+            "သူမ လာပြီ။",
+            "ကျွန်တော် နားလည်ပါတယ်။",
+        ]
+        for text in endings:
+            issues = check_sentence_completion(text)
+            self.assertEqual(len(issues), 0, f"False positive for: {text}")
+
+
+class TestDetectNgramRepetition(unittest.TestCase):
+    """Test n-gram repetition detection (report.md 4.1)."""
+
+    def test_no_repetition(self):
+        """Normal text should not be flagged."""
+        text = "မင်္ဂလာပါ။ ဒီနေ့ ရာသီဥတုက သာယာပါတယ်။"
+        result = detect_ngram_repetition(text)
+        self.assertFalse(result['has_repetition'])
+
+    def test_repetition_detected(self):
+        """Repeated Myanmar n-grams should be flagged."""
+        text = "AAAAAAAAAAAAAAAAAAAA"  # 20 A's, no Myanmar
+        result = detect_ngram_repetition(text, n=4, max_repeats=3)
+        self.assertFalse(result['has_repetition'])  # no Myanmar n-grams → safe
+        # Now with clear Myanmar char repetition
+        text_mm = "ကကကကကကကကကကကကကကကကကကကက"  # က (U+1000) repeated 19 times
+        result_mm = detect_ngram_repetition(text_mm, n=3, max_repeats=2)
+        self.assertTrue(result_mm['has_repetition'])
+
+    def test_empty_text(self):
+        """Empty text should return no repetition."""
+        result = detect_ngram_repetition("")
+        self.assertFalse(result['has_repetition'])
+
+
+class TestCheckSourceAlignedOrdinals(unittest.TestCase):
+    """Test source-aligned ordinal verification (report.md 4.2)."""
+
+    def test_no_ordinals_no_issues(self):
+        """Text without ordinals should pass."""
+        issues = check_source_aligned_ordinals(
+            "Hello world.",
+            "မင်္ဂလာပါ။"
+        )
+        self.assertEqual(len(issues), 0)
+
+    def test_correct_ordinal_matching(self):
+        """Correct positional matching should not flag false mismatches."""
+        issues = check_source_aligned_ordinals(
+            "He reached the 1st stage, then the 2nd stage.",
+            "သူသည် ပထမအဆင့်သို့ ရောက်ရှိပြီး ဒုတိယအဆင့်သို့ ရောက်ရှိခဲ့သည်။"
+        )
+        self.assertEqual(len(issues), 0)
+
+    def test_shifted_ordinal_detected(self):
+        """+1 shift (9th→10th) should be flagged."""
+        issues = check_source_aligned_ordinals(
+            "He is at the 9th stage.",
+            "သူသည် ဒသမအဆင့်မှာ ရှိသည်။"
+        )
+        self.assertGreater(len(issues), 0)
+
+    def test_chinese_ordinal_correct(self):
+        """Chinese ordinal 第N (digit form) should match positionally."""
+        issues = check_source_aligned_ordinals(
+            "他达到了第9层。",
+            "သူသည် နဝမအဆင့်သို့ ရောက်ရှိခဲ့သည်။"
+        )
+        self.assertEqual(len(issues), 0)
+
+    def test_chinese_ordinal_shifted_detected(self):
+        """Chinese ordinal +1 shift (第9→10th) should be flagged."""
+        issues = check_source_aligned_ordinals(
+            "他达到了第9层。",
+            "သူသည် ဒသမအဆင့်သို့ ရောက်ရှိခဲ့သည်။"
+        )
+        self.assertGreater(len(issues), 0)
 
 
 if __name__ == '__main__':

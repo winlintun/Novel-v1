@@ -90,6 +90,46 @@ class OllamaClient:
         self.cleanup()
         return False
 
+    def get_model_info(self, model_name: Optional[str] = None) -> dict:
+        """Query Ollama API for model metadata (context window, etc.).
+
+        Args:
+            model_name: Model to query, defaults to self.model
+
+        Returns:
+            Dict with model info including 'num_ctx' if available
+        """
+        name = model_name or self.model
+        try:
+            import requests
+            response = requests.get(
+                f"{self.base_url}/api/show",
+                params={"model": name},
+                timeout=10
+            )
+            if response.status_code == 200:
+                data = response.json()
+                modelfile = data.get("modelfile", "")
+                # Parse modelfile for num_ctx
+                for line in modelfile.split("\n"):
+                    line = line.strip()
+                    if line.startswith("num_ctx"):
+                        parts = line.split()
+                        if len(parts) >= 2:
+                            try:
+                                ctx = int(parts[1])
+                                return {"num_ctx": ctx}
+                            except ValueError:
+                                pass
+                # Check modelfile_data or model_info as fallback
+                model_info = data.get("model_info", {})
+                if "num_ctx" in model_info:
+                    return {"num_ctx": model_info["num_ctx"]}
+            return {}
+        except Exception as e:
+            logger.debug(f"Could not query model info for {name}: {e}")
+            return {}
+
     def cleanup(self) -> None:
         """
         Cleanup resources and optionally unload model from GPU.
