@@ -513,7 +513,7 @@ class MemoryManager:
 
     def _load_voices_from_sql(self) -> Dict[str, Any]:
         """Load character voices from the latest context snapshot (SQL path)."""
-        if not self.use_sql or not hasattr(self, 'context_repo'):
+        if not self.use_sql or not hasattr(self, 'context_repo') or not hasattr(self, 'chapter_repo'):
             return {}
         try:
             chapters = self.chapter_repo.get_chapters_by_novel(self.novel_id)

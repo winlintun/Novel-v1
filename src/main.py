@@ -46,7 +46,6 @@ from src.cli.commands import (
     run_list_sync_jobs,
     run_audit_log,
     run_compare_models,
-    run_ingest_human_correction,
 )
 
 
@@ -105,9 +104,6 @@ def main() -> int:
 
     if args.review_file:
         return run_review(args)
-
-    if args.ingest_human_correction:
-        return run_ingest_human_correction(args)
 
     if args.auto_promote:
         return run_glossary_promotion(args)
