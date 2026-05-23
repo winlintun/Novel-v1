@@ -5,9 +5,9 @@
 ---
 
 ## Last Updated
-- Date: 2026-05-08
-- Last task completed: Completed model comparison tool + prompt refactoring + code review
-- Git commit: Pending
+- Date: 2026-05-23
+- Last task completed: Translation validation, Chinese novel rules, postprocessor checks, glossary sync fix
+- Git commit: 5e10be3
 
 ## Session Summary
 - ✅ Created skeleton model config system with 12 Ollama models
@@ -22,6 +22,7 @@
 - None
 
 ## Completed Tasks
+- [DONE] **Translation validation pipeline + Chinese novel universal rules + postprocessor quality checks**
 - [DONE] **Model comparison tool - translate with ALL models, save to logs/temp/**
 - [DONE] **Skeleton model config with ALL 12 downloaded Ollama models + Web UI + CLI**
 - [DONE] **Refactored all translation prompts into src/agents/prompts/ directory**

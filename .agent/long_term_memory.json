@@ -1,5 +1,5 @@
 {
-  "last_updated": "2026-05-06T22:45:00Z",
+  "last_updated": "2026-05-23T00:00:00Z",
   "lessons": [
     {
       "date": "2026-05-06",
@@ -212,5 +212,19 @@
       "Context-dependent translations"
     ],
     "recommendation": "Acceptable backup when padauk-gemma unavailable. NOT for publication-quality work. Pre-populate glossary to maximize quality."
-  }
+  },
+  "new_lessons": [
+    {
+      "date": "2026-05-23",
+      "context": "Translation validation pipeline implementation",
+      "lesson": "When adding a new optional parameter to a method (like source_text in _save_output), ALL call sites must be updated. Missing the source_text parameter meant validation was silently skipped — the default empty string caused the validation block to be bypassed.",
+      "action": "Always grep for all call sites of modified methods. Add logging when optional parameters enable critical features like validation."
+    },
+    {
+      "date": "2026-05-23",
+      "context": "Glossary sync novel_id sanitization",
+      "lesson": "make_novel_id() only replaced /, \\, and space with underscores but NOT hyphens. Novel names with hyphens (e.g., 'test-novel') produced novel_ids like 'novel_test-novel' which were inconsistent with database ID conventions that expect all underscores.",
+      "action": "Always replace hyphens with underscores in make_novel_id(). Update all tests that use hyphenated novel names."
+    }
+  ]
 }

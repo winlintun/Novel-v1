@@ -1,27 +1,25 @@
 {
-  "session_id": "2026-05-08-012",
-  "started_at": "2026-05-08T18:30:00Z",
-  "current_step": "Complete - Post-implementation review passed",
-  "last_action": "Fixed review issues: removed duplicate FAST_EN_MM_PROMPT from translator.py, fixed duplicate numbering in prompt_patch.py",
+  "session_id": "2026-05-23-001",
+  "started_at": "2026-05-23T00:00:00Z",
+  "current_step": "Complete - Git commit executed",
+  "last_action": "Committed translation validation, Chinese novel rules, postprocessor checks, glossary sync fix (5e10be3)",
   "next_action": "None - all tasks complete",
   "open_files": [],
   "pending_decisions": [],
-  "session_errors": [
-    {
-      "error": "AttributeError: 'TranslationPipeline' object has no attribute 'translate_text'",
-      "cause": "Used wrong method name - translate_text doesn't exist",
-      "fix": "Changed to translate_file() which is the correct method",
-      "status": "FIXED"
-    }
-  ],
+  "session_errors": [],
   "changes_made": {
-    "src/utils/compare_models.py": "Fixed translate_with_model() to use pipeline.translate_file() instead of non-existent translate_text()",
-    "src/agents/translator.py": "Removed duplicate local FAST_EN_MM_PROMPT definition that shadowed import",
-    "src/agents/prompt_patch.py": "Fixed duplicate numbering (6 appears twice) - changed second list to continue from 7-13"
+    "src/agents/prompts/en_mm_rules.py": "Added particle_repetition_limit rule, EN_FROM_CHINESE_RULES section (10 rules), updated confrontation pattern to use generic names",
+    "src/pipeline/orchestrator.py": "Added _detect_scene_type(), _validate_translation(), modified _save_output() to accept source_text and run validation",
+    "src/utils/postprocessor.py": "Added replace_loanwords(), check_ordinal_numbers(), check_content_completeness(), check_latin_script(), check_particle_repetition()",
+    "src/memory/memory_manager.py": "Added SQL backend support in reject_pending_term()",
+    "src/db/sync_external.py": "Fixed make_novel_id() to replace hyphens with underscores",
+    "config/settings.yaml": "Reduced chunk_size from 2500 to 1200",
+    "tests/test_memory_sql.py": "Updated tests for new novel_id format",
+    "tests/test_sync_external.py": "Updated tests for new novel_id format"
   },
   "review_status": {
-    "reviewer_a": "PASS - Minor issues identified and fixed",
-    "reviewer_b": "PASS - No issues found",
+    "reviewer_a": "PASS - Fixed missing source_text parameter; _detect_scene_type is dead code (minor)",
+    "reviewer_b": "PASS - All Myanmar translation rules correctly implemented",
     "final_status": "READY_TO_COMMIT"
   }
 }

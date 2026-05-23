@@ -1,30 +1,32 @@
 {
   "current_phase": "DOC",
-  "task": "Test and document sailor2:8b model performance for Myanmar translation",
-  "feature_type": 1,
+  "task": "Translation validation pipeline + Chinese novel universal rules + postprocessor quality checks",
+  "feature_type": 2,
   "phases": {
     "PLAN":   { "status": "DONE",        "runner": "Agent",  "requires_human": false },
     "BUILD":  { "status": "DONE",        "runner": "Agent",  "requires_human": false },
     "TEST":   { "status": "DONE",        "runner": "Agent",  "requires_human": false },
     "VERIFY": { "status": "DONE",        "runner": "Ollama", "requires_human": false,
-                 "score": 35, "retry_count": 0 },
+                 "score": null, "retry_count": 0 },
     "AUDIT":  { "status": "DONE",        "runner": "Gemini", "requires_human": false },
     "DOC":    { "status": "DONE",        "runner": "Agent",  "requires_human": false,
                  "skippable": false }
   },
-  "updated_at": "2026-05-08T04:30:00Z",
+  "updated_at": "2026-05-23T00:00:00Z",
   "summary": {
     "files_created": 0,
-    "files_modified": 3,
-    "commits_made": 0,
-    "test_result": "sailor2:8b FAILED for Myanmar translation",
-    "myanmar_ratio": "35% average (11-55% range)",
+    "files_modified": 9,
+    "commits_made": 2,
+    "commits": ["55a2edb", "5e10be3"],
+    "test_result": "498 passed, 5 pre-existing failures (test_workflow_routing.py)",
     "findings": [
-      "sailor2:8b produces English instead of Myanmar",
-      "Only 5/12 chunks passed quality gate",
-      "7/12 chunks REJECTED (below 70% Myanmar ratio)",
-      "Model not suitable for EN→MM translation"
+      "Added translation validation before save (content completeness, ordinals, Latin script, particle repetition)",
+      "Added 10 Chinese novel universal rules (Pinyin names, cultivation terms, ordinals, no loanwords, etc.)",
+      "Added postprocessor quality check functions",
+      "Fixed glossary sync novel_id hyphen handling",
+      "Added SQL backend support for reject_pending_term",
+      "Reduced chunk_size to 1200 for terminology-heavy novels"
     ],
-    "recommendation": "Use padauk-gemma:q8_0 (proven 98% Myanmar ratio) instead of sailor2:8b"
+    "recommendation": "None - all changes committed and reviewed"
   }
 }
