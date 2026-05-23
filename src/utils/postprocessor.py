@@ -735,38 +735,58 @@ def replace_archaic_words(text: str) -> str:
         ထို (that) → အဲဒီ
         သင်သည် (you) → မင်း
     
-    Uses Myanmar-specific word boundaries (not \\b which breaks on
-    combining marks in Unicode Myanmar). Only replaces when the
-    archaic word is NOT followed by another Myanmar consonant letter
-    (possibly with intervening combining marks), meaning it's
-    a standalone word, not part of a compound like ထိုင်ခိုင်း.
+    Uses a compound-exclusion approach: temporarily protects known
+    Myanmar compound words that contain ထို as a syllable (ထိုင်=sit,
+    ထိုး=stab, etc.) from replacement, then replaces all remaining
+    standalone ထို (determiner "that") with အဲဒီ.
+    
+    The old regex approach (lookahead for consonant) was too conservative
+    — it failed to replace ထို when followed by ANY consonant, even when
+    the consonant starts a new word (e.g. ထိုလူငယ် → that youth, NOT a compound).
     """
     if not text:
         return text
 
     # Myanmar consonant range: U+1000-U+1021 (က-အ) + independent vowels U+1023-U+102A
-    # Combining marks: virama U+1039, asat U+103A, vowels U+102C-1032, tones U+1036-1038
     _MYANMAR_CONSONANT = r'[\u1000-\u1021\u1023-\u102A]'
-    _MYANMAR_COMBINING = r'[\u1039\u103A\u102C-\u1032\u1036-\u1038]*'
 
-    # Lookbehind: NOT preceded by a Myanmar consonant letter
-    # Lookahead: NOT followed by (combining marks + consonant) — i.e. standalone
+    # ── Step 1: Protect known compounds (temporary placeholders) ──
+    # Sort by length descending so "ထိုက်တန်" is protected before "ထိုက်"
+    # (otherwise ထိုက်'s replacement corrupts the longer compound)
+    _COMPOUND_PROTECT = {
+        'ထိုက်တန်': '__MYAN_DESERVE__', # deserve (must come BEFORE ထိုက်)
+        'ထိုင်':    '__MYAN_SIT__',      # to sit (ထ + ိ + င်)
+        'ထိုင်း':   '__MYAN_THAI__',     # Thai / lazy (ထ + ိ + င်း)
+        'ထိုး':    '__MYAN_STAB__',     # to stab (ထ + ိ + း)
+        'ထိုက်':   '__MYAN_WORTHY__',   # worthy (ထ + ိ + က်)
+    }
+    for comp, guard in sorted(
+        _COMPOUND_PROTECT.items(),
+        key=lambda x: len(x[0]),
+        reverse=True
+    ):
+        text = text.replace(comp, guard)
 
-    # ဤ → ဒီ
-    text = re.sub(
-        r'(?<!' + _MYANMAR_CONSONANT + r')ဤ(?!' + _MYANMAR_COMBINING + _MYANMAR_CONSONANT + r')',
-        'ဒီ', text
-    )
-    # ထို → အဲဒီ
-    text = re.sub(
-        r'(?<!' + _MYANMAR_CONSONANT + r')ထို(?!' + _MYANMAR_COMBINING + _MYANMAR_CONSONANT + r')',
-        'အဲဒီ', text
-    )
+    # ── Step 2: Replace standalone archaic words ──
+    # ဤ → ဒီ: standalone ဤ not preceded by Myanmar consonant
+    text = re.sub(r'(?<!' + _MYANMAR_CONSONANT + r')ဤ(?![\u1039])', 'ဒီ', text)
+    # ထို → အဲဒီ: standalone determiners only (not compounds)
+    text = re.sub(r'(?<!' + _MYANMAR_CONSONANT + r')ထို(?![\u1039])', 'အဲဒီ', text)
     # သင်သည် → မင်း
     text = re.sub(
-        r'(?<!' + _MYANMAR_CONSONANT + r')သင်သည်(?!' + _MYANMAR_COMBINING + _MYANMAR_CONSONANT + r')',
+        r'(?<!' + _MYANMAR_CONSONANT + r')သင်သည်(?![\u1039])',
         'မင်း', text
     )
+
+    # ── Step 3: Restore protected compounds ──
+    for comp, guard in _COMPOUND_PROTECT.items():
+        text = text.replace(guard, comp)
+
+    # ── Step 4: Fix ထို့ variants that became အဲဒီ့ (tone mark issue) ──
+    # ထို့ → အဲဒီ့ during replacement, but should be အဲဒီ (drop the tone mark ့)
+    # when the original ထို့ was a prefix (e.g., ထို့နောက်, ထို့ကြောင့်, ထို့အတူ, etc.)
+    text = re.sub(r'အဲဒီ့(?=[\u1000-\u1021\u1023-\u102A])', 'အဲဒီ', text)
+
     return text
 
 
