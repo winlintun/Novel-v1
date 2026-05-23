@@ -81,9 +81,9 @@ def external_db(tmp_path):
            (id, novel_id, source_term, target_term, canonical_form, category, status, scope)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
         [
-            ("term_novel_test-novel_001", "novel_test-novel", "Hero", "သူရဲကောင်း", "Hero", "character", "approved", "novel"),
-            ("term_novel_test-novel_002", "novel_test-novel", "Villain", "ဗီလိန်", "Villain", "character", "pending", "novel"),
-            ("term_novel_test-novel_003", "novel_test-novel", "Sword", "ဓား", "Sword", "item", "approved", "novel"),
+            ("term_novel_test_novel_001", "novel_test_novel", "Hero", "သူရဲကောင်း", "Hero", "character", "approved", "novel"),
+            ("term_novel_test_novel_002", "novel_test_novel", "Villain", "ဗီလိန်", "Villain", "character", "pending", "novel"),
+            ("term_novel_test_novel_003", "novel_test_novel", "Sword", "ဓား", "Sword", "item", "approved", "novel"),
         ],
     )
     # Insert global terms
@@ -103,7 +103,7 @@ def external_db(tmp_path):
 
 class TestMakeNovelId:
     def test_simple_name(self):
-        assert make_novel_id("test-novel") == "novel_test-novel"
+        assert make_novel_id("test-novel") == "novel_test_novel"
 
     def test_name_with_spaces(self):
         assert make_novel_id("my novel") == "novel_my_novel"
@@ -139,7 +139,7 @@ class TestSyncExternalGlossary:
 
         # Verify terms exist in local DB
         rows = conn.execute(
-            "SELECT source_term FROM glossary_terms WHERE novel_id = 'novel_test-novel'"
+            "SELECT source_term FROM glossary_terms WHERE novel_id = 'novel_test_novel'"
         ).fetchall()
         sources = {r["source_term"] for r in rows}
         assert "Hero" in sources
@@ -204,7 +204,7 @@ class TestSyncExternalGlossary:
         row = conn.execute(
             "SELECT id FROM glossary_terms WHERE source_term = 'Hero'"
         ).fetchone()
-        expected_id = make_term_id("novel_test-novel", "Hero")
+        expected_id = make_term_id("novel_test_novel", "Hero")
         assert row["id"] == expected_id
 
         conn.close()
@@ -244,7 +244,7 @@ class TestSyncExternalGlossary:
         sync_external_glossary(conn, "test-novel", external_db)
 
         novel_row = conn.execute(
-            "SELECT id FROM novels WHERE id = 'novel_test-novel'"
+            "SELECT id FROM novels WHERE id = 'novel_test_novel'"
         ).fetchone()
         assert novel_row is not None
 

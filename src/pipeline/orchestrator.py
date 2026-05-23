@@ -1280,7 +1280,123 @@ class TranslationPipeline:
 
         return result
 
-    def _save_output(self, input_path: str, text: str, extra_meta: Optional[Dict[str, Any]] = None) -> Path:
+    @staticmethod
+    def _detect_scene_type(text: str) -> str:
+        """Detect scene type from text content for dynamic prompt injection.
+        
+        Analyzes text to determine the dominant scene type:
+        - 'confrontation': Heated dialogue with accusations, threats
+        - 'dialogue': Character conversations
+        - 'action': Combat, movement, physical events
+        - 'narration': Description, exposition, internal thoughts
+        
+        Returns scene type string for use in build_linguistic_context().
+        """
+        import re
+        
+        # Count dialogue lines (quotes)
+        dialogue_lines = len([l for l in text.split('\n')
+                              if l.strip().startswith(('"', '"', '"'))])
+        
+        # Count action indicators
+        action_keywords = ['strike', 'attack', 'fight', 'kill', 'sword', 'slash',
+                          'ထိုး', 'တိုက်', 'သတ်', 'ခုတ်', 'ပစ်']
+        action_count = sum(1 for kw in action_keywords if kw.lower() in text.lower())
+        
+        # Count confrontation indicators (accusations, threats, anger)
+        confrontation_keywords = ['you', 'your', 'die', 'kill', 'hate', 'revenge',
+                                 'နင်', 'သေ', 'သတ်', 'မုန်း', 'လက်စား']
+        confrontation_count = sum(1 for kw in confrontation_keywords if kw.lower() in text.lower())
+        
+        # Count exclamation marks (emotional intensity)
+        exclamation_count = text.count('!') + text.count('။')
+        
+        total_lines = len([l for l in text.split('\n') if l.strip()])
+        dialogue_ratio = dialogue_lines / total_lines if total_lines > 0 else 0
+        
+        # Decision logic
+        if confrontation_count >= 3 and dialogue_ratio > 0.3:
+            return 'confrontation'
+        elif dialogue_ratio > 0.5:
+            return 'dialogue'
+        elif action_count >= 3:
+            return 'action'
+        else:
+            return 'narration'
+
+    def _validate_translation(self, source_text: str, translated_text: str, chapter_num: int) -> dict:
+        """Validate translation quality before saving.
+        
+        Checks:
+        - Content completeness (paragraph/dialogue count)
+        - Ordinal number correctness
+        - Latin script leakage
+        - Particle repetition overuse
+        
+        Returns validation report dict.
+        """
+        from src.utils.postprocessor import (
+            check_content_completeness,
+            check_ordinal_numbers,
+            check_latin_script,
+            check_particle_repetition,
+        )
+        
+        report = {
+            'chapter': chapter_num,
+            'pass': True,
+            'issues': [],
+            'warnings': [],
+        }
+        
+        # Check content completeness
+        completeness = check_content_completeness(source_text, translated_text)
+        if not completeness['pass']:
+            report['pass'] = False
+            report['issues'].append(
+                f"Content loss: {completeness['missing_paragraphs']} paragraphs missing "
+                f"({completeness['paragraph_ratio']:.0%} coverage), "
+                f"{completeness['missing_dialogues']} dialogues missing"
+            )
+        elif completeness['missing_paragraphs'] > 0:
+            report['warnings'].append(
+                f"Minor content loss: {completeness['missing_paragraphs']} paragraphs "
+                f"({completeness['paragraph_ratio']:.0%} coverage)"
+            )
+        
+        # Check ordinal numbers
+        ordinal_issues = check_ordinal_numbers(translated_text)
+        if ordinal_issues:
+            report['pass'] = False
+            for issue in ordinal_issues:
+                report['issues'].append(
+                    f"Wrong ordinal at line {issue['line']}: "
+                    f"'{issue['found']}' should be '{issue['expected']}' ({issue['meaning']})"
+                )
+        
+        # Check Latin script leakage
+        latin_issues = check_latin_script(translated_text)
+        if latin_issues:
+            # Report as warning (not blocker — some terms like D132 may be intentional)
+            latin_texts = [i['text'] for i in latin_issues[:5]]
+            report['warnings'].append(
+                f"Latin script found: {', '.join(latin_texts)} "
+                f"({'and {len(latin_issues) - 5} more' if len(latin_issues) > 5 else ''})"
+            )
+        
+        # Check particle repetition
+        particle_issues = check_particle_repetition(translated_text)
+        if particle_issues:
+            for issue in particle_issues[:3]:  # Report first 3 issues
+                report['warnings'].append(
+                    f"Particle overuse in paragraph {issue['paragraph']}: "
+                    f"'{issue['particle']}' appears {issue['count']} times "
+                    f"(max {issue['max_allowed']})"
+                )
+        
+        return report
+
+    def _save_output(self, input_path: str, text: str, extra_meta: Optional[Dict[str, Any]] = None, source_text: str = "") -> Path:
         """Save translated output and update per-novel cumulative meta.json.
         
         Args:
@@ -1307,6 +1423,23 @@ class TranslationPipeline:
         m = re.search(r'(\d+)', output_path.stem)
         if m:
             chapter_num = int(m.group(1))
+
+        # --- Run translation validation before saving ---
+        if source_text:
+            validation = self._validate_translation(source_text, text, chapter_num or 0)
+            if validation['issues']:
+                for issue in validation['issues']:
+                    self.logger.warning(f"Chapter {chapter_num} validation issue: {issue}")
+            if validation['warnings']:
+                for warning in validation['warnings']:
+                    self.logger.info(f"Chapter {chapter_num} validation warning: {warning}")
+            
+            # Add validation results to extra_meta
+            if extra_meta is None:
+                extra_meta = {}
+            extra_meta['validation_pass'] = validation['pass']
+            extra_meta['validation_issues'] = validation['issues']
+            extra_meta['validation_warnings'] = validation['warnings']
 
         # --- Write chapter .mm.md file ---
         from src.utils.file_handler import FileHandler

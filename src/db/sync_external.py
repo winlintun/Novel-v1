@@ -33,7 +33,7 @@ SHARED_COLUMNS = [
 
 def make_novel_id(novel_name: str) -> str:
     """Generate a sanitized novel_id consistent across all modules."""
-    safe = novel_name.replace('/', '_').replace('\\', '_').replace(' ', '_')
+    safe = novel_name.replace('/', '_').replace('\\', '_').replace(' ', '_').replace('-', '_')
     return f"novel_{safe}"
 
 

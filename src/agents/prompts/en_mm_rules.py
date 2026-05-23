@@ -295,6 +295,23 @@ NARRATION_RULES = {
             "သူ့နှလုံးသားတစ်ခုလုံး နွေးထွေးကြည်နူးမှုတွေနဲ့ ပြည့်လျှံသွားတယ်  (warmth/love)",
         ],
     },
+
+    "particle_repetition_limit": {
+        "rule": (
+            "NEVER repeat the same particle more than 2 times per paragraph.\n"
+            "Common particles that get overused: သည်, က, မှာ, ကို\n"
+            "If a paragraph has 3+ instances of the same particle:\n"
+            "  - Replace some with alternative particles\n"
+            "  - Restructure sentences to reduce particle dependency\n"
+            "Example:\n"
+            "  WRONG (သည် appears 5 times):\n"
+            "    သူသည် ဓားကို ကိုင်သည်။ သူသည် ရန်သူကို ကြည့်သည်။\n"
+            "    သူသည် တိုက်သည်။ သူသည် အနိုင်ရသည်။\n"
+            "  RIGHT (varied particles):\n"
+            "    သူက ဓားကို ကိုင်လိုက်တယ်။ ရန်သူကို ကြည့်ပြီး တိုက်သည်။\n"
+            "    အနိုင်ရသွားတယ်။"
+        ),
+    },
 }
 
 
@@ -754,8 +771,7 @@ VOCABULARY_PRECISION = {
 
 # ===========================================================================
 # SECTION 11: CONFRONTATION SPEECH PATTERN
-# Real example analysis — want_to_translated vs translated_result
-# Novel: Reverend Insanity — Fang Yuan confrontation scene
+# Universal pattern — applies to ALL Chinese novels
 # ===========================================================================
 
 CONFRONTATION_SPEECH_PATTERN = {
@@ -771,14 +787,14 @@ CONFRONTATION_SPEECH_PATTERN = {
         "  6. Literary narration for surrounding scene description"
     ),
 
-    "real_example": {
+    "example": {
         "original_english": (
             '"Demon, 300 years ago you insulted me, took away my body\'s purity, '
             'killed my entire family and executed my nine generations. '
             'From that moment onwards, I hated you with a burning passion! '
             'Today, I want you to die!"\n\n'
             '......\n\n'
-            'Fang Yuan was in deep green robes that had been torn to shreds. '
+            'The cultivator was in deep green robes that had been torn to shreds. '
             'His hair was disheveled and his entire body was covered in blood. '
             'He looked around.\n\n'
             'The bloody robes waved lightly in the mountain breeze like a war flag.'
@@ -791,7 +807,7 @@ CONFRONTATION_SPEECH_PATTERN = {
             'သေဒဏ်ပေးခဲ့တယ်။ အဲဒီအချိန်ကစပြီး ငါ မင်းကို မီးလို မုန်းတီးခဲ့တယ်! '
             'ဒီနေ့၊ မင်းသေစေချင်တယ်!" '
             '...... '
-            'ဖန်ယွမ်ဟာ ဆုတ်ဖြဲနေတဲ့ গাঢ়အစိမ်းရောင်ဝတ်ရုံတွေနဲ့ ရှိနေခဲ့တယ်။ '
+            'ဇာတ်ကောင်ဟာ ဆုတ်ဖြဲနေတဲ့ গাঢ়အစိမ်းရောင်ဝတ်ရုံတွေနဲ့ ရှိနေခဲ့တယ်။ '
             'သူ့ဆံပင်တွေ ရှုပ်ပွနေပြီး သူ့ကိုယ်ခန္ဓာတစ်ခုလုံးက သွေးတွေနဲ့ '
             'ဖုံးလွှမ်းနေတယ်။သူပတ်ဝန်းကျင်ကို ကြည့်လိုက်တယ်။ '
             'သွေးစွန်းနေတဲ့ ဝတ်ရုံတွေဟာ တောင်တန်းလေထဲမှာ စစ်ပွဲအလံလို '
@@ -805,7 +821,7 @@ CONFRONTATION_SPEECH_PATTERN = {
             'ငါ့ရဲ့ မျိုးဆက် ကိုးဆက်လုံးကို အမြစ်ဖြတ် သုတ်သင်သွားတယ်။ '
             'အဲ့ဒီအချိန်ကစပြီး ငါ နင့်ကို အရိုးစွဲအောင် မုန်းသွားတာ။ '
             'ဒီနေ့ နင့်ကို အသေသစ်ရမယ့် နေ့ပဲ" '
-            'ဖန်ယွမ် သည် အပေါ်မှ အောက်ထိ စုတ်ပြဲနေသာ '
+            'ဇာတ်ကောင် သည် အပေါ်မှ အောက်ထိ စုတ်ပြဲနေသာ '
             'အစိမ်းရောင်တောက်တောက် ဝတ်ရုံကြီးကို ဝတ်ထားသည်။ '
             'သူ့၏ ဆံပင်များမှာ ဖရိုဖရဲ ဖြစ်နေပြီး '
             'သူ့ တစ်ကိုယ်လုံးမှာ သွေးများဖြင့် ပေရေနေသည်။ '
@@ -858,8 +874,8 @@ CONFRONTATION_SPEECH_PATTERN = {
             },
             "error_8": {
                 "issue":   "Narration register — casual တယ် instead of literary သည်",
-                "bad":     "ဖန်ယွမ်ဟာ ... ရှိနေခဲ့တယ်",
-                "good":    "ဖန်ယွမ် သည် ... ဝတ်ထားသည်",
+                "bad":     "ဇာတ်ကောင်ဟာ ... ရှိနေခဲ့တယ်",
+                "good":    "ဇာတ်ကောင် သည် ... ဝတ်ထားသည်",
                 "rule":    "Battle aftermath scene description → literary သည် register",
             },
             "error_9": {
@@ -887,7 +903,206 @@ CONFRONTATION_SPEECH_PATTERN = {
 
 
 # ===========================================================================
-# SECTION 12: PIPELINE INTEGRATION
+# SECTION 13: CHINESE NOVEL VIA ENGLISH — UNIVERSAL RULES
+# Applied to ALL Chinese novels translated from English source text.
+# These rules prevent common errors when the AI translates English terms
+# that were originally Chinese (names, places, cultivation terms, titles).
+# ===========================================================================
+
+EN_FROM_CHINESE_RULES = {
+
+    "name_transliteration_priority": {
+        "rule": (
+            "CRITICAL: Character names in English source were originally Chinese.\n"
+            "ALWAYS use Pinyin-based Myanmar transliteration, NOT English pronunciation.\n"
+            "ALWAYS defer to the novel's glossary for established spellings.\n"
+            "NEVER invent new Myanmar spellings mid-chapter.\n"
+            "\n"
+            "Common errors observed:\n"
+            "  • Same character translated 3 different ways in one chapter\n"
+            "  • English pronunciation used instead of Pinyin\n"
+            "  • Model creates phonetic approximations that don't match glossary\n"
+            "\n"
+            "If a name is NOT in the glossary:\n"
+            "  1. Transliterate from Pinyin (not English)\n"
+            "  2. Use 【?name?】 placeholder if uncertain\n"
+            "  3. NEVER guess or invent a Myanmar name"
+        ),
+        "examples": [
+            {"en": "Li Ming (李明)", "wrong": "လီမင်း (English pronunciation)", "correct": "လီမင်း (from Pinyin)"},
+            {"en": "Wang Wei (王伟)", "wrong": "ဝမ်ဝေး (English pronunciation)", "correct": "ဝမ်ဝေ့ (from Pinyin)"},
+        ],
+    },
+
+    "cultivation_term_consistency": {
+        "rule": (
+            "Cultivation/Xianxia terms have FIXED Myanmar translations.\n"
+            "NEVER translate them literally from English.\n"
+            "ALWAYS use the glossary-approved term.\n"
+            "\n"
+            "Common literal translation errors:\n"
+            "  'Nascent Soul' → ပေါ်ပေါက်လာမည့် ဝိညာဉ် (WRONG — literal)\n"
+            "  Correct: ဝိညာဉ်နတ်သူငယ် (fixed cultivation term)\n"
+            "\n"
+            "  'Golden Core' → ရွှေအူတိုင် (WRONG — literal)\n"
+            "  Correct: ရွှေဘောလုံး (from 金丹)\n"
+            "\n"
+            "  'Spirit Child' → ဝိညာဉ် (INCOMPLETE — loses 'child')\n"
+            "  Correct: ဝိညာဉ်နတ်သူငယ်"
+        ),
+        "standard_terms": {
+            "Golden Core": "ရွှေဘောလုံး",
+            "Nascent Soul": "ဝိညာဉ်နတ်သူငယ်",
+            "Spirit Severing": "ဝိညာဉ်ဖြတ်တောက်ခြင်း",
+            "Dao Foundation": "တရားအုတ်မြစ်",
+            "Qi Condensation": "ချီစုဆောင်းခြင်း",
+            "Tribulation": "ကြိတ်ကျော်ဒဏ်",
+            "Flying Sword": "ပျံတိုက်",
+            "Sect": "ဂိုဏ်း",
+            "Cultivation": "ကျင့်ကြံ",
+            "Cultivator": "ကျင့်ကြံသူ",
+            "Mortal": "သေမျိုး",
+            "Immortal": "မြတ်စွာ",
+            "Heavenly Dao": "ကောင်းကင်တရား",
+            "Karma": "ကမ္မ",
+            "Prohibition": "တားမြစ်",
+            "Formation": "ဖွဲ့စည်းပုံ",
+        },
+    },
+
+    "title_and_office_terminology": {
+        "rule": (
+            "Chinese organizational terms (局, 殿, 府, 阁) have specific meanings.\n"
+            "NEVER translate them as generic English equivalents.\n"
+            "\n"
+            "局 (jú) = bureau/office → ရုံးတော် (NOT နန်းတော် = palace)\n"
+            "殿 (diàn) = hall/palace → နန်းတော် / ရုံးတော် (context-dependent)\n"
+            "府 (fǔ) = prefecture/residence → ဒေသ / အိမ်တော်\n"
+            "阁 (gé) = pavilion/cabinet → ဂူ / တိုက်\n"
+            "\n"
+            "Common error: 三局 translated as 'three palaces' (နန်းတော်သုံးခု)\n"
+            "Correct: ရုံးတော်သုံးခု (Three Bureaus)"
+        ),
+    },
+
+    "ordinal_number_precision": {
+        "rule": (
+            "CRITICAL: Ordinal numbers must be EXACT. Model consistently shifts +1.\n"
+            "ALWAYS verify ordinal numbers against source before output.\n"
+            "\n"
+            "1st  = ပထမ        (NOT ပထမခုမြောက်)\n"
+            "2nd  = ဒုတိယ       (NOT နှစ်ခုမြောက်)\n"
+            "3rd  = တတိယ       (NOT သုံးခုမြောက်)\n"
+            "4th  = စတုတ္ထ       (NOT လေးခုမြောက်)\n"
+            "5th  = ပဉ္စမ        (NOT ငါးခုမြောက်)\n"
+            "6th  = ဆဋ္ဌမ        (NOT ခြောက်ခုမြောက်)\n"
+            "7th  = သတ္တမ        (NOT ခုနစ်ခုမြောက်)\n"
+            "8th  = အဋ္ဌမ        (NOT ရှစ်ခုမြောက်)\n"
+            "9th  = နဝမ         (NOT ဆယ်ခုမြောက် = 10th!)\n"
+            "10th = ဒသမ        (NOT ဆယ့်တစ်ခုမြောက် = 11th!)\n"
+            "11th = ဧကာဒသမ    (NOT ဆယ့်နှစ်ခုမြောက် = 12th!)\n"
+            "\n"
+            "BEFORE SAVING: Count every ordinal in source and verify in output."
+        ),
+    },
+
+    "no_english_loanwords": {
+        "rule": (
+            "NEVER transliterate English words into Myanmar script.\n"
+            "Use Myanmar-native vocabulary or glossary terms.\n"
+            "\n"
+            "Observed loanword errors:\n"
+            "  platform → ပလက်ဖောင်း (WRONG) → စင်မြင့် (correct)\n"
+            "  competition → ပြိုင်ပွဲ (acceptable) — but NOT for clan names\n"
+            "  mosaic → မိုဆာဆော (acceptable for proper noun)\n"
+            "\n"
+            "If you don't know the Myanmar word:\n"
+            "  1. Use 【?term?】 placeholder\n"
+            "  2. Describe the concept in Myanmar words\n"
+            "  3. NEVER create a phonetic approximation from English"
+        ),
+    },
+
+    "register_for_elder_and_respected": {
+        "rule": (
+            "When characters refer to respected seniors/elders:\n"
+            "  Use: သက်ကြီး (elder, respectful)\n"
+            "  NOT: အဘိုးကြီး (old man — casual/dismissive)\n"
+            "  NOT: အဖိုးကြီး (grandfather — too familiar)\n"
+            "\n"
+            "Example:\n"
+            "  'I have an elder I respect'\n"
+            "  WRONG: ကျွန်တော် လေးစားရတဲ့ အဘိုးကြီးတစ်ယောက်\n"
+            "  RIGHT: ကျွန်တော် လေးစားအားကျရတဲ့ သက်ကြီးတစ်ယောက်"
+        ),
+    },
+
+    "place_name_consistency": {
+        "rule": (
+            "Place names must be CONSISTENT throughout the chapter.\n"
+            "NEVER use multiple spellings for the same place.\n"
+            "\n"
+            "Common error: Fenghai County translated as:\n"
+            "  ဖန်ဟိုင်းခရိုင်, ဖန်ဟိုင်း, ဖန်ဟိုင်ခရိုင်, ဖန်ဟိုင် (4 variants)\n"
+            "  All WRONG — should be ONE consistent spelling per glossary.\n"
+            "\n"
+            "BEFORE SAVING: Search for all place name occurrences.\n"
+            "If any variant differs from glossary → replace ALL occurrences."
+        ),
+    },
+
+    "content_completeness": {
+        "rule": (
+            "CRITICAL: Do NOT skip ANY content from the source.\n"
+            "Every paragraph, every dialogue line, every description must be translated.\n"
+            "\n"
+            "Observed content loss patterns:\n"
+            "  • Dialogue exchanges omitted entirely\n"
+            "  • Character inner thoughts skipped\n"
+            "  • Descriptive passages compressed or removed\n"
+            "  • Cultivation stage descriptions missing\n"
+            "\n"
+            "BEFORE SAVING: Compare paragraph count with source.\n"
+            "If translation has >10% fewer paragraphs → RE-TRANSLATE that chunk."
+        ),
+    },
+
+    "prohibition_on_hallucination": {
+        "rule": (
+            "NEVER invent terms, names, or concepts not present in the source.\n"
+            "NEVER add Myanmar names that don't correspond to source names.\n"
+            "\n"
+            "Observed hallucinations:\n"
+            "  • 'ဘုံတာအိုမိုဆာ' — garbled term with no source equivalent\n"
+            "  • Character names invented from context guesses\n"
+            "  • Cultivation terms created by combining unrelated words\n"
+            "\n"
+            "If a term is unclear:\n"
+            "  1. Use 【?term?】 placeholder\n"
+            "  2. The placeholder will be resolved in review cycle\n"
+            "  3. Better to have placeholder than wrong term"
+        ),
+    },
+
+    "latin_script_prohibition": {
+        "rule": (
+            "NEVER leave Latin/English letters in Myanmar output.\n"
+            "All alphanumeric codes, realm names, and identifiers must be:\n"
+            "  1. Translated to Myanmar, OR\n"
+            "  2. Transliterated to Myanmar script, OR\n"
+            "  3. Replaced with 【?term?】 placeholder\n"
+            "\n"
+            "Observed errors:\n"
+            "  'D132' left untranslated → should be 'D၁၃၂' or translated\n"
+            "  'Level 5' → should be 'အဆင့် ၅'\n"
+            "  'Chapter 3' → should be 'အခန်း ၃'"
+        ),
+    },
+}
+
+
+# ===========================================================================
+# SECTION 14: PIPELINE INTEGRATION
 # For use in translator.py and rewriter.py
 # ===========================================================================
 
@@ -916,9 +1131,9 @@ PIPELINE_SETTINGS = {
     ),
 
     "chunk_size": {
-        "recommended": 900,
-        "max": 1000,
-        "note": "Smaller chunks = better quality per chunk on 16GB RAM systems",
+        "recommended": 1200,
+        "max": 1500,
+        "note": "1200 chars optimal for terminology-heavy Chinese novels via English",
     },
 }
 
@@ -964,7 +1179,7 @@ UNICODE SAFETY:
 """
 
     return f"""
-[LINGUISTIC RULES — {source_lang} → Myanmar]
+[TRANSLATION RULES — {source_lang} → Myanmar]
 
 1. STRUCTURE: English SVO → Myanmar SOV
    EN: He [S] struck [V] the enemy [O]
@@ -996,6 +1211,18 @@ UNICODE SAFETY:
 7. NARRATION STYLE:
    Scene description / action → သည် particle (literary)
    Close POV perception       → တယ် particle (casual)
+
+8. CHINESE NOVEL VIA ENGLISH — UNIVERSAL RULES:
+   • Names: Pinyin-based Myanmar, NOT English pronunciation
+   • Cultivation terms: Use glossary ONLY (never literal translate)
+   • 局 = ရုံးတော် (bureau), NEVER နန်းတော် (palace)
+   • Ordinals: 9th=နဝမ, 10th=ဒသမ, 11th=ဧကာဒသမ (verify each!)
+   • NO English loanwords transliterated into Myanmar
+   • NO hallucinated terms — use 【?term?】 if unsure
+   • NO Latin/English letters in output (D132 → D၁၃၂ or translate)
+   • Content: translate EVERY paragraph, skip NOTHING
+   • Place names: ONE consistent spelling per chapter
+   • Elder (respected) = သက်ကြီး (NOT အဘိုးကြီး)
 {unicode_section}
 OUTPUT: ONLY Myanmar text. No notes. No English. No Chinese. Preserve Markdown.
 """
@@ -1070,8 +1297,8 @@ RULE 6 — EMOTIONS
 RULE 7 — REGISTER
   Narration/battle scene description: သည် / ၏ / သော / ဖြင့် (literary)
   Dialogue/close-POV:                 တယ် / ဘူး / မယ် (conversational)
-  WRONG: ဖန်ယွမ်ဟာ ဝတ်ရုံနဲ့ ရှိနေခဲ့တယ် (casual for epic scene)
-  RIGHT: ဖန်ယွမ် သည် ဝတ်ရုံကြီးကို ဝတ်ထားသည် (literary)
+  WRONG: ဇာတ်ကောင်ဟာ ဝတ်ရုံနဲ့ ရှိနေခဲ့တယ် (casual for epic scene)
+  RIGHT: ဇာတ်ကောင် သည် ဝတ်ရုံကြီးကို ဝတ်ထားသည် (literary)
 
 RULE 8 — UNICODE SAFETY (CRITICAL)
   ❌ Bengali script (গাঢ় ক খ) U+0980-U+09FF: FORBIDDEN
@@ -1083,6 +1310,17 @@ RULE 8 — UNICODE SAFETY (CRITICAL)
 RULE 9 — CONTENT INTEGRITY
   Do NOT add events. Do NOT remove events.
   Only improve language quality, register, and vocabulary.
+
+RULE 10 — CHINESE NOVEL UNIVERSAL RULES:
+  • Names: use glossary spelling ONLY — never invent variants
+  • Cultivation terms: glossary ONLY (Nascent Soul = ဝိညာဉ်နတ်သူငယ်)
+  • 局 = ရုံးတော် (bureau), NEVER နန်းတော် (palace)
+  • Ordinals: verify 9th=နဝမ, 10th=ဒသမ, 11th=ဧကာဒသမ
+  • NO loanwords (ပလက်ဖောင်း → စင်မြင့်)
+  • NO hallucinated terms — use 【?term?】 if unsure
+  • NO Latin letters in output (D132 → D၁၃၂)
+  • Elder (respected) = သက်ကြီး (NOT အဘိုးကြီး)
+  • Replace archaic: ဤ→ဒီ, ထို→အဲဒီ
 
 OUTPUT: ONLY the rewritten Myanmar text. Nothing else.
 """

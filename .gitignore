@@ -40,10 +40,10 @@ models/*
 
 # Input novels (user files - don't commit)
 data/input/*.pdf
-data/input/
+data/input/*
 data/chroma_db
 data/datasets_novels
-
+data/input/*/*
 
 
 # ── Testing ──────────────────────────────────────────────────────────────────

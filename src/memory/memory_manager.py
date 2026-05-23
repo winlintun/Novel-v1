@@ -709,6 +709,17 @@ class MemoryManager:
         Returns:
             True if rejected successfully, False if not found
         """
+        if self.use_sql:
+            # SQL backend: delete from database
+            term = self.glossary_repo.get_term_by_source(self.novel_id, source)
+            if not term or term.get('status') != 'pending':
+                return False
+            
+            self.glossary_repo.delete_term(term['id'])
+            logger.info(f"Rejected pending term (SQL): {source}")
+            return True
+        
+        # JSON backend
         pending_data = FileHandler.read_json(self.pending_path)
         if not pending_data:
             return False

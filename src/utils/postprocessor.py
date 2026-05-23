@@ -808,6 +808,191 @@ def fix_degraded_placeholders(text: str) -> str:
     return text
 
 
+# Universal loanword patterns — English words transliterated into Myanmar
+# These apply to ALL Chinese novels translated via English source
+LOANWORD_REPLACEMENTS = {
+    # English loanwords → Myanmar native equivalents
+    'ပလက်ဖောင်း': 'စင်မြင့်',      # platform → stage
+    'ကွန်ရက်': 'ပိုက်ကွန်',         # network → net (cultivation context)
+}
+
+# Forbidden hallucinated patterns — delete entirely
+FORBIDDEN_HALLUCINATIONS = [
+    # Patterns observed as model hallucinations with no source equivalent
+    'ဘုံတာအို',
+]
+
+
+def replace_loanwords(text: str) -> str:
+    """Replace English loanwords transliterated into Myanmar with native equivalents.
+    
+    Universal rules applied to ALL Chinese novels translated via English source.
+    """
+    if not text:
+        return text
+    
+    for loanword, replacement in LOANWORD_REPLACEMENTS.items():
+        text = text.replace(loanword, replacement)
+    
+    # Delete hallucinated terms entirely
+    for hallucination in FORBIDDEN_HALLUCINATIONS:
+        text = text.replace(hallucination, '')
+    
+    return text
+
+
+def check_ordinal_numbers(text: str) -> list[dict]:
+    """Check for incorrect ordinal number translations.
+    
+    Common error: model shifts ordinals by +1
+    - 9th translated as 10th (ဆယ်ခုမြောက် instead of နဝမ)
+    - 10th translated as 11th (ဆယ့်တစ်ခုမြောက် instead of ဒသမ)
+    
+    Returns list of issues found with location and fix recommendation.
+    """
+    if not text:
+        return []
+    
+    issues = []
+    
+    # Wrong ordinal forms that indicate +1 shift error
+    wrong_ordinals = {
+        'ဆယ်ခုမြောက်': {'expected': 'နဝမ', 'meaning': '9th (wrong: wrote 10th)'},
+        'ဆယ့်တစ်ခုမြောက်': {'expected': 'ဒသမ', 'meaning': '10th (wrong: wrote 11th)'},
+        'ဆယ့်နှစ်ခုမြောက်': {'expected': 'ဧကာဒသမ', 'meaning': '11th (wrong: wrote 12th)'},
+    }
+    
+    for wrong, info in wrong_ordinals.items():
+        if wrong in text:
+            # Find line numbers where this occurs
+            lines = text.split('\n')
+            for i, line in enumerate(lines, 1):
+                if wrong in line:
+                    issues.append({
+                        'line': i,
+                        'found': wrong,
+                        'expected': info['expected'],
+                        'meaning': info['meaning'],
+                    })
+    
+    return issues
+
+
+def check_content_completeness(source: str, translation: str) -> dict:
+    """Check if translation has missing content compared to source.
+    
+    Compares:
+    - Paragraph count
+    - Dialogue line count (lines starting with quotes)
+    - Key sentence presence (sentences with proper names)
+    
+    Returns dict with pass/fail and detailed metrics.
+    """
+    def count_paragraphs(text: str) -> int:
+        return len([p.strip() for p in text.split('\n\n') if p.strip()])
+    
+    def count_dialogues(text: str) -> int:
+        return len([l.strip() for l in text.split('\n')
+                    if l.strip().startswith(('"', '"', '"'))])
+    
+    src_paras = count_paragraphs(source)
+    trans_paras = count_paragraphs(translation)
+    src_dialogues = count_dialogues(source)
+    trans_dialogues = count_dialogues(translation)
+    
+    # Extract proper names (Myanmar sequences before particles)
+    _NAME_PATTERN = re.compile(r'([\u1000-\u109F]{2,8})\s*(?:သည်|က|မှာ|ကို|၏)')
+    src_names = set(_NAME_PATTERN.findall(source))
+    trans_names = set(_NAME_PATTERN.findall(translation))
+    missing_names = src_names - trans_names
+    
+    para_ratio = trans_paras / src_paras if src_paras > 0 else 1.0
+    dialogue_ratio = trans_dialogues / src_dialogues if src_dialogues > 0 else 1.0
+    
+    # Pass if translation has ≥85% of source paragraphs and ≥80% of dialogues
+    passed = para_ratio >= 0.85 and dialogue_ratio >= 0.80
+    
+    return {
+        'pass': passed,
+        'source_paragraphs': src_paras,
+        'trans_paragraphs': trans_paras,
+        'missing_paragraphs': max(0, src_paras - trans_paras),
+        'paragraph_ratio': round(para_ratio, 3),
+        'source_dialogues': src_dialogues,
+        'trans_dialogues': trans_dialogues,
+        'missing_dialogues': max(0, src_dialogues - trans_dialogues),
+        'dialogue_ratio': round(dialogue_ratio, 3),
+        'missing_names': list(missing_names)[:10],  # cap at 10 for readability
+    }
+
+
+def check_latin_script(text: str) -> list[dict]:
+    """Detect untranslated Latin/English letters in Myanmar output.
+    
+    Returns list of issues with line numbers and the Latin text found.
+    """
+    if not text:
+        return []
+    
+    issues = []
+    # Match Latin letters + digits that are NOT part of markdown syntax
+    _LATIN_PATTERN = re.compile(r'[A-Za-z][A-Za-z0-9]{0,10}')
+    
+    lines = text.split('\n')
+    for i, line in enumerate(lines, 1):
+        # Skip markdown syntax, URLs, and code blocks
+        stripped = line.strip()
+        if stripped.startswith('```') or stripped.startswith('http'):
+            continue
+        
+        # Find Latin sequences
+        for match in _LATIN_PATTERN.finditer(line):
+            word = match.group()
+            # Skip single letters that might be Myanmar romanization markers
+            if len(word) >= 2:
+                issues.append({
+                    'line': i,
+                    'text': word,
+                    'context': line[max(0, match.start()-20):match.end()+20],
+                })
+    
+    return issues
+
+
+def check_particle_repetition(text: str, max_per_paragraph: int = 2) -> list[dict]:
+    """Check for excessive particle repetition in Myanmar text.
+    
+    AGENTS.md rule: same particle appears ≤ 2× per paragraph.
+    Common overused particles: သည်, က, မှာ, ကို, ၏, တယ်
+    
+    Returns list of issues with paragraph number, particle, and count.
+    """
+    if not text:
+        return []
+    
+    # Particles to check for overuse
+    PARTICLES = ['သည်', 'က', 'မှာ', 'ကို', '၏', 'တယ်', 'ဘူး', 'မယ်', 'ပြီ']
+    
+    issues = []
+    paragraphs = [p for p in text.split('\n\n') if p.strip()]
+    
+    for para_idx, para in enumerate(paragraphs, 1):
+        for particle in PARTICLES:
+            count = para.count(particle)
+            if count > max_per_paragraph:
+                # Get a snippet of the paragraph for context
+                snippet = para[:100] + '...' if len(para) > 100 else para
+                issues.append({
+                    'paragraph': para_idx,
+                    'particle': particle,
+                    'count': count,
+                    'max_allowed': max_per_paragraph,
+                    'snippet': snippet,
+                })
+    
+    return issues
+
+
 def strip_translated_metadata(text: str) -> str:
     """Remove Myanmar-translated translator/editor credit lines from output.
     
@@ -997,12 +1182,13 @@ def clean_output(raw: str, aggressive: bool = False) -> str:
     5. Stitch chunk boundary fragments (join truncated sentences)
     6. Remove Chinese/Bengali leakage (Bengali ALWAYS, Latin only if aggressive)
     7. Fix degraded placeholders: 【??】 → 【?term?】
-    8. Replace archaic words: ဤ→ဒီ, ထို→အဲဒီ
-    9. Collapse 3+ blank lines → 2
-    10. Fix chapter heading format (# X ## Y → proper markdown)
-    11. Remove duplicate chapter headings
-    12. Ensure markdown readability (paragraph breaks, heading spacing)
-    13. Strip leading/trailing whitespace
+    8. Replace loanwords: ပလက်ဖောင်း→စင်မြင့်, delete hallucinations
+    9. Replace archaic words: ဤ→ဒီ, ထို→အဲဒီ
+    10. Collapse 3+ blank lines → 2
+    11. Fix chapter heading format (# X ## Y → proper markdown)
+    12. Remove duplicate chapter headings
+    13. Ensure markdown readability (paragraph breaks, heading spacing)
+    14. Strip leading/trailing whitespace
     
     Args:
         raw: Raw LLM output
@@ -1036,6 +1222,9 @@ def clean_output(raw: str, aggressive: bool = False) -> str:
 
     # Fix degraded placeholders
     text = fix_degraded_placeholders(text)
+
+    # Replace English loanwords transliterated into Myanmar + delete hallucinations
+    text = replace_loanwords(text)
 
     # Undo corruptions from old \b-based archaic word replacement (pre-existing)
     text = undo_archaic_corruptions(text)

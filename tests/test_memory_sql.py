@@ -15,8 +15,8 @@ class TestMemoryManagerSQLBackend:
     def test_init_with_sql(self, db_path):
         mm = MemoryManager(novel_name="test-novel", use_sql=True, db_path=db_path)
         assert mm.use_sql is True
-        assert mm.novel_id == "novel_test-novel"
-        assert mm.novel_repo.exists("novel_test-novel")
+        assert mm.novel_id == "novel_test_novel"
+        assert mm.novel_repo.exists("novel_test_novel")
         mm.close()
 
     def test_add_term_sql(self, db_path):
@@ -72,10 +72,10 @@ class TestMemoryManagerSQLBackend:
     def test_update_chapter_context(self, db_path):
         mm = MemoryManager(novel_name="test-novel", use_sql=True, db_path=db_path)
         mm.update_chapter_context(1, "Translated content here", "Summary")
-        ch = mm.chapter_repo.get_by_id("chapter_novel_test-novel_0001")
+        ch = mm.chapter_repo.get_by_id("chapter_novel_test_novel_0001")
         assert ch is not None
         assert ch["translation_status"] == "translated"
-        snaps = mm.context_repo.get_snapshots_for_chapter("chapter_novel_test-novel_0001")
+        snaps = mm.context_repo.get_snapshots_for_chapter("chapter_novel_test_novel_0001")
         assert len(snaps) == 1
         mm.close()
 
