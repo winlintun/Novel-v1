@@ -300,7 +300,7 @@ def build_translator_prompt(source_lang: str = "chinese", model_name: str = "") 
     else:
         # English or other languages
         if is_padauk:
-            return LANGUAGE_GUARD + FAST_EN_MM_PROMPT
+            return CUSTOM_PADAUK_EN_MM_PROMPT
         return LANGUAGE_GUARD + """
 You are a master literary translator specializing in English-to-Myanmar translation.
 

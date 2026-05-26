@@ -5,23 +5,23 @@
 ---
 
 ## Last Updated
-- Date: 2026-05-23
-- Last task completed: Translation validation, Chinese novel rules, postprocessor checks, glossary sync fix
-- Git commit: 5e10be3
+- Date: 2026-05-24
+- Last task completed: Chapter 4 partial completion fix (timeout guard, partial save prevention, entity extraction, snapshot path)
+- Git commit: (pending)
 
 ## Session Summary
-- ✅ Created skeleton model config system with 12 Ollama models
-- ✅ Integrated skeleton config with Web UI and CLI
-- ✅ Refactored all prompts into src/agents/prompts/
-- ✅ Created model comparison tool (compare_all_models.py)
-- ✅ Fixed bug in compare_models.py (wrong method name)
-- ✅ Completed post-implementation code review
-- ✅ Fixed code quality issues identified in review
+- ✅ Fixed Chapter 4 partial completion: increased per-chunk timeout 900s→1800s
+- ✅ Added partial-completion guard: reject save if less than 100% chunks completed
+- ✅ Fixed active_chars UnboundLocalError in memory_manager.update_chapter_context()
+- ✅ Fixed entity extraction prompt: removed literal "Myanmar" target example, added guard
+- ✅ Fixed snapshot path mismatch: version_manager now tries 3-digit and 4-digit patterns
+- ✅ All 525 tests passing (same 5 pre-existing failures)
 
 ## In Progress
 - None
 
 ## Completed Tasks
+- [DONE] **Chapter 4 partial completion fix** — Increased timeout, added partial save guard, fixed scoping, fixed entity extraction, fixed snapshot path
 - [DONE] **Translation validation pipeline + Chinese novel universal rules + postprocessor quality checks**
 - [DONE] **Model comparison tool - translate with ALL models, save to logs/temp/**
 - [DONE] **Skeleton model config with ALL 12 downloaded Ollama models + Web UI + CLI**

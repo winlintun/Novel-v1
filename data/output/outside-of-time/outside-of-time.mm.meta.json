@@ -1,0 +1,110 @@
+﻿{
+  "novel": "outside-of-time",
+  "last_updated": "2026-05-26T14:34:06.487619",
+  "total_chapters": 5,
+  "chapters": {
+    "1": {
+      "chapter": 1,
+      "translated_at": "2026-05-23T17:07:09.872909",
+      "source": "data/input/outside-of-time/outside-of-time_chapter_001.md",
+      "pipeline": "two_stage",
+      "model": "gemma-4-e4b-it:q8_0",
+      "char_count": 8575,
+      "myanmar_ratio": 1.0,
+      "duration_seconds": 2934.1,
+      "chunk_count": 11,
+      "avg_quality_score": 93.0
+    },
+    "2": {
+      "chapter": 2,
+      "translated_at": "2026-05-23T23:46:29.807585",
+      "source": "data/input/outside-of-time/outside-of-time_chapter_002.md",
+      "pipeline": "two_stage",
+      "model": "gemma-4-e4b-it:q8_0",
+      "char_count": 7964,
+      "myanmar_ratio": 0.999,
+      "duration_seconds": 2549.3,
+      "chunk_count": 10,
+      "avg_quality_score": 95.8,
+      "validation_pass": false,
+      "validation_issues": [
+        "Content loss: 4 paragraphs missing (93% coverage), 1 dialogues missing"
+      ],
+      "validation_warnings": [
+        "Particle overuse in paragraph 1: 'က' appears 4 times (max 2)",
+        "Particle overuse in paragraph 2: 'သည်' appears 7 times (max 2)",
+        "Particle overuse in paragraph 2: 'က' appears 16 times (max 2)"
+      ]
+    },
+    "3": {
+      "chapter": 3,
+      "translated_at": "2026-05-24T06:19:28.803063",
+      "source": "data/input/outside-of-time/outside-of-time_chapter_003.md",
+      "pipeline": "full",
+      "model": "padauk-gemma:q8_0",
+      "refiner_model": "padauk-gemma:q8_0",
+      "char_count": 5019,
+      "myanmar_ratio": 0.99,
+      "duration_seconds": 1323.0,
+      "chunk_count": 1,
+      "avg_quality_score": 98.0,
+      "validation_pass": false,
+      "validation_issues": [
+        "Content loss: 33 paragraphs missing (59% coverage), 1 dialogues missing",
+        "Repetition detected: 'သည် ' ×52, 'သည်။' ×52, 'ည်။\n' ×44"
+      ],
+      "validation_warnings": [
+        "Particle overuse in paragraph 1: 'က' appears 7 times (max 2)",
+        "Particle overuse in paragraph 3: 'က' appears 6 times (max 2)",
+        "Particle overuse in paragraph 4: 'က' appears 5 times (max 2)"
+      ]
+    },
+    "4": {
+      "chapter": 4,
+      "translated_at": "2026-05-24T07:36:11.992003",
+      "source": "data/input/outside-of-time/outside-of-time_chapter_004.md",
+      "pipeline": "full",
+      "model": "padauk-gemma:q8_0",
+      "refiner_model": "padauk-gemma:q8_0",
+      "char_count": 811,
+      "myanmar_ratio": 0.987,
+      "duration_seconds": 1254.4,
+      "chunk_count": 1,
+      "avg_quality_score": 98.0,
+      "validation_pass": false,
+      "validation_issues": [
+        "Content loss: 100 paragraphs missing (9% coverage), 2 dialogues missing",
+        "Repetition detected: 'သည် ' ×7, 'ောက်' ×7, 'ကို ' ×6"
+      ],
+      "validation_warnings": [
+        "Particle overuse in paragraph 1: 'က' appears 4 times (max 2)",
+        "Particle overuse in paragraph 2: 'သည်' appears 3 times (max 2)",
+        "Particle overuse in paragraph 2: 'က' appears 13 times (max 2)"
+      ]
+    },
+    "5": {
+      "chapter": 5,
+      "translated_at": "2026-05-26T14:34:06.486700",
+      "source": "data/input/outside-of-time/outside-of-time_chapter_005.md",
+      "pipeline": "two_stage",
+      "model": "padauk-gemma:q8_0",
+      "refiner_model": "padauk-gemma:q8_0",
+      "char_count": 3834,
+      "myanmar_ratio": 0.989,
+      "duration_seconds": 2410.5,
+      "chunk_count": 4,
+      "avg_quality_score": 99.5,
+      "validation_pass": false,
+      "validation_issues": [
+        "Content loss: 0 paragraphs missing (115% coverage), 2 dialogues missing",
+        "Repetition detected: 'သည်။' ×59, 'သည် ' ×58, 'ည်။\n' ×57"
+      ],
+      "validation_warnings": [
+        "Latin script found: at, as, Xu, of",
+        "Particle overuse in paragraph 4: 'က' appears 3 times (max 2)",
+        "Particle overuse in paragraph 8: 'က' appears 3 times (max 2)",
+        "Particle overuse in paragraph 17: 'က' appears 4 times (max 2)"
+      ]
+    }
+  }
+}

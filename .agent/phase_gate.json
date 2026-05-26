@@ -1,6 +1,6 @@
 {
   "current_phase": "DOC",
-  "task": "Translation validation pipeline + Chinese novel universal rules + postprocessor quality checks",
+  "task": "Chapter 4 partial completion fixes (timeout, partial save guard, entity extraction, snapshot path, active_chars)",
   "feature_type": 2,
   "phases": {
     "PLAN":   { "status": "DONE",        "runner": "Agent",  "requires_human": false },
@@ -8,25 +8,24 @@
     "TEST":   { "status": "DONE",        "runner": "Agent",  "requires_human": false },
     "VERIFY": { "status": "DONE",        "runner": "Ollama", "requires_human": false,
                  "score": null, "retry_count": 0 },
-    "AUDIT":  { "status": "DONE",        "runner": "Gemini", "requires_human": false },
+    "AUDIT":  { "status": "DONE",        "runner": "Claude", "requires_human": false },
     "DOC":    { "status": "DONE",        "runner": "Agent",  "requires_human": false,
                  "skippable": false }
   },
-  "updated_at": "2026-05-23T00:00:00Z",
+  "updated_at": "2026-05-24T07:30:00Z",
   "summary": {
     "files_created": 0,
-    "files_modified": 9,
-    "commits_made": 2,
-    "commits": ["55a2edb", "5e10be3"],
-    "test_result": "498 passed, 5 pre-existing failures (test_workflow_routing.py)",
+    "files_modified": 5,
+    "commits_made": 0,
+    "commits": [],
+    "test_result": "525 passed, 5 pre-existing failures (test_workflow_routing.py)",
     "findings": [
-      "Added translation validation before save (content completeness, ordinals, Latin script, particle repetition)",
-      "Added 10 Chinese novel universal rules (Pinyin names, cultivation terms, ordinals, no loanwords, etc.)",
-      "Added postprocessor quality check functions",
-      "Fixed glossary sync novel_id hyphen handling",
-      "Added SQL backend support for reject_pending_term",
-      "Reduced chunk_size to 1200 for terminology-heavy novels"
+      "Increased per-chunk timeout from 900s to 1800s to accommodate FictionEditor overhead (~20 min per chunk)",
+      "Added partial-completion guard to prevent saving output when not all chunks are translated",
+      "Fixed active_chars UnboundLocalError by initializing at function top",
+      "Fixed entity extraction prompt literal 'Myanmar' bug - changed format example and added guard",
+      "Fixed snapshot path mismatch by falling back to 3-digit zero-padding if 4-digit not found"
     ],
-    "recommendation": "None - all changes committed and reviewed"
+    "recommendation": "None - all changes tested and reviewed"
   }
 }

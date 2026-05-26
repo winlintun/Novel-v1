@@ -5,6 +5,7 @@ Strips: <think>, <answer>, HTML comments, non-Myanmar language leakage.
 """
 
 import re
+from difflib import SequenceMatcher
 from typing import Optional, List
 
 # Import patterns from submodule (extracted for better organization)
@@ -111,6 +112,11 @@ def strip_reasoning_process(text: str) -> str:
         if re.match(r'^Here.*?actual translation[:;]', line, re.IGNORECASE):
             continue
 
+        # Remove FictionEditor / pipeline stage labels that leaked into output
+        # e.g., **[ပြင်ဆင်ထားသော စာသား]** or **ပြင်ဆင်ထားသော စာသား ( ):** 
+        line = re.sub(r'\*{1,2}\[ပြင်ဆင်ထားသော စာသား\]\*{1,2}\s*', '', line)
+        line = re.sub(r'\*{1,2}ပြင်ဆင်ထားသော စာသား\s*\([^)]*\):\*{1,2}\s*', '', line)
+
         # Remove "**Burmese Draft:**" or "**Myanmar Draft:**" markers with optional leading bullet
         line = re.sub(r'^\s*[\*\-]?\s*\*\*Burmese Draft:\*\*\s*', '', line, flags=re.IGNORECASE)
         line = re.sub(r'^\s*[\*\-]?\s*\*\*Myanmar Draft:\*\*\s*', '', line, flags=re.IGNORECASE)
@@ -133,6 +139,12 @@ def strip_reasoning_process(text: str) -> str:
         # NOTE: requires colon between asterisks to avoid matching **bold** markdown
         if re.match(r'^\s*\*[\s:]*:[\s:]*\*', original_line):
             continue
+
+        # Skip short English-only garbage lines (model entropy spikes)
+        # e.g., "at as . Xu 't of ." — Latin words but no Myanmar content
+        if re.search(r'[a-zA-Z]', stripped) and not re.search(r'[\u1000-\u109F\uAA60-\uAA7F\uA9E0-\uA9FF]', stripped):
+            if len(stripped) < 30:
+                continue
 
         # Skip empty lines or lines with only whitespace
         if not line.strip():
@@ -1348,7 +1360,57 @@ def stitch_chunk_boundaries(text: str) -> str:
     return '\n'.join(result)
 
 
-def clean_output(raw: str, aggressive: bool = False) -> str:
+def remove_consecutive_duplicates(text: str, threshold: float = 0.92) -> str:
+    """
+    Remove consecutive duplicate or near-duplicate lines/sentences.
+    
+    The model sometimes enters repetition loops, outputting the same
+    sentence or paragraph 3-7 times in a row. This function detects
+    consecutive lines with identical or near-identical Myanmar text
+    and keeps only the first occurrence.
+    
+    Uses SequenceMatcher for similarity (safe for Myanmar text — not
+    char-set overlap which gives false positives on shared particles).
+    
+    Args:
+        text: Input text
+        threshold: Similarity above this triggers dedup (0.92 = 92%)
+        
+    Returns:
+        Text with consecutive duplicates removed
+    """
+    if not text:
+        return text
+    
+    lines = text.split('\n')
+    if len(lines) < 2:
+        return text
+    
+    result = [lines[0]]
+    for i in range(1, len(lines)):
+        current = lines[i].strip()
+        if not current:
+            result.append(lines[i])
+            continue
+        # Compare against last kept non-empty line
+        prev = result[-1].strip()
+        if not prev:
+            result.append(lines[i])
+            continue
+        # Skip short lines (headings, separators)
+        if len(current) < 15 or len(prev) < 15:
+            result.append(lines[i])
+            continue
+        # Check similarity
+        ratio = SequenceMatcher(None, prev, current).ratio()
+        if ratio < threshold:
+            result.append(lines[i])
+        # else: skip — consecutive duplicate
+    
+    return '\n'.join(result)
+
+
+def clean_output(raw: str, aggressive: bool = False, chapter: int = 0) -> str:
     """
     Full postprocessing pipeline. Apply in order:
     1. Strip reasoning tags (<think>, etc.)
@@ -1373,7 +1435,8 @@ def clean_output(raw: str, aggressive: bool = False) -> str:
     Returns:
         Cleaned text
     """
-    text = strip_reasoning_tags(raw)
+    text = raw.replace('\ufeff', '')
+    text = strip_reasoning_tags(text)
     text = strip_reasoning_process(text)
     text = strip_header_artifacts(text)
 
@@ -1408,6 +1471,9 @@ def clean_output(raw: str, aggressive: bool = False) -> str:
     # Replace archaic Myanmar words with modern equivalents
     text = replace_archaic_words(text)
 
+    # Remove consecutive duplicate lines (repetition loops from model)
+    text = remove_consecutive_duplicates(text)
+
     text = re.sub(r"\n{3,}", "\n\n", text)  # collapse excess blank lines
     text = _split_into_lines_if_needed(text)  # recover structure from collapsed text
     text = fix_chapter_heading_format(text)
@@ -1418,6 +1484,9 @@ def clean_output(raw: str, aggressive: bool = False) -> str:
     text = remove_inline_markdown_artifacts(text)  # Remove ## and - markers mid-paragraph
     text = ensure_markdown_readability(text)  # proper paragraph breaks, heading spacing
     text = text.strip()
+    # Inject chapter heading if missing
+    if chapter and not re.search(r'^#\s+အခန်း\s+', text, re.MULTILINE):
+        text = f'# အခန်း {chapter}\n\n{text}'
     return text
 
 
@@ -1585,14 +1654,15 @@ class Postprocessor:
         """
         self.aggressive = aggressive
 
-    def clean(self, text: str) -> str:
+    def clean(self, text: str, chapter: int = 0) -> str:
         """
         Clean the raw LLM output.
 
         Args:
             text: Raw text from LLM
+            chapter: Chapter number (for heading injection if missing)
 
         Returns:
             Cleaned text
         """
-        return clean_output(text, aggressive=self.aggressive)
+        return clean_output(text, aggressive=self.aggressive, chapter=chapter)

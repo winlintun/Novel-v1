@@ -215,6 +215,30 @@
   },
   "new_lessons": [
     {
+      "date": "2026-05-24",
+      "context": "Chapter 4 partial completion: FictionEditor timeout killed pipeline at chunk 1/18",
+      "lesson": "FictionEditor takes ~7.5 min per chunk (padauk-gemma via Ollama). Combined with translator (~5.5 min) + refiner (~5.8 min), a single chunk takes ~20 min. The 900s (15 min) per-chunk timeout was too short. Also, partial output was saved as 'completed' even when only 1/18 chunks were translated.",
+      "action": "(1) Increase per-chunk timeout from 900s to 1800s. (2) Add partial-completion guard to reject saving when chunk count < total. (3) Disable FictionEditor for large chapters or implement early-exit if chunk will timeout."
+    },
+    {
+      "date": "2026-05-24",
+      "context": "Entity extraction prompt literal 'Myanmar' bug",
+      "lesson": "EXTRACTOR_SYSTEM_PROMPT had format example 'target': 'Myanmar' which the LLM interpreted literally, outputting the English word 'Myanmar' instead of actual Myanmar translations for extracted terms.",
+      "action": "Changed format example to 'target': '<actual_myanmar_translation>' with explicit rule: 'NEVER use the literal English word Myanmar as the target.'"
+    },
+    {
+      "date": "2026-05-24",
+      "context": "Snapshot path mismatch: version_manager used 4-digit (_0004) but orchestrator saves with 3-digit (_004)",
+      "lesson": "version_manager._get_chapter_file() hardcoded {chapter_num:04d} but orchestrator._save_output() preserves the input filename convention (typically 3-digit). On save, snapshot_chapter() fails with 'file not found'.",
+      "action": "Make _get_chapter_file() try multiple zero-padding patterns (04d and 03d) instead of a single format."
+    },
+    {
+      "date": "2026-05-24",
+      "context": "active_chars UnboundLocalError in update_chapter_context",
+      "lesson": "active_chars was initialized inside `if translated_text or summary:` block inside the SQL path. When called with empty translated_text, the SQL path skipped the assignment but the variable was still referenced, causing UnboundLocalError on Python 3.12+.",
+      "action": "Always initialize local variables at the top of the function, not inside conditional blocks."
+    },
+    {
       "date": "2026-05-23",
       "context": "Translation validation pipeline implementation",
       "lesson": "When adding a new optional parameter to a method (like source_text in _save_output), ALL call sites must be updated. Missing the source_text parameter meant validation was silently skipped — the default empty string caused the validation block to be bypassed.",

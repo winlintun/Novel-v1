@@ -10,11 +10,11 @@
   translator: padauk-gemma:q8_0
 model_roles:
   checker:
-  - gemma-4-e4b-it:q8_0
+  - padauk-gemma:q8_0
   glossary_sync:
-  - gemma-4-e4b-it:q8_0
+  - padauk-gemma:q8_0
   qa_final:
-  - gemma-4-e4b-it:q8_0
+  - padauk-gemma:q8_0
   refiner:
   - padauk-gemma:q8_0
   - sailor2-20b
@@ -32,7 +32,7 @@ models:
   provider: ollama
   refiner: padauk-gemma:q8_0
   timeout: 300
-  translator: gemma-4-e4b-it:q8_0
+  translator: padauk-gemma:q8_0
   use_gpu: true
   gemma_4_e4b:
     name: gemma-4-e4b-it:q8_0
@@ -100,8 +100,8 @@ translation_pipeline:
     single_stage: "1-stage pipeline: Direct translation only"
     two_stage: "2-stage pipeline: Stage 1(gemma-4-e4b) -> Stage 2(padauk-gemma:refinement)"
   use_reflection: true
-  use_fiction_editor: true
-  stage1_model: gemma-4-e4b-it:q8_0
+  use_fiction_editor: false
+  stage1_model: padauk-gemma:q8_0
   stage2_model: padauk-gemma:q8_0
   reflection_model: padauk-gemma:q8_0
 

@@ -197,9 +197,10 @@ Extract NEW proper nouns from the Myanmar translation that are NOT in the existi
 
 RULES:
 1. Output ONLY valid JSON. No prose. No markdown fences. No explanation.
-2. Format EXACTLY: {"new_terms": [{"source": "Chinese", "target": "Myanmar", "category": "character|place|level|item"}]}
+2. Format EXACTLY: {"new_terms": [{"source": "Chinese", "target": "<actual_myanmar_translation>", "category": "character|place|level|item"}]}
 3. Do NOT include terms already in the glossary.
 4. If no new terms found, return exactly: {"new_terms": []}
+5. CRITICAL: The "target" field MUST be a REAL Myanmar translation. NEVER use the literal English word "Myanmar" as the target. Output actual Myanmar Unicode text.
 
 EXISTING GLOSSARY:
 {glossary}

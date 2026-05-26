@@ -133,6 +133,12 @@ class ContextUpdater(BaseAgent):
                 # Use the LLM-provided translation if it looks valid, else placeholder
                 target = translation if translation and translation != f"[{name}]" else f"【?{name}?】"
 
+                # Reject if target is the literal English word "Myanmar" (model bug)
+                import re
+                if re.fullmatch(r'myanmar', target, re.IGNORECASE):
+                    logger.warning(f"Rejected non-Myanmar target for '{name}': '{target}'")
+                    continue
+
                 if self.memory.add_pending_term(
                     source=name,
                     target=target,

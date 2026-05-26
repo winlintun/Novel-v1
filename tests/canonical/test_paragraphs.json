@@ -1,0 +1,96 @@
+[
+  {
+    "id": "narration_001",
+    "source_lang": "en",
+    "source_text": "The old man sat quietly under the ancient banyan tree, his eyes fixed on the distant mountains as if searching for something only he could see.",
+    "reference_mm": "အဘိုးအိုသည် ရှေးဟောင်းညောင်ပင်ကြီးအောက်မှာ တိတ်တဆိတ်ထိုင်နေရင်း ဝေးလံတဲ့တောင်တန်းတွေကို စူးစိုက်ကြည့်နေတယ်။ သူတစ်ယောက်တည်းသာ မြင်နိုင်တဲ့အရာတစ်ခုခုကို ရှာဖွေနေသလိုပါပဲ။",
+    "difficulty": "easy",
+    "category": "narration"
+  },
+  {
+    "id": "dialogue_001",
+    "source_lang": "en",
+    "source_text": "\"You think you can defeat me?\" the general laughed coldly. \"I have trained for thirty years while you were still learning to hold a sword.\"",
+    "reference_mm": "\"မင်းငါ့ကို အနိုင်ယူနိုင်မယ်လို့ ထင်လား\" စစ်သူကြီးက အေးစက်စက်ရယ်လိုက်တယ်။ \"မင်းဓားကိုင်တတ်ဖို့ သင်ယူနေတုန်းကတည်းက ငါ အနှစ်သုံးဆယ် လေ့ကျင့်ခဲ့တယ်။\"",
+    "difficulty": "medium",
+    "category": "dialogue"
+  },
+  {
+    "id": "action_001",
+    "source_lang": "en",
+    "source_text": "He vanished from sight, reappearing behind his opponent in a blur of motion. His palm struck forward with enough force to shatter stone.",
+    "reference_mm": "သူသည် မျက်စိတစ်မှိတ်အတွင်း ပျောက်ကွယ်သွားပြီး ပြိုင်ဘက်ရဲ့နောက်မှာ ပေါ်လာတယ်။ ကျောက်တုံးကိုပင် ချေဖျက်နိုင်လောက်တဲ့အားနဲ့ သူ့လက်ဖဝါးကို ရှေ့သို့ထိုးသွင်းလိုက်သည်။",
+    "difficulty": "medium",
+    "category": "action"
+  },
+  {
+    "id": "idiom_001",
+    "source_lang": "cn",
+    "source_text": "塞翁失马，焉知非福。他虽然失去了修为，但或许这是新的开始。",
+    "reference_mm": "အဖိုးအိုမြင်းပျောက်တာ ကံဆိုးမဟုတ်ဘူး၊ ကောင်းကျိုးဖြစ်လာမှန်းဘယ်သူသိနိုင်မလဲ။ သူ့ရဲ့အားအင် ဆုံးရှုံးသွားပေမဲ့ ဒါဟာ အစသစ်တစ်ခုဖြစ်နိုင်တယ်။",
+    "difficulty": "hard",
+    "category": "idiom",
+    "notes": "Proverb requires cultural adaptation, not literal translation"
+  },
+  {
+    "id": "cultivation_001",
+    "source_lang": "en",
+    "source_text": "After breaking through to the Nascent Soul stage, his spiritual energy surged like a tidal wave. His dantian expanded tenfold, and his divine sense now covered the entire sect.",
+    "reference_mm": "ဝိညာဉ်အဆင့်ကို ဖြတ်ကျော်ပြီးနောက်မှာ သူ့ရဲ့ဝိညာဉ်စွမ်းအင်ဟာ ဒီရေလှိုင်းလိုပဲ ဟုန်းဟုန်းမြည်တမ်းလာတယ်။ သူ့ရဲ့တန်ထန်က ဆယ်ဆအထိ ကျယ်ပြန့်လာပြီး ဝိညာဉ်အာရုံက တစ်ကျောင်းလုံးကို လွှမ်းခြုံနိုင်တော့တယ်။",
+    "difficulty": "hard",
+    "category": "cultivation",
+    "notes": "Requires correct cultivation term mapping"
+  },
+  {
+    "id": "description_001",
+    "source_lang": "en",
+    "source_text": "The market square was crowded with merchants hawking their wares. The air smelled of spices, incense, and freshly steamed buns. Colorful banners fluttered in the breeze above wooden stalls.",
+    "reference_mm": "စျေးရင်ပြင်မှာ ကုန်သည်တွေက သူတို့ရဲ့ကုန်စည်တွေကို လှမ်းအော်ရောင်းချနေကြတယ်။ လေထုထဲမှာ ဟင်းခတ်အမွှေးအကြိုင်တွေ၊ နံ့သာပေါင်းတွေနဲ့ ပေါင်းအိုးကထွက်တဲ့ မုန့်နံ့တွေ ရောနှောနေတယ်။ သစ်သားဆိုင်ခုံတွေအထက်မှာ ရောင်စုံအလံတွေက လေထဲလှုပ်ရှားနေတယ်။",
+    "difficulty": "easy",
+    "category": "description"
+  },
+  {
+    "id": "emotion_001",
+    "source_lang": "en",
+    "source_text": "Grief threatened to overwhelm him, but he forced it down. There was no time for tears. His master's final words echoed in his mind: 'Live. Live for both of us.'",
+    "reference_mm": "ဝမ်းနည်းမှုက သူ့ကို ဖိစီးလွှမ်းမိုးလုနီးပါးဖြစ်ခဲ့ပေမဲ့ သူက အတင်းပြန်ချုပ်ထိန်းလိုက်တယ်။ ငိုဖို့အချိန်မရှိဘူး။ ဆရာကြီးရဲ့ နောက်ဆုံးစကားတွေက သူ့စိတ်ထဲမှာ ပဲ့တင်ထပ်နေတယ် — 'ရှင်သန်ပါ။ ငါတို့နှစ်ယောက်အတွက် ရှင်သန်ပါ။'",
+    "difficulty": "medium",
+    "category": "emotion"
+  },
+  {
+    "id": "dialogue_cn_001",
+    "source_lang": "cn",
+    "source_text": "\"你这小辈，竟敢对长老无礼！\" 白发老者怒喝道，\"今日不给你点教训，你还真以为自己天下无敌了。\"",
+    "reference_mm": "\"မင်းဒီလူငယ်က အကြီးအကဲကို မရိုမသေလုပ်ရဲတယ်နော်\" ဆံဖြူအဘိုးအိုက ဒေါသတကြီးအော်လိုက်တယ်။ \"ဒီနေ့ မင်းကို သင်ခန်းစာမပေးရင် မင်းကိုယ်မင်း လောကမှာ အစွမ်းအရှိဆုံးလို့ ထင်နေဦးမှာပဲ။\"",
+    "difficulty": "hard",
+    "category": "dialogue",
+    "notes": "CN→MM: requires register shift for status hierarchy"
+  },
+  {
+    "id": "narration_cn_001",
+    "source_lang": "cn",
+    "source_text": "夕阳西下，将整片竹林染成了金色。风吹过竹叶，发出沙沙的声响，仿佛在低声诉说着千年的秘密。",
+    "reference_mm": "နေဝင်ဆည်းဆာက ဝါးတောတစ်ခုလုံးကို ရွှေရောင်သန်းစေတယ်။ လေက ဝါးရွက်တွေကိုဖြတ်တိုက်ရင်း ဆတ်ဆတ်ဆတ်ဆတ်အသံတွေ ထွက်လာတယ် — နှစ်ထောင်ပေါင်းများစွာရဲ့ လျှို့ဝှက်ချက်တွေကို တီးတိုးပြောနေသလိုပါပဲ။",
+    "difficulty": "medium",
+    "category": "narration",
+    "notes": "CN→MM: poetic description with metaphor"
+  },
+  {
+    "id": "battle_001",
+    "source_lang": "en",
+    "source_text": "Swords clashed, sparks flying with every strike. He ducked under a horizontal slash, pivoted on his heel, and drove his blade upward into the assassin's chest. Blood sprayed across the cobblestones.",
+    "reference_mm": "ဓားတွေချင်းထိခိုက်ရင်း မီးစက်တွေ ကြွေကျလာတယ်။ သူသည် အလျားလိုက်လှဲချက်အောက်ကနေ ရှောင်တိမ်းလိုက်ပြီး ခြေဖနောင့်ပေါ်လည်ကာ လုပ်ကြံသတ်သူရဲ့ရင်ဘတ်ကို ဓားကိုအပေါ်သို့ထိုးသွင်းလိုက်တယ်။ သွေးတွေ ကျောက်ခဲလမ်းပေါ် ပက်ကျံသွားတယ်။",
+    "difficulty": "medium",
+    "category": "action",
+    "notes": "Requires fast-paced short sentences in Myanmar"
+  },
+  {
+    "id": "monologue_001",
+    "source_lang": "en",
+    "source_text": "If only I had been stronger. If only I had seen through his deception sooner. But regrets were useless now. The only way forward was to become powerful enough that no one could ever threaten me again.",
+    "reference_mm": "ငါပိုအားကောင်းခဲ့ရင်ကောင်းမှာပဲ။ သူ့ရဲ့လှည့်စားမှုကို စောစောသိခဲ့ရင်ကောင်းမှာပဲ။ ဒါပေမဲ့ နောင်တတွေက အခုအချိန်မှာ အသုံးမဝင်တော့ဘူး။ ရှေ့ဆက်ဖို့တစ်ခုတည်းသောနည်းလမ်းက ဘယ်သူမှ ငါ့ကို ခြိမ်းခြောက်လို့မရနိုင်လောက်အောင် အားကောင်းလာဖို့ပဲ။",
+    "difficulty": "medium",
+    "category": "emotion",
+    "notes": "First-person internal monologue"
+  }
+]

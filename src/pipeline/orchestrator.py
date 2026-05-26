@@ -14,6 +14,7 @@ Coordinates all translation stages:
 
 import json
 import re
+import sys
 import time
 import signal
 import logging
@@ -79,8 +80,9 @@ class TranslationPipeline:
 
     def _signal_handler(self, signum: int, frame: Any) -> None:
         """Handle shutdown signals gracefully."""
-        self.logger.warning("Shutdown requested. Finishing current chunk...")
+        self.logger.warning("Shutdown requested. Stopping translation and unloading models...")
         self._shutdown_requested = True
+        raise KeyboardInterrupt()
 
     def _check_stop_signal(self) -> bool:
         """Check if stop signal file exists (set by Web UI).
@@ -350,14 +352,19 @@ class TranslationPipeline:
             rag_config = self.config.dict().get('rag', {})
             if rag_config.get('enabled', False):
                 from src.data.rag_retriever import RAGRetriever
+                chroma_path = rag_config.get('chroma_path', 'data/chroma_db')
+                db_path = rag_config.get('db_path', 'data/alignment.db')
+                # Note: RAGRetriever.__init__ only accepts chroma_path, db_path,
+                # top_k, min_score, novel_filter — jsonl_path/min_similarity/
+                # min_quality_tier are NOT valid params (caused TypeError).
                 self._rag_retriever = RAGRetriever(
-                    chroma_path=rag_config.get('chroma_path', 'data/chroma_db'),
-                    db_path=rag_config.get('db_path', 'data/novel_v1_dataset.db'),
+                    chroma_path=chroma_path,
+                    db_path=db_path,
                     top_k=rag_config.get('top_k', 3),
-                    min_score=2.5,
+                    min_score=rag_config.get('min_score', 2.5),
                     novel_filter=rag_config.get('novel_filter') or self._current_novel,
                 )
-                self.logger.info(f"RAG Retriever initialized: {rag_config.get('db_path')}")
+                self.logger.info(f"RAG Retriever initialized: chroma={chroma_path}, db={db_path}")
             else:
                 self._rag_retriever = None
         return self._rag_retriever
@@ -536,6 +543,30 @@ class TranslationPipeline:
 
             # Translate (now returns chunks + per-chunk metrics)
             translated_chunks, chunk_metrics = self._translate_chunks(chunks, progress_logger)
+
+            # ── Partial completion guard ────────────────────────────────────
+            # If timeout or shutdown stopped the pipeline before all chunks
+            # were translated, do NOT save partial output. The user must
+            # re-run and resume from checkpoints.
+            if len(translated_chunks) < len(chunks):
+                self.logger.error(
+                    f"Partial completion: {len(translated_chunks)}/{len(chunks)} chunks "
+                    f"translated. File NOT saved. Checkpoints available for resumption."
+                )
+                return {
+                    "success": False,
+                    "output_path": None,
+                    "glossary_updates": [],
+                    "errors": [
+                        f"Partial completion: {len(translated_chunks)}/{len(chunks)} chunks done"
+                    ],
+                    "metrics": {
+                        "partial": True,
+                        "completed": len(translated_chunks),
+                        "total": len(chunks),
+                    },
+                    "chapter": Path(filepath).stem,
+                }
 
             # Postprocess
             result_text = self._postprocess(translated_chunks)
@@ -728,6 +759,23 @@ class TranslationPipeline:
                 "duration_seconds": duration
             }
 
+        except KeyboardInterrupt:
+            duration = time.time() - start_time
+            self.logger.warning(f"Translation interrupted by user after {duration:.0f}s. Cleaning up and unloading models...")
+            if progress_logger:
+                try:
+                    progress_logger.finalize(success=False)
+                except Exception:
+                    pass
+            return {
+                "success": False,
+                "output_path": None,
+                "glossary_updates": [],
+                "errors": ["Translation interrupted by user"],
+                "metrics": {},
+                "chapter": Path(filepath).stem,
+                "duration_seconds": duration
+            }
         except Exception as e:
             self.logger.error(f"Translation failed: {e}", exc_info=True)
             # Finalize progress logger with failure
@@ -1030,18 +1078,56 @@ class TranslationPipeline:
         translated = []
         chunk_metrics = []
         rolling_context = ""  # first chunk: empty
+        consecutive_failures = 0
+        quality_window: list[float] = []
+
+        # Clean up old-format flat checkpoints (pre-per-chapter directory format)
+        if self._current_novel:
+            old_dir = Path("data/working") / self._current_novel
+            if old_dir.exists():
+                for old_cp in old_dir.glob("ch*_checkpoint.txt"):
+                    try:
+                        old_cp.unlink(missing_ok=True)
+                    except OSError:
+                        pass
+                try:
+                    old_dir.rmdir()
+                except OSError:
+                    pass
 
         # Try to resume from checkpoints (2.1: chunk-level resume)
         last_completed = -1
-        if self._current_novel:
-            checkpoint_dir = Path("data/working") / self._current_novel
+        if self._current_novel and self._current_chapter is not None:
+            checkpoint_dir = Path("data/working") / self._current_novel / f"chapter_{self._current_chapter:04d}"
             if checkpoint_dir.exists():
                 existing = sorted(checkpoint_dir.glob("ch*_checkpoint.txt"))
+                valid_checkpoints = []
                 for cp in existing:
                     m = re.match(r'ch(\d+)_checkpoint\.txt', cp.name)
                     if m:
                         idx = int(m.group(1)) - 1
                         if 0 <= idx < len(chunks):
+                            valid_checkpoints.append((idx, cp))
+                if valid_checkpoints:
+                    resume = True  # default: auto-resume in non-interactive mode
+                    if sys.stdin.isatty():
+                        try:
+                            answer = input(
+                                f"\nCheckpoints found for chapter {self._current_chapter} "
+                                f"({len(valid_checkpoints)}/{len(chunks)} chunks done). "
+                                f"Resume? [Y/n]: "
+                            ).strip().lower()
+                            resume = answer in ("", "y", "yes")
+                        except (EOFError, OSError):
+                            self.logger.info("Non-interactive input — auto-resuming")
+                            resume = True
+                    else:
+                        self.logger.info(
+                            f"Checkpoints found for chapter {self._current_chapter} "
+                            f"({len(valid_checkpoints)}/{len(chunks)} chunks done). Auto-resuming."
+                        )
+                    if resume:
+                        for idx, cp in valid_checkpoints:
                             try:
                                 text = cp.read_text(encoding="utf-8")
                             except OSError:
@@ -1052,6 +1138,15 @@ class TranslationPipeline:
                             translated[idx] = text
                             last_completed = idx
                             self.logger.info(f"Resumed checkpoint: chunk {idx+1}/{len(chunks)}")
+                    else:
+                        self.logger.info("User opted to start fresh — deleting checkpoints")
+                        for _, cp in valid_checkpoints:
+                            cp.unlink(missing_ok=True)
+                        # Remove empty directory
+                        try:
+                            checkpoint_dir.rmdir()
+                        except OSError:
+                            pass
 
                 # Build rolling context from last completed chunk
                 if last_completed >= 0 and translated[last_completed]:
@@ -1195,7 +1290,9 @@ class TranslationPipeline:
                     )
 
             # Save rejected chunks for future training data
-            if quality_score < 70 or mm_ratio < 0.7:
+            is_rejected = quality_score < 70 or mm_ratio < 0.7
+            if is_rejected:
+                consecutive_failures += 1
                 try:
                     from src.utils.file_handler import FileHandler
                     safe_novel = re.sub(r'[^a-zA-Z0-9_-]', '_', self._current_novel or "unknown")
@@ -1218,6 +1315,38 @@ class TranslationPipeline:
                     )
                 except Exception as e:
                     self.logger.warning(f"Failed to save rejected chunk {i+1}: {e}")
+            else:
+                consecutive_failures = 0
+
+            # ── Early-termination: abort if chunks are clearly failing ─────────
+            # Prevents wasting API calls on remaining chunks when quality is bad.
+            # Two triggers: 3 consecutive failures OR running avg < 50 after 5+ chunks.
+            # For short chapters (<5 chunks), only consecutive-failures triggers;
+            # downstream quality gates (overall Myanmar ratio < 70%) still block save.
+            quality_window.append(float(quality_score))
+            if len(quality_window) > 10:
+                quality_window.pop(0)
+
+            abort = False
+            if consecutive_failures >= 3:
+                self.logger.error(
+                    f"EARLY ABORT: {consecutive_failures} consecutive chunks failed quality "
+                    f"(latest: score={quality_score}, mm_ratio={mm_ratio:.2f}). "
+                    f"Stopping pipeline to save API costs."
+                )
+                abort = True
+            elif len(quality_window) >= 5 and sum(quality_window) / len(quality_window) < 50:
+                avg = sum(quality_window) / len(quality_window)
+                self.logger.error(
+                    f"EARLY ABORT: running quality avg {avg:.0f} < 50 "
+                    f"after {len(quality_window)} chunks. "
+                    f"Stopping pipeline to save API costs."
+                )
+                abort = True
+
+            if abort:
+                self._shutdown_requested = True
+                break
 
             # Stage 5: Consistency Check
             self.logger.info(f"Step 6/7: Checking consistency for chunk {i+1}/{total}...")
@@ -1272,9 +1401,9 @@ class TranslationPipeline:
 
             # Save checkpoint immediately for resumability (report.md 2.1)
             try:
-                if self._current_novel:
+                if self._current_novel and self._current_chapter is not None:
                     from src.utils.file_handler import FileHandler
-                    checkpoint_dir = Path("data/working") / self._current_novel
+                    checkpoint_dir = Path("data/working") / self._current_novel / f"chapter_{self._current_chapter:04d}"
                     checkpoint_dir.mkdir(parents=True, exist_ok=True)
                     checkpoint_path = checkpoint_dir / f"ch{i+1:03d}_checkpoint.txt"
                     FileHandler.write_text(str(checkpoint_path), translated_chunk)
@@ -1292,20 +1421,25 @@ class TranslationPipeline:
                 except Exception as e:
                     self.logger.debug(f"Per-chunk progress log failed (non-fatal): {e}")
 
-            # Per-chunk timeout guard: if a single chunk exceeds 15 min,
+            # Per-chunk timeout guard: if a single chunk exceeds 30 min,
             # log an error and abort. Progress is already saved via checkpoint.
+            # Increased from 900s→1800s because FictionEditor can take ~7.5 min
+            # per call, and combined with translator+refiner a single chunk
+            # can take ~20 min. 1800s gives enough headroom for 18+ chunk chapters.
             # Per report.md 2.4: no longer passes untranslated source text.
-            if chunk_duration > 900:
+            # Use real metrics — do NOT fabricate myanmar_ratio=0.0 (that falsely
+            # triggers quality gate rejection on valid output).
+            if chunk_duration > 1800:
                 self.logger.error(
-                    f"⚠ Chunk {i+1}/{total} exceeded 15-min timeout ({chunk_duration:.0f}s). "
+                    f"⚠ Chunk {i+1}/{total} exceeded 30-min timeout ({chunk_duration:.0f}s). "
                     f"Progress saved via checkpoints. Aborting to prevent garbage output."
                 )
                 chunk_metrics.append({
                     "chunk": i + 1,
-                    "quality_score": 0,
-                    "quality_passed": False,
-                    "myanmar_ratio": 0.0,
-                    "issues": 99,
+                    "quality_score": quality_score,
+                    "quality_passed": quality_passed,
+                    "myanmar_ratio": mm_ratio,
+                    "issues": total_issues,
                     "timed_out": True,
                 })
                 self._shutdown_requested = True
@@ -1422,7 +1556,7 @@ class TranslationPipeline:
         text = '\n\n'.join(chunks)
 
         # Clean up
-        text = processor.clean(text)
+        text = processor.clean(text, chapter=self._current_chapter or 0)
 
         self._report({
             "type": "postprocess",

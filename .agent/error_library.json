@@ -1,6 +1,6 @@
 {
-  "last_updated": "2026-05-08T02:45:00Z",
-  "notes": "ERR-052 through ERR-054 are from May 2 session — postprocessor and pipeline fixes. ERR-067 is from May 8 session — fixed bare chapter numeral heading format.",
+  "last_updated": "2026-05-24T07:30:00Z",
+  "notes": "ERR-052 through ERR-054 are from May 2 session — postprocessor and pipeline fixes. ERR-067 is from May 8 session — fixed bare chapter numeral heading format. ERR-070/071 from May 24 — chapter 4 partial completion fixes.",
   "errors": [
     {
       "id": "ERR-001",
@@ -325,6 +325,24 @@
       "prevention": "When adding SQL backend support to MemoryManager, ensure ALL methods that read/write glossary/pending files have SQL backend handling. Methods to check: add_pending_term, reject_pending_term, and any other pending-related operations.",
       "times_seen": 1,
       "last_seen": "2026-05-08"
+    },
+    {
+      "id": "ERR-070",
+      "error_type": "PartialCompletionSave",
+      "trigger": "Pipeline times out during chunk translation (FictionEditor too slow) and saves partial output (e.g., 1/18 chunks) as 'completed'. Per-chunk timeout at 900s was too short for 3-stage pipeline with FictionEditor (~20 min per chunk total).",
+      "solution": "Two fixes: (1) Increase per-chunk timeout from 900s (15 min) to 1800s (30 min). (2) Add partial-completion guard — if len(translated_chunks) < len(chunks) after _translate_chunks(), abort and return error instead of saving partial output.",
+      "prevention": "Monitor per-chunk total duration. If FictionEditor is enabled, expected per-chunk time is ~20 min. Timeout must be > expected max. Also, pipeline must never save output when not all chunks are completed.",
+      "times_seen": 1,
+      "last_seen": "2026-05-24"
+    },
+    {
+      "id": "ERR-071",
+      "error_type": "EntityExtractionLiteralMyanmar",
+      "trigger": "EXTRACTOR_SYSTEM_PROMPT had format example 'target': 'Myanmar' which LLM interpreted literally. Extracted terms all had target='Myanmar' instead of actual Myanmar translations.",
+      "solution": "Changed format example to 'target': '<actual_myanmar_translation>' and added rule 5: 'NEVER use the literal English word Myanmar as the target.' Also added defense-in-depth guard in context_updater.py to skip terms with target == 'Myanmar'.",
+      "prevention": "Prompt format examples must use obviously placeholder values (like '<translation>') not real words. Never use a real language name as a placeholder value in prompt format examples.",
+      "times_seen": 1,
+      "last_seen": "2026-05-24"
     }
   ]
 }

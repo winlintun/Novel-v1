@@ -618,8 +618,22 @@ class VersionManager:
     # ═══════════════════════════════════════════════════════════════════════
 
     def _get_chapter_file(self, novel_name: str, chapter_num: int) -> Path:
-        """Get the path to a chapter output file."""
-        return self.output_dir / novel_name / f"{novel_name}_chapter_{chapter_num:04d}.mm.md"
+        """Get the path to a chapter output file.
+
+        Tries multiple zero-padding formats (3-digit and 4-digit) to handle
+        mismatches between orchestrator save path and version manager lookup.
+        """
+        patterns = [
+            self.output_dir / novel_name / f"{novel_name}_chapter_{chapter_num:04d}.mm.md",
+            self.output_dir / novel_name / f"{novel_name}_chapter_{chapter_num:03d}.mm.md",
+            self.output_dir / novel_name / f"{chapter_num:04d}.mm.md",
+            self.output_dir / novel_name / f"{chapter_num:03d}.mm.md",
+        ]
+        for p in patterns:
+            if p.exists():
+                return p
+        # Default return 4-digit even if file doesn't exist yet
+        return patterns[0]
 
     def _get_or_create_novel(self, novel_name: str) -> str:
         """Get novel ID, creating if necessary."""

@@ -1,25 +1,31 @@
-{
-  "session_id": "2026-05-23-001",
-  "started_at": "2026-05-23T00:00:00Z",
-  "current_step": "Complete - Git commit executed",
-  "last_action": "Committed translation validation, Chinese novel rules, postprocessor checks, glossary sync fix (5e10be3)",
+﻿{
+  "session_id": "2026-05-24-001",
+  "started_at": "2026-05-24T00:00:00Z",
+  "current_step": "Complete - Chapter 4 fixes applied",
+  "last_action": "Fixed chapter 4 partial completion: timeout 900->1800s, partial save guard, active_chars scoping, entity extraction prompt, snapshot path",
   "next_action": "None - all tasks complete",
   "open_files": [],
   "pending_decisions": [],
   "session_errors": [],
   "changes_made": {
-    "src/agents/prompts/en_mm_rules.py": "Added particle_repetition_limit rule, EN_FROM_CHINESE_RULES section (10 rules), updated confrontation pattern to use generic names",
-    "src/pipeline/orchestrator.py": "Added _detect_scene_type(), _validate_translation(), modified _save_output() to accept source_text and run validation",
-    "src/utils/postprocessor.py": "Added replace_loanwords(), check_ordinal_numbers(), check_content_completeness(), check_latin_script(), check_particle_repetition()",
-    "src/memory/memory_manager.py": "Added SQL backend support in reject_pending_term()",
-    "src/db/sync_external.py": "Fixed make_novel_id() to replace hyphens with underscores",
-    "config/settings.yaml": "Reduced chunk_size from 2500 to 1200",
-    "tests/test_memory_sql.py": "Updated tests for new novel_id format",
-    "tests/test_sync_external.py": "Updated tests for new novel_id format"
+    "src/pipeline/orchestrator.py": "Increased per-chunk timeout 900s->1800s at line 1370; added partial-completion guard after _translate_chunks() at lines 549-572",
+    "src/memory/memory_manager.py": "Added active_chars: list = [] initialization at top of update_chapter_context() to fix UnboundLocalError",
+    "src/memory/version_manager.py": "Made _get_chapter_file() try multiple zero-padding patterns (04d, 03d) instead of single format",
+    "src/agents/context_updater.py": "Added Myanmar target guard: skip term if target is literally 'Myanmar' (case-insensitive)",
+    "src/agents/prompt_patch.py": "Changed EXTRACTOR_SYSTEM_PROMPT example from 'target': 'Myanmar' to 'target': '<actual_myanmar_translation>' with explicit rule against literal 'Myanmar'"
   },
   "review_status": {
-    "reviewer_a": "PASS - Fixed missing source_text parameter; _detect_scene_type is dead code (minor)",
-    "reviewer_b": "PASS - All Myanmar translation rules correctly implemented",
+    "reviewer_a": "PASS - All 5 fixes verified and tested",
+    "reviewer_b": "PASS",
     "final_status": "READY_TO_COMMIT"
+  },
+  "last_checkpoint": {
+    "chapter": 5,
+    "chunk_index": 8,
+    "total_chunks": 8,
+    "stage": "translate",
+    "timestamp": "2026-05-26T14:34:06.328944",
+    "quality_score": 100,
+    "myanmar_ratio": 1.0
   }
 }

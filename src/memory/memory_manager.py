@@ -128,6 +128,9 @@ class MemoryManager:
                             f"({sync_result['synced']} novel + {sync_result['global_synced']} global)"
                         )
 
+            # Bridge: convert glossary context_variants into character voice profiles
+            self._populate_context_variants_from_glossary()
+
             self.glossary_path = ""
             self.context_path = ""
             self.pending_path = ""
@@ -479,8 +482,14 @@ class MemoryManager:
         register: str = "neutral",
         speech_style: str = "",
         chapter: int = 0,
+        scene_variants: Optional[Dict[str, Dict[str, str]]] = None,
     ) -> None:
         """Register or update a character's voice profile.
+
+        Supports scene-tone-aware pronoun variants from the universal glossary
+        blueprint (context_variants). When scene_variants is provided, the
+        character voice includes all 5 scene tones (formal/casual/hostile/
+        pleading/intimate) for dynamic selection during translation.
 
         Args:
             name: Source name (e.g., "Fang Yuan")
@@ -490,6 +499,11 @@ class MemoryManager:
             register: Speech register ("formal", "casual", "blunt_casual", "respectful", "neutral")
             speech_style: Description of speech patterns (e.g., "cold and direct")
             chapter: Current chapter number
+            scene_variants: Dict mapping scene_tone keys to pronoun dicts:
+                {"formal": {"self": "ကျွန်တော်", "other": "ခင်ဗျား", "honorific": "ဆရာ"},
+                 "casual": {"self": "ငါ", "other": "မင်း"},
+                 "hostile": {"self": "ငါ", "other": "နင်", "honorific": "မိစ္ဆာကောင်"},
+                 ...}
         """
         voices = self.context_memory.setdefault("character_voices", {})
         if name in voices:
@@ -500,8 +514,10 @@ class MemoryManager:
             existing["speech_style"] = speech_style or existing.get("speech_style", "")
             if chapter and chapter not in existing.get("chapters_active", []):
                 existing.setdefault("chapters_active", []).append(chapter)
+            if scene_variants:
+                existing.setdefault("scene_variants", {}).update(scene_variants)
         else:
-            voices[name] = {
+            profile = {
                 "target": target,
                 "pronoun_self": pronoun_self,
                 "pronoun_other": pronoun_other,
@@ -509,7 +525,79 @@ class MemoryManager:
                 "speech_style": speech_style,
                 "chapters_active": [chapter] if chapter else [],
             }
+            if scene_variants:
+                profile["scene_variants"] = scene_variants
+            voices[name] = profile
         logger.debug(f"Character voice registered: {name} ({register})")
+
+    def _populate_context_variants_from_glossary(self) -> None:
+        """Bridge: convert glossary terms' context_variants into character voice profiles.
+
+        Reads all glossary terms with category='character' that have
+        non-empty context_variants (scene-tone pronoun sets). For each,
+        calls set_character_voice() with all 5 variants so the translator
+        can inject scene-appropriate pronouns.
+
+        Called after glossary sync at MemoryManager startup.
+        """
+        try:
+            terms = self.get_all_terms()
+            populated = 0
+            default_variants = {
+                "formal": {"self": "ကျွန်တော်", "other": "ခင်ဗျား", "honorific": ""},
+                "casual": {"self": "ငါ", "other": "မင်း", "honorific": ""},
+                "hostile": {"self": "ငါ", "other": "နင်", "honorific": ""},
+                "pleading": {"self": "ကျွန်တော်", "other": "အရှင်", "honorific": "ကျေးဇူးပြု၍"},
+                "intimate": {"self": "ငါ", "other": "မင်း", "honorific": ""},
+            }
+
+            for term in terms:
+                source = term.get("source") or term.get("source_term", "")
+                target = term.get("target") or term.get("target_term", "")
+                category = term.get("category", "")
+                if category != "character" or not source or not target:
+                    continue
+
+                # Try to get context_variants from the term's data
+                raw_variants = term.get("context_variants")
+                if raw_variants and isinstance(raw_variants, dict):
+                    # Rich variants from glossary blueprint — use as-is
+                    self.set_character_voice(
+                        name=source,
+                        target=target,
+                        register="neutral",
+                        scene_variants=raw_variants,
+                        chapter=term.get("chapter_first_seen", 1),
+                    )
+                    populated += 1
+                    continue
+
+                # If term has separate pronoun_self/pronoun_other but no variants,
+                # create a basic variant set from them
+                pronoun_self = term.get("pronoun_self", "")
+                pronoun_other = term.get("pronoun_other", "")
+                register = term.get("register", "neutral")
+                speech_style = term.get("speech_style", "")
+
+                if pronoun_self or pronoun_other:
+                    self.set_character_voice(
+                        name=source,
+                        target=target,
+                        pronoun_self=pronoun_self,
+                        pronoun_other=pronoun_other,
+                        register=register,
+                        speech_style=speech_style,
+                        chapter=term.get("chapter_first_seen", 1),
+                        scene_variants=default_variants,
+                    )
+                    populated += 1
+
+            if populated > 0:
+                logger.info(f"Populated {populated} character voice profiles from glossary context_variants")
+            else:
+                logger.debug("No glossary context_variants found for any character terms")
+        except Exception as e:
+            logger.warning(f"Failed to populate context_variants: {e}")
 
     def _load_voices_from_sql(self) -> Dict[str, Any]:
         """Load character voices from the latest context snapshot (SQL path)."""
@@ -545,6 +633,10 @@ class MemoryManager:
     def get_character_voices(self, active_only: bool = True, current_chapter: int = 0) -> str:
         """Get formatted character voice profiles for prompt injection.
 
+        If the character has scene_variants (context_variants from the universal
+        glossary blueprint), ALL variants are emitted with their scene-tone labels.
+        The Translator's scene-tone classifier selects the right variant at runtime.
+
         Args:
             active_only: If True, only include characters active in current chapter.
             current_chapter: Current chapter number for active filtering.
@@ -566,16 +658,95 @@ class MemoryManager:
             if active_only and current_chapter > 0:
                 if current_chapter not in profile.get("chapters_active", []):
                     continue
-            parts = [f"  {name} ({profile.get('target', '')})"]
-            if profile.get("pronoun_self"):
-                parts.append(f"self={profile['pronoun_self']}")
-            if profile.get("pronoun_other"):
-                parts.append(f"other={profile['pronoun_other']}")
-            if profile.get("register"):
-                parts.append(f"register={profile['register']}")
-            if profile.get("speech_style"):
-                parts.append(f"style={profile['speech_style']}")
-            lines.append(" | ".join(parts))
+            target = profile.get("target", "")
+            speech_style = profile.get("speech_style", "")
+
+            scene_variants = profile.get("scene_variants")
+            if scene_variants and isinstance(scene_variants, dict):
+                # Rich mode: emit all 5 scene-tone variants
+                parts = [f"  {name} ({target})"]
+                if speech_style:
+                    parts.append(f"style={speech_style}")
+                for tone_key, variant in scene_variants.items():
+                    v_parts = []
+                    self_p = variant.get("self", "")
+                    other_p = variant.get("other", variant.get("target", ""))
+                    honorific = variant.get("honorific", "")
+                    if self_p:
+                        v_parts.append(f"self={self_p}")
+                    if other_p:
+                        v_parts.append(f"other={other_p}")
+                    if honorific:
+                        v_parts.append(f"honor={honorific}")
+                    parts.append(f"  [{tone_key}] {' '.join(v_parts)}")
+                lines.append("\n".join(parts))
+            else:
+                # Simple mode: single register
+                parts = [f"  {name} ({target})"]
+                if profile.get("pronoun_self"):
+                    parts.append(f"self={profile['pronoun_self']}")
+                if profile.get("pronoun_other"):
+                    parts.append(f"other={profile['pronoun_other']}")
+                if profile.get("register"):
+                    parts.append(f"register={profile['register']}")
+                if speech_style:
+                    parts.append(f"style={speech_style}")
+                lines.append(" | ".join(parts))
+
+        return "\n".join(lines) if len(lines) > 1 else ""
+
+    def get_character_voices_for_scene(self, scene_tone: str = "casual",
+                                        active_only: bool = True,
+                                        current_chapter: int = 0) -> str:
+        """Get character voice profiles filtered to a specific scene tone.
+
+        Instead of emitting all 5 variants, selects the matching variant
+        for each character based on the detected scene tone. Saves token
+        budget by injecting only the relevant variant.
+
+        Args:
+            scene_tone: One of "formal", "casual", "hostile", "pleading", "intimate"
+            active_only: If True, only include characters active in current chapter.
+            current_chapter: Current chapter number for active filtering.
+
+        Returns:
+            Formatted string with scene-specific voices, or empty string.
+        """
+        if self.use_sql:
+            voices = self._load_voices_from_sql()
+        else:
+            voices = self.context_memory.get("character_voices", {})
+
+        if not voices:
+            return ""
+
+        lines = ["CHARACTER VOICE PROFILES:"]
+        for name, profile in voices.items():
+            if active_only and current_chapter > 0:
+                if current_chapter not in profile.get("chapters_active", []):
+                    continue
+            target = profile.get("target", "")
+            scene_variants = profile.get("scene_variants", {})
+
+            if scene_variants and isinstance(scene_variants, dict):
+                variant = scene_variants.get(scene_tone, scene_variants.get("casual", {}))
+                self_p = variant.get("self", profile.get("pronoun_self", ""))
+                other_p = variant.get("other", variant.get("target", profile.get("pronoun_other", "")))
+                honorific = variant.get("honorific", "")
+                parts = [f"  {name} ({target})"]
+                parts.append(f"[{scene_tone}] self={self_p} other={other_p}")
+                if honorific:
+                    parts[-1] += f" honor={honorific}"
+                if profile.get("speech_style"):
+                    parts.append(f"style={profile['speech_style']}")
+                lines.append("\n".join(parts))
+            else:
+                parts = [f"  {name} ({target})"]
+                if profile.get("pronoun_self"):
+                    parts.append(f"self={profile['pronoun_self']}")
+                if profile.get("pronoun_other"):
+                    parts.append(f"other={profile['pronoun_other']}")
+                lines.append(" | ".join(parts))
 
         return "\n".join(lines) if len(lines) > 1 else ""
 
@@ -1238,15 +1409,29 @@ class MemoryManager:
         logger.info(f"Auto-approved {len(promoted_sources)}/{len(to_approve)} terms by confidence (threshold={confidence_threshold})")
         return len(promoted_sources)
 
-    def get_all_memory_for_prompt(self) -> Dict[str, str]:
-        """Get all memory tiers formatted for prompts."""
+    def get_all_memory_for_prompt(self, scene_tone: str = "") -> Dict[str, str]:
+        """Get all memory tiers formatted for prompts.
+
+        Args:
+            scene_tone: Optional scene tone for voice selection
+                        ("formal", "casual", "hostile", "pleading", "intimate").
+                        When empty, emits all variants (legacy behavior).
+        """
         current_chapter = self.context_memory.get("current_chapter", 0)
+        if scene_tone:
+            voices = self.get_character_voices_for_scene(
+                scene_tone=scene_tone,
+                active_only=True,
+                current_chapter=current_chapter,
+            )
+        else:
+            voices = self.get_character_voices(active_only=True, current_chapter=current_chapter)
         return {
             "glossary": self.get_glossary_for_prompt(),
             "context": self.get_context_buffer(),
             "rules": self.get_session_rules(),
             "summary": self.get_summary(),
-            "voices": self.get_character_voices(active_only=True, current_chapter=current_chapter),
+            "voices": voices,
         }
 
     # ── SQL Backend Overrides ─────────────────────────────────────────────
@@ -1420,6 +1605,7 @@ class MemoryManager:
 
     def update_chapter_context(self, chapter_num: int, translated_text: str = "", summary: str = "", source_text: str = "") -> None:
         """Update context after chapter translation (SQL or JSON)."""
+        active_chars: list = []  # ensure always bound (fix UnboundLocalError in SQL path)
         if self.use_sql:
             chapter_id = f"chapter_{self.novel_id}_{chapter_num:04d}"
             chapter = self.chapter_repo.get_by_id(chapter_id)
