@@ -67,16 +67,22 @@ class TestMyanmarQualityChecker(unittest.TestCase):
         self.assertTrue(any("repeated" in i.lower() for i in result["issues"]))
 
     def test_check_quality_too_much_english(self):
-        """Test detection of too much English."""
+        """Test detection of too much English (zero Myanmar chars)."""
         text = "word word word word word word word word word word word word"
         result = self.checker.check_quality(text)
-        self.assertTrue(any("english" in i.lower() for i in result["issues"]))
+        # Zero Myanmar chars triggers the CRITICAL language identity check first
+        self.assertTrue(any("zero" in i.lower() for i in result["issues"]))
+        self.assertEqual(result["score"], 0)
+        self.assertFalse(result["passed"])
 
     def test_check_quality_bengali_script(self):
-        """Test detection of Bengali script leakage."""
+        """Test detection of Bengali script leakage (zero Myanmar chars)."""
         text = "test বাংলা test"
         result = self.checker.check_quality(text)
-        self.assertTrue(any("bengali" in i.lower() for i in result["issues"]))
+        # Zero Myanmar chars triggers the CRITICAL language identity check first
+        self.assertTrue(any("zero" in i.lower() for i in result["issues"]))
+        self.assertEqual(result["score"], 0)
+        self.assertFalse(result["passed"])
 
     def test_check_quality_mixed_tone(self):
         """Test detection of mixed tone/register."""

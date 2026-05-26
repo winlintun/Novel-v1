@@ -128,9 +128,6 @@ class MemoryManager:
                             f"({sync_result['synced']} novel + {sync_result['global_synced']} global)"
                         )
 
-            # Bridge: convert glossary context_variants into character voice profiles
-            self._populate_context_variants_from_glossary()
-
             self.glossary_path = ""
             self.context_path = ""
             self.pending_path = ""
@@ -146,6 +143,13 @@ class MemoryManager:
             self.universal_pending: Dict[str, Any] = {}
             self.universal_context: Dict[str, Any] = {}
             self.use_universal = use_universal
+
+            # Restore context from SQLite snapshots (summary, characters, events, voices)
+            self._load_context_from_sql()
+
+            # Bridge: convert glossary context_variants into character voice profiles
+            self._populate_context_variants_from_glossary()
+
             # Load universal glossary if enabled (SQL path fix per report.md §2)
             if self.use_universal:
                 self._load_universal_glossary()
@@ -454,6 +458,9 @@ class MemoryManager:
     def get_context_buffer(self, count: int = 3) -> str:
         """Get recent translations for context."""
         if not self.paragraph_buffer:
+            summary = self.context_memory.get("summary", "")
+            if summary:
+                return "PREVIOUS CONTEXT (from summary):\n" + self._sanitize_for_prompt(summary)
             return "No previous context."
 
         recent = [self._sanitize_for_prompt(text) for text in list(self.paragraph_buffer)[-count:]]
@@ -598,6 +605,94 @@ class MemoryManager:
                 logger.debug("No glossary context_variants found for any character terms")
         except Exception as e:
             logger.warning(f"Failed to populate context_variants: {e}")
+
+    def _load_context_from_sql(self) -> None:
+        """Load context memory from SQLite snapshots on startup (SQL path).
+
+        Restores summary, current_chapter, active_characters, recent_events,
+        and character_voices from the most recent context_snapshots stored in
+        the database. Called during __init__ when use_sql=True.
+
+        The paragraph_buffer cannot be restored from SQL (individual paragraph
+        text is not stored in snapshots) — it starts empty per-session.
+        """
+        if not self.use_sql or not hasattr(self, 'context_repo') or not hasattr(self, 'chapter_repo'):
+            return
+        try:
+            chapters = self.chapter_repo.get_chapters_by_novel(self.novel_id)
+            chapter_ids = [c["id"] for c in chapters if c.get("id")]
+            if not chapter_ids:
+                return
+
+            snapshots = self.context_repo.get_rolling_context(chapter_ids, limit=5)
+            if not snapshots:
+                return
+
+            # Parse the latest snapshot for current context state
+            latest = snapshots[0]
+            raw = latest.get("summary_json", "{}")
+            try:
+                data = _json.loads(raw) if isinstance(raw, str) else raw
+            except (ValueError, TypeError):
+                logger.warning("Failed to parse latest context snapshot JSON")
+                return
+
+            if not isinstance(data, dict):
+                return
+
+            # Restore summary
+            self.context_memory["summary"] = data.get("summary", "")
+
+            # Restore current_chapter from the latest snapshot's chapter record
+            latest_chapter_id = latest.get("chapter_id", "")
+            for c in chapters:
+                if c["id"] == latest_chapter_id and "chapter_num" in c:
+                    self.context_memory["current_chapter"] = c["chapter_num"]
+                    self.context_memory["last_translated_chapter"] = c["chapter_num"]
+                    break
+
+            # Restore active characters (stored as list of names → convert to dict)
+            active_chars = data.get("active_chars", [])
+            if isinstance(active_chars, list):
+                self.context_memory["active_characters"] = {
+                    name: {"target": "", "chapters_active": []}
+                    for name in active_chars
+                }
+
+            # Restore recent events
+            events = data.get("events", [])
+            if isinstance(events, list):
+                self.context_memory["recent_events"] = events
+
+            # Merge character voices from ALL snapshots
+            merged_voices: Dict[str, Any] = {}
+            for snap in snapshots:
+                snap_raw = snap.get("summary_json", "{}")
+                try:
+                    snap_data = _json.loads(snap_raw) if isinstance(snap_raw, str) else snap_raw
+                except (ValueError, TypeError):
+                    continue
+                snap_voices = snap_data.get("character_voices", {}) if isinstance(snap_data, dict) else {}
+                for name, profile in snap_voices.items():
+                    if name not in merged_voices:
+                        merged_voices[name] = profile
+                    else:
+                        existing_active = merged_voices[name].get("chapters_active", [])
+                        new_active = profile.get("chapters_active", [])
+                        merged_voices[name]["chapters_active"] = list(set(existing_active + new_active))
+
+            if merged_voices:
+                self.context_memory["character_voices"] = merged_voices
+
+            logger.info(
+                f"Restored context from {len(snapshots)} snapshot(s): "
+                f"chapter={self.context_memory.get('current_chapter')}, "
+                f"summary_len={len(self.context_memory.get('summary', ''))}, "
+                f"active_chars={len(self.context_memory.get('active_characters', {}))}, "
+                f"voices={len(merged_voices)}"
+            )
+        except Exception as e:
+            logger.debug(f"Could not load context from SQL: {e}")
 
     def _load_voices_from_sql(self) -> Dict[str, Any]:
         """Load character voices from the latest context snapshot (SQL path)."""
@@ -892,7 +987,7 @@ class MemoryManager:
                     logger.warning(f"Rejected non-Myanmar pending target for '{source}': '{target}'")
                     return False
             
-            # Add new pending term
+            # Add new pending term (usage_count defaults to 0 in INSERT)
             self.glossary_repo.add_term(
                 novel_id=self.novel_id,
                 source_term=source,
@@ -900,7 +995,6 @@ class MemoryManager:
                 category=category,
                 status='pending',
                 enforcement_level='soft',
-                usage_count=1 if chapter > 0 else 0
             )
             logger.info(f"Added pending glossary term (SQL): {source} -> {target}")
             return True
@@ -1708,7 +1802,8 @@ class MemoryManager:
         
         for term in all_terms:
             target = term.get("target_term", "")
-            if not target or target.startswith("【?"):
+            term_id = term.get("id")
+            if not target or not term_id or target.startswith("【?"):
                 continue
             
             # Check if the Myanmar translation appears in the text
@@ -1717,18 +1812,23 @@ class MemoryManager:
                 paragraphs = translated_text.split("\n\n")
                 for idx, para in enumerate(paragraphs):
                     if target in para:
-                        snippet = para[:200] if len(para) > 200 else para
-                        self.glossary_repo.log_term_usage(
-                            term_id=term["id"],
-                            chapter_id=chapter_id,
-                            paragraph_idx=idx,
-                            variant_used=target,
-                            confidence=1.0,
-                            context_snippet=snippet,
-                        )
-                        # Increment usage_count on the term itself
-                        self.glossary_repo.increment_usage(term["id"])
-                        logged_count += 1
+                        try:
+                            snippet = para[:200] if len(para) > 200 else para
+                            self.glossary_repo.log_term_usage(
+                                term_id=term_id,
+                                chapter_id=chapter_id,
+                                paragraph_idx=idx,
+                                variant_used=target,
+                                confidence=1.0,
+                                context_snippet=snippet,
+                            )
+                            # Increment usage_count on the term itself
+                            self.glossary_repo.increment_usage(term_id)
+                            logged_count += 1
+                        except Exception as e:
+                            logger.debug(
+                                f"Skipped term usage log for '{target}' (id={term_id}): {e}"
+                            )
                         break
         
         if logged_count > 0:

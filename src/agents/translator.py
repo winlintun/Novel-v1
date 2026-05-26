@@ -11,7 +11,7 @@ from src.utils.ollama_client import OllamaClient
 from src.memory.memory_manager import MemoryManager
 from src.utils.progress_logger import ProgressLogger
 
-from src.utils.postprocessor import clean_output, validate_output, detect_language_leakage
+from src.utils.postprocessor import clean_output, validate_output, detect_language_leakage, myanmar_char_ratio
 from src.agents.base_agent import BaseAgent
 from src.agents.prompts import (
     LANGUAGE_GUARD,
@@ -103,7 +103,7 @@ class Translator(BaseAgent):
             prompt_parts.append(mem['glossary'])
             prompt_parts.append("")
 
-        # Add RAG examples (few-shot translation examples)
+        # Add RAG examples (few-shot translation examples from ChromaDB/SQLite)
         if self.rag_enabled and self.rag_retriever:
             rag_examples = self._build_rag_examples(text)
             if rag_examples:
@@ -248,15 +248,60 @@ class Translator(BaseAgent):
         if needs_retry:
             logger.warning(f"{retry_reason} detected in translation (chapter {chapter_num}), retrying with stronger prompt...")
 
-            # Retry with reinforced language guard
-            retry_prompt = prompt + "\n\n⚠️ CRITICAL: Your previous output contained " + retry_reason + ". This time output ONLY Myanmar text. NO Chinese or English allowed. Use 【?term?】 for unknown words."
-            retry_system = system_prompt + "\n\n[RETRY MODE] Previous output failed - contained " + retry_reason + ". This time output 100% Myanmar ONLY."
+            # Check for 0% Myanmar ratio — use few-shot examples
+            if myanmar_char_ratio(translated) < 0.01:
+                # CRITICAL: 0% Myanmar — use few-shot examples to force Myanmar output
+                FEW_SHOT = """CRITICAL: Your output was in English. It MUST be in Myanmar.
+
+EXAMPLES of correct EN->MY translation:
+Source: "So, this is the first level of Qi Condensation!"
+Myanmar: "ဒါက ချီငွေ့သိပ်သည်းခြင်းရဲ့ ပထမအဆင့်လား။"
+
+Source: He touched the mutation point on his arm.
+Myanmar: သူက သူ့လက်မောင်းပေါ်က ဗီဇပြောင်းလဲမှုအစက်ကို ထိကြည့်လိုက်တယ်။
+
+Source: According to the bamboo slip, every level grants an additional tiger's worth of strength.
+Myanmar: ဝါးလိပ်ဖော်ပြချက်အရ အဆင့်တိုင်းက ကျားတစ်ကောင်စာ ခွန်အားကိုပေးမယ်။
+
+SOURCE TEXT TO TRANSLATE (MUST output Myanmar ONLY):
+{original_text}
+Myanmar Translation:"""
+                retry_prompt = FEW_SHOT.replace("{original_text}", paragraph)
+                retry_system = "You output ONLY Myanmar (Burmese) script. NO English. NO Chinese. Translate every word."
+            else:
+                # Standard retry for partial leakage
+                retry_prompt = prompt + "\n\n⚠️ Previous output had " + retry_reason + ". Output ONLY Myanmar this time."
+                retry_system = system_prompt + "\n\nPrevious output failed — output 100% Myanmar ONLY."
 
             raw_retry = self.ollama.chat(
                 prompt=retry_prompt,
                 system_prompt=retry_system
             )
             translated_retry = clean_output(raw_retry)
+
+            # If first retry ALSO has < 1% Myanmar, try one more time with stronger instruction
+            if myanmar_char_ratio(translated_retry) < 0.01:
+                logger.critical(f"Second retry attempt for 0% Myanmar output (chapter {chapter_num})...")
+                stronger_prompt = """ABSOLUTE LAST ATTEMPT: You MUST output in Myanmar (Burmese) script ONLY.
+
+PREVIOUS OUTPUTS WERE IN ENGLISH — THIS IS UNACCEPTABLE.
+
+LITERAL TRANSLATION EXAMPLES:
+Source: "Hello, how are you?"
+Myanmar: "မင်္ဂလာပါ၊ နေကောင်းလား။"
+
+Source: "I am fine."
+Myanmar: "ငါနေကောင်းတယ်။"
+
+Source: {original_text}
+
+Now translate the above sentence. ONLY Myanmar script. NO English. NO Chinese. NO explanation.
+Myanmar Translation:"""
+                raw_retry2 = self.ollama.chat(
+                    prompt=stronger_prompt.replace("{original_text}", paragraph),
+                    system_prompt="You are a Myanmar translator. Output ONLY Myanmar script. NEVER English."
+                )
+                translated_retry = clean_output(raw_retry2)
 
             # Check if retry is better
             leakage_retry = detect_language_leakage(translated_retry)

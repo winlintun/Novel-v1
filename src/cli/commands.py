@@ -757,11 +757,13 @@ def _apply_workflow_config(config: AppConfig, workflow: str, logger: Optional[lo
             refiner_model = "padauk-gemma:q8_0"
         
         # Respect CLI mode override if provided, otherwise use single_stage default
-        # Priority: CLI --mode > config file mode > default (single_stage)
+        # Priority: CLI --mode > config file mode (if explicitly set) > default (single_stage)
         if cli_mode:
             pipeline_mode = cli_mode
+        elif config.translation_pipeline.mode != "full":
+            pipeline_mode = config.translation_pipeline.mode
         else:
-            pipeline_mode = getattr(config.translation_pipeline, 'mode', 'single_stage')
+            pipeline_mode = "single_stage"
         
         # Respect CLI --use-reflection flag if provided, otherwise use config file setting
         # Priority: CLI --use-reflection > config file > default (False)
@@ -826,8 +828,10 @@ def _apply_workflow_config(config: AppConfig, workflow: str, logger: Optional[lo
         # Note: way2 is inherently two-stage (CN→EN→MM), but we still respect user's choice
         if cli_mode:
             pipeline_mode = cli_mode
+        elif config.translation_pipeline.mode != "full":
+            pipeline_mode = config.translation_pipeline.mode
         else:
-            pipeline_mode = getattr(config.translation_pipeline, 'mode', 'two_stage')
+            pipeline_mode = "two_stage"
         
         # Respect CLI --use-reflection flag if provided, otherwise use config file setting
         if cli_use_reflection is not None:

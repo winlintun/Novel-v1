@@ -376,7 +376,7 @@ def validate_arguments(args: argparse.Namespace) -> None:
     # Check for required arguments when not running utility commands
     # --generate-glossary --novel X is a standalone command (no chapter required)
     versioning_commands = [args.versions, args.rollback, args.diff, args.preview_sync, args.create_sync_job, args.execute_sync, args.list_sync_jobs, args.audit_log]
-    utility_commands = [args.ui, args.test, args.generate_glossary, args.init_glossary, args.approve_glossary, args.view_file, args.review_file, args.auto_promote, args.stats, args.compare_models, args.compare_human] + versioning_commands
+    utility_commands = [args.ui, args.test, args.generate_glossary, getattr(args, 'init_glossary', False), args.approve_glossary, args.view_file, args.review_file, args.auto_promote, args.stats, getattr(args, 'compare_models', None), getattr(args, 'compare_human', False)] + versioning_commands
 
     if not any(utility_commands):
         if not args.novel and not args.input_file:

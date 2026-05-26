@@ -20,12 +20,12 @@
     "final_status": "READY_TO_COMMIT"
   },
   "last_checkpoint": {
-    "chapter": 5,
-    "chunk_index": 8,
-    "total_chunks": 8,
+    "chapter": 6,
+    "chunk_index": 11,
+    "total_chunks": 11,
     "stage": "translate",
-    "timestamp": "2026-05-26T14:34:06.328944",
-    "quality_score": 100,
-    "myanmar_ratio": 1.0
+    "timestamp": "2026-05-26T17:45:28.315189",
+    "quality_score": 95,
+    "myanmar_ratio": 0.9815195071868583
   }
 }

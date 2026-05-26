@@ -365,6 +365,30 @@ class TranslationPipeline:
                     novel_filter=rag_config.get('novel_filter') or self._current_novel,
                 )
                 self.logger.info(f"RAG Retriever initialized: chroma={chroma_path}, db={db_path}")
+
+                # Check if RAG has any usable data — warn if both backends are empty
+                rag = self._rag_retriever
+                chroma_ok = (
+                    rag._chroma_collection is not None
+                    and rag._chroma_collection.count() > 0
+                )
+                sqlite_ok = rag._sqlite_conn is not None
+                if sqlite_ok:
+                    try:
+                        cnt = rag._sqlite_conn.execute(
+                            "SELECT COUNT(*) FROM translation_pairs"
+                        ).fetchone()[0]
+                        sqlite_ok = cnt > 0
+                    except Exception:
+                        sqlite_ok = False
+
+                if not chroma_ok and not sqlite_ok:
+                    self.logger.warning("=" * 60)
+                    self.logger.warning("⚠ RAG SYSTEM: No data available in ChromaDB or SQLite.")
+                    self.logger.warning("Translation will proceed without few-shot example injection.")
+                    self.logger.warning(f"  ChromaDB: {chroma_path}")
+                    self.logger.warning(f"  SQLite:   {db_path}")
+                    self.logger.warning("=" * 60)
             else:
                 self._rag_retriever = None
         return self._rag_retriever
@@ -1135,9 +1159,20 @@ class TranslationPipeline:
                                 continue
                             while len(translated) <= idx:
                                 translated.append(None)
+                            # Validate resumed checkpoint — reject stale (English/non-Myanmar) content
+                            from src.utils.postprocessor import myanmar_char_ratio
+                            mm_ratio = myanmar_char_ratio(text)
+                            if mm_ratio < 0.70:
+                                self.logger.warning(
+                                    f"Rejecting stale checkpoint for chunk {idx+1}: "
+                                    f"{mm_ratio:.1%} Myanmar ratio. Re-translating."
+                                )
+                                translated[idx] = None
+                                cp.unlink(missing_ok=True)
+                                continue
                             translated[idx] = text
                             last_completed = idx
-                            self.logger.info(f"Resumed checkpoint: chunk {idx+1}/{len(chunks)}")
+                            self.logger.info(f"Resumed checkpoint: chunk {idx+1}/{len(chunks)} ({mm_ratio:.0%} Myanmar)")
                     else:
                         self.logger.info("User opted to start fresh — deleting checkpoints")
                         for _, cp in valid_checkpoints:
@@ -1244,6 +1279,24 @@ class TranslationPipeline:
 
             # Calculate Myanmar ratio for display
             mm_ratio = self._calc_myanmar_ratio(translated_chunk)
+
+            # CRITICAL: Zero Myanmar ratio = model not outputting Myanmar at all
+            # Abort immediately to save API costs on remaining chunks
+            if mm_ratio < 0.01:
+                self.logger.critical(
+                    f"CRITICAL: Chunk {i+1}/{total} has 0% Myanmar ratio. "
+                    f"Model is not outputting Myanmar. Aborting pipeline."
+                )
+                chunk_metrics.append({
+                    "chunk": i + 1,
+                    "quality_score": quality_score,
+                    "quality_passed": quality_passed,
+                    "myanmar_ratio": mm_ratio,
+                    "issues": quality_issues + 1,
+                    "zero_myanmar_abort": True,
+                })
+                self._shutdown_requested = True
+                break
 
             self._report({
                 "type": "chunk_quality",
@@ -1400,15 +1453,20 @@ class TranslationPipeline:
             translated.append(translated_chunk)
 
             # Save checkpoint immediately for resumability (report.md 2.1)
-            try:
-                if self._current_novel and self._current_chapter is not None:
-                    from src.utils.file_handler import FileHandler
-                    checkpoint_dir = Path("data/working") / self._current_novel / f"chapter_{self._current_chapter:04d}"
-                    checkpoint_dir.mkdir(parents=True, exist_ok=True)
-                    checkpoint_path = checkpoint_dir / f"ch{i+1:03d}_checkpoint.txt"
-                    FileHandler.write_text(str(checkpoint_path), translated_chunk)
-            except Exception as e:
-                self.logger.debug(f"Checkpoint write failed (non-fatal): {e}")
+            # CRITICAL: Only save checkpoint if chunk passed quality gate.
+            # Rejected chunks (0% Myanmar, low quality) MUST NOT be checkpointed,
+            # otherwise the resume system sees "all chunks done" and skips
+            # re-translating the failed chunks (ERR-073).
+            if not is_rejected:
+                try:
+                    if self._current_novel and self._current_chapter is not None:
+                        from src.utils.file_handler import FileHandler
+                        checkpoint_dir = Path("data/working") / self._current_novel / f"chapter_{self._current_chapter:04d}"
+                        checkpoint_dir.mkdir(parents=True, exist_ok=True)
+                        checkpoint_path = checkpoint_dir / f"ch{i+1:03d}_checkpoint.txt"
+                        FileHandler.write_text(str(checkpoint_path), translated_chunk)
+                except Exception as e:
+                    self.logger.debug(f"Checkpoint write failed (non-fatal): {e}")
 
             # Log per-chunk progress if logger is provided
             if progress_logger:

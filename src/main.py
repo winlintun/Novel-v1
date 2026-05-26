@@ -85,7 +85,7 @@ def main() -> int:
             os.environ["NOVEL_TRANSLATE_START"] = str(args.start)
         if args.generate_glossary:
             os.environ["NOVEL_TRANSLATE_GEN_GLOSSARY"] = "1"
-        if args.init_glossary:
+        if getattr(args, 'init_glossary', False):
             os.environ["NOVEL_TRANSLATE_INIT_GLOSSARY"] = "1"
         
         # Pass port to launcher
@@ -116,11 +116,11 @@ def main() -> int:
         return run_stats(args)
 
     # ── Human-reference comparison ──
-    if args.compare_human:
+    if getattr(args, 'compare_human', False):
         return run_compare_human(args)
 
     # ── Model comparison command ──
-    if args.compare_models:
+    if getattr(args, 'compare_models', False):
         return run_compare_models(args)
 
     # ── Version control commands ──
@@ -149,12 +149,12 @@ def main() -> int:
         return run_audit_log(args)
 
     # ── Glossary generation (standalone or pre-translation) ──
-    if args.generate_glossary or args.init_glossary:
+    if args.generate_glossary or getattr(args, 'init_glossary', False):
         result = run_glossary_generation(args)
         if result != 0:
             return result
         # For --init-glossary: always stop after glossary generation
-        if args.init_glossary:
+        if getattr(args, 'init_glossary', False):
             return result
         # Standalone glossary run — no chapter/all specified, stop here
         if not (args.chapter or args.all or getattr(args, 'chapter_range', None) or args.input_file):

@@ -85,12 +85,38 @@ class RAGRetriever:
 
         try:
             self._chroma_client = chromadb.PersistentClient(path=str(chroma_path))
-            self._chroma_collection = self._chroma_client.get_collection(
-                name="alignment_pairs",
-                embedding_function=embedding_functions.SentenceTransformerEmbeddingFunction(
-                    model_name="all-MiniLM-L6-v2"
-                ),
-            )
+            # NOTE: Do NOT pass embedding_function to get_collection — the collection
+            # was already created with one. Passing a different embedding_function
+            # causes "embedding function already exists" conflict error (ERR-072).
+            try:
+                self._chroma_collection = self._chroma_client.get_collection(
+                    name="alignment_pairs",
+                )
+            except ValueError:
+                # Collection does not exist — this is the common case when RAG data
+                # has not been ingested yet. Check what collections ARE available
+                # and log a clear message so the user knows what to fix.
+                self._chroma_collection = None
+                try:
+                    cols = self._chroma_client.list_collections()
+                    if cols:
+                        col_names = [c.name for c in cols]
+                        self.logger.warning(
+                            f"ChromaDB collection 'alignment_pairs' not found. "
+                            f"Available collections: {col_names}. "
+                            f"RAG will use SQLite fallback."
+                        )
+                    else:
+                        self.logger.warning(
+                            "⚠ RAG DATA EMPTY: ChromaDB collection 'alignment_pairs' does not exist "
+                            "and no other collections found at %s. "
+                            "RAG will return NO examples. "
+                            "To fix: repopulate via dataset_alignment_project's ingest script.",
+                            self.chroma_path,
+                        )
+                except Exception:
+                    pass
+                return
             count = self._chroma_collection.count()
             self.logger.info(f"ChromaDB initialized at {chroma_path} ({count} embeddings)")
             if count == 0:
@@ -98,6 +124,18 @@ class RAGRetriever:
                 self._chroma_collection = None
         except Exception as e:
             self.logger.warning(f"ChromaDB init failed: {e} — falling back to SQLite")
+            # Try to list what collections exist for diagnostic info
+            try:
+                if self._chroma_client:
+                    cols = self._chroma_client.list_collections()
+                    if cols:
+                        self.logger.warning(
+                            "  ChromaDB collections found at %s: %s",
+                            self.chroma_path,
+                            [c.name for c in cols],
+                        )
+            except Exception:
+                pass
             self._chroma_client = None
             self._chroma_collection = None
 
@@ -106,6 +144,29 @@ class RAGRetriever:
         if Path(self.db_path).exists():
             self._sqlite_conn = sqlite3.connect(self.db_path)
             self._sqlite_conn.row_factory = sqlite3.Row
+
+            # Check if translation_pairs table has data
+            try:
+                row_count = self._sqlite_conn.execute(
+                    "SELECT COUNT(*) FROM translation_pairs"
+                ).fetchone()[0]
+                if row_count == 0:
+                    self.logger.warning(
+                        "⚠ RAG DATA EMPTY: SQLite translation_pairs table at %s has 0 rows. "
+                        "RAG fallback will return NO examples.",
+                        self.db_path,
+                    )
+                else:
+                    self.logger.info(
+                        "SQLite RAG fallback ready: %d rows in translation_pairs",
+                        row_count,
+                    )
+            except sqlite3.Error:
+                self.logger.warning(
+                    "SQLite table 'translation_pairs' not found in %s. "
+                    "RAG fallback will return NO examples.",
+                    self.db_path,
+                )
 
     def retrieve_similar(
         self,

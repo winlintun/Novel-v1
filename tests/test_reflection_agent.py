@@ -98,22 +98,23 @@ SUGGESTIONS:
     def test_analyze_with_source_text(self):
         """Test analyze includes source text in prompt."""
         self.mock_client.chat.return_value = "IMPROVEMENTS:\nFINAL_TEXT:"
-        self.agent.analyze("translated", source_text="original")
+        self.agent.analyze("မြန်မာစာသားကိုပြောင်းလဲ", source_text="original")
         call_args = self.mock_client.chat.call_args
         self.assertIn("original", call_args[1]["prompt"])
 
     def test_reflect_and_improve_no_issues(self):
         """Test reflect stops when no issues found."""
         self.mock_client.chat.return_value = "Some analysis without IMPROVEMENTS section"
-        result = self.agent.reflect_and_improve("text")
-        self.assertEqual(result, "text")
+        result = self.agent.reflect_and_improve("မြန်မာစာသား")
+        self.assertEqual(result, "မြန်မာစာသား")
 
     def test_reflect_and_improve_with_improvements(self):
         """Test reflect applies improvements."""
         self.mock_client.chat.return_value = "IMPROVEMENTS:\nFix this\nFINAL_TEXT:\nimproved text"
-        result = self.agent.reflect_and_improve("original")
-        # With no IMPROVEMENTS line, no improvement applied
-        self.assertIn("original", result)
+        # Input is Myanmar so language check passes; FINAL_TEXT is too short (<50)
+        # so no improvement is applied (parse_response requires >50 chars)
+        result = self.agent.reflect_and_improve("မြန်မာစာသားကိုပြောင်းလဲ")
+        self.assertIn("မြန်မာစာသား", result)
 
     def test_reflect_and_improve_max_iterations(self):
         """Test reflect respects max iterations."""
@@ -125,7 +126,7 @@ SUGGESTIONS:
             return "analysis result"
         
         self.mock_client.chat.side_effect = count_calls
-        result = self.agent.reflect_and_improve("text", max_iterations=3)
+        result = self.agent.reflect_and_improve("မြန်မာစာသားကိုပြောင်းလဲ", max_iterations=3)
         # Without improvements, only one iteration happens
         self.assertGreaterEqual(call_count, 1)
 

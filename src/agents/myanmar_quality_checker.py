@@ -9,6 +9,7 @@ import logging
 from typing import Dict, List, Any
 
 from src.agents.base_agent import BaseAgent
+from src.utils.postprocessor import myanmar_char_ratio
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +54,17 @@ class MyanmarQualityChecker(BaseAgent):
         """
         issues = []
         score = 100
+
+        # CRITICAL: Language identity check — must run BEFORE any other checks
+        # If text has effectively zero Myanmar characters, it's not Myanmar text at all
+        mm_ratio = myanmar_char_ratio(text)
+        if mm_ratio < 0.01:
+            return {
+                "score": 0,
+                "issues": ["CRITICAL: Zero Myanmar characters detected"],
+                "passed": False,
+                "myanmar_ratio": 0.0,
+            }
 
         # Check for archaic words
         archaic_issues = self._check_archaic_words(text)

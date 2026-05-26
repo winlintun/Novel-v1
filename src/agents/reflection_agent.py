@@ -10,11 +10,15 @@ from typing import Dict, List, Optional, Any
 from src.utils.ollama_client import OllamaClient
 from src.agents.base_agent import BaseAgent
 from src.memory.memory_manager import MemoryManager
+from src.utils.postprocessor import myanmar_char_ratio
+from src.agents.prompts.language_guards import LANGUAGE_GUARD
 
 logger = logging.getLogger(__name__)
 
 
-REFLECTION_SYSTEM_PROMPT = """You are a self-correction specialist for novel translation.
+REFLECTION_SYSTEM_PROMPT = LANGUAGE_GUARD + """
+
+You are a self-correction specialist for novel translation.
 Your job is to analyze translations and identify areas for improvement.
 
 CRITICAL RULES:
@@ -24,6 +28,11 @@ CRITICAL RULES:
 4. Never change the meaning - only improve expression
 5. GLOSSARY: NEVER change character names, place names, or cultivation terms.
    Use EXACTLY the approved glossary spellings. These are authoritative, not suggestions.
+
+LANGUAGE IDENTITY RULE (ZERO TOLERANCE):
+- Verify the text is in Myanmar (Burmese) script
+- If text is NOT in Myanmar, mark as CRITICAL issue
+- Do NOT attempt to improve English text — it must be retranslated to Myanmar
 
 GLOSSARY (approved terms — NEVER change these):
 {glossary}
@@ -75,6 +84,16 @@ class ReflectionAgent(BaseAgent):
         Returns:
             Dictionary with analysis results
         """
+        # Language pre-check: if text is not Myanmar, bail immediately
+        mm_ratio = myanmar_char_ratio(text)
+        if mm_ratio < 0.70:
+            return {
+                "has_issues": True,
+                "improvements": ["CRITICAL: Not Myanmar language"],
+                "final_text": None,
+                "language_error": True,
+            }
+
         glossary_text = self._get_glossary_for_prompt()
         prompt = REFLECTION_SYSTEM_PROMPT.format(text=text, glossary=glossary_text)
 
@@ -162,6 +181,11 @@ class ReflectionAgent(BaseAgent):
             self.log_info(f"Reflection iteration {i+1}/{max_iterations}")
 
             result = self.analyze(current_text, source_text)
+
+            # Language error: model output is NOT Myanmar — cannot fix via reflection
+            if result.get("language_error"):
+                self.log_warning("Language error — reflection cannot fix wrong-language output")
+                return current_text  # orchestrator quality gate will reject
 
             if not result.get("has_issues") or not result.get("final_text"):
                 self.log_info("No more improvements found")
