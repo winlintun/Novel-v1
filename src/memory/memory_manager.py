@@ -115,9 +115,10 @@ class MemoryManager:
                 self.novel_repo.create(self.novel_id, novel_name or "default", "chinese")
 
             # Sync terms from external Glossary System DB on startup
+            # force=True ensures local glossary always matches the authoritative external DB
             if novel_name:
                 conn = self.db.connect()
-                sync_result = sync_external_glossary(conn, novel_name)
+                sync_result = sync_external_glossary(conn, novel_name, force=True)
                 if sync_result["errors"]:
                     logger.warning(f"External glossary sync errors: {sync_result['errors']}")
                 else:

@@ -700,17 +700,23 @@ class TranslationPipeline:
             except Exception as e:
                 self.logger.warning(f"Term usage logging failed (non-fatal): {e}")
 
-            # Update context_memory.json with chapter data
+            # Update context memory with chapter data — ensures context flows forward
+            # to the next chapter translation (active characters, events, summary)
             try:
-                if self.memory_manager:
+                if self.memory_manager and chapter_num:
                     self.memory_manager.update_chapter_context(
-                        chapter_num=chapter_num or 0,
+                        chapter_num=chapter_num,
                         translated_text=result_text,
                         source_text=text,
                     )
-                    self.logger.debug(f"Context memory updated for chapter {chapter_num or 0}")
+                    self.logger.info(
+                        f"Context memory updated for chapter {chapter_num}: "
+                        f"characters/events/summary saved for next chapter"
+                    )
+                elif not chapter_num:
+                    self.logger.warning("Context update skipped: chapter_num is 0 or None")
             except Exception as e:
-                self.logger.warning(f"Context memory update failed (non-fatal): {e}")
+                self.logger.warning(f"Context memory update failed for chapter {chapter_num}: {e}")
 
             # Compute summary metrics
             avg_score = 0
@@ -1270,9 +1276,9 @@ class TranslationPipeline:
                     "duration": time.time() - t3,
                 })
 
-            # Stage 4: Quality Check
+            # Stage 4: Quality Check (includes paragraph coverage when source is available)
             self.logger.info(f"Step 5/7: Checking quality for chunk {i+1}/{total}...")
-            quality_result = self.myanmar_checker.check_quality(translated_chunk)
+            quality_result = self.myanmar_checker.check_quality(translated_chunk, source_text=chunk)
             quality_score = quality_result.get("score", 0)
             quality_passed = quality_result.get("passed", False)
             quality_issues = len(quality_result.get("issues", []))
@@ -1615,6 +1621,14 @@ class TranslationPipeline:
 
         # Clean up
         text = processor.clean(text, chapter=self._current_chapter or 0)
+
+        # Normalize character names to glossary-approved forms
+        try:
+            from src.utils.postprocessor import normalize_character_names
+            all_terms = self.memory_manager.get_all_terms()
+            text = normalize_character_names(text, all_terms)
+        except Exception as e:
+            self.logger.debug(f"Character name normalization skipped: {e}")
 
         self._report({
             "type": "postprocess",

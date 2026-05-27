@@ -257,7 +257,7 @@ def get_translated_chapters(novel_name: str) -> list:
 
 
 def get_glossary() -> dict:
-    """Load glossary data from SQLite database"""
+    """Load glossary data from the SQLite glossary_term table (single source of truth)."""
     try:
         from src.db.connection import DatabaseConnection
         from src.db.repositories.glossary_repo import GlossaryRepository
@@ -301,16 +301,8 @@ def get_glossary() -> dict:
             'pending_count': len(pending)
         }
     except Exception as e:
-        logger.warning(f"Failed to load glossary from database: {e}")
-        # Fallback to JSON if database fails
-        glossary_path = Path(app.config['GLOSSARY_PATH'])
-        if glossary_path.exists():
-            try:
-                with open(glossary_path, 'r', encoding='utf-8-sig') as f:
-                    return json.load(f)
-            except Exception:
-                pass
-        return {'terms': [], 'total_terms': 0}
+        logger.error(f"Failed to load glossary from database: {e}")
+        return {'terms': [], 'total_terms': 0, 'approved_count': 0, 'pending_count': 0}
 
 
 def save_glossary(glossary: dict) -> bool:

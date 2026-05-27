@@ -45,9 +45,15 @@ class MyanmarQualityChecker(BaseAgent):
         self.ollama_client = ollama_client
         self.memory_manager = memory_manager
 
-    def check_quality(self, text: str) -> Dict[str, Any]:
+    def check_quality(self, text: str, source_text: str = "") -> Dict[str, Any]:
         """
         Comprehensive quality check for Myanmar text.
+        
+        Args:
+            text: Translated Myanmar text to check
+            source_text: Original source text for coverage comparison.
+                        If provided, paragraph coverage is factored into the score.
+                        Without it, coverage cannot be measured (score may overestimate quality).
         
         Returns:
             Dictionary with quality issues and scores
@@ -65,6 +71,36 @@ class MyanmarQualityChecker(BaseAgent):
                 "passed": False,
                 "myanmar_ratio": 0.0,
             }
+
+        # Coverage check: compare paragraph count against source
+        # Penalizes content loss (model dropping/missing paragraphs)
+        if source_text:
+            src_paras = len([p for p in source_text.split('\n\n') if p.strip()])
+            trans_paras = len([p for p in text.split('\n\n') if p.strip()])
+            if src_paras > 0:
+                coverage = trans_paras / src_paras
+                if coverage < 0.5:
+                    issues.append(
+                        f"CRITICAL: Content loss — translation has {trans_paras} paragraphs "
+                        f"vs source's {src_paras} ({coverage:.0%} coverage). "
+                        f"Quality score capped at {max(10, int(coverage * 100))}."
+                    )
+                    score = max(10, int(coverage * 100))
+                elif coverage < 0.80:
+                    missing = src_paras - trans_paras
+                    penalty = int((0.80 - coverage) * 100)
+                    issues.append(
+                        f"CONTENT LOSS: {missing} paragraphs missing "
+                        f"({coverage:.0%} coverage, min 80%). Penalty: -{penalty} pts"
+                    )
+                    score -= penalty
+                elif coverage < 0.90:
+                    missing = src_paras - trans_paras
+                    issues.append(
+                        f"Minor content loss: {missing} paragraphs missing "
+                        f"({coverage:.0%} coverage)"
+                    )
+                    score -= 5
 
         # Check for archaic words
         archaic_issues = self._check_archaic_words(text)

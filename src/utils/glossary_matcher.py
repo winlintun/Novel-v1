@@ -1,7 +1,7 @@
 """
 Dynamic Glossary Matcher
 Extracts and injects only relevant glossary terms for the current chapter.
-Uses SQLite backend (MemoryManager) instead of direct JSON file loading.
+Uses SQLite glossary_term table data via MemoryManager — no JSON file access.
 """
 
 import re
@@ -13,25 +13,25 @@ class GlossaryMatcher:
     Matches glossary terms against source text and returns
     only relevant entries for translation context.
     
-    Uses SQLite backend via MemoryManager — no direct JSON file access.
+    Uses SQLite-backed MemoryManager as the single source of truth.
     """
 
-    def __init__(self, memory_manager=None, glossary_path: str = ""):
-        """Initialize with MemoryManager (preferred) or legacy glossary file path.
+    def __init__(self, memory_manager):
+        """Initialize with MemoryManager (SQLite backend required).
         
         Args:
-            memory_manager: MemoryManager instance (SQLite backend)
-            glossary_path: Legacy JSON file path (fallback only)
+            memory_manager: MemoryManager instance (SQLite glossary_term table)
+            
+        Raises:
+            ValueError: If memory_manager is None
         """
+        if memory_manager is None:
+            raise ValueError("memory_manager is required (SQLite glossary source)")
         self.memory = memory_manager
-        self.glossary_path = glossary_path
         self.terms: Dict[str, dict] = {}
         self.alias_map: Dict[str, str] = {}
         
-        if memory_manager:
-            self._build_from_sql()
-        elif glossary_path:
-            self._build_from_json()
+        self._build_from_sql()
 
     def _build_from_sql(self):
         """Build indexes from SQLite via MemoryManager."""
@@ -47,23 +47,6 @@ class GlossaryMatcher:
                 for alias in term.get("aliases_cn", []):
                     if alias:
                         self.alias_map[alias] = source
-
-    def _build_from_json(self):
-        """Legacy: Build indexes from JSON file."""
-        import json
-        try:
-            with open(self.glossary_path, "r", encoding="utf-8-sig") as f:
-                data = json.load(f)
-            for term in data.get("terms", []):
-                source = term.get("source_term", "")
-                if source:
-                    self.terms[source] = term
-                    for alias in term.get("aliases_cn", []):
-                        if alias:
-                            self.alias_map[alias] = source
-        except Exception as e:
-            print(f"Warning: Could not load glossary: {e}")
-            self.terms = {}
 
     def extract_cn_terms(self, text: str) -> List[str]:
         """Find all 1-8 character Chinese terms in source text."""

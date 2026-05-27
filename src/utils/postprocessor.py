@@ -620,6 +620,72 @@ def check_paragraph_count(source: str, translation: str, tolerance: float = 0.15
     }
 
 
+def normalize_character_names(text: str, glossary_terms: list[dict]) -> str:
+    """Normalize character name spellings to glossary-approved forms.
+
+    For each glossary character term, finds all variant spellings in the
+    translated text and replaces them with the approved target_term.
+    Uses SequenceMatcher for Myanmar-safe similarity comparison
+    (per AGENTS.md Pattern 10 — char-set overlap is unsafe for Myanmar text).
+
+    Args:
+        text: Translated Myanmar text
+        glossary_terms: List of glossary term dicts (must have 'target_term' or 'target',
+                       and 'category' == 'character')
+
+    Returns:
+        Text with all character names normalized to approved forms
+    """
+    if not text or not glossary_terms:
+        return text
+
+    # Filter to character terms only, with valid targets
+    char_terms = []
+    for t in glossary_terms:
+        target = t.get('target_term') or t.get('target', '')
+        source = t.get('source_term') or t.get('source', '')
+        cat = t.get('category', '')
+        if target and len(target) >= 2 and cat == 'character':
+            char_terms.append((source, target))
+
+    if not char_terms:
+        return text
+
+    for source, target in char_terms:
+        if target not in text:
+            continue
+
+        # Find all Myanmar sequences of similar length to the target
+        # that appear in similar grammatical positions (before particles)
+        expected_len = len(target)
+        pattern = re.compile(
+            rf'([\u1000-\u109F]{{{expected_len-1},{expected_len+1}}})\s*(?:သည်|က|မှာ|ကို|၏|ပြော|ကြည့်|ရပ်|သွား|လာ|\s|။)',
+            re.MULTILINE
+        )
+
+        # Collect unique candidates that are close to the target
+        # Uses SequenceMatcher for Myanmar-safe similarity
+        candidates = set()
+        for match in pattern.finditer(text):
+            candidate = match.group(1)
+            if candidate == target:
+                continue
+            # Length delta check first (fast filter)
+            max_length_delta = 2 if expected_len <= 5 else 3
+            if abs(len(candidate) - expected_len) > max_length_delta:
+                continue
+            # SequenceMatcher ratio — safe for Myanmar text (AGENTS.md Pattern 10)
+            ratio = SequenceMatcher(None, candidate, target).ratio()
+            if ratio >= 0.70:  # threshold for name variants
+                candidates.add(candidate)
+
+        # Replace variants (longest first to avoid partial replacement issues)
+        for variant in sorted(candidates, key=len, reverse=True):
+            text = text.replace(variant, target)
+
+    return text
+
+
 def check_name_consistency(text: str, glossary_terms: dict[str, str]) -> list[dict]:
     """Detect multiple spellings of the same character name in translated text.
     
@@ -1410,6 +1476,14 @@ def remove_consecutive_duplicates(text: str, threshold: float = 0.92) -> str:
     return '\n'.join(result)
 
 
+def _arabic_to_myanmar_num(num: int) -> str:
+    """Convert Arabic numeral to Myanmar numeral string.
+    E.g., 6 → '၆', 12 → '၁၂', 1847 → '၁၈၄၇'
+    """
+    mm_digits = ['၀', '၁', '၂', '၃', '၄', '၅', '၆', '၇', '၈', '၉']
+    return ''.join(mm_digits[int(d)] for d in str(num))
+
+
 def clean_output(raw: str, aggressive: bool = False, chapter: int = 0) -> str:
     """
     Full postprocessing pipeline. Apply in order:
@@ -1426,11 +1500,15 @@ def clean_output(raw: str, aggressive: bool = False, chapter: int = 0) -> str:
     11. Fix chapter heading format (# X ## Y → proper markdown)
     12. Remove duplicate chapter headings
     13. Ensure markdown readability (paragraph breaks, heading spacing)
-    14. Strip leading/trailing whitespace
+    14. ALWAYS inject correct chapter heading from filename (fixes LLM hallucination)
+    15. Normalize character names to glossary-approved forms
+    16. Strip leading/trailing whitespace
     
     Args:
         raw: Raw LLM output
         aggressive: If True, also remove Latin/English words.
+        chapter: Correct chapter number (from filename). The heading is ALWAYS
+                 forced to this value, overriding any hallucinated heading.
     
     Returns:
         Cleaned text
@@ -1484,9 +1562,33 @@ def clean_output(raw: str, aggressive: bool = False, chapter: int = 0) -> str:
     text = remove_inline_markdown_artifacts(text)  # Remove ## and - markers mid-paragraph
     text = ensure_markdown_readability(text)  # proper paragraph breaks, heading spacing
     text = text.strip()
-    # Inject chapter heading if missing
-    if chapter and not re.search(r'^#\s+အခန်း\s+', text, re.MULTILINE):
-        text = f'# အခန်း {chapter}\n\n{text}'
+
+    # ── ALWAYS inject correct chapter heading (unconditional) ──
+    # The LLM hallucinates headings like "Chapter 1" for every chapter
+    # because source files start with the novel title, not a heading.
+    # We ALWAYS remove any existing heading block and inject the correct one.
+    if chapter:
+        # Remove the heading block: "# အခန်း" line + optional following "##" subtitle
+        # Only removes the FIRST occurrence at the start of the text.
+        lines = text.split('\n')
+        heading_end = 0
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            if re.match(r'^#\s+အခန်း\s+[\u1040-\u1049\d]+', stripped):
+                # Found the heading — skip this line
+                heading_end = i + 1
+                # Also skip the next line if it's a "##" subtitle
+                if heading_end < len(lines) and re.match(r'^##\s+', lines[heading_end].strip()):
+                    heading_end += 1
+                break
+
+        if heading_end > 0:
+            text = '\n'.join(lines[heading_end:]).strip()
+
+        # Inject the CORRECT chapter heading with Myanmar numeral
+        chapter_mm = _arabic_to_myanmar_num(chapter)
+        text = f'# အခန်း {chapter_mm}\n\n{text}'
+
     return text
 
 

@@ -466,10 +466,10 @@ def run_glossary_generation(args: argparse.Namespace) -> int:
             print(f"  Terms pending review: {len(pending)}")
             print(f"{'='*60}")
             print(f"\n  ⚠️  NEXT STEPS:")
-            print(f"  1. Review pending terms in Web UI or by editing:")
-            print(f"     data/output/{args.novel}/glossary/glossary_pending.json")
-            print(f"  2. Approve terms:")
+            print(f"  1. Review pending terms in Web UI or approve via CLI:")
             print(f"     python -m src.main --approve-glossary --novel {args.novel}")
+            print(f"  2. (Or) Review and approve individual terms:")
+            print(f"     python -m src.main --auto-promote --novel {args.novel}")
             print(f"  3. Then translate:")
             print(f"     python -m src.main --novel {args.novel} --all")
             print(f"\n  ℹ️  Global Xianxia terms are automatically included.")
@@ -825,13 +825,15 @@ def _apply_workflow_config(config: AppConfig, workflow: str, logger: Optional[lo
             stage2_model = "padauk-gemma:q8_0"
         
         # Respect CLI mode override if provided, otherwise use two_stage default
-        # Note: way2 is inherently two-stage (CN→EN→MM), but we still respect user's choice
+        # Note: way2 is inherently two-stage (CN→EN→MM), so we default to two_stage
+        # regardless of the config's default (which may be single_stage for way1)
         if cli_mode:
             pipeline_mode = cli_mode
-        elif config.translation_pipeline.mode != "full":
-            pipeline_mode = config.translation_pipeline.mode
-        else:
+        elif config.translation_pipeline.mode == "single_stage":
+            # Config default changed to single_stage, but way2 must be two_stage
             pipeline_mode = "two_stage"
+        else:
+            pipeline_mode = config.translation_pipeline.mode
         
         # Respect CLI --use-reflection flag if provided, otherwise use config file setting
         if cli_use_reflection is not None:
@@ -900,9 +902,10 @@ def run_glossary_promotion(args: argparse.Namespace) -> int:
 
     # Show pending count before promotion
     pending_before = memory.get_pending_terms()
+    approved_terms = memory.get_all_terms()
     logger.info(
         f"Loaded glossary for '{args.novel}': "
-        f"{memory.glossary.get('total_terms', 0)} approved, "
+        f"{len(approved_terms)} approved, "
         f"{len(pending_before)} pending"
     )
 
@@ -924,7 +927,7 @@ def run_glossary_promotion(args: argparse.Namespace) -> int:
     print(f"  Auto-promoted (manual):    {manual_count}")
     print(f"  Total promoted:            {total_promoted}")
     print(f"  Pending remaining:         {len(pending_after)}")
-    print(f"  Approved total:            {memory.glossary.get('total_terms', 0)}")
+    print(f"  Approved total:            {len(memory.get_all_terms())}")
     print(f"{'='*50}")
 
     if total_promoted > 0:
@@ -962,9 +965,10 @@ def run_glossary_approval(args: argparse.Namespace) -> int:
 
     # Show pending count before approval
     pending_before = memory.get_pending_terms()
+    approved_terms = memory.get_all_terms()
     logger.info(
         f"Loaded glossary for '{args.novel}': "
-        f"{memory.glossary.get('total_terms', 0)} approved, "
+        f"{len(approved_terms)} approved, "
         f"{len(pending_before)} pending"
     )
 

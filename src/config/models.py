@@ -65,11 +65,11 @@ class ModelsConfig(BaseModel):
     """Model configuration for different pipeline stages."""
 
     translator: str = Field(
-        default="qwen2.5:14b",
-        description="Model for translation stage"
+        default="padauk-gemma:q8_0",
+        description="Model for translation stage (padauk-gemma:q8_0 is the ONLY model proven for Myanmar output)"
     )
     editor: str = Field(
-        default="qwen2.5:14b",
+        default="padauk-gemma:q8_0",
         description="Model for editing/refinement stage"
     )
     checker: str = Field(
@@ -159,12 +159,12 @@ class TranslationPipelineConfig(BaseModel):
     """Translation pipeline configuration."""
 
     mode: Literal["full", "lite", "fast", "single_stage", "two_stage"] = Field(
-        default="full",
-        description="Pipeline execution mode"
+        default="single_stage",
+        description="Pipeline execution mode. single_stage recommended — full/lite pipelines lose 41-91% content"
     )
     use_reflection: bool = Field(
         default=False,
-        description="Whether to use reflection agent"
+        description="Whether to use reflection agent (adds 2 extra LLM calls, may drop content)"
     )
     use_fiction_editor: bool = Field(
         default=False,

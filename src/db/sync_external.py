@@ -48,6 +48,7 @@ def sync_external_glossary(
     novel_name: str,
     external_db_path: str = EXTERNAL_DB_PATH,
     status_filter: Optional[str] = "approved",
+    force: bool = False,
 ) -> dict:
     """Sync glossary terms from external DB into local DB.
 
@@ -58,6 +59,9 @@ def sync_external_glossary(
         status_filter: If set, only sync terms with this status.
                        Default: "approved" — only sync approved terms.
                        None = sync all statuses.
+        force: If True, delete existing terms and re-sync from external DB.
+               This ensures the local glossary is always up-to-date with
+               the external Glossary System.
 
     Returns:
         dict with keys: synced, skipped, global_synced, global_skipped, errors
@@ -85,7 +89,7 @@ def sync_external_glossary(
 
     novel_id = make_novel_id(novel_name)
 
-    # Check if sync already ran (skip if terms already exist)
+    # Check if sync already ran (skip if terms already exist, unless force=True)
     existing_novel = local_conn.execute(
         "SELECT COUNT(*) FROM glossary_terms WHERE novel_id = ?", (novel_id,)
     ).fetchone()[0]
@@ -93,10 +97,10 @@ def sync_external_glossary(
         "SELECT COUNT(*) FROM glossary_terms WHERE novel_id = ?", (GLOBAL_NOVEL_ID,)
     ).fetchone()[0]
 
-    if existing_novel > 0 and existing_global > 0:
+    if existing_novel > 0 and existing_global > 0 and not force:
         logger.debug(
             f"External glossary sync skipped: {existing_novel} novel + "
-            f"{existing_global} global terms already present"
+            f"{existing_global} global terms already present (use force=True to re-sync)"
         )
         ext_conn.close()
         return result
@@ -118,6 +122,17 @@ def sync_external_glossary(
         local_conn.execute("SAVEPOINT glossary_sync")
         try:
             local_conn.execute("PRAGMA foreign_keys=OFF")
+
+            # Force re-sync: delete existing terms INSIDE savepoint
+            # so that if re-import fails, ROLLBACK restores the deleted terms.
+            # This ensures atomicity — deletion + re-import is all-or-nothing.
+            if force and (existing_novel > 0 or existing_global > 0):
+                logger.info(
+                    f"Force re-syncing glossary: removing existing terms "
+                    f"({existing_novel} novel + {existing_global} global) before re-import"
+                )
+                local_conn.execute("DELETE FROM glossary_terms WHERE novel_id = ?", (novel_id,))
+                local_conn.execute("DELETE FROM glossary_terms WHERE novel_id = ?", (GLOBAL_NOVEL_ID,))
 
             # ── Sync novel-specific terms ──────────────────────────────────
             result["synced"], result["skipped"] = _sync_terms_for_novel(

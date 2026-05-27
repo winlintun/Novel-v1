@@ -3,13 +3,13 @@ Glossary Synchronization Agent
 - Uses aya-expanse:8b for multilingual terminology mapping
 - Detects inconsistent translations across chapters
 - Proposes merges for duplicate terms
+- Glossary data sourced from SQLite via MemoryManager (not direct JSON)
 """
 import logging
 from typing import List, Dict, Any
 
 from src.memory.memory_manager import MemoryManager
 from src.utils.ollama_client import OllamaClient
-from src.utils.file_handler import FileHandler
 from src.utils.json_extractor import extract_json_from_response
 
 logger = logging.getLogger(__name__)
@@ -84,13 +84,11 @@ Return ONLY valid JSON. No explanations.
 
     def propose_merges(self) -> List[Dict[str, Any]]:
         """
-        Analyze glossary_pending.json for terms that might duplicate existing entries.
+        Analyze pending glossary terms that might duplicate existing entries.
+        Data is sourced from the SQLite database via MemoryManager.
         Returns merge suggestions for human approval.
         """
-        pending = []
-        pending_data = FileHandler.read_json(self.mm.pending_path)
-        if pending_data:
-            pending = pending_data.get("pending_terms", [])
+        pending = self.mm.get_pending_terms()
 
         approved = self.mm.get_all_terms()
 

@@ -25,9 +25,14 @@ class QATesterAgent(BaseAgent):
     def __init__(self, memory_manager: MemoryManager, config: Dict[str, Any] = None):
         super().__init__(memory_manager=memory_manager, config=config)
 
-    def validate_output(self, text: str, chapter_num: int) -> Dict[str, Any]:
+    def validate_output(self, text: str, chapter_num: int, source_text: str = "") -> Dict[str, Any]:
         """
         Run all QA checks. Returns validation report.
+        
+        Args:
+            text: Translated Myanmar text
+            chapter_num: Expected chapter number
+            source_text: Original source text for coverage comparison
         """
         report = {
             "chapter": chapter_num,
@@ -65,6 +70,23 @@ class QATesterAgent(BaseAgent):
         if not self._validate_chapter_title(text, chapter_num):
             report["issues"].append("Chapter title format invalid")
             report["passed"] = False
+
+        # Check 6: Content coverage (paragraph loss detection)
+        if source_text:
+            src_paras = len([p for p in source_text.split('\n\n') if p.strip()])
+            trans_paras = len([p for p in text.split('\n\n') if p.strip()])
+            report["metrics"]["source_paragraphs"] = src_paras
+            report["metrics"]["translated_paragraphs"] = trans_paras
+            if src_paras > 0:
+                coverage = trans_paras / src_paras
+                report["metrics"]["paragraph_coverage"] = round(coverage, 3)
+                if coverage < 0.80:
+                    missing = src_paras - trans_paras
+                    report["issues"].append(
+                        f"Content loss: {missing} paragraphs missing "
+                        f"({coverage:.0%} coverage, min 80%)"
+                    )
+                    report["passed"] = False
 
         return report
 
@@ -134,9 +156,23 @@ class QATesterAgent(BaseAgent):
         return re.findall(r'【\?[^?]+\?】', text)
 
     def _validate_chapter_title(self, text: str, expected_chapter: int) -> bool:
-        """Validate chapter title format matches expected number."""
-        match = re.search(r'^#\s+.*?(?:အခန်း|Chapter)?\s*(\d+)', text, re.MULTILINE | re.IGNORECASE)
+        """Validate chapter title format matches expected number.
+        
+        Handles both Myanmar numerals (e.g. '# အခန်း ၆') and Arabic (e.g. '# အခန်း 6').
+        """
+        match = re.search(
+            r'^#\s+.*?(?:အခန်း|Chapter)?\s*([\u1040-\u1049\d]+)',
+            text, re.MULTILINE | re.IGNORECASE
+        )
         if not match:
             return False
-        found_chapter = int(match.group(1))
-        return found_chapter == expected_chapter
+        num_str = match.group(1)
+        # Convert Myanmar numerals to Arabic
+        mm_digits = {'၀': '0', '၁': '1', '၂': '2', '၃': '3', '၄': '4',
+                     '၅': '5', '၆': '6', '၇': '7', '၈': '8', '၉': '9'}
+        arabic_str = ''.join(mm_digits.get(c, c) for c in num_str)
+        try:
+            found_chapter = int(arabic_str)
+            return found_chapter == expected_chapter
+        except ValueError:
+            return False
