@@ -19,9 +19,42 @@ from dataclasses import dataclass
 try:
     import chromadb
     from chromadb.utils import embedding_functions
+    from chromadb.errors import NotFoundError as ChromaNotFoundError
     CHROMA_AVAILABLE = True
 except ImportError:
     CHROMA_AVAILABLE = False
+
+
+# The ChromaDB collection 'alignment_pairs' was ingested with BGE-M3 (1024-dim,
+# normalized) embeddings. ChromaDB does NOT persist the embedding function, so
+# query_texts=... would silently fall back to Chroma's default model
+# (all-MiniLM-L6-v2, 384-dim) and every query fails with a dimension mismatch.
+# We must embed queries ourselves with the SAME model and pass query_embeddings.
+# The model is heavy (~2GB), so cache one instance per (model, device) process-wide.
+_EMBEDDER_CACHE: dict = {}
+
+
+def _get_query_embedder(model_name: str, device: str):
+    """Lazily load and cache a SentenceTransformer for query embedding.
+
+    Returns None if sentence-transformers or the model cannot be loaded, in
+    which case the caller should fall back to SQLite retrieval.
+    """
+    key = (model_name, device)
+    if key in _EMBEDDER_CACHE:
+        return _EMBEDDER_CACHE[key]
+    try:
+        from sentence_transformers import SentenceTransformer
+        model = SentenceTransformer(model_name, device=device)
+    except Exception as e:
+        logging.getLogger(__name__).warning(
+            "Could not load query embedding model '%s' on %s: %s — "
+            "Chroma semantic RAG disabled, using SQLite fallback.",
+            model_name, device, e,
+        )
+        model = None
+    _EMBEDDER_CACHE[key] = model
+    return model
 
 
 @dataclass
@@ -53,12 +86,16 @@ class RAGRetriever:
         top_k: int = 3,
         min_score: float = 2.5,
         novel_filter: Optional[str] = None,
+        embedding_model: str = "BAAI/bge-m3",
+        embedding_device: str = "cpu",
     ):
         self.chroma_path = chroma_path
         self.db_path = db_path
         self.top_k = top_k
         self.min_score = min_score
         self.novel_filter = novel_filter
+        self.embedding_model = embedding_model
+        self.embedding_device = embedding_device
 
         self._chroma_client = None
         self._chroma_collection = None
@@ -67,6 +104,24 @@ class RAGRetriever:
 
         self._init_chroma()
         self._init_sqlite()
+
+    def _embed_query(self, text: str) -> Optional[list]:
+        """Embed a query string with the BGE-M3 model used to build the index.
+
+        Returns a single 1024-dim normalized embedding (list of floats), or None
+        if the embedding model is unavailable.
+        """
+        model = _get_query_embedder(self.embedding_model, self.embedding_device)
+        if model is None:
+            return None
+        try:
+            vec = model.encode(
+                [text], normalize_embeddings=True, show_progress_bar=False
+            )
+            return vec[0].tolist()
+        except Exception as e:
+            self.logger.warning("Query embedding failed: %s — using SQLite fallback", e)
+            return None
 
     def _init_chroma(self) -> None:
         """Initialize ChromaDB connection with BGE-M3 embedding model."""
@@ -92,36 +147,84 @@ class RAGRetriever:
                 self._chroma_collection = self._chroma_client.get_collection(
                     name="alignment_pairs",
                 )
-            except ValueError:
-                # Collection does not exist — this is the common case when RAG data
-                # has not been ingested yet. Check what collections ARE available
-                # and log a clear message so the user knows what to fix.
-                self._chroma_collection = None
-                try:
-                    cols = self._chroma_client.list_collections()
-                    if cols:
-                        col_names = [c.name for c in cols]
-                        self.logger.warning(
-                            f"ChromaDB collection 'alignment_pairs' not found. "
-                            f"Available collections: {col_names}. "
-                            f"RAG will use SQLite fallback."
+            except (ValueError, ChromaNotFoundError):
+                # Try fallback collection names
+                fallback_names = ["translations"]
+                for fb_name in fallback_names:
+                    try:
+                        self._chroma_collection = self._chroma_client.get_collection(
+                            name=fb_name,
                         )
-                    else:
-                        self.logger.warning(
-                            "⚠ RAG DATA EMPTY: ChromaDB collection 'alignment_pairs' does not exist "
-                            "and no other collections found at %s. "
-                            "RAG will return NO examples. "
-                            "To fix: repopulate via dataset_alignment_project's ingest script.",
-                            self.chroma_path,
+                        self.logger.info(
+                            f"ChromaDB: using collection '{fb_name}' (alignment_pairs not found)"
                         )
-                except Exception:
-                    pass
-                return
+                        break
+                    except (ValueError, ChromaNotFoundError):
+                        continue
+                else:
+                    # No collection found — log available collections for diagnosis
+                    self._chroma_collection = None
+                    try:
+                        cols = self._chroma_client.list_collections()
+                        if cols:
+                            col_names = [c.name for c in cols]
+                            self.logger.warning(
+                                f"ChromaDB collection 'alignment_pairs' not found. "
+                                f"Available collections: {col_names}. "
+                                f"RAG will use SQLite fallback."
+                            )
+                        else:
+                            self.logger.warning(
+                                "⚠ RAG DATA EMPTY: ChromaDB collection 'alignment_pairs' does not exist "
+                                "and no other collections found at %s. "
+                                "RAG will return NO examples. "
+                                "To fix: repopulate via dataset_alignment_project's ingest script.",
+                                self.chroma_path,
+                            )
+                    except Exception:
+                        pass
+                    return
             count = self._chroma_collection.count()
             self.logger.info(f"ChromaDB initialized at {chroma_path} ({count} embeddings)")
             if count == 0:
-                self.logger.warning("ChromaDB collection 'alignment_pairs' is empty — RAG will use SQLite fallback")
+                self.logger.warning(f"ChromaDB collection '{self._chroma_collection.name}' is empty — RAG will use SQLite fallback")
                 self._chroma_collection = None
+            elif self._chroma_collection is not None:
+                # Health check: embed a dummy query with BGE-M3 and verify the
+                # index responds. The collection stores 1024-dim BGE-M3 vectors;
+                # querying with query_texts (Chroma's 384-dim default model) would
+                # always fail with a dimension mismatch — that is NOT corruption.
+                health_vec = self._embed_query("health check")
+                if health_vec is None:
+                    self.logger.warning(
+                        "ChromaDB collection '%s' found (%d embeddings) but the "
+                        "BGE-M3 query embedder is unavailable — RAG will use SQLite "
+                        "fallback.",
+                        self._chroma_collection.name, count,
+                    )
+                    self._chroma_collection = None
+                else:
+                    try:
+                        self._chroma_collection.query(
+                            query_embeddings=[health_vec],
+                            n_results=1,
+                            include=[],
+                        )
+                        self.logger.info(
+                            "ChromaDB semantic RAG ready (BGE-M3, %d-dim) for "
+                            "collection '%s'.",
+                            len(health_vec), self._chroma_collection.name,
+                        )
+                    except Exception as e:
+                        self.logger.warning(
+                            "ChromaDB query health check failed for collection "
+                            "'%s' at %s: %s — disabling Chroma, using SQLite "
+                            "fallback. If this is a dimension mismatch, the index "
+                            "was built with a different embedding model than '%s'.",
+                            self._chroma_collection.name, chroma_path, e,
+                            self.embedding_model,
+                        )
+                        self._chroma_collection = None
         except Exception as e:
             self.logger.warning(f"ChromaDB init failed: {e} — falling back to SQLite")
             # Try to list what collections exist for diagnostic info
@@ -207,12 +310,21 @@ class RAGRetriever:
     ) -> list[TranslationExample]:
         """Retrieve from ChromaDB using semantic similarity."""
         try:
-            where_clause = {"auto_score": {"$gte": self.min_score}}
+            query_vec = self._embed_query(query_text)
+            if query_vec is None:
+                return []
+
+            # auto_score is stored as a string in metadata, but ChromaDB coerces
+            # it for numeric comparisons, so $gte works correctly.
+            conditions = [{"auto_score": {"$gte": self.min_score}}]
             if novel_filter:
-                where_clause["source_file"] = {"$regex": novel_filter}
+                # ChromaDB 1.x does NOT support $regex. The collection has a
+                # dedicated 'novel' metadata field, so match it exactly.
+                conditions.append({"novel": {"$eq": novel_filter}})
+            where_clause = conditions[0] if len(conditions) == 1 else {"$and": conditions}
 
             results = self._chroma_collection.query(
-                query_texts=[query_text],
+                query_embeddings=[query_vec],
                 n_results=top_k * 2,
                 where=where_clause,
                 include=["metadatas", "documents", "distances"],
@@ -225,10 +337,14 @@ class RAGRetriever:
                     distance = results["distances"][0][i]
                     similarity = 1.0 - distance
 
+                    try:
+                        score = float(metadata.get("auto_score", 0.0))
+                    except (TypeError, ValueError):
+                        score = 0.0
                     examples.append(TranslationExample(
                         en_text=results["documents"][0][i],
                         my_text=metadata.get("my_text", ""),
-                        score=metadata.get("auto_score", 0.0),
+                        score=score,
                         source_file=metadata.get("source_file", ""),
                         similarity=similarity,
                     ))
@@ -250,8 +366,15 @@ class RAGRetriever:
 
         try:
             # Extract key words from query for simple matching
+            _STOP_WORDS = {
+                "with", "that", "this", "from", "have", "what", "were",
+                "been", "your", "they", "their", "would", "could", "should",
+                "about", "which", "there", "where", "when", "than", "then",
+                "some", "into", "also", "just", "like", "more", "very",
+                "such", "each", "than", "them", "these", "those", "because",
+            }
             words = set(query_text.lower().split())
-            words = {w for w in words if len(w) > 3}
+            words = {w for w in words if len(w) > 3 and w not in _STOP_WORDS}
 
             # Build base query
             sql = """

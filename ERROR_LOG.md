@@ -6,6 +6,20 @@
 
 ---
 
+### CODE REVIEW SESSION (2026-05-30): Quality-pipeline fixes (RAG + data loss + name consistency + truncation)
+**Scope**: `rag_retriever.py`, `orchestrator.py`, `postprocessor.py`, `ollama_client.py`, `translator.py`, `config/settings.yaml`
+**Reviewers**: REVIEWER A (Architecture & Logic) + REVIEWER B (Myanmar Translation & Quality)
+**Status**: READY_TO_COMMIT (both reviewers PASS)
+**Test Results**: 530/530 pass; no new ruff F-errors introduced (baseline unchanged).
+**Bugs fixed this session**:
+- **RAG/ChromaDB**: queries used Chroma's default 384-dim model vs the index's BGE-M3 1024-dim → every query failed and was MISdiagnosed as "HNSW corruption". Now embeds queries with BGE-M3 (`query_embeddings`), fixes `$regex`→`$eq` on `novel`, coerces string `auto_score`. RAG was fully disabled before; now functional.
+- **Postprocessor data loss (general, all novels)**: model glued `# အခန်း N` to each chunk's first sentence + repeated the same number per chunk; `remove_duplicate_headings` + heading-injection deleted those lines WITH the body sentence. Measured 128 sentences lost across 13 chapters of Outside of Time. Fixed via `separate_heading_from_body()`.
+- **Name inconsistency**: `normalize_character_names` had a dead guard (`if target not in text: continue`) that disabled it exactly when the model spelled a name wrong. Now fuzzy-maps variants→canonical (threshold 0.75 when canonical absent; length guard protects short ambiguous names like Lei→လဲ့ vs လေး="four"). ch12: ရှူချင်း/ရှူးချင်း → ရွှီချင်း ×16.
+- **Truncation**: chunks cut off at token limit were shipped as "complete". Added `looks_truncated()` + a single bounded retry with config-driven `models.retry_num_predict` (4096), wrapped in try/except so a failed retry keeps the partial result.
+**Notes**: `replace_archaic_words` (ထို→အဲဒီ, ဤ→ဒီ) confirmed INTENTIONAL per AGENTS.md Reviewer-B rule, not a bug — left unchanged.
+
+---
+
 ### COMPLETED: Model Comparison Tool - AttributeError on translate_text
 **Date**: 2026-05-08
 **Files**: `src/utils/compare_models.py`

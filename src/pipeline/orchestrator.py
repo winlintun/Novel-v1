@@ -362,7 +362,14 @@ class TranslationPipeline:
                     db_path=db_path,
                     top_k=rag_config.get('top_k', 3),
                     min_score=rag_config.get('min_score', 2.5),
-                    novel_filter=rag_config.get('novel_filter') or self._current_novel,
+                    # RAG few-shot examples come from the cross-novel training
+                    # corpus (e.g. a-will-eternal), which never contains the
+                    # in-progress novel. Forcing novel_filter=current_novel would
+                    # match zero rows and silently disable retrieval, so respect
+                    # the configured filter (null = search the whole corpus).
+                    novel_filter=rag_config.get('novel_filter'),
+                    embedding_model=rag_config.get('embedding_model', 'BAAI/bge-m3'),
+                    embedding_device=rag_config.get('embedding_device', 'cpu'),
                 )
                 self.logger.info(f"RAG Retriever initialized: chroma={chroma_path}, db={db_path}")
 

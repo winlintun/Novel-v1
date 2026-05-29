@@ -282,7 +282,8 @@ class OllamaClient:
         prompt: str,
         system_prompt: Optional[str] = None,
         stream: bool = False,
-        model: Optional[str] = None
+        model: Optional[str] = None,
+        num_predict: Optional[int] = None
     ) -> str:
         """
         Send chat request to Ollama with retry + timeout + typed exceptions.
@@ -312,7 +313,9 @@ class OllamaClient:
                 # and keep_alive (default 10m per need_fix.md)
                 options = {
                     "temperature": self.temperature,
-                    "num_predict": 2048 if is_gemma or is_padauk else 1024,
+                    # Per-call override lets callers raise the token budget on a
+                    # truncation retry; otherwise use the model-appropriate default.
+                    "num_predict": num_predict if num_predict else (2048 if is_gemma or is_padauk else 1024),
                     "num_ctx": self.num_ctx,
                     "top_p": self.top_p,
                     "top_k": self.top_k,

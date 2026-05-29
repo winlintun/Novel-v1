@@ -5,20 +5,28 @@
 ---
 
 ## Last Updated
-- Date: 2026-05-24
-- Last task completed: Chapter 4 partial completion fix (timeout guard, partial save prevention, entity extraction, snapshot path)
-- Git commit: (pending)
+- Date: 2026-05-30
+- Last task completed: Quality-pipeline fixes — RAG/ChromaDB BGE-M3 query fix (RAG was fully disabled), postprocessor data-loss fix (`separate_heading_from_body`, 128 sentences recovered across 13 chapters), name-consistency enforcement (`normalize_character_names` dead-guard fix), truncation-retry detector (`looks_truncated` + config-driven `models.retry_num_predict`). 530/530 tests pass.
+- Git commit: `pending`
 
-## Session Summary
-- ✅ Fixed Chapter 4 partial completion: increased per-chunk timeout 900s→1800s
-- ✅ Added partial-completion guard: reject save if less than 100% chunks completed
-- ✅ Fixed active_chars UnboundLocalError in memory_manager.update_chapter_context()
-- ✅ Fixed entity extraction prompt: removed literal "Myanmar" target example, added guard
-- ✅ Fixed snapshot path mismatch: version_manager now tries 3-digit and 4-digit patterns
-- ✅ All 525 tests passing (same 5 pre-existing failures)
+## Session Summary (2026-05-30)
+- ✅ **RAG/ChromaDB query fix** (`rag_retriever.py`, `orchestrator.py`): index built with BGE-M3 (1024-dim) but queries used Chroma's default 384-dim model → all queries failed and were misdiagnosed as "HNSW corruption". Now embeds queries with BGE-M3, uses `$eq` on `novel` (Chroma 1.x has no `$regex`), coerces string `auto_score`, and stops forcing `novel_filter=current_novel` (corpus never contains the in-progress novel). RAG is now functional.
+- ✅ **Postprocessor data loss — GENERAL bug** (`postprocessor.py`): model glues `# အခန်း N` to each chunk's first sentence and repeats the same number per chunk; `remove_duplicate_headings` + heading-injection deleted those lines including the body sentence. Added `separate_heading_from_body()`. Measured 128 lost sentences across 13 Outside-of-Time chapters (existing outputs left untouched per user; fix protects future runs).
+- ✅ **Name-consistency enforcement** (`postprocessor.py`): removed the dead `if target not in text: continue` guard in `normalize_character_names`; now fuzzy-maps model spelling variants → glossary canonical (0.75 threshold when canonical absent; length guard for short ambiguous names). ch12: ရှူချင်း/ရှူးချင်း → ရွှီချင်း.
+- ✅ **Truncation-retry detector** (`postprocessor.looks_truncated`, `ollama_client.chat(num_predict=)`, `translator.py`): detects chunks cut at the token limit and retries once with a larger, config-driven budget (`models.retry_num_predict`), wrapped in try/except so a failed retry keeps the partial result.
+
+## Session Summary (2026-05-29)
+- ✅ **Fix 1 — Skeleton model respects explicit --config**: `commands.py` now skips skeleton model override when user passes `--config` with a path different from the default. Previously, any config file's model was always overridden by skeleton's `padauk-gemma-q8`.
+- ✅ **Fix 2 — qwen2.5:14b exclusion removed**: `_apply_workflow_config()` had hardcoded `config_translator != "qwen2.5:14b"` checks in both way1 and way2 paths, preventing explicit use of qwen2.5. Changed to check against actual default (`padauk-gemma:q8_0`).
+- ✅ **Fix 3 — Glossary novel_id format mismatch**: External DB uses hyphens (`novel_outside-of-time`), `make_novel_id()` produces underscores (`novel_outside_of_time`). Sync now tries both formats — 34 novel-specific terms now imported correctly.
+- ✅ **Fix 4 — Local glossary quality overrides**: Added `_apply_local_glossary_overrides()` in `sync_external.py` that runs post-sync to fix: Panquan Road target (removed extra "အဘိုးအို"), Department/Guard targets (neutral terms), partial name removal (Huang/Zhang/Continent/Nanhuang), Xu Qing added as character, category fixes (Qi Condensation→cultivation_realm, mountain/valley→location, Heavenly Dao→cultivation_concept), 5 intra-global duplicate removal (dao/heavenly dao/nascent soul/qi/soul formation).
+- ✅ **Fix 5 — Dead {glossary} placeholder removed**: `CUSTOM_PADAUK_EN_MM_PROMPT` contained literal `{glossary}` text that was sent raw to the model (never substituted). Removed the placeholder and replaced section with a note that glossary terms are in the user message.
+- ✅ **Fix 6 — Glossary injection expanded 5→10**: Global term limit increased from `limit//4` (5) to `limit//2` (10). Added deduplication to skip global terms that overlap with novel-specific entries.
+- ✅ **New config files**: `settings.translategemma.yaml`, `settings.qwen2.5.yaml`, `settings.sailor2-20b.yaml` created.
+- ✅ **Chapters 7-9 human comparison**: Ch7 padauk-gemma (95/100), Ch8 translategemma (94/100), Ch9 qwen2.5 (65/100 — corrupted output, 35% of human size).
 
 ## In Progress
-- None
+- Code review (Reviewer A + B) to verify all fixes
 
 ## Completed Tasks
 - [DONE] **Chapter 4 partial completion fix** — Increased timeout, added partial save guard, fixed scoping, fixed entity extraction, fixed snapshot path

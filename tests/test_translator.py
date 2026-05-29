@@ -218,12 +218,13 @@ class TestTranslator(unittest.TestCase):
 
     def test_translate_paragraph_calls_ollama(self):
         """Test translation calls Ollama."""
-        self.mock_ollama.chat.return_value = "မြန်မာဘာသာပြန်"
+        # Complete sentence (ends with ။) so the truncation-retry path is not triggered.
+        self.mock_ollama.chat.return_value = "မြန်မာဘာသာပြန်။"
 
         result = self.translator.translate_paragraph("测试")
 
         self.mock_ollama.chat.assert_called_once()
-        self.assertEqual(result, "မြန်မာဘာသာပြန်")
+        self.assertEqual(result, "မြန်မာဘာသာပြန်။")
 
     def test_translate_updates_memory(self):
         """Test translation updates memory buffer."""

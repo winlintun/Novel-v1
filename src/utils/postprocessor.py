@@ -330,9 +330,35 @@ def _split_into_lines_if_needed(text: str) -> str:
     return text.strip()
 
 
+def separate_heading_from_body(text: str) -> str:
+    """Split a chapter heading that is glued to body text on the same line.
+
+    The model frequently emits the chapter heading concatenated directly to the
+    first sentence with NO newline, and repeats it at the start of every chunk:
+
+        '# အခန်း ၁၁သူတို့သည် သုံးယောက်စီပါသော အဖွဲ့လေးဖွဲ့...'
+
+    Downstream `remove_duplicate_headings` and the final heading-injection block
+    are line-based: they treat the whole line as a (duplicate) heading and delete
+    it — silently taking the real first sentence with it. (Observed: chapter 12
+    lost all 5 chunk-opening sentences this way, including dialogue.)
+
+    Force a paragraph break immediately after the heading number so the body text
+    lands on its own line and survives heading dedup/injection. Only splits when
+    real (non-heading, non-digit) content is glued after the number; a heading
+    already followed by whitespace/newline or a '##'/':' subtitle is left for
+    fix_chapter_heading_format to handle.
+    """
+    return re.sub(
+        r'(^|\n)(#\s*အခန်း\s*[၀-၉\d]+)[ \t]*(?=[^\s\d၀-၉#:])',
+        r'\1\2\n\n',
+        text,
+    )
+
+
 def remove_duplicate_headings(text: str) -> str:
     """Remove duplicate chapter headings within the body.
-    
+
     The translator may repeat '# အခန်း N ## Title' at the start of
     every chunk. Keep only the first occurrence and skip its associated
     subtitle line and blank spacer lines.
@@ -652,8 +678,17 @@ def normalize_character_names(text: str, glossary_terms: list[dict]) -> str:
         return text
 
     for source, target in char_terms:
-        if target not in text:
+        target_present = target in text
+        # Previously: `if target not in text: continue` — this disabled normalization
+        # exactly when the model produced ONLY wrong spellings (e.g. ch12 had
+        # ရှူချင်း/ရှူးချင်း but never the canonical ရွှီချင်း), which is the case we
+        # most need to fix. Now we still scan for variants and map them to canon.
+        # Safety: short names (≤3 syllables) collide with common words, so without
+        # the canonical form present as confirmation we skip them (e.g. Lei→လဲ့ vs
+        # the everyday word လေး="four"); and we use a stricter similarity threshold.
+        if not target_present and len(target) < 4:
             continue
+        variant_threshold = 0.70 if target_present else 0.75
 
         # Find all Myanmar sequences of similar length to the target
         # that appear in similar grammatical positions (before particles)
@@ -676,7 +711,7 @@ def normalize_character_names(text: str, glossary_terms: list[dict]) -> str:
                 continue
             # SequenceMatcher ratio — safe for Myanmar text (AGENTS.md Pattern 10)
             ratio = SequenceMatcher(None, candidate, target).ratio()
-            if ratio >= 0.70:  # threshold for name variants
+            if ratio >= variant_threshold:  # threshold for name variants
                 candidates.add(candidate)
 
         # Replace variants (longest first to avoid partial replacement issues)
@@ -1081,6 +1116,35 @@ def check_particle_repetition(text: str, max_per_paragraph: int = 2) -> list[dic
                 })
     
     return issues
+
+
+# Characters that legitimately end a complete Myanmar paragraph/chunk:
+# ။ sentence end, ၏ literary genitive-final, closing quotes, ellipsis,
+# exclamation/question, and closing brackets/placeholder markers.
+_COMPLETE_ENDINGS = '။…”’"\'!?.）)]】'
+
+
+def looks_truncated(text: str) -> bool:
+    """Heuristic: did the model stop mid-output (hit its token limit) rather than finish?
+
+    Complete Myanmar prose and dialogue end with a sentence terminator (။), a closing
+    quote, ellipsis, or terminal punctuation. Output that ends on a bare word, particle,
+    or partial syllable is almost always a truncated generation — e.g. chapter 12's
+    chunks ended with 'ကြောက်ရွံ့မှုများ' and 'မြင်သောအခ' (cut mid-word), both with no ။.
+
+    Returns True if the final content line does not end with a completion marker.
+    A trailing heading or a purely structural line ('***', '---') counts as complete.
+    """
+    if not text or not text.strip():
+        return False  # empty output is a different failure mode, handled elsewhere
+    lines = [ln for ln in text.rstrip().splitlines() if ln.strip()]
+    if not lines:
+        return False
+    last_line = lines[-1].strip()
+    # A trailing heading or markdown divider is not a truncation signal.
+    if last_line.startswith('#') or set(last_line) <= set('*-_= '):
+        return False
+    return last_line[-1] not in _COMPLETE_ENDINGS
 
 
 def check_sentence_completion(text: str) -> list[dict]:
@@ -1554,6 +1618,7 @@ def clean_output(raw: str, aggressive: bool = False, chapter: int = 0) -> str:
 
     text = re.sub(r"\n{3,}", "\n\n", text)  # collapse excess blank lines
     text = _split_into_lines_if_needed(text)  # recover structure from collapsed text
+    text = separate_heading_from_body(text)  # un-glue heading from first sentence (prevents data loss)
     text = fix_chapter_heading_format(text)
     text = remove_duplicate_headings(text)
     text = fix_merged_headings(text)  # Fix headings merged with content
@@ -1568,6 +1633,9 @@ def clean_output(raw: str, aggressive: bool = False, chapter: int = 0) -> str:
     # because source files start with the novel title, not a heading.
     # We ALWAYS remove any existing heading block and inject the correct one.
     if chapter:
+        # Re-split in case an earlier step re-glued the heading to body text;
+        # otherwise the removal below would delete the first sentence with it.
+        text = separate_heading_from_body(text).strip()
         # Remove the heading block: "# အခန်း" line + optional following "##" subtitle
         # Only removes the FIRST occurrence at the start of the text.
         lines = text.split('\n')

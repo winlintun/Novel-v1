@@ -11,7 +11,7 @@ from src.utils.ollama_client import OllamaClient
 from src.memory.memory_manager import MemoryManager
 from src.utils.progress_logger import ProgressLogger
 
-from src.utils.postprocessor import clean_output, validate_output, detect_language_leakage, myanmar_char_ratio
+from src.utils.postprocessor import clean_output, validate_output, detect_language_leakage, myanmar_char_ratio, looks_truncated
 from src.agents.base_agent import BaseAgent
 from src.agents.prompts import (
     LANGUAGE_GUARD,
@@ -24,6 +24,10 @@ from src.agents.prompts import (
 
 
 logger = logging.getLogger(__name__)
+
+# Token budget for the truncation retry — roughly double the default (2048) so a
+# chunk that was cut off mid-sentence has room to finish on the second attempt.
+_TRUNCATION_RETRY_TOKENS = 4096
 
 
 def get_language_prompt(source_lang: str, model_name: str = "") -> str:
@@ -69,6 +73,12 @@ class Translator(BaseAgent):
         self.rag_enabled = rag_config.get('enabled', False)
         self.rag_top_k = rag_config.get('top_k', 3)
         self.rag_min_similarity = rag_config.get('min_similarity', 0.3)
+
+        # Token budget for the truncation retry (config-driven; see config/settings.yaml
+        # models.retry_num_predict). Falls back to the module default if unset.
+        self.retry_num_predict = self.config.get('models', {}).get(
+            'retry_num_predict', _TRUNCATION_RETRY_TOKENS
+        )
 
     def get_system_prompt(self, source_lang: str = "english") -> str:
         """Get system prompt based on source language (chinese or english)."""
@@ -232,6 +242,39 @@ class Translator(BaseAgent):
         # Clean output
         translated = clean_output(raw)
 
+        # ── Truncation detection + retry ──
+        # If the model stopped mid-sentence (hit its token limit), the tail of the
+        # chunk is simply missing and no postprocessing can recover it. Re-run once
+        # with a larger token budget and keep the result if it completes (or is at
+        # least longer). See postprocessor.looks_truncated for the heuristic.
+        if looks_truncated(translated):
+            prev_len = len(translated)
+            logger.warning(
+                f"Output looks truncated (chapter {chapter_num}, {prev_len} chars) — "
+                f"retrying with larger token budget ({self.retry_num_predict})..."
+            )
+            # Guard the retry: a failed retry must NOT discard the partial result we
+            # already have — a truncated translation beats crashing the chapter.
+            try:
+                raw_longer = self.ollama.chat(
+                    prompt=prompt,
+                    system_prompt=system_prompt,
+                    num_predict=self.retry_num_predict,
+                )
+            except Exception as e:
+                logger.warning(f"Truncation retry failed ({e}); keeping original output.")
+                raw_longer = ""
+            translated_longer = clean_output(raw_longer) if raw_longer else ""
+            now_complete = translated_longer and not looks_truncated(translated_longer)
+            if translated_longer and (now_complete or len(translated_longer) > prev_len):
+                raw, translated = raw_longer, translated_longer
+                logger.info(
+                    f"Truncation retry: {prev_len} -> {len(translated)} chars "
+                    f"({'now complete' if now_complete else 'still truncated, kept longer'})."
+                )
+            else:
+                logger.warning("Truncation retry did not improve output; keeping original.")
+
         # Check for language leakage (English or Chinese)
         leakage = detect_language_leakage(translated)
         needs_retry = False
@@ -361,8 +404,6 @@ Myanmar Translation:"""
 
     def get_fallback_prompt(self, source_lang: str) -> str:
         """Get minimal fallback prompt for retry on empty output."""
-        from src.agents.prompt_patch import LANGUAGE_GUARD
-
         target_instr = "Chinese text to Myanmar" if source_lang.lower() == "chinese" else "English text to Myanmar"
 
         return LANGUAGE_GUARD + f"""
