@@ -45,7 +45,7 @@ def _get_query_embedder(model_name: str, device: str):
         return _EMBEDDER_CACHE[key]
     try:
         from sentence_transformers import SentenceTransformer
-        model = SentenceTransformer(model_name, device=device)
+        model = SentenceTransformer(model_name, device=device, local_files_only=True)
     except Exception as e:
         logging.getLogger(__name__).warning(
             "Could not load query embedding model '%s' on %s: %s — "
@@ -86,7 +86,7 @@ class RAGRetriever:
         top_k: int = 3,
         min_score: float = 2.5,
         novel_filter: Optional[str] = None,
-        embedding_model: str = "BAAI/bge-m3",
+        embedding_model: str = "models/bge-m3-model",
         embedding_device: str = "cpu",
     ):
         self.chroma_path = chroma_path
@@ -99,6 +99,7 @@ class RAGRetriever:
 
         self._chroma_client = None
         self._chroma_collection = None
+        self._chroma_verified = False
         self._sqlite_conn = None
         self.logger = logging.getLogger(__name__)
 
@@ -190,41 +191,11 @@ class RAGRetriever:
                 self.logger.warning(f"ChromaDB collection '{self._chroma_collection.name}' is empty — RAG will use SQLite fallback")
                 self._chroma_collection = None
             elif self._chroma_collection is not None:
-                # Health check: embed a dummy query with BGE-M3 and verify the
-                # index responds. The collection stores 1024-dim BGE-M3 vectors;
-                # querying with query_texts (Chroma's 384-dim default model) would
-                # always fail with a dimension mismatch — that is NOT corruption.
-                health_vec = self._embed_query("health check")
-                if health_vec is None:
-                    self.logger.warning(
-                        "ChromaDB collection '%s' found (%d embeddings) but the "
-                        "BGE-M3 query embedder is unavailable — RAG will use SQLite "
-                        "fallback.",
-                        self._chroma_collection.name, count,
-                    )
-                    self._chroma_collection = None
-                else:
-                    try:
-                        self._chroma_collection.query(
-                            query_embeddings=[health_vec],
-                            n_results=1,
-                            include=[],
-                        )
-                        self.logger.info(
-                            "ChromaDB semantic RAG ready (BGE-M3, %d-dim) for "
-                            "collection '%s'.",
-                            len(health_vec), self._chroma_collection.name,
-                        )
-                    except Exception as e:
-                        self.logger.warning(
-                            "ChromaDB query health check failed for collection "
-                            "'%s' at %s: %s — disabling Chroma, using SQLite "
-                            "fallback. If this is a dimension mismatch, the index "
-                            "was built with a different embedding model than '%s'.",
-                            self._chroma_collection.name, chroma_path, e,
-                            self.embedding_model,
-                        )
-                        self._chroma_collection = None
+                self.logger.info(
+                    "ChromaDB collection '%s' found with %d embeddings "
+                    "(BGE-M3 verifier deferred to first query).",
+                    self._chroma_collection.name, count,
+                )
         except Exception as e:
             self.logger.warning(f"ChromaDB init failed: {e} — falling back to SQLite")
             # Try to list what collections exist for diagnostic info
@@ -302,6 +273,47 @@ class RAGRetriever:
         # Fallback to SQLite
         return self._retrieve_from_sqlite(query_text, k, novel)
 
+    def _verify_chroma(self) -> bool:
+        """One-time BGE-M3 verification: load embedder, run health query.
+
+        Called on first actual retrieval, not during __init__, so the ~2GB
+        embedding model load does not delay pipeline startup.
+
+        Returns True if Chroma is usable, False to fall back to SQLite.
+        """
+        if self._chroma_verified:
+            return True
+        self.logger.info(
+            "Loading BGE-M3 query embedder (first use, may take a minute)..."
+        )
+        health_vec = self._embed_query("health check")
+        if health_vec is None:
+            self.logger.warning(
+                "BGE-M3 embedder unavailable — Chroma disabled, using SQLite fallback."
+            )
+            self._chroma_collection = None
+            return False
+        try:
+            self._chroma_collection.query(
+                query_embeddings=[health_vec],
+                n_results=1,
+                include=[],
+            )
+            self._chroma_verified = True
+            self.logger.info(
+                "ChromaDB semantic RAG ready (BGE-M3, %d-dim) for collection '%s'.",
+                len(health_vec), self._chroma_collection.name,
+            )
+            return True
+        except Exception as e:
+            self.logger.warning(
+                "ChromaDB query health check failed for collection '%s': %s — "
+                "disabling Chroma, using SQLite fallback.",
+                self._chroma_collection.name, e,
+            )
+            self._chroma_collection = None
+            return False
+
     def _retrieve_from_chroma(
         self,
         query_text: str,
@@ -309,6 +321,8 @@ class RAGRetriever:
         novel_filter: Optional[str] = None,
     ) -> list[TranslationExample]:
         """Retrieve from ChromaDB using semantic similarity."""
+        if not self._verify_chroma():
+            return []
         try:
             query_vec = self._embed_query(query_text)
             if query_vec is None:
