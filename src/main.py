@@ -106,6 +106,14 @@ def main() -> int:
     if args.review_file:
         return run_review(args)
 
+    if getattr(args, 'rate_rejected', False):
+        from src.cli.commands import run_rating_cli
+        return run_rating_cli(args)
+
+    if getattr(args, 'finetune', False):
+        from src.cli.commands import run_finetune
+        return run_finetune(args)
+
     if args.auto_promote:
         return run_glossary_promotion(args)
 

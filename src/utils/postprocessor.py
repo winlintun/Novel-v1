@@ -5,6 +5,7 @@ Strips: <think>, <answer>, HTML comments, non-Myanmar language leakage.
 """
 
 import re
+from functools import lru_cache
 from difflib import SequenceMatcher
 from typing import Optional, List
 
@@ -58,6 +59,10 @@ def strip_reasoning_process(text: str) -> str:
     Remove 'thinking process' sections that models output before the actual translation.
     These are NOT part of the translation - they're the model's internal analysis.
     """
+    # Fast path: skip all 27 patterns if no reasoning markers present
+    if '<think>' not in text and '**' not in text[:500] and '(This is' not in text:
+        return text
+
     # First pass: remove large reasoning blocks
     for pattern in _REASONING_PATTERNS:
         text = pattern.sub("", text)
@@ -184,8 +189,12 @@ def detect_language_leakage(text: str) -> dict[str, int]:
     }
 
 
+@lru_cache(maxsize=256)
 def myanmar_char_ratio(text: str) -> float:
-    """Return ratio of Myanmar Unicode characters to total non-whitespace chars."""
+    """Return ratio of Myanmar Unicode characters to total non-whitespace chars.
+
+    Cached: the same text is checked ~7+ times per chunk across different stages.
+    """
     non_ws = text.replace(" ", "").replace("\n", "").replace("\t", "")
     if not non_ws:
         return 0.0
@@ -756,7 +765,6 @@ def check_name_consistency(text: str, glossary_terms: dict[str, str]) -> list[di
         # Check for similar-looking variants (potential misspellings)
         # Look for Myanmar sequences near the expected length that appear
         # in similar contexts (before သည်/က/မှာ particles)
-        import re
         name_pattern = re.compile(
             r'([\u1000-\u109F]{2,8})\s*(?:သည်|က|မှာ|ကို|၏|ပြော|ကြည့်|ရပ်|သွား|လာ)',
             re.MULTILINE

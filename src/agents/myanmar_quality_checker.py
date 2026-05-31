@@ -41,7 +41,7 @@ class MyanmarQualityChecker(BaseAgent):
         memory_manager: Any = None,
         config: Dict[str, Any] = None
     ):
-        super().__init__(config=config)
+        super().__init__(ollama_client=ollama_client, memory_manager=memory_manager, config=config)
         self.ollama_client = ollama_client
         self.memory_manager = memory_manager
 

@@ -134,12 +134,17 @@ def run_translation_pipeline(args: argparse.Namespace) -> int:
         config = load_config(args.config)
 
         # Apply skeleton model config if available and no CLI model override
-        # Skip skeleton model if config has different models for different roles (HYBRID mode)
+        # Skip skeleton model if:
+        #   1. User explicitly passed --config (they chose a specific config file)
+        #   2. Config has different models for different roles (HYBRID mode)
         config_translator = getattr(config.models, 'translator', None)
         config_editor = getattr(config.models, 'editor', None)
+
+        # Detect explicit --config: user provided a path different from the default
+        explicit_config = getattr(args, 'config', None) and args.config != "config/settings.yaml"
         is_hybrid_config = config_translator and config_editor and config_translator != config_editor
         
-        if get_skeleton_manager and not args.model and not is_hybrid_config:
+        if get_skeleton_manager and not args.model and not explicit_config and not is_hybrid_config:
             try:
                 skeleton_mgr = get_skeleton_manager()
                 active_model_key = skeleton_mgr.get_active_model_key()
@@ -744,7 +749,7 @@ def _apply_workflow_config(config: AppConfig, workflow: str, logger: Optional[lo
             translator_model = cli_model
             editor_model = cli_model
             refiner_model = cli_model
-        elif config_translator and config_translator != "qwen2.5:14b":  # Not default
+        elif config_translator and config_translator != "padauk-gemma:q8_0":  # Not default
             # Config file has specific models set (support HYBRID mode)
             # Use config file values as-is to allow different models per role
             translator_model = config_translator
@@ -752,9 +757,9 @@ def _apply_workflow_config(config: AppConfig, workflow: str, logger: Optional[lo
             refiner_model = config_refiner if config_refiner else (config_editor if config_editor else config_translator)
         else:
             # Use default
-            translator_model = "padauk-gemma:q8_0"
-            editor_model = "padauk-gemma:q8_0"
-            refiner_model = "padauk-gemma:q8_0"
+            translator_model = config_translator or "padauk-gemma:q8_0"
+            editor_model = config_editor or translator_model
+            refiner_model = config_refiner or editor_model
         
         # Respect CLI mode override if provided, otherwise use single_stage default
         # Priority: CLI --mode > config file mode (if explicitly set) > default (single_stage)
@@ -800,7 +805,7 @@ def _apply_workflow_config(config: AppConfig, workflow: str, logger: Optional[lo
                 logger.info(f"   - Stage 2+ (Refinement/Quality): {editor_model}")
             elif cli_model:
                 logger.info(f"🤖 Using CLI-specified model: {cli_model}")
-            elif config_translator and config_translator != "qwen2.5:14b":
+            elif config_translator and config_translator != "padauk-gemma:q8_0":
                 logger.info(f"🤖 Using config file model: {translator_model}")
             else:
                 logger.info("🤖 Auto-selected models: padauk-gemma:q8_0 (best for Myanmar)")
@@ -818,8 +823,8 @@ def _apply_workflow_config(config: AppConfig, workflow: str, logger: Optional[lo
         config_translator = getattr(config.models, 'translator', None)
         if cli_model:
             stage2_model = cli_model
-        elif config_translator and config_translator not in ["qwen2.5:14b", "alibayram/hunyuan:7b"]:
-            # Config file has a specific model set (not default and not stage1 model)
+        elif config_translator and config_translator != "padauk-gemma:q8_0" and config_translator not in ("alibayram/hunyuan:7b", "qwen2.5:14b"):
+            # Config file has a specific model set (not default, not a CN→EN pivot model)
             stage2_model = config_translator
         else:
             stage2_model = "padauk-gemma:q8_0"
@@ -991,6 +996,23 @@ def run_glossary_approval(args: argparse.Namespace) -> int:
         print("ℹ️  No terms to approve")
 
     return 0
+
+
+def run_finetune(args: argparse.Namespace) -> int:
+    """Run LoRA fine-tuning on the dataset."""
+    from src.training.finetune import run_finetuning
+    return run_finetuning(novel=args.novel, adapter_name=args.adapter)
+
+
+def run_rating_cli(args: argparse.Namespace) -> int:
+    """Run the interactive rejected-chunk rating CLI."""
+    novel = args.novel
+    if not novel:
+        logger.error("--novel is required for --rate-rejected")
+        print("Error: --novel is required (e.g., --novel outside-of-time)")
+        return 1
+    from src.training.rating_cli import run_rating_cli as _run
+    return _run(novel)
 
 
 def run_stats(args: argparse.Namespace) -> int:

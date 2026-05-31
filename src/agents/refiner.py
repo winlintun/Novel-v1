@@ -4,12 +4,15 @@ Polishes Myanmar translation for better flow, tone, and literary quality.
 Uses batch processing for 5-10x speedup.
 """
 
+import re
 import logging
 from typing import List, Optional
 
 from src.utils.ollama_client import OllamaClient
 from src.agents.base_agent import BaseAgent
-from src.agents.prompt_patch import EDITOR_SYSTEM_PROMPT
+from src.agents.prompts import EDITOR_SYSTEM_PROMPT
+from src.agents.prompts.cn_mm_rules import build_rewriter_prompt as build_cn_rewriter
+from src.agents.prompts.en_mm_rules import build_rewriter_prompt as build_en_rewriter
 from src.utils.postprocessor import clean_output
 from src.memory.memory_manager import MemoryManager
 
@@ -55,18 +58,12 @@ CONTENT COMPLETENESS CHECK:
 - If source has N paragraphs, output must have N paragraphs.
 """
 
-# Derived from EDITOR_SYSTEM_PROMPT for batch mode — adds separator output format
-BATCH_REFINER_PROMPT = EDITOR_SYSTEM_PROMPT + GLOSSARY_ENFORCEMENT + """
-BATCH MODE: Refine multiple paragraphs at once.
-OUTPUT: Return paragraphs separated by "---PARA---"
-DO NOT add explanations. DO NOT renumber paragraphs.
-"""
-
 
 class Refiner(BaseAgent):
     """
     Refines translated text for better quality.
     Uses batch processing for 5-10x speedup over paragraph-by-paragraph.
+    Uses build_rewriter_prompt() from linguistic rules for scene-aware prompts.
     """
 
     def __init__(self, ollama_client: OllamaClient = None, batch_size: int = 5,
@@ -74,6 +71,26 @@ class Refiner(BaseAgent):
         super().__init__(ollama_client, config=config, memory_manager=memory_manager)
         self.ollama = ollama_client
         self.batch_size = batch_size
+
+    def _detect_scene_type(self, text: str) -> str:
+        """Detect scene type from Myanmar text for dynamic rule injection."""
+        confrontation_kw = ['နင်', 'သေ', 'သတ်', 'မုန်း', 'လက်စား', 'ဒီကောင်', 'မိစ္ဆာ']
+        action_kw = ['ထိုး', 'တိုက်', 'ခုတ်', 'ပစ်', 'ရိုက်', 'ကန်', 'ဓား', 'လက်သီး']
+        lines = [l for l in text.split('\n') if l.strip()]
+        total_lines = len(lines) if lines else 1
+        dialogue_lines = sum(1 for l in lines if any(q in l for q in '""「」'))
+        exclamation_count = text.count('!')
+        confrontation_count = sum(1 for kw in confrontation_kw if kw in text)
+        action_count = sum(1 for kw in action_kw if kw in text)
+        dialogue_ratio = dialogue_lines / total_lines
+
+        if confrontation_count >= 2 or (exclamation_count >= 2 and dialogue_ratio > 0.3):
+            return "confrontation"
+        if dialogue_ratio > 0.5:
+            return "dialogue"
+        if action_count >= 3:
+            return "action"
+        return "narration"
 
     def _get_glossary_for_prompt(self) -> str:
         """Fetch top 20 glossary terms for injection into the refinement prompt."""
@@ -84,31 +101,73 @@ class Refiner(BaseAgent):
                 pass
         return ""
 
-    def refine_paragraph(self, text: str) -> str:
-        """
-        Refine a single paragraph (legacy method).
-        
-        Args:
-            text: Raw Myanmar translation
-            
-        Returns:
-            Refined Myanmar text
+    def _build_prompt(self, text: str, scene_type: str = "narration",
+                      batch_mode: bool = False, batch_count: int = 1,
+                      source_lang: str = "chinese") -> tuple:
+        """Build system prompt + user prompt using live build_rewriter_prompt().
+
+        Falls back to EDITOR_SYSTEM_PROMPT + GLOSSARY_ENFORCEMENT if
+        the dynamic builder fails.
         """
         glossary_block = self._get_glossary_for_prompt()
         glossary_prefix = ""
         if glossary_block:
             glossary_prefix = glossary_block + "\n\n"
 
-        prompt = f"""{glossary_prefix}Refine this Myanmar text for better flow and literary quality.
+        try:
+            if source_lang.startswith("en"):
+                system_prompt = build_en_rewriter(
+                    glossary_text=glossary_block,
+                    context="",
+                ) + "\n\n" + GLOSSARY_ENFORCEMENT
+            else:
+                system_prompt = build_cn_rewriter(
+                    glossary_text=glossary_block,
+                    context="",
+                    scene_type=scene_type,
+                ) + "\n\n" + GLOSSARY_ENFORCEMENT
+        except Exception as e:
+            logger.warning(f"build_rewriter_prompt failed ({e}), falling back to EDITOR_SYSTEM_PROMPT")
+            system_prompt = EDITOR_SYSTEM_PROMPT + GLOSSARY_ENFORCEMENT
+
+        if batch_mode:
+            separator = "\n---PARA---\n"
+            user_prompt = f"""{glossary_prefix}Refine these {batch_count} Myanmar paragraphs into better Myanmar translation.
+⚠️ CRITICAL: Your output MUST be in Myanmar Unicode script (U+1000-U+109F). DO NOT output English.
+DO NOT re-translate the original English content - only refine the existing Myanmar translation.
+Separate output with: {separator}
+
+{text}
+
+REFINED MYANMAR TEXT:"""
+        else:
+            user_prompt = f"""{glossary_prefix}Refine this Myanmar text for better flow and literary quality.
 ⚠️ CRITICAL: Output MUST be Myanmar Unicode script. DO NOT output English.
 
 {text}
 
 REFINED MYANMAR TEXT:"""
 
+        return system_prompt, user_prompt
+
+    def refine_paragraph(self, text: str) -> str:
+        """
+        Refine a single paragraph (legacy method).
+
+        Auto-detects scene type for dynamic cultural rule injection.
+
+        Args:
+            text: Raw Myanmar translation
+
+        Returns:
+            Refined Myanmar text
+        """
+        scene_type = self._detect_scene_type(text)
+        system_prompt, user_prompt = self._build_prompt(text, scene_type)
+
         raw = self.ollama.chat(
-            prompt=prompt,
-            system_prompt=EDITOR_SYSTEM_PROMPT + GLOSSARY_ENFORCEMENT
+            prompt=user_prompt,
+            system_prompt=system_prompt,
         )
 
         return clean_output(raw)
@@ -117,6 +176,8 @@ REFINED MYANMAR TEXT:"""
         """
         Refine multiple paragraphs in a single API call (FAST).
         
+        Auto-detects scene type from combined text.
+
         Args:
             paragraphs: List of paragraphs to refine
             
@@ -132,24 +193,17 @@ REFINED MYANMAR TEXT:"""
         separator = "\n---PARA---\n"
         combined = separator.join(paragraphs)
 
-        glossary_block = self._get_glossary_for_prompt()
-        glossary_prefix = ""
-        if glossary_block:
-            glossary_prefix = glossary_block + "\n\n"
-
-        prompt = f"""{glossary_prefix}Refine these {len(paragraphs)} Myanmar paragraphs into better Myanmar translation.
-⚠️ CRITICAL: Your output MUST be in Myanmar Unicode script (U+1000-U+109F). DO NOT output English.
-DO NOT re-translate the original English content - only refine the existing Myanmar translation.
-Separate output with: {separator}
-
-{combined}
-
-REFINED MYANMAR TEXT:"""
+        # Detect scene type from combined text for dynamic rule injection
+        scene_type = self._detect_scene_type(combined)
+        system_prompt, user_prompt = self._build_prompt(
+            combined, scene_type=scene_type,
+            batch_mode=True, batch_count=len(paragraphs),
+        )
 
         try:
             raw = self.ollama.chat(
-                prompt=prompt,
-                system_prompt=BATCH_REFINER_PROMPT
+                prompt=user_prompt,
+                system_prompt=system_prompt,
             )
 
             cleaned = clean_output(raw)

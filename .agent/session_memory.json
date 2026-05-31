@@ -1,31 +1,39 @@
 ﻿{
-  "session_id": "2026-05-24-001",
-  "started_at": "2026-05-24T00:00:00Z",
-  "current_step": "Complete - Chapter 4 fixes applied",
-  "last_action": "Fixed chapter 4 partial completion: timeout 900->1800s, partial save guard, active_chars scoping, entity extraction prompt, snapshot path",
-  "next_action": "None - all tasks complete",
+  "session_id": "2026-05-31-001",
+  "started_at": "2026-05-31T00:00:00Z",
+  "current_step": "",
+  "last_action": "Completed dead code cleanup: removed 11 dead source files, 3 dead packages, 4 dead configs, 11 dead test files. Created clean_run.sh, reorganized .gitignore, updated AGENTS.md, CURRENT_STATE.md. 441 tests pass.",
+  "next_action": "Run code review workflow + auto-commit",
   "open_files": [],
   "pending_decisions": [],
   "session_errors": [],
   "changes_made": {
-    "src/pipeline/orchestrator.py": "Increased per-chunk timeout 900s->1800s at line 1370; added partial-completion guard after _translate_chunks() at lines 549-572",
-    "src/memory/memory_manager.py": "Added active_chars: list = [] initialization at top of update_chapter_context() to fix UnboundLocalError",
-    "src/memory/version_manager.py": "Made _get_chapter_file() try multiple zero-padding patterns (04d, 03d) instead of single format",
-    "src/agents/context_updater.py": "Added Myanmar target guard: skip term if target is literally 'Myanmar' (case-insensitive)",
-    "src/agents/prompt_patch.py": "Changed EXTRACTOR_SYSTEM_PROMPT example from 'target': 'Myanmar' to 'target': '<actual_myanmar_translation>' with explicit rule against literal 'Myanmar'"
+    "clean_run.sh": "Created project cleanup script",
+    ".gitignore": "Reorganized with training/chroma/agent entries",
+    "AGENTS.md": "Updated directory structure and test count (259→441)",
+    "CURRENT_STATE.md": "Updated with cleanup + cultural + performance + human-CLI + finetune features",
+    "src/training/rating_cli.py": "Created - human verification CLI",
+    "src/training/finetune.py": "Created - LoRA fine-tuning scaffold",
+    "src/training/config_lora.yaml": "Created - LoRA hyperparameters",
+    "tests/test_training.py": "Created - 9 tests for training scaffold",
+    "tests/test_cultural_injector.py": "Created - 17 tests for cultural injection",
+    "src/utils/cultural_injector.py": "Expanded with Buddhist/historical/festival/poetry matching + dead CN dicts wired live",
+    "src/agents/prompts/cn_mm_rules.py": "Added CULTURAL_REFERENCES (Buddhist/historical/festival/poetry sections)",
+    "src/agents/prompts/en_mm_rules.py": "Added english keys + scene_type param",
+    "src/agents/translator.py": "Scene_type auto-detection, cultural_injector wired",
+    "src/agents/refiner.py": "build_rewriter_prompt() wired, GLOSSARY_ENFORCEMENT preserved",
+    "src/memory/memory_manager.py": "Glossary prompt cache + _invalidate_cache()",
+    "src/utils/postprocessor.py": "lru_cache, fast-path strip_reasoning_process",
+    "src/utils/progress_logger.py": "Append-only logging O(N²)→O(N)",
+    "src/utils/model_registry.py": "get_adapter_path() for adapter resolution",
+    "src/cli/parser.py": "Added --rate-rejected, --finetune, --adapter, --use-adapter args",
+    "src/cli/commands.py": "Added run_rating_cli(), run_finetune() handlers",
+    "src/main.py": "Wired --rate-rejected and --finetune dispatch"
   },
   "review_status": {
-    "reviewer_a": "PASS - All 5 fixes verified and tested",
-    "reviewer_b": "PASS",
-    "final_status": "READY_TO_COMMIT"
+    "reviewer_a": null,
+    "reviewer_b": null,
+    "final_status": "PENDING_REVIEW"
   },
-  "last_checkpoint": {
-    "chapter": 6,
-    "chunk_index": 11,
-    "total_chunks": 11,
-    "stage": "translate",
-    "timestamp": "2026-05-26T17:45:28.315189",
-    "quality_score": 95,
-    "myanmar_ratio": 0.9815195071868583
-  }
+  "last_checkpoint": null
 }

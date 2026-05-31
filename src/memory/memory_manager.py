@@ -91,6 +91,7 @@ class MemoryManager:
     ):
         self.use_sql = use_sql
         self.novel_name = novel_name
+        self._glossary_prompt_cache: Optional[str] = None
 
         if use_sql:
             from src.db.connection import DatabaseConnection
@@ -347,6 +348,10 @@ class MemoryManager:
     # Tier 1: Glossary Operations
     # -------------------------------------------------------------------------
 
+    def _invalidate_cache(self) -> None:
+        """Invalidate glossary prompt cache after any term mutation."""
+        self._glossary_prompt_cache = None
+
     def update_term(self, source: str, new_target: str, chapter: int = 0) -> bool:
         """Update an existing term with Myanmar validation."""
         if not self._is_valid_myanmar_text(new_target):
@@ -373,6 +378,7 @@ class MemoryManager:
                 term["updated_at"] = datetime.now().isoformat()
 
                 self.save_memory()
+                self._invalidate_cache()
                 logger.info(f"Updated term: {source} -> {new_target}")
                 return True
 
@@ -1110,8 +1116,9 @@ class MemoryManager:
             )
             
             logger.info(f"Promoted pending term to glossary: {source} -> {target}")
+            self._invalidate_cache()
             return True
-        
+
         # JSON backend
         pending_data = FileHandler.read_json(self.pending_path)
         if not pending_data:
@@ -1153,6 +1160,7 @@ class MemoryManager:
                 break
 
         self.save_memory()
+        self._invalidate_cache()
         logger.info(f"Promoted pending term to glossary: {source} -> {target}")
         return True
 
@@ -1227,6 +1235,7 @@ class MemoryManager:
                     logger.warning(f"Failed to approve term '{term['source_term']}': {e}")
 
             logger.info(f"Bulk approval complete: {approved_count}/{len(pending)} terms approved")
+            self._invalidate_cache()
             return approved_count
 
         # JSON backend
@@ -1266,6 +1275,7 @@ class MemoryManager:
 
         # Save glossary
         self.save_memory()
+        self._invalidate_cache()
 
         logger.info(f"Bulk approval complete: {approved_count} terms added to glossary")
         return approved_count
@@ -1299,8 +1309,9 @@ class MemoryManager:
                     promoted_count += 1
             
             logger.info(f"Auto-approved {promoted_count}/{len(approved)} pending glossary terms")
+            self._invalidate_cache()
             return promoted_count
-        
+
         # JSON backend
         pending_data = FileHandler.read_json(self.pending_path)
         if not pending_data:
@@ -1416,8 +1427,9 @@ class MemoryManager:
                     logger.warning(f"Failed to auto-approve term '{source}': {e}")
             
             logger.info(f"Auto-approved {promoted_count}/{len(to_approve)} terms by confidence (threshold={confidence_threshold})")
+            self._invalidate_cache()
             return promoted_count
-        
+
         # JSON backend
         pending_data = FileHandler.read_json(self.pending_path)
         if not pending_data:
@@ -1500,6 +1512,7 @@ class MemoryManager:
         ]
         FileHandler.write_json(self.pending_path, pending_data)
         self.save_memory()
+        self._invalidate_cache()
 
         logger.info(f"Auto-approved {len(promoted_sources)}/{len(to_approve)} terms by confidence (threshold={confidence_threshold})")
         return len(promoted_sources)
@@ -1564,6 +1577,7 @@ class MemoryManager:
                 scope=scope,
             )
             logger.info(f"Added glossary term (SQL): {source} -> {target} (scope={scope})")
+            self._invalidate_cache()
             return True
         return self._json_add_term(source, target, category, chapter)
 
@@ -1589,6 +1603,7 @@ class MemoryManager:
             category=category, status=status, confidence=confidence,
         )
         logger.info(f"Added global glossary term: {source} -> {target}")
+        self._invalidate_cache()
         return True
 
     def _json_add_term(self, source: str, target: str, category: str, chapter: int) -> bool:
@@ -1618,6 +1633,7 @@ class MemoryManager:
         self.glossary["total_terms"] = len(terms)
         self.glossary["last_updated"] = datetime.now().isoformat()
         self.save_memory()
+        self._invalidate_cache()
         logger.info(f"Added glossary term: {source} -> {target}")
         return True
 
@@ -1679,7 +1695,14 @@ class MemoryManager:
         ]
 
     def get_glossary_for_prompt(self, limit: int = 20) -> str:
-        """Get formatted glossary for prompt injection (SQL or JSON)."""
+        """Get formatted glossary for prompt injection (SQL or JSON).
+
+        Cached within a chapter — glossary does not change between chunks.
+        Cache is invalidated by add_term(), update_term(), and promote methods.
+        """
+        if self._glossary_prompt_cache is not None:
+            return self._glossary_prompt_cache
+
         if self.use_sql:
             terms = self.glossary_repo.get_terms_for_prompt(self.novel_id, limit)
         else:
@@ -1687,7 +1710,8 @@ class MemoryManager:
             terms = sorted(all_terms, key=lambda t: t.get("chapter_last_seen", 0) or 0, reverse=True)[:limit]
 
         if not terms:
-            return "No glossary entries yet."
+            self._glossary_prompt_cache = "No glossary entries yet."
+            return self._glossary_prompt_cache
 
         lines = ["GLOSSARY (Use these exact translations):"]
         for term in terms:
@@ -1696,7 +1720,8 @@ class MemoryManager:
             target = self._sanitize_for_prompt(term.get("target") or term.get("target_term", ""))
             category = self._sanitize_for_prompt(term.get('category', 'general'))
             lines.append(f"  [{verified}] {source} = {target} ({category})")
-        return "\n".join(lines)
+        self._glossary_prompt_cache = "\n".join(lines)
+        return self._glossary_prompt_cache
 
     def update_chapter_context(self, chapter_num: int, translated_text: str = "", summary: str = "", source_text: str = "") -> None:
         """Update context after chapter translation (SQL or JSON)."""

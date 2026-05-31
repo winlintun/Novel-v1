@@ -176,10 +176,10 @@ class GlossaryRepository:
     def get_terms_for_prompt(self, novel_id: str, limit: int = 20) -> list[dict]:
         """Get terms sorted by usage recency (usage_count) for prompt injection.
         
-        Includes global terms first (always), then novel-specific terms.
-        Global terms take ~5 slots, remaining go to novel-specific.
+        Global terms first (up to half), then novel-specific terms.
+        Deduplicates: novel-specific terms matching a global source_term are skipped.
         """
-        global_limit = min(5, limit // 4)
+        global_limit = min(10, limit // 2)
         novel_limit = limit - global_limit
         
         global_rows = self.db.fetchall(
@@ -188,11 +188,23 @@ class GlossaryRepository:
             (global_limit,),
         )
         
-        novel_rows = self.db.fetchall(
-            "SELECT * FROM glossary_terms WHERE novel_id = ? AND status = 'approved' "
-            "ORDER BY usage_count DESC, confidence DESC LIMIT ?",
-            (novel_id, novel_limit),
-        )
+        # Get novel-specific terms, excluding any already covered by global
+        global_sources = set(r["source_term"] for r in global_rows)
+        if global_sources:
+            placeholders = ",".join("?" for _ in global_sources)
+            params = [novel_id] + list(global_sources) + [novel_limit]
+            novel_rows = self.db.fetchall(
+                "SELECT * FROM glossary_terms WHERE novel_id = ? AND status = 'approved' "
+                "AND source_term NOT IN ({}) "
+                "ORDER BY usage_count DESC, confidence DESC LIMIT ?".format(placeholders),
+                params,
+            )
+        else:
+            novel_rows = self.db.fetchall(
+                "SELECT * FROM glossary_terms WHERE novel_id = ? AND status = 'approved' "
+                "ORDER BY usage_count DESC, confidence DESC LIMIT ?",
+                (novel_id, novel_limit),
+            )
         
         return [dict(r) for r in global_rows] + [dict(r) for r in novel_rows]
 

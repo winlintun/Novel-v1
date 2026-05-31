@@ -33,7 +33,7 @@ models:
   refiner: padauk-gemma:q8_0
   retry_num_predict: 4096
   timeout: 300
-  translator: padauk-gemma:q8_0
+  translator: translategemma:12b
   use_gpu: true
   gemma_4_e4b:
     name: gemma-4-e4b-it:q8_0
@@ -73,7 +73,7 @@ processing:
   repeat_penalty: 1.3
   request_timeout: 300
   stream: true
-  temperature: 0.25
+  temperature: 0.35
   top_k: 40
   top_p: 0.95
 project:
@@ -91,8 +91,8 @@ storage:
   backend: sqlite
   db_path: data/novel_translation.db
 translation_pipeline:
-  description: "Single-stage EN->MM: Direct translation with padauk-gemma (highest content preservation)"
-  mode: single_stage
+  description: "Two-stage EN->MM: translategemma:12b translates -> padauk-gemma:q8_0 refines (lite pipeline: Translate -> Refine -> Quality)"
+  mode: lite
   mode_description:
     fast: "2-stage pipeline: Translate -> Quality (skip refinement)"
     fast_desc: "Fast optimized: CN->EN->MM pivot with quantized models (16GB RAM)"
@@ -102,7 +102,7 @@ translation_pipeline:
     two_stage: "2-stage pipeline: Stage 1(gemma-4-e4b) -> Stage 2(padauk-gemma:refinement)"
   use_reflection: false
   use_fiction_editor: false
-  stage1_model: padauk-gemma:q8_0
+  stage1_model: translategemma:12b
   stage2_model: padauk-gemma:q8_0
   reflection_model: padauk-gemma:q8_0
 

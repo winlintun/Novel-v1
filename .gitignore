@@ -3,7 +3,6 @@
 # =============================================================================
 
 # ── Environment & Secrets ────────────────────────────────────────────────────
-# Environment files - NEVER commit secrets!
 .env
 .env.local
 .env.*.local
@@ -14,14 +13,11 @@ env/
 env.bak/
 venv.bak/
 .venv/
-
-# API Keys - specific patterns
 *apikey*
 *secret*
 *.pem
-*.key
 
-# ── IDE & Editors ────────────────────────────────────────────────────────────
+# ── IDE & Editors ───────────────────────────────────────────────────────────
 .vscode/
 .idea/
 *.swp
@@ -32,21 +28,14 @@ Thumbs.db
 *.sublime-project
 *.sublime-workspace
 
-# ── Project Specific: Input/Output ────────────────────────────────────────────
-# Models
-models/
-models/*
-*.gguf
+# ── Python Cache ────────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
 
-# Input novels (user files - don't commit)
-data/input/*.pdf
-data/input/*
-data/chroma_db
-data/datasets_novels
-data/input/*/*
-
-
-# ── Testing ──────────────────────────────────────────────────────────────────
+# ── Testing ─────────────────────────────────────────────────────────────────
 .pytest_cache/
 .coverage
 htmlcov/
@@ -56,93 +45,92 @@ coverage.xml
 *.cover
 .hypothesis/
 
-# ── Python Cache ──────────────────────────────────────────────────────────────
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-
-# ── Misc ─────────────────────────────────────────────────────────────────────
-.streamlit/
-.claude/
-.codex/
-.gemini/
-working_data/
-*.log
-*.tmp
-*.bak
-*.orig
-*.patch
-*.diff
-*.err
-*.out
-
-# ── Jupyter Notebook ─────────────────────────────────────────────────────────
-.ipynb_checkpoints
-*.ipynb
-
-# ── Type Checkers ────────────────────────────────────────────────────────────
+# ── Type Checkers ───────────────────────────────────────────────────────────
 .mypy_cache/
 .dmypy.json
 dmypy.json
 .pyre/
 
-# ── PyInstaller ─────────────────────────────────────────────────────────────
+# ── Models (fine-tuned adapters, GGUF files) ────────────────────────────────
+models/
+*.gguf
+
+# ── Training artifacts ──────────────────────────────────────────────────────
+data/training/rejected/
+data/training/rating_progress.json
+models/adapters/
+
+# ── ChromaDB vector store ───────────────────────────────────────────────────
+chroma/
+data/chroma/
+
+# ── Agent memory (auto-generated session state) ─────────────────────────────
+.agent/
+
+# ── Generated reports & plans ───────────────────────────────────────────────
+plan.md
+prompts_reference.md
+report.md
+logs/report/
+
+# ── Translation output (per-novel generated files) ──────────────────────────
+data/output/.versions/
+data/output/*-test/
+data/output/novel-alpha/
+data/output/novel-beta/
+data/output/json-test/
+
+# ── Working / temp data ─────────────────────────────────────────────────────
+data/working/
+working_data/
+logs/temp/
+logs/progress/
+logs/performance/
+*.tmp
+*.bak
+*.orig
+
+# ── Logs ────────────────────────────────────────────────────────────────────
+*.log
+*.err
+*.out
+
+# ── Miscellaneous ───────────────────────────────────────────────────────────
+.streamlit/
+.claude/
+.codex/
+.gemini/
+*.patch
+*.diff
+.ipynb_checkpoints
+*.ipynb
 *.manifest
 *.spec
-
-# ── Cython ───────────────────────────────────────────────────────────────────
 *.pyx
 *.pxd
 *.pxi
+*.pdf
 
-# file
+# ── Project-specific markdown / notes ───────────────────────────────────────
 need_to_fix.md
 need_fix.md
 need_fix_another.md
-*.pdf
-data/input/*/*.md
-data/input/*.pdf
-Novel-Step.md
-design
-design/*
-err_log.log
-
 need_fix_bug.md
 need_to_fix_bug.md
-backup
-backup/*
-pytest.ini
-CUSTOM_PROMPT_SETUP_GUIDE.md
+Novel-Step.md
+design/
+Web_Novel.md
+fore-do.md
 todo.md
 guile.md
-
-# Runtime progress logs (transient per-run artifacts)
-logs/progress/
-Web_Novel.md
-ruff.toml
-
-# model GGUF file markdown
+CUSTOM_PROMPT_SETUP_GUIDE.md
 Modelfile
 Modelfile.*
-Modelfile.sailor2-20b
-Modelfile.burmese-gpt
-fore-do.md
+ruff.toml
+pytest.ini
 
-# Generated output (translation results)
-data/output/.versions
-data/output/json-test2
-data/output/novel-alpha
-data/output/novel-beta
-data/*.json
-data/*.db
-data/*.db-shm
-data/*.db-wal
-logs/report/
-
-
-# Dataset novel
-data/datasets_novels
+# ── Dataset novels (large, external) ────────────────────────────────────────
 data/datasets_novels/
-data/datasets_novels/*
+
+# ── Input novels (user files) ───────────────────────────────────────────────
+data/input/

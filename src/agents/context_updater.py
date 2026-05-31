@@ -11,7 +11,7 @@ from src.utils.ollama_client import OllamaClient
 from src.memory.memory_manager import MemoryManager
 from src.utils.json_extractor import safe_parse_terms
 from src.agents.base_agent import BaseAgent
-from src.agents.prompt_patch import EXTRACTOR_SYSTEM_PROMPT
+from src.agents.prompts import EXTRACTOR_SYSTEM_PROMPT
 
 logger = logging.getLogger(__name__)
 

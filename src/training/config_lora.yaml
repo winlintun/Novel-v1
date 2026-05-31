@@ -1,0 +1,50 @@
+# LoRA hyperparameters for padauk-gemma fine-tuning
+# Used by src/training/finetune.py
+
+lora:
+  r: 16
+  lora_alpha: 32
+  lora_dropout: 0.05
+  target_modules:
+    - "q_proj"
+    - "v_proj"
+    - "k_proj"
+    - "o_proj"
+  bias: "none"
+  task_type: "CAUSAL_LM"
+
+training:
+  per_device_train_batch_size: 4
+  gradient_accumulation_steps: 2
+  learning_rate: 2.0e-4
+  num_train_epochs: 3
+  warmup_steps: 50
+  logging_steps: 10
+  save_steps: 0
+  evaluation_strategy: "epoch"
+  save_strategy: "epoch"
+  load_best_model_at_end: true
+  metric_for_best_model: "eval_loss"
+  greater_is_better: false
+  fp16: false
+  bf16: false
+  dataloader_num_workers: 2
+
+quantization:
+  load_in_4bit: true
+  bnb_4bit_compute_dtype: "float16"
+  bnb_4bit_quant_type: "nf4"
+
+dataset:
+  min_human_score: 3
+  min_auto_score: 4
+  test_split: 0.1
+  val_split: 0.1
+  max_train_samples: 10000
+
+model:
+  # Ollama model name (for reference/logging only; not used during training)
+  ollama_model_name: "padauk-gemma:q8_0"
+  # HuggingFace model used as base for LoRA fine-tuning
+  hf_model_name: "google/gemma-2b"
+  adapter_dir: "models/adapters"

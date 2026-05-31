@@ -1,0 +1,301 @@
+﻿{
+  "glossary_version": "1.0",
+  "novel_name": "reverend-insanity",
+  "source_language": "English",
+  "target_language": "Myanmar",
+  "last_updated": "2026-05-03T23:44:53.160096",
+  "total_terms": 21,
+  "terms": [
+    {
+      "id": "term_ri_001",
+      "source_term": "Fang Yuan",
+      "target_term": "ဖန်ယွမ်",
+      "aliases_cn": [
+        "方源"
+      ],
+      "category": "person_character",
+      "translation_rule": "transliterate",
+      "priority": 1,
+      "usage_frequency": "high",
+      "source": "Fang Yuan",
+      "target": "ဖန်ယွမ်"
+    },
+    {
+      "id": "term_ri_002",
+      "source_term": "Fang Zheng",
+      "target_term": "ဖန်ကျန်း",
+      "aliases_cn": [
+        "方正"
+      ],
+      "category": "person_character",
+      "translation_rule": "transliterate",
+      "priority": 1,
+      "usage_frequency": "high",
+      "source": "Fang Zheng",
+      "target": "ဖန်ကျန်း"
+    },
+    {
+      "id": "term_ri_003",
+      "source_term": "Bai Ning Bing",
+      "target_term": "ပိုင်နင်းပင်း",
+      "aliases_cn": [
+        "白凝冰"
+      ],
+      "category": "person_character",
+      "translation_rule": "transliterate",
+      "priority": 1,
+      "usage_frequency": "medium",
+      "source": "Bai Ning Bing",
+      "target": "ပိုင်နင်းပင်း"
+    },
+    {
+      "id": "term_ri_004",
+      "source_term": "Shen Cui",
+      "target_term": "ရှန်ချွေ့",
+      "aliases_cn": [
+        "沈翠"
+      ],
+      "category": "person_character",
+      "translation_rule": "transliterate",
+      "priority": 2,
+      "usage_frequency": "medium",
+      "source": "Shen Cui",
+      "target": "ရှန်ချွေ့"
+    },
+    {
+      "id": "term_ri_005",
+      "source_term": "Gu Yue Mo Bei",
+      "target_term": "ကူယွဲ့မိုပေ",
+      "aliases_cn": [
+        "古月漠北"
+      ],
+      "category": "person_character",
+      "translation_rule": "transliterate",
+      "priority": 2,
+      "usage_frequency": "low",
+      "source": "Gu Yue Mo Bei",
+      "target": "ကူယွဲ့မိုပေ"
+    },
+    {
+      "id": "term_ri_006",
+      "source_term": "Ren Zu",
+      "target_term": "ရန်ကျူး",
+      "aliases_cn": [
+        "人祖"
+      ],
+      "category": "person_character",
+      "translation_rule": "transliterate",
+      "priority": 1,
+      "usage_frequency": "medium",
+      "source": "Ren Zu",
+      "target": "ရန်ကျူး"
+    },
+    {
+      "id": "term_ri_007",
+      "source_term": "Qing Mao Mountain",
+      "target_term": "ချင်းမောင်းတောင်",
+      "aliases_cn": [
+        "青茅山"
+      ],
+      "category": "location",
+      "translation_rule": "transliterate",
+      "priority": 1,
+      "usage_frequency": "high",
+      "source": "Qing Mao Mountain",
+      "target": "ချင်းမောင်းတောင်"
+    },
+    {
+      "id": "term_ri_008",
+      "source_term": "Gu Yue Village",
+      "target_term": "ကူယွဲ့ကျေးရွာ",
+      "aliases_cn": [
+        "古月山寨"
+      ],
+      "category": "location",
+      "translation_rule": "translate",
+      "priority": 1,
+      "usage_frequency": "high",
+      "source": "Gu Yue Village",
+      "target": "ကူယွဲ့ကျေးရွာ"
+    },
+    {
+      "id": "term_ri_009",
+      "source_term": "South Border",
+      "target_term": "တောင်ပိုင်းနယ်စပ်",
+      "aliases_cn": [
+        "南疆"
+      ],
+      "category": "location",
+      "translation_rule": "translate",
+      "priority": 2,
+      "usage_frequency": "low",
+      "source": "South Border",
+      "target": "တောင်ပိုင်းနယ်စပ်"
+    },
+    {
+      "id": "term_ri_010",
+      "source_term": "Gu Yue Clan",
+      "target_term": "ကူယွဲ့မျိုးနွယ်စု",
+      "aliases_cn": [
+        "古月一族"
+      ],
+      "category": "organization",
+      "translation_rule": "translate",
+      "priority": 1,
+      "usage_frequency": "high",
+      "source": "Gu Yue Clan",
+      "target": "ကူယွဲ့မျိုးနွယ်စု"
+    },
+    {
+      "id": "term_ri_011",
+      "source_term": "Demonic Way",
+      "target_term": "နတ်ဆိုးလမ်းစဉ်",
+      "aliases_cn": [
+        "魔道"
+      ],
+      "category": "cultivation_concept",
+      "translation_rule": "translate",
+      "priority": 1,
+      "usage_frequency": "high",
+      "source": "Demonic Way",
+      "target": "နတ်ဆိုးလမ်းစဉ်"
+    },
+    {
+      "id": "term_ri_012",
+      "source_term": "Gu Master",
+      "target_term": "ကူးသခင်",
+      "aliases_cn": [
+        "蛊师"
+      ],
+      "category": "cultivation_concept",
+      "translation_rule": "translate",
+      "priority": 1,
+      "usage_frequency": "high",
+      "source": "Gu Master",
+      "target": "ကူးသခင်"
+    },
+    {
+      "id": "term_ri_013",
+      "source_term": "Primeval Sea",
+      "target_term": "မူလပင်လယ်",
+      "aliases_cn": [
+        "空窍",
+        "真元海"
+      ],
+      "category": "cultivation_concept",
+      "translation_rule": "translate",
+      "priority": 1,
+      "usage_frequency": "high",
+      "source": "Primeval Sea",
+      "target": "မူလပင်လယ်"
+    },
+    {
+      "id": "term_ri_014",
+      "source_term": "Spring Autumn Cicada",
+      "target_term": "နွေဦးဆောင်းဦးပုစဉ်း",
+      "aliases_cn": [
+        "春秋蝉"
+      ],
+      "category": "item_artifact",
+      "translation_rule": "translate",
+      "priority": 1,
+      "usage_frequency": "high",
+      "source": "Spring Autumn Cicada",
+      "target": "နွေဦးဆောင်းဦးပုစဉ်း"
+    },
+    {
+      "id": "term_ri_015",
+      "source_term": "Hope Gu",
+      "target_term": "မျှော်လင့်ချက်ကူး",
+      "aliases_cn": [
+        "希望蛊"
+      ],
+      "category": "item_artifact",
+      "translation_rule": "translate",
+      "priority": 1,
+      "usage_frequency": "medium",
+      "source": "Hope Gu",
+      "target": "မျှော်လင့်ချက်ကူး"
+    },
+    {
+      "id": "term_ri_016",
+      "source_term": "Strength Gu",
+      "target_term": "ခွန်အားကူး",
+      "aliases_cn": [
+        "力量蛊"
+      ],
+      "category": "item_artifact",
+      "translation_rule": "translate",
+      "priority": 2,
+      "usage_frequency": "low",
+      "source": "Strength Gu",
+      "target": "ခွန်အားကူး"
+    },
+    {
+      "id": "term_ri_017",
+      "source_term": "Wisdom Gu",
+      "target_term": "ဉာဏ်ပညာကူး",
+      "aliases_cn": [
+        "智慧蛊"
+      ],
+      "category": "item_artifact",
+      "translation_rule": "translate",
+      "priority": 2,
+      "usage_frequency": "low",
+      "source": "Wisdom Gu",
+      "target": "ဉာဏ်ပညာကူး"
+    },
+    {
+      "id": "term_ri_018",
+      "source_term": "Primeval Stones",
+      "target_term": "မူလကျောက်တုံးများ",
+      "aliases_cn": [
+        "元石"
+      ],
+      "category": "item_artifact",
+      "translation_rule": "translate",
+      "priority": 1,
+      "usage_frequency": "medium",
+      "source": "Primeval Stones",
+      "target": "မူလကျောက်တုံးများ"
+    },
+    {
+      "id": "term_ri_019",
+      "source_term": "Awakening Ceremony",
+      "target_term": "နိုးထခြင်းအခမ်းအနား",
+      "aliases_cn": [
+        "开窍大典"
+      ],
+      "category": "event",
+      "translation_rule": "translate",
+      "priority": 1,
+      "usage_frequency": "high",
+      "source": "Awakening Ceremony",
+      "target": "နိုးထခြင်းအခမ်းအနား"
+    },
+    {
+      "id": "term_ri_020",
+      "source_term": "Moon Orchid",
+      "target_term": "လမင်းသစ်ခွ",
+      "aliases_cn": [
+        "月兰花"
+      ],
+      "category": "item",
+      "translation_rule": "translate",
+      "priority": 2,
+      "usage_frequency": "low",
+      "source": "Moon Orchid",
+      "target": "လမင်းသစ်ခွ"
+    },
+    {
+      "id": "term_021",
+      "source": "新测试",
+      "target": "စမ်းသပ်ခြင်းအသစ်",
+      "category": "test",
+      "chapter_first_seen": 26,
+      "chapter_last_seen": 26,
+      "verified": false,
+      "added_at": "2026-05-03T23:44:53.160080"
+    }
+  ]
+}

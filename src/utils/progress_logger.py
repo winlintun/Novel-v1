@@ -141,8 +141,7 @@ class ProgressLogger:
         entry = "\n".join(entry_parts)
         self._write_to_file(entry)
 
-        # Update summary at the top (rewrite entire file with updated summary)
-        self._update_summary()
+        # Summary is rebuilt once in finalize() to avoid O(N²) rewrites
 
     def _update_summary(self) -> None:
         """Update the progress summary in the log file."""
@@ -204,6 +203,9 @@ class ProgressLogger:
         elapsed = current_time - self.start_time
         percentage = (self.completed_chunks / self.total_chunks * 100) if self.total_chunks > 0 else 0
         status = "✅ COMPLETE" if success else "❌ FAILED"
+
+        # Rebuild summary header with final counts (one write, not N writes)
+        self._update_summary()
 
         # Final summary
         final_entry = f"""

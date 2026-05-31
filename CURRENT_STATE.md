@@ -5,15 +5,18 @@
 ---
 
 ## Last Updated
-- Date: 2026-05-30
-- Last task completed: Quality-pipeline fixes — RAG/ChromaDB BGE-M3 query fix (RAG was fully disabled), postprocessor data-loss fix (`separate_heading_from_body`, 128 sentences recovered across 13 chapters), name-consistency enforcement (`normalize_character_names` dead-guard fix), truncation-retry detector (`looks_truncated` + config-driven `models.retry_num_predict`). 530/530 tests pass.
+- Date: 2026-05-31
+- Last task completed: Dead code cleanup — removed 11 dead source files, 3 dead packages, 4 dead configs, 11 dead test files. Project cleanup script (clean_run.sh). .gitignore reorganized. Cultural knowledge additions (Buddhist terms, historical/political, festivals/food, poetry adaptation). Human verification CLI (--rate-rejected). Fine-tuning scaffold (--finetune). Performance optimizations (glossary cache, lru_cache, O(N) logging). 441/441 tests pass.
 - Git commit: `pending`
 
-## Session Summary (2026-05-30)
-- ✅ **RAG/ChromaDB query fix** (`rag_retriever.py`, `orchestrator.py`): index built with BGE-M3 (1024-dim) but queries used Chroma's default 384-dim model → all queries failed and were misdiagnosed as "HNSW corruption". Now embeds queries with BGE-M3, uses `$eq` on `novel` (Chroma 1.x has no `$regex`), coerces string `auto_score`, and stops forcing `novel_filter=current_novel` (corpus never contains the in-progress novel). RAG is now functional.
-- ✅ **Postprocessor data loss — GENERAL bug** (`postprocessor.py`): model glues `# အခန်း N` to each chunk's first sentence and repeats the same number per chunk; `remove_duplicate_headings` + heading-injection deleted those lines including the body sentence. Added `separate_heading_from_body()`. Measured 128 lost sentences across 13 Outside-of-Time chapters (existing outputs left untouched per user; fix protects future runs).
-- ✅ **Name-consistency enforcement** (`postprocessor.py`): removed the dead `if target not in text: continue` guard in `normalize_character_names`; now fuzzy-maps model spelling variants → glossary canonical (0.75 threshold when canonical absent; length guard for short ambiguous names). ch12: ရှူချင်း/ရှူးချင်း → ရွှီချင်း.
-- ✅ **Truncation-retry detector** (`postprocessor.looks_truncated`, `ollama_client.chat(num_predict=)`, `translator.py`): detects chunks cut at the token limit and retries once with a larger, config-driven budget (`models.retry_num_predict`), wrapped in try/except so a failed retry keeps the partial result.
+## Session Summary (2026-05-31)
+- ✅ **Dead code cleanup** — removed 11 dead source files (fast_translator, fast_refiner, pivot_translator, glossary_sync, prompt_patch, ram_monitor, performance_logger, glossary_suggestor, glossary_matcher, ingest_rag_export, glossary_miner), 3 dead packages (src/database/, src/core/, src/types/), 4 dead configs (settings.sailor2.yaml, settings.translategemma.yaml, settings.qwen2.5.yaml, error_recovery.yaml), 11 dead test files. Cleanup script: `clean_run.sh`. 28 test files → 441 tests pass.
+- ✅ **Cultural knowledge additions** — Buddhist Mahayana→Theravada mapping (14 terms: 菩萨→ဗောဓိသတ္တ, 轮回→သံသရာ, 业力→ကံ), historical/political (7: 朝廷→နန်းတော်, 江湖→ကျင့်ကြံသူလောက), festivals/food (10: 春节→တရုတ်နှစ်သစ်ကူး), poetry adaptation (李白 examples). Dead CN dicts now live (cultivation_terms, measure_words, time_expressions).
+- ✅ **Human verification CLI** (`--rate-rejected`) — interactive rating of rejected chunks, populates human_score in dataset DB. Wired into CLI parser, commands, main.py.
+- ✅ **Fine-tuning scaffold** (`--finetune`) — LoRA/QLoRA training script with safe SQL loading, label masking, 80/10/10 split. Saves adapters to models/adapters/. Config at config_lora.yaml. Test: 9 tests.
+- ✅ **Performance optimizations** — glossary prompt cache (`_glossary_prompt_cache`), lru_cache on myanmar_char_ratio(), fast path on strip_reasoning_process(), append-only ProgressLogger (O(N²)→O(N)).
+- ✅ **.gitignore reorganized** — 148 messy lines → clean sections. Added models/adapters/, training artifacts, chroma/, .agent/.
+- ✅ **AGENTS.md updated** — directory structure cleaned, test count updated (259→441).
 
 ## Session Summary (2026-05-29)
 - ✅ **Fix 1 — Skeleton model respects explicit --config**: `commands.py` now skips skeleton model override when user passes `--config` with a path different from the default. Previously, any config file's model was always overridden by skeleton's `padauk-gemma-q8`.
@@ -26,9 +29,16 @@
 - ✅ **Chapters 7-9 human comparison**: Ch7 padauk-gemma (95/100), Ch8 translategemma (94/100), Ch9 qwen2.5 (65/100 — corrupted output, 35% of human size).
 
 ## In Progress
-- Code review (Reviewer A + B) to verify all fixes
+- None
 
 ## Completed Tasks
+- [DONE] **Dead code cleanup** — 11 files, 3 packages, 4 configs, 11 test files removed. See clean_run.sh. 441/441 tests pass.
+- [DONE] **Cultural knowledge** — Buddhist, historical, festival, poetry sections added. Dead CN dicts now live. cultural_injector.py expanded.
+- [DONE] **Human verification CLI** (`--rate-rejected`) — interactive rating of rejected chunks.
+- [DONE] **Fine-tuning scaffold** (`--finetune`) — LoRA/QLoRA training with adapter saving.
+- [DONE] **Performance** — glossary cache, lru_cache, fast-path reasoning strip, O(N) progress logging.
+- [DONE] **.gitignore** — reorganized with training/chroma/agent entries.
+- [DONE] **AGENTS.md** — directory structure and test count updated.
 - [DONE] **Chapter 4 partial completion fix** — Increased timeout, added partial save guard, fixed scoping, fixed entity extraction, fixed snapshot path
 - [DONE] **Translation validation pipeline + Chinese novel universal rules + postprocessor quality checks**
 - [DONE] **Model comparison tool - translate with ALL models, save to logs/temp/**

@@ -620,6 +620,30 @@ class TranslationPipeline:
             except Exception as e:
                 self.logger.warning(f"QA validation failed (non-fatal): {e}")
 
+            # ── QA result gate ─────────────────────────────────────────────────
+            # If QA validation reports non-ratio failures (e.g., content loss,
+            # chapter title mismatch, markdown issues), block save with feedback.
+            if qa_result and not qa_result.get("passed"):
+                non_ratio_issues = [
+                    i for i in qa_result.get("issues", [])
+                    if not i.lower().startswith("myanmar ratio")
+                ]
+                if non_ratio_issues:
+                    self.logger.error(
+                        f"QA gate FAILED: {len(non_ratio_issues)} structural issue(s) found. "
+                        f"File NOT saved: {non_ratio_issues[:3]}"
+                    )
+                    return {
+                        "success": False,
+                        "output_path": None,
+                        "glossary_updates": [],
+                        "errors": [
+                            f"QA gate: {len(non_ratio_issues)} issue(s) — {non_ratio_issues[0]}"
+                        ],
+                        "metrics": {"qa_issues": non_ratio_issues},
+                        "chapter": Path(filepath).stem,
+                    }
+
             # ── Problem 2: Myanmar ratio quality gate ──────────────────────────
             # Block save if assembled output has Myanmar ratio < 70%.
             # This prevents saving garbage chunks that failed retry.

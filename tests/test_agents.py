@@ -120,8 +120,8 @@ class TestRefiner(unittest.TestCase):
         # Verify the system prompt contains required elements
         call_args = self.mock_ollama.chat.call_args
         system_prompt = call_args.kwargs.get('system_prompt', call_args[1].get('system_prompt', ''))
-        self.assertIn("Burmese", system_prompt)
-        self.assertIn("ONLY", system_prompt)
+        self.assertIn("Myanmar", system_prompt)
+        self.assertIn("natural, literary Myanmar", system_prompt)
 
 
 class TestChecker(unittest.TestCase):

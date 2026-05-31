@@ -644,12 +644,14 @@ VOCABULARY_PRECISION = {
         ),
         "mappings": [
             {
+                "english":   "demon",
                 "context":   "Enemy/cultivation antagonist — contemptuous",
                 "wrong":     "နတ်ဆိုး (supernatural, neutral religious tone)",
                 "correct":   "မိစ္ဆာကောင် (evil creature, contemptuous)",
                 "reason":    "နတ်ဆိုး sounds mythological/neutral. မိစ္ဆာကောင် carries hatred.",
             },
             {
+                "english":   "demon",
                 "context":   "Formal narrative description",
                 "correct":   "နတ်ဆိုး (acceptable when neutral narrator describes)",
             },
@@ -668,12 +670,14 @@ VOCABULARY_PRECISION = {
         ),
         "mappings": [
             {
+                "english":   "purity",
                 "context":   "Body purity / chastity (cultivation, romantic context)",
                 "wrong":     "သန့်ရှင်းမှု (cleanliness, hygiene)",
                 "correct":   "ဖြူစင်မှု (moral purity, chastity, innocence)",
                 "reason":    "သန့်ရှင်းမှု = physical cleanliness. ဖြူစင်မှု = moral/spiritual purity.",
             },
             {
+                "english":   "purity",
                 "context":   "General cleanliness (washing, environment)",
                 "correct":   "သန့်ရှင်းမှု (appropriate here)",
             },
@@ -684,6 +688,7 @@ VOCABULARY_PRECISION = {
         "rule": "Killing entire family/generations needs impactful Myanmar idiom expression.",
         "mappings": [
             {
+                "english":   "exterminate exterminated family clan generations",
                 "context":   "Executed nine generations / killed entire family line",
                 "wrong":     "မျိုးဆက်ကို ကိုးဆက်အထိ သေဒဏ်ပေးခဲ့တယ် (legalistic, bureaucratic tone)",
                 "correct":   "မျိုးဆက် ကိုးဆက်လုံးကို အမြစ်ဖြတ် သုတ်သင်သွားတယ် (rooted out completely)",
@@ -1231,6 +1236,7 @@ OUTPUT: ONLY Myanmar text. No notes. No English. No Chinese. Preserve Markdown.
 def build_rewriter_prompt(
     glossary_text: str = "",
     context: str = "",
+    scene_type: str = "narration",
 ) -> str:
     """
     Generate Stage 2 rewriter system prompt for EN→MM literary rewrite.
@@ -1238,6 +1244,9 @@ def build_rewriter_prompt(
     Args:
         glossary_text: Character name glossary block
         context:       Previous chunk/chapter context (Burmese text)
+        scene_type:    Scene type for rule injection (accepted for API
+                       compatibility with CN version; not yet used to select
+                       variant rules in the EN prompt itself)
 
     Returns:
         str: Complete system prompt for Stage 2 rewriter

@@ -89,10 +89,22 @@ def sync_external_glossary(
 
     novel_id = make_novel_id(novel_name)
 
+    # ═══════════════════════════════════════════════════════════════
+    # Handle novel_id format mismatch: external DB may use hyphens
+    # while make_novel_id() uses underscores (e.g., novel_outside-of-time
+    # vs novel_outside_of_time). Try both formats when querying.
+    # ═══════════════════════════════════════════════════════════════
+    novel_id_hyphen = f"novel_{novel_name}" if '-' in novel_name else None
+
     # Check if sync already ran (skip if terms already exist, unless force=True)
     existing_novel = local_conn.execute(
         "SELECT COUNT(*) FROM glossary_terms WHERE novel_id = ?", (novel_id,)
     ).fetchone()[0]
+    # Also check hyphenated ID
+    if novel_id_hyphen:
+        existing_novel += local_conn.execute(
+            "SELECT COUNT(*) FROM glossary_terms WHERE novel_id = ?", (novel_id_hyphen,)
+        ).fetchone()[0]
     existing_global = local_conn.execute(
         "SELECT COUNT(*) FROM glossary_terms WHERE novel_id = ?", (GLOBAL_NOVEL_ID,)
     ).fetchone()[0]
@@ -132,17 +144,35 @@ def sync_external_glossary(
                     f"({existing_novel} novel + {existing_global} global) before re-import"
                 )
                 local_conn.execute("DELETE FROM glossary_terms WHERE novel_id = ?", (novel_id,))
+                if novel_id_hyphen:
+                    local_conn.execute("DELETE FROM glossary_terms WHERE novel_id = ?", (novel_id_hyphen,))
                 local_conn.execute("DELETE FROM glossary_terms WHERE novel_id = ?", (GLOBAL_NOVEL_ID,))
 
             # ── Sync novel-specific terms ──────────────────────────────────
+            # Try both underscore and hyphen novel_id formats in external DB
             result["synced"], result["skipped"] = _sync_terms_for_novel(
                 ext_conn, local_conn, novel_id, status_filter,
             )
+            if novel_id_hyphen:
+                extra_synced, extra_skipped = _sync_terms_for_novel(
+                    ext_conn, local_conn, novel_id_hyphen, status_filter,
+                )
+                result["synced"] += extra_synced
+                result["skipped"] += extra_skipped
 
             # ── Sync global xianxia terms ─────────────────────────────────
             result["global_synced"], result["global_skipped"] = _sync_terms_for_novel(
                 ext_conn, local_conn, GLOBAL_NOVEL_ID, status_filter,
             )
+
+            # ── Post-sync local overrides ──────────────────────────────────
+            # Fix quality issues in the synced data that come from external DB:
+            # over-specified targets, wrong categories, missing key terms.
+            # Use whichever novel_id format has terms (hyphen or underscore).
+            local_novel_id = novel_id_hyphen if novel_id_hyphen and local_conn.execute(
+                "SELECT 1 FROM glossary_terms WHERE novel_id = ?", (novel_id_hyphen,)
+            ).fetchone() else novel_id
+            _apply_local_glossary_overrides(local_conn, local_novel_id)
 
             local_conn.execute("PRAGMA foreign_keys=ON")
             local_conn.execute("RELEASE glossary_sync")
@@ -161,6 +191,110 @@ def sync_external_glossary(
         f"{result['skipped'] + result['global_skipped']} skipped (already exist)"
     )
     return result
+
+
+# ── Local glossary overrides ──────────────────────────────────────────────
+# These fix quality issues in the external glossary data that can't be
+# fixed at source. Applied AFTER every force-sync so they survive re-imports.
+
+def _apply_local_glossary_overrides(conn: sqlite3.Connection, novel_id: str) -> None:
+    """Apply post-sync corrections: fix targets, categories, add missing terms."""
+
+    # ── 1. Fix over-specified targets ─────────────────────────────────────
+    overrides = {
+        "Panquan Road": ("ပန်းချွမ်လမ်း", None),                 # remove "အဘိုးအို"
+        "Department": ("ဌာန", None),                              # was "လူဆိုးထိန်းဌာနထဲ"
+        "Guard": ("အစောင့်", None),                              # was "ကမ်းရိုးတန်းစောင့်ဌာန"
+        "Special": ("အထူး", None),                              # was "အထူးလုံခြုံရေးဌာန"
+    }
+    for source_term, (target, _) in overrides.items():
+        conn.execute(
+            "UPDATE glossary_terms SET target_term = ? WHERE novel_id = ? AND source_term = ? AND target_term != ?",
+            (target, novel_id, source_term, target),
+        )
+
+    # ── 2. Remove partial names where canonical full name exists ──────────
+    # "Huang" is a partial of "Huang Yikun", "Zhang" is a partial of "Zhang San"
+    partial_pairs = [("Huang", "Huang Yikun"), ("Zhang", "Zhang San")]
+    for partial, full in partial_pairs:
+        full_exists = conn.execute(
+            "SELECT 1 FROM glossary_terms WHERE novel_id = ? AND source_term = ?",
+            (novel_id, full),
+        ).fetchone()
+        if full_exists:
+            conn.execute(
+                "DELETE FROM glossary_terms WHERE novel_id = ? AND source_term = ?",
+                (novel_id, partial),
+            )
+
+    # "Continent" and "Nanhuang" are partials of "Nanhuang Continent"
+    for partial in ("Continent", "Nanhuang"):
+        full_exists = conn.execute(
+            "SELECT 1 FROM glossary_terms WHERE novel_id = ? AND source_term = ?",
+            (novel_id, "Nanhuang Continent"),
+        ).fetchone()
+        if full_exists:
+            conn.execute(
+                "DELETE FROM glossary_terms WHERE novel_id = ? AND source_term = ?",
+                (novel_id, partial),
+            )
+
+    # ── 3. Fix wrong categories ───────────────────────────────────────────
+    category_fixes = {
+        "Qi Condensation": "cultivation_realm",
+        "Heavenly Dao": "cultivation_concept",
+        "mountain": "location",
+        "valley": "location",
+    }
+    for source_term, correct_cat in category_fixes.items():
+        if source_term in ("mountain", "valley"):
+            conn.execute(
+                "UPDATE glossary_terms SET category = ? WHERE source_term = ? AND category != ? AND novel_id = 'novel_global_xianxia'",
+                (correct_cat, source_term, correct_cat),
+            )
+        else:
+            conn.execute(
+                "UPDATE glossary_terms SET category = ? WHERE source_term = ? AND category != ?",
+                (correct_cat, source_term, correct_cat),
+            )
+
+    # ── 4. Remove intra-global duplicates (case-mismatched pairs) ─────────
+    # Keep the entry with the higher-confidence / more-complete target
+    dupe_pairs = [
+        ("dao", "Dao"),                         # keep "Dao" → တရား
+        ("heavenly dao", "Heavenly Dao"),       # keep "Heavenly Dao" → ကောင်းကင်တရား
+        ("nascent soul", "Nascent Soul"),       # keep "Nascent Soul"
+        ("qi", "Qi"),                           # keep "Qi" → ချီ
+        ("soul formation", "Soul Formation"),   # keep "Soul Formation"
+    ]
+    for lower_var, proper_var in dupe_pairs:
+        # Only delete lowercase variant if the uppercase proper variant exists
+        proper_exists = conn.execute(
+            "SELECT 1 FROM glossary_terms WHERE novel_id = 'novel_global_xianxia' AND source_term = ?",
+            (proper_var,),
+        ).fetchone()
+        if proper_exists:
+            conn.execute(
+                "DELETE FROM glossary_terms WHERE novel_id = 'novel_global_xianxia' AND source_term = ?",
+                (lower_var,),
+            )
+
+    # ── 5. Add missing protagonist Xu Qing ─────────────────────────────────
+    xu_qing_exists = conn.execute(
+        "SELECT 1 FROM glossary_terms WHERE novel_id = ? AND source_term = 'Xu Qing'",
+        (novel_id,),
+    ).fetchone()
+    if not xu_qing_exists:
+        term_id = make_term_id(novel_id, "Xu Qing")
+        conn.execute("""
+            INSERT OR IGNORE INTO glossary_terms
+            (id, novel_id, source_term, target_term, canonical_form, category, status,
+             enforcement_level, confidence, usage_count, scope)
+            VALUES (?, ?, ?, ?, ?, ?, 'approved', 'strict', 0.95, 0, 'novel')
+        """, (term_id, novel_id, "Xu Qing", "ရွှီချင်း", "Xu Qing", "character"))
+
+    # Note: no conn.commit() here — the caller handles persistence
+    # via RELEASE SAVEPOINT.
 
 
 def _sync_terms_for_novel(

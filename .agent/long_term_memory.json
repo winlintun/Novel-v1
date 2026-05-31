@@ -1,254 +1,44 @@
 {
-  "last_updated": "2026-05-23T00:00:00Z",
+  "last_updated": "2026-05-31T00:00:00Z",
   "lessons": [
     {
-      "date": "2026-05-06",
-      "context": "Wayfarer chapter 1 translation - Thai/Khmer script leak",
-      "lesson": "Translation output contained Thai and Khmer characters along with checkbox artifacts (- [○], - []:) and stray markdown headers (## [ in ]). Postprocessor was missing Khmer pattern (U+1780-U+17FF) and Thai wasn't being stripped in the clean pipeline.",
-      "action": "Postprocessor must strip ALL non-Myanmar Unicode script blocks: Thai (U+0E00-U+0E7F), Khmer (U+1780-U+17FF), Bengali, Indic, Chinese, Korean. Add checkbox artifact patterns to REASONING_PATTERNS. Stray English headers like ## [ in ] must be detected and stripped."
+      "date": "2026-05-31",
+      "context": "Dead code cleanup across project",
+      "lesson": "Large sections of cn_mm_rules.py / en_mm_rules.py structured dicts (VOCABULARY_PRECISION, CULTURAL_RULES, CONFRONTATION_SPEECH_PATTERN) were dead code — imported but never read at runtime. The cultural_injector.py now bridges them. Always verify that structured data dicts are actually consumed at runtime, not just imported.",
+      "action": "Run grep for dict imports vs dict .get() calls at runtime. Any dict that's only imported but never .get()-ed in production code is dead."
     },
     {
-      "date": "2026-05-06",
-      "context": "Wayfarer glossary migration from JSON to SQLite",
-      "lesson": "Migrating legacy glossary data requires careful field mapping. The JSON format uses 'source'/'target' while database uses 'source_term'/'target_term'. Verified status in JSON (verified=true or auto_approved=true) maps to database status='approved', otherwise status='pending'. Confidence scores should be higher for verified terms (0.95) vs pending (0.7).",
-      "action": "Always create a dedicated migration script with proper field mapping. Check for existing terms before insertion to avoid duplicates. Log migration statistics for verification."
+      "date": "2026-05-31",
+      "context": "FastTranslator/FastRefiner dead code",
+      "lesson": "FastTranslator and FastRefiner were created as optimized alternatives but never wired into orchestrator. The Translator class directly handles both normal and fast paths. Avoid creating 'alternative' classes that aren't wired into the pipeline.",
+      "action": "Single Translator/Refiner class with config-driven behavior is sufficient."
     },
     {
-      "date": "2026-05-06",
-      "context": "Versioning and Change Tracking System Implementation",
-      "lesson": "Building a version control system on top of SQLite requires careful separation of concerns: VersionManager coordinates operations while repositories handle data access. File snapshots must use unique filenames (timestamp with microseconds) to prevent collisions during rapid successive snapshots. Glossary sync jobs need explicit chapter selection (not just auto-detect from usage records) for predictable test behavior.",
-      "action": "Always include microseconds in version filenames. Support explicit chapter_nums parameter in sync job creation. Keep VersionManager stateless - all state in database."
+      "date": "2026-05-31",
+      "context": "PivotTranslator dead code",
+      "lesson": "PivotTranslator (CN→EN→MM) was built but the pipeline uses settings.pivot.yaml with two Translator calls, not the PivotTranslator class. The two-stage pivot is a pipeline configuration, not a separate agent.",
+      "action": "Pivot translation = two sequential Translator calls with different configs. No separate agent class needed."
     },
     {
-      "date": "2026-05-02",
-      "context": "Python \\b regex corrupts Myanmar compound words",
-      "lesson": "Python re module \\b treats Myanmar combining marks (Unicode Mn category, e.g. ိ U+102D, ု U+102F) as \\W, creating false word boundaries INSIDE syllables. regex \\bထို\\b matches inside compounds like ထိုင်ခိုင်း → အဲဒီင်ခိုင်း. NEVER use \\b for Myanmar text.",
-      "action": "Use Myanmar-consonant-specific lookahead/lookbehind: (?<![က-အ])WORD(?!combining*[က-အ]). Also add undo function for pre-existing corruptions."
-    },
-    {
-      "date": "2026-05-02",
-      "context": "BOM (U+FEFF) not stripped by Python str.strip()",
-      "lesson": "str.strip() only removes whitespace characters. BOM (U+FEFF, Zero Width No-Break Space) is NOT whitespace. Files written with UTF-8-SIG encoding have BOM that breaks heading detection with startswith('#') and regex ^ anchor.",
-      "action": "Always .lstrip('\\ufeff') or .replace('\\ufeff', '') before processing heading lines."
-    },
-    {
-      "date": "2026-05-02",
-      "context": "Tamil/Indic script leakage not caught",
-      "lesson": "padauk-gemma can output Tamil (and potentially other Indic scripts) mixed in Myanmar text. Postprocessor must strip ALL non-Myanmar scripts, not just Chinese/Bengali/Thai.",
-      "action": "Added _INDIC_PATTERN covering 9 Indic script blocks. Always strip in clean_output()."
-    },
-    {
-      "date": "2026-05-02",
-      "context": "Novel: Reverend Insanity — padauk-gemma glossary comparison garbage",
-      "lesson": "padauk-gemma at temperature ≥ 0.4 outputs word-by-word glossary comparison junk (*:* \"word\" is . \"other\" is .) mixed with translation. These are NOT caught by existing reasoning-stripping patterns. Temperature 0.2 prevents this behavior.",
-      "action": "Always use temperature ≤ 0.2 for padauk-gemma. Add *:* pattern detection in postprocessor as defense-in-depth."
-    },
-    {
-      "date": "2026-05-02",
-      "context": "Duplicate chapter headings re-appeared after postprocessor fix",
-      "lesson": "remove_duplicate_headings() used exact string match but the padauk-gemma model outputs slightly different heading text per chunk (e.g., နှင်းမှုန် vs နှင်းစက်). Prefix matching on '# အခန်း N' pattern is required.",
-      "action": "Always use prefix/regex matching for heading deduplication, not exact string comparison."
-    },
-    {
-      "date": "2026-05-01",
-      "context": "Project infrastructure initialization",
-      "lesson": ".agent/ directory is the agent brain — must be created before any other operation. All files follow strict schemas defined in AGENTS.md.",
-      "action": "Always create .agent/ files with correct schemas on first session"
-    },
-    {
-      "date": "2026-05-03",
-      "context": "Myanmar paragraph similarity — SequenceMatcher vs char-set overlap",
-      "lesson": "Char-set overlap on Myanmar text gives false 80-86% similarity on completely different sentences that share common particles (သည်/ကို/မည်). SequenceMatcher gives true sequence similarity: different sentences score 0.26-0.31, true duplicates score 0.90+.",
-      "action": "ALWAYS use SequenceMatcher for Myanmar sentence similarity. NEVER use char-set overlap. Threshold 0.85+ is safe for duplicate detection."
-    },
-{
-      "date": "2026-05-03",
-      "context": "Myanmar sentence ender check — modern prose patterns",
-      "lesson": "Modern Myanmar Wuxia/Xianxia prose regularly uses ! and ? alongside ။. Chapter format may include ---\n<subtitle>\n--- sectioning where subtitle is not a proper sentence. Both must be excluded from sentence-ender validation.",
-      "action": "Add ! and ? to valid_enders. Detect subtitle_lines between --- separators and exclude from content_lines check."
-    },
-    {
-      "date": "2026-05-05",
-      "context": "Chapter 003 translation failure — Myanmar ratio 0% after refinement",
-      "lesson": "Refiner model (padauk-gemma) can output English instead of Myanmar for certain chunks, causing 0% Myanmar ratio. MYANMAR_PATTERN was missing Extended-B range (U+A9E0-U+A9FF), causing false Thai character detection.",
-      "action": "Always include explicit Myanmar language guard in refiner prompts. MYANMAR_PATTERN must include all 3 Myanmar blocks: U+1000-U+109F, U+AA60-U+AA7F, U+A9E0-U+A9FF."
-    },
-    {
-      "date": "2026-05-08",
-      "context": "Wayfarer chapter 21 — sailor2:8b Myanmar translation test",
-      "lesson": "sailor2:8b model FAILED to produce adequate Myanmar translations. Myanmar ratios ranged from 11% to 55% (FAILING the 70% minimum threshold). Multiple chunks REJECTED due to high English content (55-152 English words per chunk). Even after retries, model continued outputting English instead of Myanmar. This is consistent with AGENTS.md warning that only padauk-gemma is proven to output Myanmar reliably.",
-      "action": "DO NOT use sailor2:8b as Myanmar output model. Use padauk-gemma:q8_0 (proven 98% Myanmar ratio) or test sailor2:20b before any production use. Add explicit LANGUAGE_GUARD to prompts and enable stricter quality gates when testing new models."
-    },
-    {
-      "date": "2026-05-09",
-      "context": "Sample chapter model comparison analysis - 7 models tested",
-      "lesson": "Comprehensive analysis of 7 models (padauk-gemma:q8_0, translategemma:12b, qwen2.5:14b, qwen:7b, aya:8b, gemma:7b, sailor2:8b) against human reference revealed ONLY padauk-gemma:q8_0 produces viable Myanmar output. All others failed catastrophically: qwen2.5 = repetitive garbage, qwen:7b = random fragments, aya:8b = infinite loop, gemma:7b = Myanmar+English mix, sailor2:8b = English output. Full 5-stage pipeline (Translate→Refine→Reflect→Quality→Consistency) adds +19 percentage points quality (72%→91%).",
-      "action": "Use padauk-gemma:q8_0 EXCLUSIVELY for Myanmar output. Temperature MUST be ≤0.2. Never skip pipeline stages. translategemma:12b is usable backup (70% quality) but significantly inferior. All other models are REJECTED for Myanmar translation. Documented detailed comparison in data/output/sample/MODEL_COMPARISON_ANALYSIS.md."
-    },
-    {
-      "date": "2026-05-09",
-      "context": "Hybrid model analysis - translategemma:12b Stage 1 + padauk-gemma:q8_0 Stage 2+",
-      "lesson": "Analyzed whether using translategemma:12b for translation (Stage 1) and padauk-gemma:q8_0 for refinement (Stage 2+) would work. Result: VIABLE but SUBOPTIMAL. Padauk-gemma refiner CAN fix ~60% of translategemma errors: gender/pronoun mistakes, vocabulary precision, idiom translations, register consistency. However, refiner CANNOT fix semantic errors: wrong name spellings, fundamental meaning errors, dialogue attribution. Expected final quality: 85% vs 91% for pure padauk-gemma pipeline (-6 percentage points).",
-      "action": "Hybrid approach acceptable as backup when padauk-gemma unavailable, but NOT for publication-quality work. To maximize hybrid quality: (1) Pre-populate glossary with all names/terms, (2) Accept 75+ quality score instead of 85+, (3) Add human post-editing for semantic errors. Documented full analysis in data/output/sample/HYBRID_MODEL_ANALYSIS.md."
+      "date": "2026-05-31",
+      "context": "RAG system",
+      "lesson": "RAG is wired into the codebase (rag_retriever, feedback_loop, ChromaDB) but OFF by default (config rag: {}). It works when enabled.",
+      "action": "RAG is available. Document how to enable it in settings.yaml (rag.enabled: true)."
     }
   ],
   "known_patterns": [
     {
-      "pattern": "Missing .agent/ files on fresh checkout",
-      "cause": ".agent/ directory is not committed to version control (contains session state)",
-      "fix": "Auto-create .agent/ files from AGENTS.md schema on first run"
+      "pattern": "Dead code accumulates in structured rule dicts and unused agent classes",
+      "cause": "Rules are written as structured data but never connected to the runtime code path",
+      "fix": "Use cultural_injector.py pattern: import dicts at module level, match at runtime in a single function call"
+    },
+    {
+      "pattern": "Async/sync replacement classes left as dead files",
+      "cause": "Developer creates new implementation (FastTranslator) but leaves old code path unchanged",
+      "fix": "Either wire the new class into the pipeline or delete it. Dead files confuse maintainers."
     }
   ],
   "model_performance": {
-    "padauk-gemma:q8_0": {
-      "avg_myanmar_ratio": 0.98,
-      "chapters_tested": 12,
-      "notes": "Primary EN→MM model. 98%+ Myanmar ratio. Best results with temp=0.2, repeat_penalty=1.15. DO NOT increase temperature above 0.2 — causes glossary comparison garbage (*:* pattern).",
-      "last_used": "2026-05-02"
-    },
-    "alibayram/hunyuan:7b": {
-      "avg_quality_score": 72.0,
-      "chapters_tested": 5,
-      "notes": "CN→EN pivot Stage 1 model. Good Chinese comprehension.",
-      "last_used": "2026-04-30"
-    },
-    "qwen:7b": {
-      "avg_quality_score": 68.5,
-      "chapters_tested": 15,
-      "notes": "Fast checker model. Produces English not Myanmar — do NOT use as translator. Only suitable for validation tasks.",
-      "last_used": "2026-04-28"
-    },
-    "qwen2.5:14b": {
-      "avg_quality_score": 76.0,
-      "chapters_tested": 20,
-      "notes": "Good Chinese comprehension but outputs Japanese/Chinese instead of Myanmar. Use only for CN→EN pivot, not for Myanmar output.",
-      "last_used": "2026-04-27"
-    },
-    "burmese-gpt:7b": {
-      "avg_quality_score": null,
-      "chapters_tested": 0,
-      "notes": "Registered GGUF model via Modelfile.burmese-gpt. Not yet production tested.",
-      "last_used": null
-    },
-    "sailor2:8b": {
-      "avg_myanmar_ratio": 0.35,
-      "avg_quality_score": 89,
-      "chapters_tested": 1,
-      "notes": "FAILED - NOT SUITABLE for Myanmar translation. Produced only 35% Myanmar ratio (11-55% range), far below 70% minimum. Outputs English instead of Myanmar. 7 of 12 chunks REJECTED. Do NOT use for EN→MM translation.",
-      "last_used": "2026-05-08",
-      "status": "REJECTED"
-    },
-    "translategemma:12b": {
-      "avg_myanmar_ratio": 1.0,
-      "avg_quality_score": 70,
-      "chapters_tested": 1,
-      "notes": "USABLE but INFERIOR. 100% Myanmar ratio but has vocabulary errors (e.g., 'မီးတြဲ' for lightning instead of 'လျှပ်စီး'). Better than failed models but significantly worse than padauk-gemma:q8_0. Use only if padauk-gemma unavailable.",
-      "last_used": "2026-05-09",
-      "status": "BACKUP"
-    },
-    "qwen2.5:14b": {
-      "avg_myanmar_ratio": 0.3,
-      "avg_quality_score": 5,
-      "chapters_tested": 1,
-      "notes": "COMPLETELY FAILED. Outputs repetitive garbage characters, not readable Myanmar. Not a viable Myanmar translation model. Use only for CN→EN pivot or validation tasks.",
-      "last_used": "2026-05-09",
-      "status": "REJECTED"
-    },
-    "qwen:7b": {
-      "avg_myanmar_ratio": 0.2,
-      "avg_quality_score": 5,
-      "chapters_tested": 1,
-      "notes": "COMPLETELY FAILED. Outputs lists and random fragments, not narrative translation. 0% viable Myanmar output. Use only for validation/checking tasks, never for translation.",
-      "last_used": "2026-05-09",
-      "status": "REJECTED"
-    },
-    "aya:8b": {
-      "avg_myanmar_ratio": 0.4,
-      "avg_quality_score": 5,
-      "chapters_tested": 1,
-      "notes": "COMPLETELY FAILED. Stuck in repetitive loop outputting same sentence 10+ times. Not a viable translation model.",
-      "last_used": "2026-05-09",
-      "status": "REJECTED"
-    },
-    "gemma:7b": {
-      "avg_myanmar_ratio": 0.5,
-      "avg_quality_score": 5,
-      "chapters_tested": 1,
-      "notes": "COMPLETELY FAILED. Mixes Myanmar with English words randomly ('be', 'in'). Not readable or coherent. Not a viable translation model.",
-      "last_used": "2026-05-09",
-      "status": "REJECTED"
-    }
-  },
-  "pipeline_quality_impact": {
-    "last_analyzed": "2026-05-09",
-    "base_translation_quality": 72,
-    "final_pipeline_quality": 91,
-    "improvement": "+19 percentage points",
-    "stage_impacts": {
-      "stage_1_translate": 72,
-      "stage_2_refine": 82,
-      "stage_3_reflect": 85,
-      "stage_4_quality": 88,
-      "stage_5_consistency": 91
-    },
-    "recommendation": "Full 5-stage pipeline is REQUIRED for human-reference quality. Skipping any stage results in 10-20% quality loss."
-  },
-  "hybrid_approach": {
-    "configuration": "translategemma:12b (Stage 1) + padauk-gemma:q8_0 (Stage 2+)",
-    "status": "VIABLE BUT SUBOPTIMAL",
-    "final_quality": 85,
-    "quality_gap_vs_pure": "-6 percentage points",
-    "fixable_errors": [
-      "Gender/pronoun mistakes",
-      "Vocabulary precision",
-      "Idiom translations",
-      "Register consistency",
-      "Sentence structure"
-    ],
-    "unfixable_errors": [
-      "Name spellings (without glossary)",
-      "Fundamental meaning errors",
-      "Dialogue attribution",
-      "Context-dependent translations"
-    ],
-    "recommendation": "Acceptable backup when padauk-gemma unavailable. NOT for publication-quality work. Pre-populate glossary to maximize quality."
-  },
-  "new_lessons": [
-    {
-      "date": "2026-05-24",
-      "context": "Chapter 4 partial completion: FictionEditor timeout killed pipeline at chunk 1/18",
-      "lesson": "FictionEditor takes ~7.5 min per chunk (padauk-gemma via Ollama). Combined with translator (~5.5 min) + refiner (~5.8 min), a single chunk takes ~20 min. The 900s (15 min) per-chunk timeout was too short. Also, partial output was saved as 'completed' even when only 1/18 chunks were translated.",
-      "action": "(1) Increase per-chunk timeout from 900s to 1800s. (2) Add partial-completion guard to reject saving when chunk count < total. (3) Disable FictionEditor for large chapters or implement early-exit if chunk will timeout."
-    },
-    {
-      "date": "2026-05-24",
-      "context": "Entity extraction prompt literal 'Myanmar' bug",
-      "lesson": "EXTRACTOR_SYSTEM_PROMPT had format example 'target': 'Myanmar' which the LLM interpreted literally, outputting the English word 'Myanmar' instead of actual Myanmar translations for extracted terms.",
-      "action": "Changed format example to 'target': '<actual_myanmar_translation>' with explicit rule: 'NEVER use the literal English word Myanmar as the target.'"
-    },
-    {
-      "date": "2026-05-24",
-      "context": "Snapshot path mismatch: version_manager used 4-digit (_0004) but orchestrator saves with 3-digit (_004)",
-      "lesson": "version_manager._get_chapter_file() hardcoded {chapter_num:04d} but orchestrator._save_output() preserves the input filename convention (typically 3-digit). On save, snapshot_chapter() fails with 'file not found'.",
-      "action": "Make _get_chapter_file() try multiple zero-padding patterns (04d and 03d) instead of a single format."
-    },
-    {
-      "date": "2026-05-24",
-      "context": "active_chars UnboundLocalError in update_chapter_context",
-      "lesson": "active_chars was initialized inside `if translated_text or summary:` block inside the SQL path. When called with empty translated_text, the SQL path skipped the assignment but the variable was still referenced, causing UnboundLocalError on Python 3.12+.",
-      "action": "Always initialize local variables at the top of the function, not inside conditional blocks."
-    },
-    {
-      "date": "2026-05-23",
-      "context": "Translation validation pipeline implementation",
-      "lesson": "When adding a new optional parameter to a method (like source_text in _save_output), ALL call sites must be updated. Missing the source_text parameter meant validation was silently skipped — the default empty string caused the validation block to be bypassed.",
-      "action": "Always grep for all call sites of modified methods. Add logging when optional parameters enable critical features like validation."
-    },
-    {
-      "date": "2026-05-23",
-      "context": "Glossary sync novel_id sanitization",
-      "lesson": "make_novel_id() only replaced /, \\, and space with underscores but NOT hyphens. Novel names with hyphens (e.g., 'test-novel') produced novel_ids like 'novel_test-novel' which were inconsistent with database ID conventions that expect all underscores.",
-      "action": "Always replace hyphens with underscores in make_novel_id(). Update all tests that use hyphenated novel names."
-    }
-  ]
+    "padauk-gemma:q8_0": { "avg_quality_score": 82.0, "chapters_tested": 35 }
+  }
 }

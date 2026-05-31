@@ -131,8 +131,8 @@ class Checker(BaseAgent):
         """
         issues = []
         
-        # Korean Hangul (U+AC00-U+D7AF, U+1100-U+11FF, U+3130-U+318F)
-        korean_chars = re.findall(r'[ᄀ-ᇿᰀ-ᱏ]', text)
+        # Korean Hangul (U+AC00-U+D7AF main block, U+1100-U+11FF Jamo)
+        korean_chars = re.findall(r'[\uac00-\ud7af\u1100-\u11ff]', text)
         if korean_chars:
             issues.append({
                 'type': 'foreign_language',
@@ -142,7 +142,7 @@ class Checker(BaseAgent):
             })
         
         # Japanese Katakana (U+30A0-U+30FF)
-        japanese_chars = re.findall(r'[Ꭰ-Ꮟ]', text)
+        japanese_chars = re.findall(r'[\u30a0-\u30ff]', text)
         if japanese_chars:
             issues.append({
                 'type': 'foreign_language',

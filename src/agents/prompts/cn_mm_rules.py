@@ -971,7 +971,373 @@ FORMATTING_RULES = {
 
 
 # ===========================================================================
-# SECTION 12: PIPELINE INTEGRATION
+# SECTION 12: CULTURAL REFERENCE MAPPINGS
+# Chinese → Myanmar cultural adaptation — mythological, kinship, color, allusions
+# ===========================================================================
+
+CULTURAL_REFERENCES = {
+    "mythological_beings": {
+        "rule": (
+            "Chinese mythological beings have different cultural connotations in Myanmar.\n"
+            "Use the Myanmar-equivalent being, NOT a direct transliteration."
+        ),
+        "mappings": [
+            {
+                "cn": "龙/龙族 (dragon)",
+                "cn_concept": "Imperial, auspicious, powerful",
+                "mm_translation": "နဂါး (naga — serpentine dragon, Buddhist origin)",
+                "mm_concept": "Powerful serpent, associated with water/rain",
+                "note": "Chinese 龙 = imperial majesty. Myanmar နဂါး = nāga from Buddhist cosmology. Acceptable overlap.",
+            },
+            {
+                "cn": "凤凰 (fenghuang)",
+                "cn_concept": "Imperial consort, rebirth, grace",
+                "mm_translation": "ဥဒေါင်းငှက် / ဒေါင်းငှက် (peacock)",
+                "mm_concept": "Grace, beauty, royalty",
+                "note": "No exact equivalent. Peacock (ဒေါင်းငှက်) carries closest regal/beauty connotation.",
+            },
+            {
+                "cn": "麒麟 (qilin)",
+                "cn_concept": "Benevolent mythical beast, wisdom",
+                "mm_translation": "သိန္ဓော (Sindhu — mythical horse/ox hybrid)",
+                "mm_concept": "Mythical hybrid beast from Buddhist lore",
+                "note": "Use သိန္ဓော or keep as 麒麟 with glossary transliteration.",
+            },
+            {
+                "cn": "貔貅 (pixiu)",
+                "cn_concept": "Wealth-attracting beast",
+                "mm_translation": "ပါယ်ရှူ (pinyin transliteration, glossary)",
+                "mm_concept": "No direct Myanmar equivalent",
+                "note": "Transliterate via pinyin. Add to glossary if recurrent.",
+            },
+        ],
+    },
+
+    "kinship_terms": {
+        "rule": (
+            "Chinese kinship terms are extremely granular (maternal/paternal, seniority).\n"
+            "Myanmar has simpler kinship system. Simplify to relationship essence."
+        ),
+        "mappings": [
+            {
+                "cn_term": "舅舅 (mother's brother)",
+                "mm": "ဦးလေး (uncle — general, maternal/paternal not distinguished)",
+                "note": "Drop the maternal-specific detail unless plot-relevant.",
+            },
+            {
+                "cn_term": "姑姑 (father's sister)",
+                "mm": "ဒေါ်လေး (aunt — general, not distinguished by paternal/maternal)",
+                "note": "Use general aunt. Specify 'ဖေဖေ့ညီမ' only if relationship matters to plot.",
+            },
+            {
+                "cn_term": "姨妈 (mother's sister)",
+                "mm": "ဒေါ်လေး (aunt — same general term)",
+                "note": "Same as 姑姑. Myanmar does not distinguish paternal/maternal aunts.",
+            },
+            {
+                "cn_term": "爷爷/外公 (paternal/maternal grandfather)",
+                "mm": "အဘိုး (grandfather — general)",
+                "note": "Do NOT distinguish paternal vs maternal unless critical to plot.",
+            },
+            {
+                "cn_term": "奶奶/外婆 (paternal/maternal grandmother)",
+                "mm": "အဘွား (grandmother — general)",
+                "note": "Same simplification. Context clarifies which side.",
+            },
+            {
+                "cn_term": "堂哥/表哥 (male cousin, paternal/maternal)",
+                "mm": "ဝမ်းကွဲ (cousin — general, age/gender from context)",
+                "note": "Do NOT translate the paternal/maternal distinction. Use context clues for age rank.",
+            },
+        ],
+    },
+
+    "color_symbolism": {
+        "rule": (
+            "Chinese and Myanmar color symbolism differs significantly.\n"
+            "Adapt color-associated meanings, not literal color words."
+        ),
+        "mappings": [
+            {
+                "cn_color": "红色/红 (red)",
+                "cn_meaning": "Luck, happiness, prosperity (weddings, festivals)",
+                "mm_render": "Use context-appropriate. Red exists as အနီ but don't force the symbolism.",
+                "note": "Myanmar red = အနီ, but lacks wedding/luck symbolism. Consider ရွှေ (gold) for prosperity context.",
+            },
+            {
+                "cn_color": "白色/白 (white)",
+                "cn_meaning": "Death, mourning, funerals",
+                "mm_render": "Use ဖြူ/အဖြူ for color. For death symbolism, use သုသာန် (funerary) instead of color word.",
+                "note": "Myanmar white = color only, not funerary. If meaning is 'death', use funeral terms not color.",
+            },
+            {
+                "cn_color": "黄色/黄 (yellow)",
+                "cn_meaning": "Imperial, royalty (historical)",
+                "mm_render": "Use ဝါ/အဝါ for color. For imperial, prefer ရွှေ (gold) which carries royalty in Myanmar.",
+                "note": "Myanmar royalty associated with ရွှေ (gold), not yellow. Adapt accordingly.",
+            },
+        ],
+    },
+
+    "classical_allusions": {
+        "rule": (
+            "Chinese classical allusions (典故) have no direct Myanmar parallel.\n"
+            "Do NOT literal-translate the allusion story. Express the MEANING."
+        ),
+        "examples": [
+            {
+                "cn": "三顾茅庐 (three visits to the thatched cottage)",
+                "meaning": "Persistently seeking a talented person's help",
+                "wrong": "တဲသုံးကြိမ်သွားလည် (literal — meaningless in Myanmar)",
+                "correct": "လိမ္မာသူကို ကြိမ်ဖန်များစွာ သွားရောက်တောင်းပန် (persistently seek a wise person)",
+            },
+            {
+                "cn": "指鹿为马 (point at a deer and call it a horse)",
+                "meaning": "Deliberately misrepresent to bully others into submission",
+                "wrong": "သမင်ကိုညွှန်ပြီး မြင်းလို့ခေါ် (literal — meaningless)",
+                "correct": "မှားကို မှန်အောင် အတင်းအဓမ္မပြော (forcefully claim false as truth)",
+            },
+            {
+                "cn": "画蛇添足 (draw a snake and add feet)",
+                "meaning": "Ruining something by adding unnecessary extras",
+                "wrong": "မြွေဆွဲပြီး ခြေထောက်ထပ်ထည့် (literal — meaningless)",
+                "correct": "သေချာပြီးသားကို ပိုလျှံထပ်ဖြည့်ပြီး ပျက်စီး (over-embellish and ruin)",
+            },
+            {
+                "cn": "对牛弹琴 (play music to a cow)",
+                "meaning": "Explaining something to someone who cannot understand",
+                "wrong": "နွားရှေ့မှာ စောင်းတီး (literal — awkward in Myanmar)",
+                "correct": "သဘောမပေါက်သူကို ရှင်းပြနေသလိုဖြစ် (explaining to someone who won't grasp it)",
+            },
+        ],
+    },
+
+    "buddhist_terms": {
+        "rule": (
+            "Chinese cultivation novels draw heavily on Mahayana Buddhist terminology.\n"
+            "Myanmar is predominantly Theravada Buddhist — many concepts differ or don't exist.\n"
+            "Use the closest Theravada term, or explain via context. Never use English transliterations."
+        ),
+        "mappings": [
+            {
+                "cn": "佛/佛陀 (Buddha)",
+                "mahayana_concept": "Celestial Buddha, multiple Buddhas",
+                "mm": "ဗုဒ္ဓ (Buddha — same term, acceptable)",
+                "note": "Same term, same meaning. Safe to use directly.",
+            },
+            {
+                "cn": "菩萨 (Bodhisattva)",
+                "mahayana_concept": "Enlightened being who delays nirvana to help others",
+                "mm": "ဗောဓိသတ္တ / ဘုရားလောင်း (Bodhisatta — Theravada term)",
+                "note": "Theravada uses ဗောဓိသတ္တ for Buddha-before-enlightenment. Mahayana 菩萨 is a different concept. Use ဗောဓိသတ္တ with context.",
+            },
+            {
+                "cn": "罗汉 (Arhat)",
+                "mahayana_concept": "Enlightened disciple",
+                "mm": "ရဟန္တာ (Arahant — Theravada equivalent)",
+                "note": "Good match. Theravada ရဟန္တာ = one who has attained nirvana.",
+            },
+            {
+                "cn": "因果 (cause and effect, karma)",
+                "mahayana_concept": "Universal causality across lifetimes",
+                "mm": "ကံ (kamma) / ကံကြမ္မာ (kamma destiny)",
+                "note": "Use ကံ (kamma) for karmic cause. ကံကြမ္မာ for fateful karmic result.",
+            },
+            {
+                "cn": "业/业力 (karma, karmic force)",
+                "mahayana_concept": "Accumulated karmic debt/merit",
+                "mm": "ကံ / ကံပါဠိ (kamma / kamma-pāli)",
+                "note": "Theravada ကံ = intentional action. Use ကံပါဠိ for accumulated karmic burden.",
+            },
+            {
+                "cn": "轮回 (samsara, reincarnation cycle)",
+                "mahayana_concept": "Six realms of rebirth",
+                "mm": "သံသရာ (saṃsāra — cycle of rebirth)",
+                "note": "Same concept exists in Theravada. Use သံသရာဝဋ် for the full suffering cycle.",
+            },
+            {
+                "cn": "缘/缘分 (karmic connection/destiny)",
+                "mahayana_concept": "Predestined relationship, karmic bond",
+                "mm": "ကံဆုံ / ကံပေါင်းမိ (karmic meeting)",
+                "note": "Not a direct Theravada term. Use ကံဆုံ = 'kamma-meeting' for destined encounter.",
+            },
+            {
+                "cn": "地狱 (hell realm)",
+                "mahayana_concept": "Temporary punishment realm in six paths",
+                "mm": "ငရဲ (naraka — hell realm, same in both traditions)",
+                "note": "Same term, same concept. Safe to use directly.",
+            },
+            {
+                "cn": "天道 (deva realm, heavenly path)",
+                "mahayana_concept": "Highest of six rebirth realms",
+                "mm": "နတ်ပြည် (deva realm) / သုဂတိ (happy destination)",
+                "note": "နတ်ပြည် = realm of devas (celestial beings). Appropriate.",
+            },
+            {
+                "cn": "神通 (supernatural power, siddhi)",
+                "mahayana_concept": "Spiritual powers from cultivation",
+                "mm": "တန်ခိုး (supernatural power) / လောကီအဘိညာဉ် (mundane higher knowledge)",
+                "note": "Theravada has အဘိညာဏ (abhiññā) = higher knowledges. Use တန်ခိုးတည်း for simple 'supernatural power'.",
+            },
+            {
+                "cn": "法力 (dharma power, magical power)",
+                "mahayana_concept": "Spiritual power from cultivation",
+                "mm": "တန်ခိုး (supernatural power) / စွမ်းအား (spiritual energy)",
+                "note": "Avoid 'dharma' in translation — Theravada ဓမ္မ = teaching, not power. Use တန်ခိုး.",
+            },
+            {
+                "cn": "涅槃/圆寂 (nirvana, parinirvana)",
+                "mahayana_concept": "Final liberation, Buddha's passing",
+                "mm": "နိဗ္ဗာန် (nibbāna — same concept in Theravada)",
+                "note": "Same term. Use နိဗ္ဗာန်ရောက် for 'passed into nirvana'.",
+            },
+            {
+                "cn": "禅定 (meditative absorption, dhyana)",
+                "mahayana_concept": "Deep meditative state in cultivation",
+                "mm": "ဈာန် (jhāna — meditative absorption)",
+                "note": "Same concept exists. Use ဈာန်ဝင်စား for 'entering meditative absorption'.",
+            },
+            {
+                "cn": "超度 (liberation of souls, funeral rites)",
+                "mahayana_concept": "Rituals to help souls transcend",
+                "mm": "ရေစက်ချ (water-pouring funeral merit) / ဘာသာပြောင်း (transfer merit)",
+                "note": "Mahayana 超度 lacks exact Theravada equivalent. Use ရေစက်ချ for funeral merit-transfer context.",
+            },
+        ],
+    },
+
+    "historical_political_terms": {
+        "rule": (
+            "Chinese historical/political terms need Myanmar cultural adaptation.\n"
+            "Imperial China terms → closest Myanmar historical equivalent."
+        ),
+        "mappings": [
+            {
+                "cn": "朝廷 (imperial court)",
+                "mm": "နန်းတော် (palace court) / မင်းညီမင်းသားတို့ (royal court)",
+                "note": "Myanmar monarchy had နန်းတွင်း (inner palace). Use နန်းတော် for the institution.",
+            },
+            {
+                "cn": "天子 (Son of Heaven, emperor)",
+                "mm": "ဧကရာဇ် (emperor) / မင်းကြီး (great king)",
+                "note": "Avoid literal 'ကောင်းကင်သား'. Use ဧကရာဇ် for imperial context.",
+            },
+            {
+                "cn": "皇帝 (emperor)",
+                "mm": "ဧကရာဇ် (emperor) / မင်းကြီး (great king)",
+                "note": "Myanmar had ဘုရင် (king), not emperor. Use ဧကရာဇ် for Chinese emperor.",
+            },
+            {
+                "cn": "武林/江湖 (martial world / jianghu)",
+                "mm": "ကျင့်ကြံသူလောက (cultivator world) / ဂိုဏ်းလောက (sect world)",
+                "note": "Core wuxia concept with no Myanmar parallel. Use ကျင့်ကြံသူအသိုင်းအဝိုင်း for 'cultivator community'.",
+            },
+            {
+                "cn": "门派/宗门 (sect, martial school)",
+                "mm": "ဂိုဏ်း (sect) / ကျောင်း (school)",
+                "note": "ဂိုဏ်း (as in martial sect) is now established via glossary.",
+            },
+            {
+                "cn": "科举 (imperial examinations)",
+                "mm": "မင်းလုလင်စာမေးပွဲ (royal service exam) / ပညာရွေ့ (merit-based selection)",
+                "note": "Myanmar Konbaung dynasty had similar system. Use ပညာရွေ့ for the concept.",
+            },
+            {
+                "cn": "官兵/朝廷军队 (imperial army)",
+                "mm": "မြင်းမိုရ်တပ် (royal army) / နန်းတပ် (palace troops)",
+                "note": "Use နန်းတပ် for imperial forces vs local/rebels.",
+            },
+        ],
+    },
+
+    "festivals_food_customs": {
+        "rule": (
+            "Chinese festivals and foods have no direct Myanmar equivalents.\n"
+            "Describe the cultural significance rather than the literal name."
+        ),
+        "mappings": [
+            {
+                "cn": "春节 (Chinese New Year)",
+                "mm": "တရုတ်နှစ်သစ်ကူး (Chinese new year) / နှစ်ဆန်းတစ်ရက် (new year's day)",
+                "note": "Do NOT confuse with Myanmar Thingyan (April). Clarify 'တရုတ်' (Chinese).",
+            },
+            {
+                "cn": "中秋节 (Mid-Autumn Festival)",
+                "mm": "လပြည့်ပွဲတော် (full moon festival) / တရုတ်လပြည့်ပွဲ (Chinese moon festival)",
+                "note": "No Myanmar equivalent. Describe as လပြည့်ပွဲတော် + context.",
+            },
+            {
+                "cn": "端午节 (Dragon Boat Festival)",
+                "mm": "နဂါးလှေပြိုင်ပွဲတော် (dragon boat race festival)",
+                "note": "No Myanmar equivalent. Descriptive translation only.",
+            },
+            {
+                "cn": "元宵节 (Lantern Festival)",
+                "mm": "မီးပုံးပွဲတော် (lantern festival)",
+                "note": "Descriptive. Myanmar has မီးပုံးပျံ (hot air balloon) festival — different but related imagery.",
+            },
+            {
+                "cn": "饺子 (jiaozi dumplings)",
+                "mm": "ဂျောင်ဇီမုန့် (jiaozi) / အသားထုပ်မုန့် (meat-wrapped dumpling)",
+                "note": "No Myanmar equivalent. Use အသားထုပ်မုန့် as description, or transliterate if glossary term.",
+            },
+            {
+                "cn": "月饼 (mooncake)",
+                "mm": "လကိတ် (moon cake) / လထူပင် (moon-shaped pastry)",
+                "note": "No Myanmar equivalent. Use လကိတ် (moon + cake loan) or describe as လပုံဆန်မုန့်.",
+            },
+            {
+                "cn": "粽子 (zongzi, sticky rice dumplings)",
+                "mm": "ထမင်းထုပ်မုန့် (rice-wrapped dumpling)",
+                "note": "No Myanmar equivalent. Descriptive only.",
+            },
+            {
+                "cn": "宴席 (banquet, feast)",
+                "mm": "ပွဲကြီး (grand feast) / ဧည့်ခံပွဲ (reception feast)",
+                "note": "Myanmar ပွဲကြီး = grand feast. Appropriate for cultivation novel banquets.",
+            },
+            {
+                "cn": "祠堂/祖祠 (ancestral hall)",
+                "mm": "ဘိုးဘွားစေတီ (ancestral shrine) / မျိုးရိုးကျောင်း (lineage hall)",
+                "note": "Myanmar has ဘိုးဘွားပူဇော်ပွဲ (ancestor veneration). Use ဘိုးဘွားစေတီ for the physical hall.",
+            },
+            {
+                "cn": "红白喜事 (wedding and funeral, lit. red-white events)",
+                "mm": "မင်္ဂလာဆောင်နှင့် အသုဘ (wedding and funeral — describe directly)",
+                "note": "Do NOT translate color symbolism. Simply describe as wedding/funeral.",
+            },
+        ],
+    },
+
+    "poetry_adaptation": {
+        "rule": (
+            "Chinese poetry forms (诗/词/曲) have NO Myanmar equivalent.\n"
+            "Preserve MEANING and IMAGERY. Do NOT attempt to replicate meter/rhyme.\n"
+            "If the poem is important to plot, translate meaning clearly as prose lines.\n"
+            "If the poem is decorative (chapter opening), keep it brief and evocative."
+        ),
+        "examples": [
+            {
+                "cn_form": "五言绝句 (5-character quatrain)",
+                "original": "床前明月光 疑是地上霜 举头望明月 低头思故乡",
+                "literal": "Before bed bright moon light, suspect is ground frost, raise head look at bright moon, lower head think of hometown",
+                "mm_prose": "အိပ်ရာရှေ့မှာ လရောင်တောက်လို့ မြေပြင်မှာ နှင်းခဲထင်မိတယ် ခေါင်းမို့ကြည့်တော့ လဝန်းကိုမြင် ခေါင်းငုံ့လိုက်တော့ ဇာတိရွာကို လွမ်းမိတယ်",
+                "note": "Li Bai's 'Quiet Night Thought'. Preserve the 4-line structure and nostalgic mood. Meter cannot be replicated.",
+            },
+            {
+                "cn_form": "七言绝句 (7-character quatrain)",
+                "original": "日照香炉生紫烟 遥看瀑布挂前川 飞流直下三千尺 疑是银河落九天",
+                "literal": "Sun shines incense burner purple smoke, far see waterfall hangs front river, flying stream straight down three thousand feet, suspect is Milky Way falls from ninth sky",
+                "mm_prose": "နေရောင်က လောင်ကျရှူးတောင်ကို ထိုးလို့ ခရမ်းရောင်အခိုးတွေထွက်တယ် အဝေးကကြည့်တော့ ရေတံခွန်က မြစ်ရှေ့မှာချိတ်ဆွဲနေသလို လေထဲကနေ ပေသုံးထောင်ပြုတ်ကျတဲ့ရေဟာ ဂလက်ဆီကောင်းကင်က ပြုတ်ကျလာသလိုပဲ",
+                "note": "Li Bai's 'Watching Lushan Waterfall'. Use vivid Myanmar imagery. 'Milky Way' = ဂလက်ဆီ is acceptable loan.",
+            },
+        ],
+    },
+}
+
+
+# ===========================================================================
+# SECTION 13: PIPELINE INTEGRATION
 # ===========================================================================
 
 PIPELINE_SETTINGS = {

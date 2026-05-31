@@ -144,7 +144,7 @@ def _check_markdown_structure(text: str, expected_chapter: Optional[int] = None)
     results = []
     lines = text.split('\n')
     h1_count = sum(1 for line in lines if re.match(r'^#\s+အခန်း\s+', line.strip()))
-    _ = sum(1 for line in lines if re.match(r'^##\s+', line.strip()))
+    h2_count = sum(1 for line in lines if re.match(r'^##\s+', line.strip()))
 
     if h1_count == 1:
         results.append(CheckResult("H1 Count", True, 0, f"{h1_count} heading"))
@@ -153,6 +153,11 @@ def _check_markdown_structure(text: str, expected_chapter: Optional[int] = None)
     else:
         results.append(CheckResult("H1 Count", False, 10,
                                    f"{h1_count} headings (duplicates)", "CRITICAL"))
+    if h2_count > 0:
+        results.append(CheckResult("H2 Subsections", True, 0, f"{h2_count} subsections found"))
+    elif len(lines) > 20:
+        results.append(CheckResult("H2 Subsections", False, 2,
+                                   "No H2 subsections in a long chapter — missing structure?", "INFO"))
 
     # Bold balance
     bold_markers = text.count('**')

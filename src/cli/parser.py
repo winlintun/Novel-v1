@@ -272,6 +272,28 @@ def create_parser() -> argparse.ArgumentParser:
         help="Show per-chapter quality score trends for a novel"
     )
     utility_group.add_argument(
+        "--rate-rejected",
+        action="store_true",
+        help="Interactive CLI to rate rejected translation chunks (accept/reject/score) for human verification"
+    )
+    utility_group.add_argument(
+        "--finetune",
+        action="store_true",
+        help="Fine-tune a LoRA adapter on human-rated translation pairs from the dataset DB"
+    )
+    utility_group.add_argument(
+        "--adapter",
+        type=str,
+        default=None,
+        help="Adapter name for --finetune output or --use-adapter inference"
+    )
+    utility_group.add_argument(
+        "--use-adapter",
+        type=str,
+        default=None,
+        help="Use a trained LoRA adapter for inference (bypasses Ollama; requires torch+transformers+peft)"
+    )
+    utility_group.add_argument(
         "--compare-human",
         action="store_true",
         help="Compare AI output against human reference chapter (requires --novel and --chapter)"
@@ -376,7 +398,7 @@ def validate_arguments(args: argparse.Namespace) -> None:
     # Check for required arguments when not running utility commands
     # --generate-glossary --novel X is a standalone command (no chapter required)
     versioning_commands = [args.versions, args.rollback, args.diff, args.preview_sync, args.create_sync_job, args.execute_sync, args.list_sync_jobs, args.audit_log]
-    utility_commands = [args.ui, args.test, args.generate_glossary, getattr(args, 'init_glossary', False), args.approve_glossary, args.view_file, args.review_file, args.auto_promote, args.stats, getattr(args, 'compare_models', None), getattr(args, 'compare_human', False)] + versioning_commands
+    utility_commands = [args.ui, args.test, args.generate_glossary, getattr(args, 'init_glossary', False), args.approve_glossary, args.view_file, args.review_file, args.auto_promote, args.stats, getattr(args, 'compare_models', None), getattr(args, 'compare_human', False), getattr(args, 'rate_rejected', False), getattr(args, 'finetune', False)] + versioning_commands
 
     if not any(utility_commands):
         if not args.novel and not args.input_file:

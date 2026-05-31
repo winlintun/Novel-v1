@@ -22,6 +22,7 @@ from src.agents.prompts.language_guards import (
 # System prompts for all agents
 from src.agents.prompts.system_prompts import (
     TRANSLATOR_SYSTEM_PROMPT,
+    ENGLISH_TRANSLATOR_SYSTEM_PROMPT,
     EDITOR_SYSTEM_PROMPT,
     EXTRACTOR_SYSTEM_PROMPT,
     FAST_EN_MM_PROMPT,
@@ -66,6 +67,7 @@ __all__ = [
     "UNICODE_SAFETY_CHECKLIST",
     # System prompts
     "TRANSLATOR_SYSTEM_PROMPT",
+    "ENGLISH_TRANSLATOR_SYSTEM_PROMPT",
     "EDITOR_SYSTEM_PROMPT",
     "EXTRACTOR_SYSTEM_PROMPT",
     "FAST_EN_MM_PROMPT",

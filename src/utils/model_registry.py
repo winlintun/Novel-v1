@@ -154,3 +154,23 @@ def summary() -> str:
     lines.append(f"Latest run: {latest.get('model')} on {latest.get('novel')} ch{latest.get('chapter')}")
     lines.append(f"  Score: {latest.get('avg_quality_score')} | Ratio: {latest.get('avg_myanmar_ratio'):.1%}")
     return "\n".join(lines)
+
+
+def get_adapter_path(adapter_name: str) -> Optional[Path]:
+    """Resolve adapter path from name.
+
+    Args:
+        adapter_name: Name of the adapter (directory under models/adapters/)
+
+    Returns:
+        Path to adapter directory, or None if not found
+    """
+    path = Path("models/adapters") / adapter_name
+    if path.exists() and (path / "adapter_config.json").exists():
+        return path
+    # Try as absolute/relative path
+    candidate = Path(adapter_name)
+    if candidate.exists() and (candidate / "adapter_config.json").exists():
+        return candidate
+    logger.error(f"Adapter '{adapter_name}' not found at {path}")
+    return None

@@ -1,31 +1,16 @@
 {
   "current_phase": "DOC",
-  "task": "Chapter 4 partial completion fixes (timeout, partial save guard, entity extraction, snapshot path, active_chars)",
-  "feature_type": 2,
+  "task": "Dead code cleanup — full project audit and cleanup",
+  "feature_type": 1,
   "phases": {
     "PLAN":   { "status": "DONE",        "runner": "Agent",  "requires_human": false },
     "BUILD":  { "status": "DONE",        "runner": "Agent",  "requires_human": false },
     "TEST":   { "status": "DONE",        "runner": "Agent",  "requires_human": false },
-    "VERIFY": { "status": "DONE",        "runner": "Ollama", "requires_human": false,
-                 "score": null, "retry_count": 0 },
-    "AUDIT":  { "status": "DONE",        "runner": "Claude", "requires_human": false },
-    "DOC":    { "status": "DONE",        "runner": "Agent",  "requires_human": false,
-                 "skippable": false }
+    "VERIFY": { "status": "DONE",        "runner": "Agent",  "requires_human": false,
+                "score": null, "retry_count": 0 },
+    "AUDIT":  { "status": "DONE",        "runner": "Gemini", "requires_human": false },
+    "DOC":    { "status": "IN_PROGRESS", "runner": "Agent",  "requires_human": false,
+                "skippable": false }
   },
-  "updated_at": "2026-05-24T07:30:00Z",
-  "summary": {
-    "files_created": 0,
-    "files_modified": 5,
-    "commits_made": 0,
-    "commits": [],
-    "test_result": "525 passed, 5 pre-existing failures (test_workflow_routing.py)",
-    "findings": [
-      "Increased per-chunk timeout from 900s to 1800s to accommodate FictionEditor overhead (~20 min per chunk)",
-      "Added partial-completion guard to prevent saving output when not all chunks are translated",
-      "Fixed active_chars UnboundLocalError by initializing at function top",
-      "Fixed entity extraction prompt literal 'Myanmar' bug - changed format example and added guard",
-      "Fixed snapshot path mismatch by falling back to 3-digit zero-padding if 4-digit not found"
-    ],
-    "recommendation": "None - all changes tested and reviewed"
-  }
+  "updated_at": "2026-05-31T00:00:00Z"
 }

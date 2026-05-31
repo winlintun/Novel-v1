@@ -1,0 +1,47 @@
+﻿{
+  "last_updated": "2026-05-23T18:41:25.700713",
+  "total_terms": 1,
+  "mined_terms": 1,
+  "template_terms": 0,
+  "novels_scanned": [
+    {
+      "name": "a-will-eternal",
+      "display": "A Will Eternal",
+      "chapters": 5
+    },
+    {
+      "name": "outside-of-time",
+      "display": "Outside of Time",
+      "chapters": 5
+    },
+    {
+      "name": "eternal-sacred-king",
+      "display": "Eternal Sacred King",
+      "chapters": 5
+    },
+    {
+      "name": "renegade-immortal",
+      "display": "Renegade Immortal",
+      "chapters": 5
+    },
+    {
+      "name": "daoist-master-of-qing-xuan",
+      "display": "Daoist Master of Qing Xuan",
+      "chapters": 5
+    },
+    {
+      "name": "we-agreed-on-experiencing-life-so-why-did-you-immortals-become-real",
+      "display": "We Agreed on Experiencing Life",
+      "chapters": 2
+    }
+  ],
+  "top_terms": [
+    {
+      "term": "Qi Condensation",
+      "category": "cultivation_concept",
+      "frequency": "low",
+      "novels": 2,
+      "occurrences": 5
+    }
+  ]
+}

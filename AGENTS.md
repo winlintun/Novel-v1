@@ -503,7 +503,7 @@ Add this block to `CURRENT_STATE.md` and keep it updated:
 | BOM stripped with .lstrip('﻿') | ❌ / ✅ | YYYY-MM-DD | Pattern 8 |
 | Indic scripts stripped (all 9 blocks) | ❌ / ✅ | YYYY-MM-DD | Pattern 9 |
 | SequenceMatcher used for Myanmar similarity | ❌ / ✅ | YYYY-MM-DD | Pattern 10 |
-| 259 tests pass (pytest tests/ -v) | ❌ / ✅ | YYYY-MM-DD | |
+| 441 tests pass (pytest tests/ -v) | ❌ / ✅ | YYYY-MM-DD | |
 | src/exceptions.py exists | ❌ / ✅ | YYYY-MM-DD | |
 | src/utils/ollama_client.py exists | ❌ / ✅ | YYYY-MM-DD | |
 | src/utils/chunker.py exists | ❌ / ✅ | YYYY-MM-DD | smart_chunk() canonical |
@@ -555,39 +555,28 @@ novel_translation_project/
 ├── config/
 │   ├── settings.yaml             # Standard config (EN→MM direct, padauk-gemma)
 │   ├── settings.pivot.yaml       # CN→EN→MM pivot (hunyuan:7b + padauk-gemma)
-│   ├── settings.fast.yaml        # Fast mode config
-│   ├── settings.sailor2.yaml     # Sailor2-20B dedicated config
-│   └── error_recovery.yaml       # Error recovery policy
+│   └── settings.fast.yaml        # Fast mode config
 ├── data/
 │   ├── input/                    # Source chapter files (*.md)
-│   └── output/
-│       └── {novel_name}/         # ★ Per-novel output folder (created on first run)
-│           ├── glossary/
-│           │   ├── glossary.json           # Approved terminology (per-novel)
-│           │   ├── glossary_pending.json   # New terms awaiting human review
-│           │   └── context_memory.json     # Dynamic chapter context
-│           ├── {novel}_chapter_{NNNN}.mm.md   # Myanmar chapter output
-│           └── {novel}.mm.meta.json           # Cumulative chapter metadata
+│   ├── output/                   # Translated output per novel
+│   └── training/                 # Training data (rejected chunks, rating progress)
 ├── logs/
-│   ├── translation.log
-│   └── report/                   # Auto-review reports: {novel}_chapter_{N}_review_{ts}.md
+│   ├── translation.log           # Current translation session log
+│   └── report/                   # Auto-review reports
+├── models/
+│   └── adapters/                 # Fine-tuned LoRA adapter weights
 ├── src/
 │   ├── agents/
 │   │   ├── base_agent.py         # BaseAgent superclass
 │   │   ├── preprocessor.py       # Chunking and markdown cleaning
 │   │   ├── translator.py         # Stage 1: EN→MM or CN→MM translation
-│   │   ├── pivot_translator.py   # CN→EN→MM two-stage pivot (way2)
-│   │   ├── fast_translator.py    # Optimized translator (large chunks, streaming)
 │   │   ├── refiner.py            # Stage 2: Literary editing
-│   │   ├── fast_refiner.py       # Batch refiner (5 paragraphs per call)
 │   │   ├── checker.py            # Consistency + QA validation
 │   │   ├── reflection_agent.py   # Self-correction agent
 │   │   ├── myanmar_quality_checker.py  # Linguistic validation
 │   │   ├── qa_tester.py          # QA validation agent
 │   │   ├── context_updater.py    # Term extraction and memory updates
 │   │   ├── glossary_generator.py # Pre-translation terminology extraction
-│   │   ├── glossary_sync.py      # Glossary synchronization agent
-│   │   ├── prompt_patch.py       # Hardened prompts with LANGUAGE_GUARD
 │   │   └── prompts/
 │   │       ├── cn_mm_rules.py    # CN→MM linguistic rules module
 │   │       └── en_mm_rules.py    # EN→MM linguistic rules module
@@ -597,59 +586,77 @@ novel_translation_project/
 │   │   └── commands.py           # Command handlers + workflow routing (way1/way2)
 │   ├── config/
 │   │   ├── models.py             # Pydantic config models
-│   │   └── loader.py             # Config loading with validation
-│   ├── core/
-│   │   └── container.py          # Dependency injection container
+│   │   ├── loader.py             # Config loading with validation
+│   │   └── skeleton_models.py    # Skeleton model config loader
+│   ├── db/                       # SQLite database layer
+│   │   ├── connection.py         # Database connection with retry + WAL mode
+│   │   ├── schema.py             # Schema management and migrations
+│   │   └── repositories/         # Repository pattern (glossary, chapter, context, novel)
 │   ├── memory/
-│   │   └── memory_manager.py     # 3-tier memory system
+│   │   ├── memory_manager.py     # 3-tier memory system (gateway for all state)
+│   │   └── version_manager.py    # Chapter version tracking
 │   ├── pipeline/
 │   │   └── orchestrator.py       # TranslationPipeline coordinator
-│   ├── types/
-│   │   └── definitions.py        # TypedDict for data structures
+│   ├── training/
+│   │   ├── rating_cli.py         # Human verification CLI (--rate-rejected)
+│   │   ├── finetune.py           # LoRA fine-tuning scaffold (--finetune)
+│   │   └── config_lora.yaml      # LoRA hyperparameter config
 │   ├── utils/
 │   │   ├── ollama_client.py      # OllamaClient class — retry + timeout gateway
 │   │   ├── file_handler.py       # File I/O (UTF-8-SIG, atomic writes)
 │   │   ├── postprocessor.py      # Output cleaning + all script leak removal
-│   │   ├── chunker.py            # smart_chunk() + get_rolling_context() — canonical
-│   │   ├── translation_reviewer.py  # 10 linguistic + 6 quantitative quality checks
+│   │   ├── chunker.py            # smart_chunk() + get_rolling_context()
+│   │   ├── cultural_injector.py  # Runtime cultural rule matching
+│   │   ├── translation_reviewer.py  # 10+6 quality checks, fluency scorer
 │   │   ├── fluency_scorer.py     # Reference-free Myanmar fluency metric (7 dimensions)
 │   │   ├── json_extractor.py     # Safe JSON parsing with fallback
-│   │   ├── glossary_matcher.py   # Dynamic term extraction for prompt injection
-│   │   ├── glossary_suggestor.py # Glossary suggestion heuristics
 │   │   ├── progress_logger.py    # Real-time translation progress tracking
-│   │   ├── performance_logger.py # Pipeline performance metrics
-│   │   ├── ram_monitor.py        # Memory / VRAM monitoring
+│   │   ├── model_registry.py     # Per-model quality tracking over time
 │   │   └── cache_cleaner.py      # Python cache cleanup utility
 │   ├── web/
-│   │   └── launcher.py           # Flask launcher
+│   │   ├── flask_app.py          # Flask web application
+│   │   ├── launcher.py           # Web UI launcher
+│   │   ├── static/               # CSS, JS assets
+│   │   └── templates/            # Jinja2 templates
+│   ├── data/                     # RAG + dataset ingestion
+│   │   ├── dataset_pipeline.py   # EN→MM dataset ingestion
+│   │   └── rag_retriever.py      # ChromaDB/SQLite RAG retrieval
 │   ├── exceptions.py             # Exception hierarchy (ModelError, GlossaryError, etc.)
 │   └── main.py                   # Entry point (thin dispatcher)
-├── tests/                        # 259 tests passing (pytest tests/ -v)
+├── tests/                        # 441 tests passing (pytest tests/ -v)
 │   ├── test_agents.py
+│   ├── test_cache_cleaner.py
 │   ├── test_chunker.py
 │   ├── test_cn_mm_rules.py
 │   ├── test_config.py
-│   ├── test_container.py
-│   ├── test_glossary_sync.py
+│   ├── test_cultural_injector.py
+│   ├── test_db_migrator.py
+│   ├── test_db_repositories.py
+│   ├── test_db_schema.py
+│   ├── test_glossary_generator.py
 │   ├── test_integration.py
 │   ├── test_json_extractor.py
 │   ├── test_memory.py
+│   ├── test_memory_sql.py
+│   ├── test_model_registry.py
+│   ├── test_myanmar_quality_checker.py
 │   ├── test_novel_v1.py
-│   ├── test_pivot_stage2_guard.py
-│   ├── test_pivot_translator.py
 │   ├── test_postprocessor.py
 │   ├── test_progress_logger.py
-│   ├── test_prompt_patch.py
 │   ├── test_qa_tester.py
 │   ├── test_quality.py
-│   ├── test_regression.py
+│   ├── test_reflection_agent.py
+│   ├── test_sync_external.py
+│   ├── test_training.py
 │   ├── test_translation_reviewer.py
 │   ├── test_translator.py
+│   ├── test_versioning.py
 │   ├── test_workflow_routing.py
 │   └── test_translate/
 │       └── test_ch_en_mm_translation.py
 ├── requirements.txt
 ├── pytest.ini
+├── clean_run.sh                  # Project cleanup script
 └── README.md
 ```
 
@@ -914,29 +921,35 @@ class GlossaryTerm(TypedDict):
  
 ### 3. Automated Tests (Write test before or with code)
  
-**Structure (259 tests, all passing — run `pytest tests/ -v --tb=short`):**
+**Structure (441 tests, all passing — run `pytest tests/ -v --tb=short`):**
 ```
 tests/
 ├── test_agents.py                   # Agent initialization and interface
 ├── test_chunker.py                  # smart_chunk(), get_rolling_context(), overlap=0
 ├── test_cn_mm_rules.py              # CN→MM linguistic rules
 ├── test_config.py                   # Config loading and validation
-├── test_container.py                # Dependency injection container
-├── test_glossary_sync.py            # Glossary sync agent
+├── test_cultural_injector.py        # Runtime cultural rule injection
+├── test_db_migrator.py              # Database migration
+├── test_db_repositories.py          # DB repository pattern
+├── test_db_schema.py                # DB schema management
+├── test_glossary_generator.py       # Glossary generation
 ├── test_integration.py              # End-to-end: input → output file
 ├── test_json_extractor.py           # Safe JSON parsing
 ├── test_memory.py                   # add_term(), get_term(), FIFO, auto-approve
+├── test_memory_sql.py               # MemoryManager SQL backend
+├── test_model_registry.py           # Model performance tracking
+├── test_myanmar_quality_checker.py  # Myanmar linguistic validation
 ├── test_novel_v1.py                 # Full novel v1 workflow
-├── test_pivot_stage2_guard.py       # EN guard — prevents English leaking into MM output
-├── test_pivot_translator.py         # CN→EN→MM pivot workflow
 ├── test_postprocessor.py            # Script stripping, heading dedup, BOM handling
 ├── test_progress_logger.py          # Progress tracking
-├── test_prompt_patch.py             # LANGUAGE_GUARD prompts
 ├── test_qa_tester.py                # QA validation agent
 ├── test_quality.py                  # Quality scoring
-├── test_regression.py               # Regression suite
+├── test_reflection_agent.py         # Self-correction agent
+├── test_sync_external.py            # External glossary sync
+├── test_training.py                 # Dataset loading, splitting, adapter paths
 ├── test_translation_reviewer.py     # 10+6 quality checks, fluency scorer
 ├── test_translator.py               # Translator.translate_paragraph()
+├── test_versioning.py               # Chapter version tracking
 ├── test_workflow_routing.py         # way1/way2 auto-detection routing
 └── test_translate/
     └── test_ch_en_mm_translation.py # Full chapter CN→EN→MM with log display

@@ -1,171 +1,111 @@
-#!/bin/bash
-#
-# run.sh - Auto-clean and run translation for Linux/Mac
-# Cleans: Python cache, test cache, coverage, linter cache, temp files
-# 
-# Usage: ./run.sh [arguments]
-#        ./run.sh --novel "novel_name" --chapter 1
-#        ./run.sh --novel "novel_name" --all
-#        ./run.sh --help
-#
+#!/usr/bin/env bash
+# ──────────────────────────────────────────────────────────────────────────────
+# clean_run.sh — Project cleanup script
+# Removes: test artifacts, Python caches, old logs, dead files, temp data
+# Preserves: current translation logs, databases, glossaries, output files
+# ──────────────────────────────────────────────────────────────────────────────
+set -euo pipefail
 
-set -e  # Exit on error
-
-echo "======================================================================"
-echo "  🧹 Novel Translation - Auto Cache Cleaner & Launcher"
-echo "======================================================================"
-echo ""
-
-# Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-# Check if Python is available
-if ! command -v python3 &> /dev/null; then
-    echo "❌ ERROR: Python 3 not found!"
-    echo "Please install Python 3 or add it to your PATH"
-    exit 1
-fi
+echo "=== Novel Translation Project — Cleanup ==="
+echo ""
 
-# Function to count files/dirs
-count_files() {
-    find . -type f "$1" 2>/dev/null | wc -l
-}
-count_dirs() {
-    find . -type d -name "$1" 2>/dev/null | wc -l
-}
-
-# ===================== Step 1: Comprehensive Cache Cleaning =====================
-echo "Step 1: Cleaning Python Cache..."
-echo "----------------------------------------------------------------------"
-
-# Python cache
-BEFORE_PYC_DIRS=$(count_dirs "__pycache__")
-BEFORE_PYC_FILES=$(count_files "\( -name '*.pyc' -o -name '*.pyo' -o -name '*.pyd' \)")
-
+# ── 1. Python cache files ───────────────────────────────────────────────────
+echo "[1/8] Removing Python cache files..."
 find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
-find . -type f \( -name "*.pyc" -o -name "*.pyo" -o -name "*.pyd" \) -delete 2>/dev/null || true
+find . -type f -name "*.pyc" -delete
+find . -type f -name "*.pyo" -delete
+find . -type f -name "*.pyd" -delete
+echo "  OK"
 
-echo "  Python cache: $BEFORE_PYC_DIRS dirs, $BEFORE_PYC_FILES files"
+# ── 2. Pytest cache + coverage ──────────────────────────────────────────────
+echo "[2/8] Removing test artifacts..."
+rm -rf .pytest_cache/
+rm -rf htmlcov/
+rm -f coverage.xml
+rm -f .coverage
+echo "  OK"
 
-# Test cache
-find . -type d -name ".pytest_cache" -exec rm -rf {} + 2>/dev/null || true
-find . -type d -name ".hypothesis" -exec rm -rf {} + 2>/dev/null || true
-
-# Coverage
-find . -type f \( -name "coverage.xml" -o -name ".coverage" -o -name "*.cover" \) -delete 2>/dev/null || true
-find . -type d -name "htmlcov" -exec rm -rf {} + 2>/dev/null || true
-
-# Type checkers
-find . -type d -name ".mypy_cache" -exec rm -rf {} + 2>/dev/null || true
-find . -type f -name "dmypy.json" -delete 2>/dev/null || true
-find . -type d -name ".pyre" -exec rm -rf {} + 2>/dev/null || true
-
-# Linters
-find . -type d -name ".ruff_cache" -exec rm -rf {} + 2>/dev/null || true
-
-# Jupyter
-find . -type d -name ".ipynb_checkpoints" -exec rm -rf {} + 2>/dev/null || true
-
-# IDE
-find . -type d -name ".vscode" -exec rm -rf {} + 2>/dev/null || true
-find . -type d -name ".idea" -exec rm -rf {} + 2>/dev/null || true
-find . -type f -name "*.swp" -delete 2>/dev/null || true
-find . -type f -name "*.swo" -delete 2>/dev/null || true
-
-# Temp files
-find . -type f \( -name "*.tmp" -o -name "*.bak" -o -name "*.orig" \) -delete 2>/dev/null || true
-
-AFTER_PYC_DIRS=$(count_dirs "__pycache__")
-AFTER_PYC_FILES=$(count_files "\( -name '*.pyc' -o -name '*.pyo' \)")
-
-echo "  Remaining: $AFTER_PYC_DIRS dirs, $AFTER_PYC_FILES files"
-echo "  ✅ Cache cleaned!"
-echo ""
-
-# ===================== Step 2: Clean old log files =====================
-echo "Step 2: Cleaning old log files..."
-echo "----------------------------------------------------------------------"
-
-LOGS_REMOVED=0
-
+# ── 3. Old logs (keep current session logs) ─────────────────────────────────
+echo "[3/8] Cleaning old logs (preserving current translation logs)..."
 if [ -d "logs" ]; then
-    cd logs 2>/dev/null || true
-    
-    # Keep last 5 translation logs
-    ls -t translation_*.log 2>/dev/null | tail -n +6 | while read file; do
-        rm -f "$file" 2>/dev/null && LOGS_REMOVED=$((LOGS_REMOVED + 1))
-    done
-    
-    # Clean old review reports - keep last 10
-    if [ -d "report" ]; then
-        cd report 2>/dev/null || true
-        ls -t *.md 2>/dev/null | tail -n +11 | while read file; do
-            rm -f "$file" 2>/dev/null && LOGS_REMOVED=$((LOGS_REMOVED + 1))
-        done
-        cd .. 2>/dev/null || true
+    # Keep last 3 report files, delete older ones
+    if [ -d "logs/report" ]; then
+        ls -t logs/report/*.md 2>/dev/null | tail -n +4 | xargs rm -f 2>/dev/null || true
     fi
-    
-    cd "$SCRIPT_DIR" 2>/dev/null || true
+    # Delete performance logs (dead utility)
+    rm -rf logs/performance/ 2>/dev/null || true
+    # Delete temp log files
+    rm -f logs/*.tmp 2>/dev/null || true
+    # Delete benchmark reports (standalone)
+    rm -f logs/report/benchmark_*.json 2>/dev/null || true
 fi
+echo "  OK"
 
-echo "  Old log files removed: $LOGS_REMOVED"
-echo "  ✅ Logs cleaned (kept: 5 recent translation logs, 10 review reports)"
+# ── 4. Working / temp data ──────────────────────────────────────────────────
+echo "[4/8] Removing working/temp data..."
+rm -rf data/working/ 2>/dev/null || true
+rm -rf logs/temp/ 2>/dev/null || true
+rm -f data/training/rating_progress.json 2>/dev/null || true
+echo "  OK"
+
+# ── 5. Dead config files ────────────────────────────────────────────────────
+echo "[5/8] Removing unused config files..."
+rm -f config/settings.sailor2.yaml 2>/dev/null || true
+rm -f config/settings.translategemma.yaml 2>/dev/null || true
+rm -f config/settings.qwen2.5.yaml 2>/dev/null || true
+rm -f config/error_recovery.yaml 2>/dev/null || true
+echo "  OK"
+
+# ── 6. Dead source packages ─────────────────────────────────────────────────
+echo "[6/8] Removing dead source files..."
+rm -rf src/database/ 2>/dev/null || true           # Old DB package (replaced by src/db/)
+rm -f src/agents/prompt_patch.py 2>/dev/null || true  # Deprecated compat shim
+rm -rf src/core/ 2>/dev/null || true                # Unused DI container
+rm -rf src/types/ 2>/dev/null || true               # Unused TypedDict definitions
+rm -f src/utils/ram_monitor.py 2>/dev/null || true
+rm -f src/utils/performance_logger.py 2>/dev/null || true
+rm -f src/utils/glossary_suggestor.py 2>/dev/null || true
+rm -f src/utils/glossary_matcher.py 2>/dev/null || true
+rm -f src/evaluation/glossary_miner.py 2>/dev/null || true  # Dead file within live dir
+echo "  OK"
+
+# ── 7. Dead agent files ─────────────────────────────────────────────────────
+echo "[7/8] Removing dead agent files..."
+rm -f src/agents/fast_translator.py 2>/dev/null || true
+rm -f src/agents/fast_refiner.py 2>/dev/null || true
+rm -f src/agents/pivot_translator.py 2>/dev/null || true
+rm -f src/agents/glossary_sync.py 2>/dev/null || true
+echo "  OK"
+
+# ── 8. Dead data files ──────────────────────────────────────────────────────
+echo "[8/8] Removing dead data files..."
+rm -f src/data/ingest_rag_export.py 2>/dev/null || true
+echo "  OK"
+
+# ── 9. Dead test files (imports dead source code) ───────────────────────────
+echo "[9/9] Removing dead test files..."
+for f in \
+    test_fast_translator.py \
+    test_fast_refiner.py \
+    test_pivot_translator.py \
+    test_pivot_stage2_guard.py \
+    test_glossary_sync.py \
+    test_glossary_suggestor.py \
+    test_performance_logger.py \
+    test_ram_monitor.py \
+    test_container.py \
+    test_regression.py \
+    test_prompt_patch.py \
+; do
+    rm -f "tests/$f" 2>/dev/null || true
+done
+echo "  OK"
+
 echo ""
-
-# ===================== Step 3: Show help if no args =====================
-if [ $# -eq 0 ]; then
-    echo "======================================================================"
-    echo "  📚 Novel Translation Pipeline"
-    echo "======================================================================"
-    echo ""
-    echo "Usage:"
-    echo "  ./run.sh --novel \"novel_name\" --chapter 1"
-    echo "  ./run.sh --novel \"novel_name\" --all"
-    echo "  ./run.sh --novel \"novel_name\" --generate-glossary"
-    echo ""
-    echo "Common Options:"
-    echo "  --novel NAME       Translate a novel (use with --chapter or --all)"
-    echo "  --chapter NUM      Translate specific chapter"
-    echo "  --chapter-range N-M  Translate chapters N to M"
-    echo "  --all              Translate all chapters"
-    echo "  --generate-glossary  Generate glossary from chapters"
-    echo "  --workflow way1    Force EN->MM direct translation"
-    echo "  --workflow way2    Force CN->EN->MM pivot translation"
-    echo "  --ui               Launch web UI"
-    echo ""
-    echo "Cache and logs have been cleaned."
-    echo "Use one of the commands above to translate."
-    echo ""
-    echo "For full help: python -m src.main --help"
-    echo ""
-    exit 0
-fi
-
-# ===================== Step 4: Run the translation =====================
-echo "======================================================================"
-echo "  🚀 Starting Translation"
-echo "======================================================================"
+echo "=== Cleanup complete. ==="
 echo ""
-
-cd "$SCRIPT_DIR"
-
-# Run the main module
-python3 -m src.main "$@"
-
-# Get the exit code
-EXIT_CODE=$?
-
-if [ $EXIT_CODE -ne 0 ]; then
-    echo ""
-    echo "======================================================================"
-    echo "  ❌ Translation failed with error code $EXIT_CODE"
-    echo "======================================================================"
-else
-    echo ""
-    echo "======================================================================"
-    echo "  ✅ Translation completed successfully"
-    echo "======================================================================"
-fi
-
-exit $EXIT_CODE
+echo "Remaining tests: $(ls tests/test_*.py 2>/dev/null | wc -l)"
+echo "To run: pytest tests/ -v"

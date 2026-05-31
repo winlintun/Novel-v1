@@ -208,7 +208,7 @@ class TestProgressLogger(unittest.TestCase):
         self.assertNotIn("Source (Chinese)", content)
 
     def test_progress_summary_updates(self):
-        """Test that progress summary is updated correctly."""
+        """Test that progress summary is updated on finalize (perf-optimized: no per-chunk rewrite)."""
         logger = ProgressLogger(
             book_id=self.book_id,
             chapter_name=self.chapter_name,
@@ -216,11 +216,18 @@ class TestProgressLogger(unittest.TestCase):
             log_dir=self.temp_dir
         )
 
-        # Log 2 out of 4 chunks
+        # Log 2 out of 4 chunks (append-only, no summary rewrite per chunk)
         logger.log_chunk(0, "Text 1", "Source 1")
         logger.log_chunk(1, "Text 2", "Source 2")
 
-        # Check summary shows 50%
+        # Check chunks were appended (summary not updated yet)
+        content = logger.log_file.read_text(encoding='utf-8-sig')
+        self.assertIn("#### Myanmar Translation", content)
+        self.assertIn("Text 1", content)
+        self.assertIn("Text 2", content)
+
+        # Finalize writes the full summary with correct counts
+        logger.finalize(success=True)
         content = logger.log_file.read_text(encoding='utf-8-sig')
         self.assertIn("**Completed:** 2/4 chunks (50.0%)", content)
 

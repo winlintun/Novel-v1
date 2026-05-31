@@ -4,6 +4,7 @@ Translator Agent
 Core Chinese to Myanmar translation using Ollama.
 """
 
+import re
 import logging
 from typing import Dict, List, Optional, Any
 
@@ -12,6 +13,7 @@ from src.memory.memory_manager import MemoryManager
 from src.utils.progress_logger import ProgressLogger
 
 from src.utils.postprocessor import clean_output, validate_output, detect_language_leakage, myanmar_char_ratio, looks_truncated
+from src.utils.cultural_injector import build_cultural_injection
 from src.agents.base_agent import BaseAgent
 from src.agents.prompts import (
     LANGUAGE_GUARD,
@@ -30,7 +32,7 @@ logger = logging.getLogger(__name__)
 _TRUNCATION_RETRY_TOKENS = 4096
 
 
-def get_language_prompt(source_lang: str, model_name: str = "") -> str:
+def get_language_prompt(source_lang: str, model_name: str = "", scene_type: str = "narration") -> str:
     """Get system prompt based on source language with full translation rules.
 
     Incorporates cn_mm_rules.py (CN→MM) and en_mm_rules.py (EN→MM)
@@ -39,9 +41,11 @@ def get_language_prompt(source_lang: str, model_name: str = "") -> str:
     Args:
         source_lang: Source language ("chinese" or "english")
         model_name: Model name for prompt optimization (fast prompt for padauk-gemma)
+        scene_type: Scene type for dynamic rule injection
+            ("narration" | "dialogue" | "action" | "confrontation")
     """
     from src.agents.prompts import build_translator_prompt
-    return build_translator_prompt(source_lang, model_name)
+    return build_translator_prompt(source_lang, model_name, scene_type)
 
 
 
@@ -80,12 +84,18 @@ class Translator(BaseAgent):
             'retry_num_predict', _TRUNCATION_RETRY_TOKENS
         )
 
-    def get_system_prompt(self, source_lang: str = "english") -> str:
-        """Get system prompt based on source language (chinese or english)."""
+    def get_system_prompt(self, source_lang: str = "english", scene_type: str = "narration") -> str:
+        """Get system prompt based on source language (chinese or english).
+
+        Args:
+            source_lang: Source language ("chinese" or "english")
+            scene_type: Scene type for dynamic linguistic rule injection
+                ("narration" | "dialogue" | "action" | "confrontation")
+        """
         if self._custom_system_prompt:
             return self._custom_system_prompt
         model_name = getattr(self.ollama, 'model', '') if self.ollama else ''
-        return get_language_prompt(source_lang, model_name=model_name)
+        return get_language_prompt(source_lang, model_name=model_name, scene_type=scene_type)
 
     def build_prompt(self, text: str, rolling_context: str = "") -> str:
         """Build translation prompt with memory context and rolling translation context.
@@ -150,6 +160,13 @@ class Translator(BaseAgent):
             prompt_parts.append(summary_text)
             prompt_parts.append("")
 
+        # Add text-specific cultural translation rules (live from structured dicts)
+        source_lang = self.config.get('project', {}).get('source_language', 'chinese')
+        cultural_rules = build_cultural_injection(text, source_lang=source_lang)
+        if cultural_rules:
+            prompt_parts.append(cultural_rules)
+            prompt_parts.append("")
+
         # Add source text
         prompt_parts.append("SOURCE TEXT TO TRANSLATE:")
         prompt_parts.append(text)
@@ -195,6 +212,46 @@ class Translator(BaseAgent):
             logger.warning(f"RAG retrieval failed: {e}")
             return ""
 
+    def _detect_scene_type(self, text: str, lang: str = "chinese") -> str:
+        """Detect dominant scene type from source text for dynamic rule injection.
+
+        Analyzes text for confrontation, action, and dialogue indicators
+        to select the appropriate linguistic rules from build_linguistic_context().
+
+        Args:
+            text: Source text paragraph to analyze
+            lang: Source language ("chinese" or "english")
+
+        Returns:
+            Scene type: "confrontation" | "action" | "dialogue" | "narration"
+        """
+        if lang == "chinese":
+            confrontation_kw = ['你', '死', '杀', '恨', '报仇', '妖', '魔', '畜生']
+            action_kw = ['打', '击', '剑', '刀', '攻', '战', '拳', '掌']
+        else:
+            confrontation_kw = ['you', 'die', 'kill', 'hate', 'revenge', 'demon', 'curse']
+            action_kw = [
+                'strike', 'struck', 'attack', 'attacked', 'fight', 'fought',
+                'sword', 'slash', 'slashed', 'punch', 'punched',
+                'battle', 'battled', 'kick', 'kicked',
+            ]
+
+        lines = [l for l in text.split('\n') if l.strip()]
+        total_lines = len(lines) if lines else 1
+        dialogue_lines = sum(1 for l in lines if any(q in l for q in '""「」『』'))
+        exclamation_count = text.count('!') + text.count('！')
+        confrontation_count = sum(1 for kw in confrontation_kw if kw in text)
+        action_count = sum(1 for kw in action_kw if kw in text)
+        dialogue_ratio = dialogue_lines / total_lines
+
+        if confrontation_count >= 2 or (exclamation_count >= 2 and dialogue_ratio > 0.3):
+            return "confrontation"
+        if dialogue_ratio > 0.5:
+            return "dialogue"
+        if action_count >= 3:
+            return "action"
+        return "narration"
+
     def translate_paragraph(
         self,
         paragraph: str,
@@ -222,7 +279,9 @@ class Translator(BaseAgent):
         else:
             lang_key = 'chinese'
 
-        system_prompt = self.get_system_prompt(lang_key)
+        # Auto-detect scene type for dynamic linguistic rule injection
+        scene_type = self._detect_scene_type(paragraph, lang=lang_key)
+        system_prompt = self.get_system_prompt(lang_key, scene_type=scene_type)
 
         # First attempt
         raw = self.ollama.chat(
