@@ -134,3 +134,14 @@ data/datasets_novels/
 
 # ── Input novels (user files) ───────────────────────────────────────────────
 data/input/
+
+# ── Large binary data files (CI performance) ────────────────────────────────
+data/novel_translation.db
+data/novel_v1_dataset.db
+data/chroma_db/
+data/evaluation/
+data/output/*/glossary/
+data/output/**/*.mm.md
+data/output/**/*.mm.meta.json
+data/output/**/*.human.md
+data/output/**/*.single_stage.md
