@@ -1,901 +1,526 @@
-# Novel Translation Pipeline
+# ဝတ္ထုဘာသာပြန် Pipeline (Novel Translation Pipeline)
 
-AI-powered Chinese/English-to-Myanmar (Burmese) novel translation pipeline using Ollama.
+AI စွမ်းအင်သုံး အင်္ဂလိပ်/တရုတ် → မြန်မာ ဝတ္ထုဘာသာပြန်စနစ်။ Local LLM (Ollama) ကို အသုံးပြု၍ Xianxia, Wuxia, Fantasy ဝတ္ထုများကို အရည်အသွေးမြင့် ဘာသာပြန်ဆိုနိုင်ရန် တည်ဆောက်ထားပါသည်။
 
-## Overview
+---
 
-This is a production-grade local novel translation system that translates Chinese and English novels into Myanmar (Burmese) language using local LLM inference via Ollama. The system specializes in Xianxia, Wuxia, and other East Asian fantasy genres with comprehensive quality gates, terminology management, and a Flask web UI.
+## 📖 Project ခြုံငုံသုံးသပ်ချက်
 
-## Features
+ဤ project သည် **အင်္ဂလိပ် (EN) နှင့် တရုတ် (CN) ဘာသာစကား** နှစ်မျိုးလုံးမှ **မြန်မာဘာသာ (MM)** သို့ ဝတ္ထုများကို ဘာသာပြန်ဆိုနိုင်သော production-grade system တစ်ခုဖြစ်သည်။
 
-- **Multi-language support**: Chinese→Myanmar and English→Myanmar translation
-- **8-stage pipeline**: Preprocess → Translate → Refine → Reflect → Quality → Consistency → **FictionEditor** → QA Review
-- **3-tier memory**: Glossary + Context + Session rules
-- **Semantic RAG**: ChromaDB with BGE-M3/all-MiniLM-L6-v2 embeddings for paragraph-level reference retrieval
-- **Self-correction**: Reflection agent enabled by default for iterative improvement
-- **Literary humanization**: FictionEditor with 6 tone presets (humanize, dramatic, casual, literary, action, romantic)
-- **Quality gates**: Myanmar ratio ≥70%, quality score ≥70, +7 validation checks
-- **Per-novel glossary**: Isolated terminology per novel
-- **Auto-promotion**: High-confidence terms auto-approved
-- **Human-reference comparison**: `--compare-human` CLI benchmarking against human chapter corpus
-- **Web UI**: Flask-based interface for translations
-- **Version Control**: Chapter snapshots, rollback, diff, and glossary sync jobs
-- **Audit Logging**: Track who changed what and when across all chapters
+**အဓိကအင်္ဂါရပ်များ:**
 
-## Installation
+- **Multi-language support**: EN→MM (way1) နှင့် CN→EN→MM (way2) ဘာသာပြန်လမ်းကြောင်း ၂ မျိုး
+- **Auto-detection**: Input ဖိုင်၏ ဘာသာစကားကို auto-detect လုပ်၍ သင့်တော်သော workflow ကို အလိုအလျောက် ရွေးချယ်ခြင်း
+- **8-stage pipeline**: Preprocess → Translate → Refine → Reflect → Quality → Consistency → FictionEditor → QA
+- **3-tier memory**: Glossary (ဝေါဟာရ) + Context (အကြောင်းအရာ) + Session (အစည်းအဝေး) memory စနစ်
+- **Per-novel glossary**: ဝတ္ထုတစ်ပုဒ်ချင်းစီအတွက် သီးသန့် glossary term များ
+- **Quality gates**: Myanmar ratio ≥ 70%, quality score ≥ 70/100, fluency scorer
+- **Flask Web UI**: Dashboard, Translate, Editor, Reader, Cleanup ပါဝင်သော graphical interface
+- **Version Control**: Chapter snapshot, rollback, diff, glossary sync job
+- **Audit Logging**: ပြောင်းလဲမှုမှန်သမျှကို ခြေရာခံနိုင်ခြင်း
+- **LoRA Fine-tuning**: လူသားအဆင့်သတ်မှတ်ထားသော translation pair များဖြင့် model ကို fine-tune လုပ်နိုင်ခြင်း
+- **SQLite Database**: ၁၀ ခုသော table များဖြင့် structured data storage
+- **RAG Retrieval**: ChromaDB + SQLite semantic retrieval for few-shot translation examples
+
+---
+
+## ⚙️ Installation (တပ်ဆင်ခြင်း)
+
+### Prerequisites
+
+- Python 3.10+
+- [Ollama](https://ollama.com/) (local LLM server)
+- 16GB+ RAM (သို့) GPU with 8GB+ VRAM
+
+### Steps
 
 ```bash
-# Clone and install dependencies
+# 1. Clone repository
+git clone <repository-url>
+cd novel_translation_project
+
+# 2. Python virtual environment ဖန်တီးပါ
+python3 -m venv venv
+source venv/bin/activate  # Linux/Mac
+
+# 3. Dependencies တပ်ဆင်ပါ
 pip install -r requirements.txt
 
-# For semantic RAG with ChromaDB (recommended):
-# The system auto-detects if chromadb/sentence-transformers are installed.
-# Without them, RAG falls back to SQLite keyword-overlap retrieval.
-pip install chromadb sentence-transformers
+# 4. Ollama ကို install လုပ်ပါ (https://ollama.com)
+# Ollama ကို background service အဖြစ် run ထားရန် လိုအပ်ပါသည်။
 
-# Pull required Ollama models
-ollama pull padauk-gemma:q8_0
-ollama pull alibayram/hunyuan:7b  # For Chinese pivot (optional)
+# 5. Myanmar translation model များကို pull လုပ်ပါ
+ollama pull padauk-gemma:q8_0     # PRIMARY Myanmar model (RECOMMENDED)
+
+# 6. Optional models
+ollama pull alibayram/hunyuan:7b  # CN→EN pivot (way2 အတွက်)
+ollama pull qwen:7b               # Validation/checking အတွက်
+
+# 7. Project structure ကို verify လုပ်ပါ
+python -m src.main --test
 ```
 
-## Quick Start
+### Hardware Requirements (Model အလိုက် VRAM အကြမ်းဖျင်း)
 
-### CLI Translation
+| Model | VRAM ခန့်မှန်း |
+|---|---|
+| padauk-gemma:q8_0 | ~8 GB |
+| sailor2-20b:latest | ~11 GB |
+| sailor2:8b | ~6 GB |
+| yxchia/seallms-v3-7b:Q4_K_M | ~5 GB |
+| alibayram/hunyuan:7b | ~5 GB |
+| qwen:7b | ~5 GB |
 
+---
+
+## 🔧 Configuration (ပြင်ဆင်သတ်မှတ်ခြင်း)
+
+### Main Config Files
+
+| File | Description |
+|---|---|
+| `config/settings.yaml` | Default config (EN→MM direct, padauk-gemma) |
+| `config/settings.pivot.yaml` | CN→EN→MM pivot (hunyuan:7b + padauk-gemma) |
+| `config/settings.fast.yaml` | Fast mode config |
+| `config/models.skeleton.yaml` | Model selection config (Web UI အတွက်) |
+
+### settings.yaml Structure
+
+```yaml
+# Model settings
+models:
+  translator: "padauk-gemma:q8_0"   # Translation model
+  editor: "padauk-gemma:q8_0"       # Editing/refinement model
+  refiner: "padauk-gemma:q8_0"      # Refinement model
+  checker: "padauk-gemma:q8_0"      # Quality checker model
+  provider: "ollama"                 # LLM provider
+  timeout: 300                       # API timeout (seconds)
+
+# Pipeline settings
+translation_pipeline:
+  mode: "single_stage"               # single_stage | lite | fast | full | two_stage
+
+# Processing
+processing:
+  chunk_size: 1200                   # Characters per chunk
+  temperature: 0.2                   # Model temperature (padauk-gemma ≤ 0.2)
+  repeat_penalty: 1.3                # Repetition penalty
+  max_retries: 2                     # Max retry attempts
+
+# Storage
+storage:
+  backend: "sqlite"                  # json | sqlite
+  db_path: "data/novel_translation.db"
+
+# Quality gates
+myanmar_readability:
+  enabled: true
+  min_myanmar_ratio: 0.70            # 70% Myanmar characters required
+```
+
+### Skeleton Model Config
+
+Web UI နှင့် CLI အတွက် model ကို `config/models.skeleton.yaml` တွင် ရွေးချယ်နိုင်သည်။
+
+```yaml
+active_model: padauk-gemma-q8        # Default model key
+
+models:
+  padauk-gemma-q8:
+    name: padauk-gemma:q8_0
+    temperature: 0.2
+    max_tokens: 4096
+    repeat_penalty: 1.3
+    chunk_size: 2500
+```
+
+CLI မှတစ်ဆင့် model ကို override လုပ်ရန်:
 ```bash
-# Single chapter
-python -m src.main --novel reverend-insanity --chapter 1
-
-# Multiple chapters
-python -m src.main --novel reverend-insanity --all
-
-# Chapter range
-python -m src.main --novel reverend-insanity --chapter-range 1-10
-
-# From specific chapter
-python -m src.main --novel reverend-insanity --all --start 10
-
-# Single file
-python -m src.main --input data/input/Novel/chapter_001.md
-
-# Compare output against human reference (requires human chapter corpus)
-python -m src.main --novel outside-of-time --chapter 1 --compare-human
+python -m src.main --novel wayfarer --chapter 1 --model qwen:7b
 ```
 
-### Web UI
+---
 
-```bash
-python -m src.main --ui
-```
-
-### Pipeline Modes
-
-```bash
-# Default mode: Translate → Refine → Reflect → FictionEditor
-python -m src.main --novel novel --chapter 1
-
-# Fast mode: Translate → Quality only (skip refinement/reflection/editor)
-python -m src.main --novel novel --chapter 1 --mode fast
-
-# Single-stage: Translate only
-python -m src.main --novel novel --chapter 1 --mode single_stage
-
-# Full mode: Translate → Refine → Reflect → Quality → Consistency → Editor → QA
-python -m src.main --novel novel --chapter 1 --mode full
-
-# Explicit Chinese pivot workflow
-python -m src.main --novel novel --chapter 1 --config config/settings.pivot.yaml
-```
-
-## File Structure
-
-```
-novel_translation_project/
-├── src/
-│   ├── main.py                 # Entry point, CLI dispatcher
-│   ├── exceptions.py          # Custom exceptions
-│   ├── cli/                  # CLI modules
-│   │   ├── __init__.py
-│   │   ├── parser.py         # Argument parsing
-│   │   ├── commands.py     # Command handlers
-│   │   └── formatters.py   # Output formatting
-│   ├── agents/              # Translation agents
-│   │   ├── __init__.py
-│   │   ├── base_agent.py         # Base class for agents
-│   │   ├── translator.py        # Core translator (stage 1)
-│   │   ├── refiner.py           # Literary refiner (stage 2)
-│   │   ├── reflection_agent.py  # Self-correction (stage 3)
-│   │   ├── fiction_editor.py    # Literary humanization (stage 5b)
-│   │   ├── preprocessor.py   # Text preprocessing
-│   │   ├── checker.py        # Glossary consistency
-│   │   ├── myanmar_quality_checker.py  # Myanmar linguistic validation
-│   │   ├── qa_tester.py   # QA validation (stage 6)
-│   │   ├── context_updater.py  # Context extraction
-│   │   ├── glossary_generator.py  # Term extraction
-│   │   ├── glossary_sync.py   # Glossary management
-│   │   ├── fast_translator.py  # Fast mode
-│   │   ├── fast_refiner.py    # Fast refine
-│   │   ├── pivot_translator.py  # Two-stage CN→EN→MM
-│   │   ├── prompt_patch.py   # Prompt customization
-│   │   └── prompts/          # Prompt rules
-│   │       ├── __init__.py
-│   │       ├── cn_mm_rules.py   # Chinese→Myanmar rules
-│   │       └── en_mm_rules.py  # English→Myanmar rules
-│   ├── pipeline/            # Pipeline orchestration
-│   │   ├── __init__.py
-│   │   └── orchestrator.py  # Main pipeline coordinator
-│   ├── memory/              # Memory system
-│   │   ├── __init__.py
-│   │   └── memory_manager.py  # 3-tier memory
-│   ├── config/              # Configuration
-│   │   ├── __init__.py
-│   │   ├── loader.py        # YAML config loading
-│   │   └── models.py       # Pydantic models
-│   ├── core/                # Core utilities
-│   │   ├── __init__.py
-│   │   └── container.py    # DI container
-│   ├── types/               # Type definitions
-│   │   ├── __init__.py
-│   │   └── definitions.py # Type definitions
-│   ├── data/                # RAG and data pipelines
-│   │   ├── rag_retriever.py       # ChromaDB + SQLite semantic retrieval
-│   │   ├── dataset_pipeline.py    # JSONL ingest → ChromaDB/SQLite
-│   │   └── feedback_loop.py       # Quality-based pair ingestion
-│   ├── evaluation/           # Benchmarking
-│   │   ├── benchmark.py          # Human-reference comparison
-│   │   └── glossary_miner.py     # Term extraction from corpus
-│   ├── utils/               # Utility modules
-│   │   ├── __init__.py
-│   │   ├── ollama_client.py       # Ollama API wrapper
-│   │   ├── postprocessor.py      # Output cleaning
-│   │   ├── postprocessor_patterns.py  # Regex patterns
-│   │   ├── file_handler.py       # File I/O
-│   │   ├── chunker.py          # Text chunking
-│   │   ├── glossary_suggestor.py # Term suggestion
-│   │   ├── glossary_matcher.py # Term matching
-│   │   ├── translation_reviewer.py # Quality reports
-│   │   ├── fluency_scorer.py    # Fluency scoring
-│   │   ├── progress_logger.py  # Progress tracking
-│   │   ├── performance_logger.py # Performance logging
-│   │   ├── ram_monitor.py    # RAM monitoring
-│   │   ├── cache_cleaner.py # Cache cleanup
-│   │   ├── json_extractor.py # JSON extraction
-│   │   └── progress_logger.py
-│   └── web/                # Web UI
-│       ├── __init__.py
-│       └── launcher.py     # UI launcher
-├── config/                # Configuration files
-│   ├── settings.yaml      # Default config
-│   ├── settings.pivot.yaml  # CN→EN→MM pivot
-│   ├── settings.fast.yaml   # Fast mode
-│   ├── settings.sailor2.yaml  # Sailor2 model
-│   └── error_recovery.yaml # Error recovery
-├── data/
-│   ├── input/            # Source novels
-│   │   └── {novel}/
-│   │       └── *.md
-│   └── output/           # Translated output
-│       └── {novel}/
-│           └── *.mm.md
-├── tests/                # Test suite
-│   └── test_*.py
-├── logs/                 # Logs
-│   ├── translation_*.log
-│   └── report/          # Quality reports
-├── .agent/              # Agent system
-│   ├── phase_gate.json
-│   ├── session_memory.json
-│   ├── long_term_memory.json
-│   └── error_library.json
-└── README.md
-```
-
-## Command Reference
+## 🖥️ CLI Usage (Command Line အသုံးပြုပုံ)
 
 ### Translation Commands
 
-| Command | Description |
-|---------|-------------|
-| `--novel X --chapter N` | Translate single chapter |
-| `--novel X --all` | Translate all chapters |
-| `--novel X --chapter-range 1-10` | Translate range |
-| `--novel X --start N` | Start from chapter N |
-| `--input PATH` | Translate single file |
-| `--mode full/lite/fast/single_stage` | Pipeline mode |
-| `--workflow way1/way2` | Translation workflow |
-| `--use-reflection` | Enable reflection agent (default: on in settings.yaml) |
-| `--config FILE` | Config file path |
-| `--model NAME` | Override translation model |
+```bash
+# Chapter တစ်ခုတည်း ဘာသာပြန်ရန်
+python -m src.main --novel wayfarer --chapter 1
 
-### Workflow Options
+# Chapter အားလုံး ဘာသာပြန်ရန်
+python -m src.main --novel reverend-insanity --all
 
-| Workflow | Description |
-|----------|-------------|
-| `way1` | English→Myanmar direct |
-| `way2` | Chinese→English→Myanmar pivot |
+# Chapter အပိုင်းအခြား ဘာသာပြန်ရန်
+python -m src.main --novel wayfarer --chapter-range 21-35
 
-### Utility Commands
+# Chapter N မှစ၍ အကုန်ဘာသာပြန်ရန်
+python -m src.main --novel reverend-insanity --all --start 10
 
-| Command | Description |
-|---------|-------------|
-| `--ui` | Launch Flask web UI |
-| `--review FILE` | Quality review |
-| `--view FILE` | View output |
-| `--stats --novel X` | Score trends |
-| `--generate-glossary` | Generate glossary |
-| `--auto-promote` | Auto-promote terms |
-| `--approve-glossary` | Bulk approve terms |
-| `--compare-human` | Benchmark AI output vs human reference (requires --novel + --chapter) |
-| `--compare-models` | Translate same chapter with ALL models to logs/temp/ |
-| `--clean` | ~~Clear cache~~ (use `./clean_run.sh`) |
-| `--test` | Run test |
-| `--rebuild-meta` | Rebuild metadata |
+# Workflow ကို explicitly သတ်မှတ်ရန်
+python -m src.main --novel wayfarer --chapter 1 --workflow way1     # EN→MM
+python -m src.main --novel novel --chapter 1 --lang zh              # CN→MM auto
 
-### Version Control Commands
+# Config file သတ်မှတ်ရန် (way2 pivot)
+python -m src.main --novel novel --chapter 1 --config config/settings.pivot.yaml
 
-| Command | Description |
-|---------|-------------|
-| `--versions` | List chapter versions |
-| `--rollback N` | Rollback to version N |
-| `--diff A,B` | Show diff between versions |
-| `--preview-sync ID=VAL` | Preview glossary change impact |
-| `--create-sync-job ID=VAL` | Create glossary sync job |
-| `--execute-sync ID` | Execute sync job |
-| `--execute-sync ID --dry-run` | Preview sync without applying |
-| `--list-sync-jobs` | List all sync jobs |
-| `--audit-log` | Show audit log |
+# Pipeline mode သတ်မှတ်ရန်
+python -m src.main --novel novel --chapter 1 --mode single_stage    # 1-stage (recommended)
+python -m src.main --novel novel --chapter 1 --mode lite            # 3-stage
+python -m src.main --novel novel --chapter 1 --mode full            # 6-stage
+python -m src.main --novel novel --chapter 1 --mode fast            # 2-stage
+```
 
-**Version Control Examples:**
+### Quality & Review Commands
 
 ```bash
-# List versions for chapter 1
-python -m src.main --novel my-novel --chapter 1 --versions
+# ဘာသာပြန်ပြီးသား .mm.md ဖိုင်ကို quality review လုပ်ရန်
+python -m src.main --review data/output/wayfarer/wayfarer_chapter_001.mm.md
 
-# Show diff between versions 1 and 3
-python -m src.main --novel my-novel --chapter 1 --diff 1,3
+# ဘာသာပြန်ပြီးသားဖိုင်ကို terminal မှကြည့်ရန်
+python -m src.main --view data/output/wayfarer/wayfarer_chapter_001.mm.md
 
-# Rollback chapter 1 to version 2
-python -m src.main --novel my-novel --chapter 1 --rollback 2
+# Chapter အလိုက် quality score trends ကြည့်ရန်
+python -m src.main --stats --novel wayfarer
 
-# Preview glossary change impact
-python -m src.main --novel my-novel --preview-sync term_abc123=NEW_VALUE
-
-# Create and execute sync job
-python -m src.main --novel my-novel --create-sync-job term_abc123=NEW_VALUE
-python -m src.main --execute-sync 1 --dry-run  # Preview first
-python -m src.main --execute-sync 1            # Apply changes
+# Metadata ပြန်တည်ဆောက်ရန်
+python -m src.main --novel wayfarer --rebuild-meta
 ```
 
-### Configuration Options
-
-| Option | Description |
-|--------|-------------|
-| `--config FILE` | Config file path |
-| `--model NAME` | Override model |
-| `--output-dir DIR` | Output directory |
-
-## Module Reference
-
-### Entry Point
-
-#### `src/main.py`
-
-Main dispatcher that delegates to specialized modules.
-
-```python
-def main() -> int
-```
-
-**Functions:**
-
-- `main()` - Main entry point
-
----
-
-### CLI Modules
-
-#### `src/cli/parser.py`
-
-Argument parser with support for translation, configuration, workflow selection.
-
-```python
-def create_parser() -> argparse.ArgumentParser
-def parse_arguments(args: Optional[List[str]] = None) -> argparse.Namespace
-def validate_arguments(args: argparse.Namespace) -> None
-def get_chapter_list(args: argparse.Namespace) -> List[int]
-```
-
-#### `src/cli/commands.py`
-
-Command handlers for translation pipeline.
-
-```python
-def run_translation_pipeline(args: argparse.Namespace) -> int
-def run_glossary_generation(args: argparse.Namespace) -> int
-def run_glossary_promotion(args: argparse.Namespace) -> int
-def run_glossary_approval(args: argparse.Namespace) -> int
-def run_ui_launch(args: argparse.Namespace) -> int
-def run_test(args: argparse.Namespace) -> int
-def run_view_file(args: argparse.Namespace) -> int
-def run_review(args: argparse.Namespace) -> int
-def run_stats(args: argparse.Namespace) -> int
-def run_rebuild_meta(args: argparse.Namespace) -> int
-def _discover_chapters(novel_dir: Path) -> List[int]
-def setup_logging(log_file: Optional[str] = None) -> logging.Logger
-def _resolve_workflow(args) -> Optional[str]
-def _apply_workflow_config(config, workflow, logger) -> AppConfig
-```
-
-#### `src/cli/formatters.py`
-
-Output formatters for CLI display.
-
----
-
-### Pipeline
-
-#### `src/pipeline/orchestrator.py`
-
-Main pipeline coordinator.
-
-```python
-class TranslationPipeline:
-    def __init__(self, config: AppConfig)
-    def set_progress_callback(self, callback: Optional[Callable])
-    def translate_file(self, filepath: str, novel_name: Optional[str] = None) -> Dict
-    def translate_chapter(self, novel: str, chapter: int) -> Dict
-    def translate_novel(self, novel: str, chapters: Optional[List[int]] = None) -> List[Dict]
-    def cleanup(self) -> None
-```
-
-**Properties:**
-
-- `memory_manager` - Lazy-loaded MemoryManager
-- `ollama_client` - Lazy-loaded OllamaClient
-- `preprocessor` - Lazy-loaded Preprocessor
-- `translator` - Lazy-loaded Translator
-- `refiner` - Lazy-loaded Refiner
-- `reflection_agent` - Lazy-loaded ReflectionAgent
-- `fiction_editor` - Lazy-loaded FictionEditor (6 tone presets)
-- `myanmar_checker` - Lazy-loaded MyanmarQualityChecker
-- `checker` - Lazy-loaded Checker
-- `qa_tester` - Lazy-loaded QATesterAgent
-- `context_updater` - Lazy-loaded ContextUpdater
-- `rag_retriever` - Lazy-loaded RAGRetriever (ChromaDB + SQLite)
-- `feedback_loop` - Lazy-loaded FeedbackLoop
-
-**Private Methods:**
-
-- `_preprocess(text, chapter_label)` - Preprocess text into chunks
-- `_translate_chunks(chunks)` - Translate with rolling context
-- `_postprocess(chunks)` - Postprocess translated chunks
-- `_save_output(input_path, text, extra_meta)` - Save output
-- `_auto_review(output_path, translated_text)` - Run auto review
-- `_cleanup_resources()` - Free RAM
-- `_calc_myanmar_ratio(text)` - Calculate Myanmar char ratio
-- `_deduplicate_chunks(chunks)` - Remove duplicate paragraphs
-
----
-
-### Agents
-
-#### `src/agents/base_agent.py`
-
-Base class for all agents.
-
-```python
-class BaseAgent:
-    def __init__(self, ollama_client, memory_manager, config)
-    def log_info(self, message: str) -> None
-    def log_warning(self, message: str) -> None
-    def log_error(self, message: str, exception: Optional[Exception] = None) -> None
-    def handle_error(self, error: Exception, context: str = "") -> None
-    def validate_config(self, required_keys: list) -> bool
-    def get_config(self, key: str, default: Any = None) -> Any
-```
-
-#### `src/agents/translator.py`
-
-Core translator agent for Chinese/English to Myanmar.
-
-```python
-def get_language_prompt(source_lang: str, model_name: str = "") -> str
-
-class Translator(BaseAgent):
-    def __init__(self, ollama_client, memory_manager, config)
-    def get_system_prompt(self, source_lang: str = "english") -> str
-    def build_prompt(self, text: str, rolling_context: str = "") -> str
-    def translate_paragraph(self, paragraph: str, chapter_num: int = 0, rolling_context: str = "") -> str
-    def translate_with_fallback(self, text: str, source_lang: str = "english", chapter_num: int = 0) -> str
-    def translate_chunks(self, chunks: List[Dict], chapter_num: int = 0, progress_logger = None) -> List[str]
-    def translate_chapter(self, chunks: List[Dict[str, Any]], chapter_num: int = 0) -> str
-```
-
-#### `src/agents/refiner.py`
-
-Literary refinement agent.
-
-```python
-class Refiner(BaseAgent):
-    def __init__(self, ollama_client, batch_size, config, memory_manager)
-    def refine_paragraph(self, text: str) -> str
-    def refine_chunks(self, chunks: List[str]) -> List[str]
-    def refine_chapter(self, text: str) -> str
-```
-
-#### `src/agents/reflection_agent.py`
-
-Self-correction reflection agent.
-
-```python
-class ReflectionAgent(BaseAgent):
-    def __init__(self, ollama_client, config, memory_manager)
-    def reflect_and_improve(self, text: str, source_text: str = "") -> str
-```
-
-#### `src/agents/fiction_editor.py`
-
-Literary humanization agent with tone presets. Rewrites Myanmar text for natural fiction prose flow.
-
-```python
-class FictionEditor:
-    def __init__(self, model, config)
-    def rewrite(self, text: str, tone: str = "humanize", custom_instruction: str = "") -> str
-    def humanize(self, text: str) -> str
-    def suggest_alternatives(self, text: str, tone: str = "humanize", n: int = 2) -> list[str]
-```
-
-**Tone presets:** `humanize` (fix robotic phrasing), `dramatic` (confrontation), `casual` (conversation), `literary` (formal narrative), `action` (fast combat), `romantic` (poetic).
-
-#### `src/agents/preprocessor.py`
-
-Text preprocessing.
-
-```python
-class Preprocessor:
-    def __init__(self, chunk_size: int = 1500)
-    def strip_metadata(self, text: str) -> str
-    def clean_markdown(self, text: str) -> str
-    def create_chunks(self, text: str) -> List[Dict[str, Any]]
-    def detect_language(self, text: str) -> str
-```
-
-#### `src/agents/checker.py`
-
-Glossary consistency checker.
-
-```python
-class Checker(BaseAgent):
-    def __init__(self, memory_manager, config)
-    def check_glossary_consistency(self, text: str) -> List[str]
-    def check_mixed_scripts(self, text: str) -> List[str]
-```
-
-#### `src/agents/myanmar_quality_checker.py`
-
-Myanmar linguistic quality validation.
-
-```python
-class MyanmarQualityChecker(BaseAgent):
-    def __init__(self, ollama_client, memory_manager, config)
-    def check_quality(self, text: str) -> Dict[str, Any]
-```
-
-#### `src/agents/qa_tester.py`
-
-QA validation agent.
-
-```python
-class QATesterAgent(BaseAgent):
-    def __init__(self, memory_manager, config)
-    def validate_output(self, text: str, chapter_num: int = 0) -> Dict[str, Any]
-```
-
-#### `src/agents/context_updater.py`
-
-Context extraction and update.
-
-```python
-class ContextUpdater(BaseAgent):
-    def __init__(self, ollama_client, memory_manager, config)
-    def process_chapter(self, original_text: str, translated_text: str, chapter_num: int = 0) -> Dict
-```
-
-#### `src/agents/glossary_generator.py`
-
-Glossary term extraction.
-
-```python
-class GlossaryGenerator:
-    def __init__(self, client, memory, config)
-    def generate_from_chapter(self, chapter_file: str, chapter_num: int = 0) -> int
-    def generate_from_text(self, text: str, chapter_num: int = 0) -> List[Dict]
-```
-
-#### `src/agents/glossary_sync.py`
-
-Glossary synchronization.
-
-```python
-class GlossarySync:
-    def __init__(self, memory_manager)
-    def sync_to_novel(self, novel_name: str) -> bool
-    def sync_from_novel(self, novel_name: str) -> bool
-```
-
-#### `src/agents/fast_translator.py`
-
-Fast single-stage translator.
-
-```python
-class FastTranslator(BaseAgent):
-    def __init__(self, ollama_client, memory_manager, config)
-    def translate(self, text: str) -> str
-```
-
-#### `src/agents/fast_refiner.py`
-
-Fast literary refiner.
-
-```python
-class FastRefiner(BaseAgent):
-    def __init__(self, ollama_client, config)
-    def refine(self, text: str) -> str
-```
-
-#### `src/agents/pivot_translator.py`
-
-Two-stage Chinese→English→Myanmar translator.
-
-```python
-class PivotTranslator(BaseAgent):
-    def __init__(self, ollama_client, memory_manager, config)
-    def translate(self, text: str, source_lang: str = "chinese") -> str
-```
-
----
-
-### Memory
-
-#### `src/memory/memory_manager.py`
-
-3-tier memory system.
-
-```python
-class MemoryManager:
-    def __init__(self, glossary_path, context_path, novel_name, use_universal)
-    
-    # Tier 1: Glossary
-    def add_term(self, source: str, target: str, category: str, chapter: int) -> bool
-    def update_term(self, source: str, new_target: str, chapter: int) -> bool
-    def get_term(self, source: str) -> Optional[str]
-    def get_glossary_for_prompt(self, limit: int = 20) -> str
-    def get_all_terms(self) -> List[Dict]
-    
-    # Tier 2: Context
-    def update_chapter_context(self, chapter_num: int, translated_text: str, summary: str)
-    def push_to_buffer(self, translated_text: str)
-    def get_context_buffer(self, count: int = 3) -> str
-    def clear_buffer(self) -> None
-    def get_summary(self) -> str
-    
-    # Tier 3: Session
-    def add_session_rule(self, incorrect: str, correct: str)
-    def get_session_rules(self) -> str
-    def promote_rule_to_glossary(self, incorrect: str, correct: str, chapter: int)
-    
-    # Pending Terms
-    def add_pending_term(self, source: str, target: str, category: str, chapter: int) -> bool
-    def get_pending_terms(self) -> List[Dict]
-    def promote_pending_to_glossary(self, source: str, chapter: int, verified: bool) -> bool
-    def reject_pending_term(self, source: str) -> bool
-    def bulk_approve_all_pending(self) -> int
-    def auto_approve_pending_terms(self) -> int
-    def auto_approve_by_confidence(self, confidence_threshold: float) -> int
-    
-    # Memory I/O
-    def save_memory(self) -> None
-    def get_all_memory_for_prompt(self) -> Dict[str, str]
-    
-    # Validation
-    @staticmethod
-    def _is_valid_myanmar_text(text: str, min_ratio: float) -> bool
-    @staticmethod
-    def _edit_distance(s1: str, s2: str) -> int
-```
-
-#### `src/memory/version_manager.py`
-
-Version control and change tracking system (requires SQLite backend).
-
-```python
-class VersionManager:
-    def __init__(self, db: DatabaseConnection, output_dir: Path, versions_dir: Optional[Path])
-    
-    # Chapter Versioning
-    def snapshot_chapter(self, novel_name: str, chapter_num: int, reason: str, source: str) -> Optional[dict]
-    def list_versions(self, novel_name: str, chapter_num: int) -> list[dict]
-    def rollback_chapter(self, novel_name: str, chapter_num: int, version_num: int, reason: str) -> Optional[Path]
-    def diff_versions(self, novel_name: str, chapter_num: int, version_a: int, version_b: int) -> Optional[str]
-    
-    # Glossary Change Management
-    def preview_glossary_change(self, novel_name: str, term_id: str, new_value: str) -> dict
-    def create_sync_job(self, novel_name: str, term_id: str, new_value: str, chapter_nums: Optional[list]) -> Optional[dict]
-    def execute_sync_job(self, job_id: int, dry_run: bool) -> dict
-    def list_sync_jobs(self, novel_name: Optional[str], status: Optional[str]) -> list[dict]
-    
-    # Audit Logging
-    def get_audit_log(self, novel_name: Optional[str], table_name: Optional[str], limit: int) -> list[dict]
-```
-
-**Database Schema (10 tables):**
-
-| Table | Purpose |
-|-------|---------|
-| `novels` | Novel metadata |
-| `glossary_terms` | Approved glossary entries |
-| `term_variants` | Alternative spellings |
-| `chapters` | Chapter tracking |
-| `term_usage` | Where terms appear |
-| `context_snapshots` | Chapter summaries |
-| `sync_jobs` | Glossary update jobs |
-| `sync_job_chapters` | Job-chapter linkage |
-| `chapter_versions` | File snapshots |
-| `audit_log` | Change history |
-
----
-
-### RAG & Data
-
-#### `src/data/rag_retriever.py`
-
-Semantic retrieval using ChromaDB (primary) + SQLite (fallback). Provides few-shot translation examples for prompt injection.
-
-```python
-@dataclass
-class TranslationExample:
-    en_text: str
-    my_text: str
-    score: float
-    source_file: str
-    similarity: float = 0.0
-
-class RAGRetriever:
-    def __init__(self, chroma_path, db_path, top_k, min_score, novel_filter)
-    def retrieve_similar(self, query_text, top_k=None, novel_filter=None) -> list[TranslationExample]
-    def retrieve_by_novel(self, novel_slug, top_k=5) -> list[TranslationExample]
-```
-
-#### `src/data/dataset_pipeline.py`
-
-Batch ingest JSONL datasets → SQLite + ChromaDB. Supports sentence-transformers embeddings.
+### Glossary Commands
 
 ```bash
-python src/data/dataset_pipeline.py --input export_rag.jsonl --enable-chroma
+# Glossary generate လုပ်ရန်
+python -m src.main --novel wayfarer --generate-glossary --chapter-range 1-5
+
+# Initial glossary generate → human review အတွက် stop
+python -m src.main --novel wayfarer --init-glossary
+
+# Pending terms အားလုံးကို approve လုပ်ရန်
+python -m src.main --novel wayfarer --approve-glossary
+
+# High-confidence terms များကို auto-promote လုပ်ရန်
+python -m src.main --novel wayfarer --auto-promote
 ```
 
-### Evaluation
-
-#### `src/evaluation/benchmark.py`
-
-Human-reference comparison for measuring translation quality against human chapter corpus.
-
-```python
-def find_human_reference(novel: str, chapter: int) -> Optional[Path]
-def find_model_output(novel: str, chapter: int) -> Optional[Path]
-def compute_semantic_similarity(text_a, text_b) -> dict
-def run_benchmark(novel: str, chapter: int) -> dict
-```
-
-Run via CLI:
-```bash
-python -m src.main --novel outside-of-time --chapter 1 --compare-human
-```
-
----
-
-### Configuration
-
-#### `src/config/loader.py`
-
-YAML configuration loader.
-
-```python
-def load_config(config_path: Optional[Union[str, Path]] = None) -> AppConfig
-def load_config_from_dict(config_dict: Dict[str, Any]) -> AppConfig
-def get_default_config() -> AppConfig
-def save_config(config: AppConfig, output_path: Union[str, Path]) -> None
-def merge_configs(base_config: AppConfig, override_dict: Dict[str, Any]) -> AppConfig
-```
-
-#### `src/config/models.py`
-
-Pydantic configuration models.
-
-```python
-class AppConfig(BaseModel):
-    project: ProjectConfig
-    models: ModelsConfig
-    processing: ProcessingConfig
-    translation_pipeline: PipelineConfig
-    paths: PathsConfig
-    output: OutputConfig
-```
-
----
-
-### Utilities
-
-#### `src/utils/ollama_client.py`
-
-Ollama API wrapper.
-
-```python
-class OllamaClient:
-    def __init__(self, model, base_url, temperature, top_p, top_k, repeat_penalty,
-                 max_retries, timeout, unload_on_cleanup, use_generate_endpoint, num_ctx,
-                 keep_alive, use_gpu, gpu_layers, main_gpu):
-    
-    def chat(self, prompt: str, system_prompt: str = "") -> str
-    def generate(self, prompt: str, system_prompt: str = "") -> str
-    def stream(self, prompt: str, system_prompt: str = "") -> Iterator[str]
-    def unload_model(self) -> None
-    def unload_all_models(self) -> None
-    def cleanup(self) -> None
-    def get_model_info(self) -> Dict
-```
-
-#### `src/utils/postprocessor.py`
-
-Output cleaning and validation.
-
-```python
-def strip_reasoning_tags(text: str) -> str
-def strip_header_artifacts(text: str) -> str
-def strip_reasoning_process(text: str) -> str
-def remove_indic_characters(text: str) -> str
-def remove_korean(text: str) -> str
-def remove_chinese(text: str) -> str
-def remove_non_myanmar_scripts(text: str) -> str
-def fix_chapter_heading_format(text: str) -> str
-def remove_duplicate_headings(text: str) -> str
-def replace_archaic_words(text: str) -> str
-def fix_degraded_placeholders(text: str) -> str
-def stitch_chunk_boundaries(text: str) -> str
-def validate_output(text: str, chapter_num: int) -> Dict
-def detect_language_leakage(text: str) -> Dict
-
-class Postprocessor:
-    def __init__(self, aggressive: bool = False)
-    def clean(self, text: str) -> str
-```
-
-#### `src/utils/file_handler.py`
-
-File I/O operations.
-
-```python
-class FileHandler:
-    @staticmethod
-    def read_text(path: str, encoding: str = "utf-8-sig") -> str
-    @staticmethod
-    def write_text(path: str, content: str, encoding: str = "utf-8") -> None
-    @staticmethod
-    def read_json(path: str) -> Dict
-    @staticmethod
-    def write_json(path: str, data: Dict) -> None
-    @staticmethod
-    def ensure_dir(path: str) -> None
-    @staticmethod
-    def list_files(directory: str, pattern: str = "*.md") -> List[str]
-```
-
-#### `src/utils/chunker.py`
-
-Text chunking utilities.
-
-```python
-def smart_chunk(text: str, max_tokens: int = 1500) -> List[str]
-def estimate_tokens(text: str) -> int
-def get_rolling_context(text: str, max_context_tokens: int = 400) -> str
-def split_into_sentences(text: str) -> List[str]
-```
-
-#### `src/utils/translation_reviewer.py`
-
-Quality review and reporting.
-
-```python
-def review_and_report(output_path: str, log_file: Optional[str] = None) -> Tuple[ReviewReport, str]
-```
-
----
-
-## Configuration Files
-
-### `config/settings.yaml`
-
-Default configuration for English→Myanmar translation.
-
-### `config/settings.pivot.yaml`
-
-Configuration for Chinese→English→Myanmar pivot workflow.
-
-### `config/settings.fast.yaml`
-
-Fast mode configuration (CPU-only).
-
-### `config/settings.sailor2.yaml`
-
-Sailor2 model configuration.
-
-### `config/error_recovery.yaml`
-
-Error recovery settings (reference only).
-
-## Output Files
-
-### Translated Chapters
-
-```
-data/output/{novel}/{novel}_chapter_{XXX}.mm.md
-data/output/{novel}/{novel}.mm.meta.json       # Cumulative metadata
-```
-
-### Quality Reports
-
-```
-logs/report/{novel}_chapter_{XXX}_review_{timestamp}.md
-```
-
-### Glossary
-
-```
-data/output/{novel}/glossary/glossary.json         # Approved terms
-data/output/{novel}/glossary/glossary_pending.json  # Pending review
-data/output/{novel}/glossary/context_memory.json  # Context buffer
-```
-
-## Testing
+### Fine-tuning & Training
 
 ```bash
-# Run all tests (535+ passing)
-pytest tests/ -v
+# Rejected chunks များကို interactive ဖြင့် rate လုပ်ရန်
+python -m src.main --rate-rejected --novel outside-of-time
 
-# Run specific test file
+# LoRA adapter ကို fine-tune လုပ်ရန်
+python -m src.main --finetune --novel outside-of-time
+```
+
+### Model Comparison
+
+```bash
+# Chapter တစ်ခုတည်းကို model အားလုံးနှင့် ဘာသာပြန်ပြီး နှိုင်းယှဉ်ရန်
+python -m src.main --novel sample --chapter 1 --compare-models
+```
+
+### Database Migration
+
+```bash
+# JSON → SQLite migration
+python -m src.main --migrate-sql --novel wayfarer
+
+# SQLite backend ကို explicitly သုံးရန်
+python -m src.main --novel wayfarer --chapter 1 --use-sql
+```
+
+### Other Utilities
+
+```bash
+# Test run
+python -m src.main --test
+
+# Python cache ရှင်းလင်းရန်
+python -m src.main --clean
+# Or: ./clean_run.sh
+
+# Version ကြည့်ရန်
+python -m src.main --version
+```
+
+---
+
+## 🌐 Web UI Usage
+
+Flask-based Web UI ကိုအောက်ပါအတိုင်း launch လုပ်နိုင်သည်။
+
+```bash
+# Default port 5000
+python -m src.main --ui
+
+# Explicit port
+python -m src.main --flask --port 8080
+```
+
+Web UI တွင် အောက်ပါ page များ ပါဝင်သည်။
+
+| Page | Function |
+|---|---|
+| **Dashboard** | Translation history, quality stats, progress |
+| **Translate** | Novel/chapter ရွေးချယ်၍ ဘာသာပြန်ခြင်း |
+| **Editor** | ဘာသာပြန်ပြီးသား စာသားများကို ပြင်ဆင် / ပြန်လည်သုံးသပ်ခြင်း |
+| **Reader** | ဘာသာပြန်ပြီးသား ဝတ္ထုကို chapter အလိုက်ဖတ်ရှုခြင်း |
+| **Glossary** | Glossary terms များကို စီမံခန့်ခွဲခြင်း |
+| **Settings** | Model, Config, Database settings များ |
+| **Cleanup** | Cache နှင့် temporary files ရှင်းလင်းခြင်း |
+
+---
+
+## 📊 Pipeline Stages (ဘာသာပြန်လုပ်ငန်းစဉ်)
+
+### way1: EN→MM Direct (အင်္ဂလိပ်→မြန်မာ တိုက်ရိုက်)
+
+```
+Input (.md) → [Preprocess] → [Translate] → [Refine] → [Quality] → Output (.mm.md)
+```
+
+| Stage | Agent | Description |
+|---|---|---|
+| 1. **Preprocess** | `preprocessor.py` | Markdown cleaning, paragraph chunking (smart_chunk), language detection |
+| 2. **Translate** | `translator.py` | Glossary injection, rolling context, chunk-by-chunk translation via Ollama |
+| 3. **Refine** (optional) | `refiner.py` | Literary quality editing, SVO→SOV conversion |
+| 4. **Reflect** (optional) | `reflection_agent.py` | Self-correction, error detection and fixing |
+| 5. **Quality** | `myanmar_quality_checker.py` | Myanmar ratio check, fluency scoring, linguistic validation |
+| 6. **Consistency** | `checker.py` | Glossary consistency verification |
+| 7. **FictionEditor** | `fiction_editor.py` | 6 tone presets (humanize, dramatic, casual, literary, action, romantic) |
+| 8. **QA Review** | `qa_tester.py` | Final quality assurance, full validation |
+
+### way2: CN→EN→MM Pivot (တရုတ်→အင်္ဂလိပ်→မြန်မာ)
+
+| Stage | Model | Description |
+|---|---|---|
+| 1. **CN→EN Pivot** | `alibayram/hunyuan:7b` | Chinese → English intermediate translation |
+| 2. **EN→MM** | `padauk-gemma:q8_0` | English → Myanmar final translation |
+| 3-8 | Same as way1 | Remaining pipeline stages |
+
+### Pipeline Modes
+
+| Mode | Stages | Description |
+|---|---|---|
+| `single_stage` | Translate only | **RECOMMENDED** — padauk-gemma အတွက် အကောင်းဆုံး |
+| `lite` | Translate → Refine → Quality | 3-stage balanced mode |
+| `fast` | Translate → Quality | Fastest, skip refinement |
+| `full` | All 6+ stages | Maximum quality (slower) |
+| `two_stage` | Stage1 → Stage2 (pivot) | CN→EN→MM အတွက် |
+
+### Chunking System
+
+Paragraph အလိုက် smart chunking ကို `src/utils/chunker.py` မှ ဆောင်ရွက်သည်။
+
+- **Overlap = 0** (paragraph duplication ကို လုံးဝရှောင်ရှားရန်)
+- **Split only at `\n\n`** (paragraph boundaries)
+- **Max tokens**: 1500 (default, configurable)
+
+---
+
+## 📚 Glossary System (ဝေါဟာရစနစ်)
+
+### Architecture
+
+```
+MemoryManager (Single Gateway)
+    ├── Tier 1: Per-novel Glossary
+    ├── Tier 2: Chapter Context (FIFO sliding window)
+    ├── Tier 3: Session Rules (Dynamic corrections)
+    └── Optional: Universal Blueprint (READ-ONLY reference)
+```
+
+### Glossary Lifecycle
+
+1. **Extraction**: `GlossaryGenerator` က chapter များမှ term များကို extract လုပ်သည်
+2. **Pending**: Term အသစ်များသည် pending state တွင် ရောက်ရှိသည်
+3. **Approval**: CLI (`--approve-glossary`) သို့ Web UI မှ approve လုပ်နိုင်သည်
+4. **Injection**: Translator က MemoryManager မှ term များကို top 20 ထိ prompt တွင် inject လုပ်သည်
+5. **Tracking**: `ContextUpdater` က term usage ကို chapter အလိုက်ခြေရာခံသည်
+
+### MemoryManager Key Methods
+
+```python
+add_term(source, target, category, chapter)     # Add approved term
+add_pending_term(source, target, category, ch)  # Add pending term
+get_term(source)                                 # Lookup term → "【?source?】" if missing
+get_top_n(n=20)                                  # Get top N terms for prompt injection
+bulk_approve_all_pending()                       # Approve all pending terms
+auto_approve_by_confidence(threshold=0.85)       # Auto-approve high confidence terms
+```
+
+### Data Categories
+
+| Category | Example |
+|---|---|
+| `character` | 罗青 → လော်ချင်, 方源 → ဖန်ယွမ် |
+| `place` | 小戎镇 → ရှောင်ရုံမြို့, 青竹山 → ချင်းကျူးတောင် |
+| `level` | 筑基 → ကျူးကျီ, 金丹 → ကျင့်တန်း |
+| `item` | 飞剑 → ပျံသန်းဓား, 丹药 → ဆေးလုံး |
+
+---
+
+## ✅ Quality System (အရည်အသွေးစနစ်)
+
+### Quality Gates
+
+```
+Score ≥ 70  → PASS (auto-advance)
+Score 50-69 → RETRY (max 2x, lower temperature + reinject rules)
+Score ≤ 49  → STOP (alert user)
+```
+
+### Quality Checks
+
+| Check | Description |
+|---|---|
+| Myanmar ratio ≥ 70% | မြန်မာစာလုံးအချိုး 70% ရှိရမည် |
+| Chinese script leakage = 0 | တရုတ်စာလုံးများ မပါဝင်ရ |
+| Bengali/Indic script = 0 | Indic script ၉ မျိုး လုံးဝမပါဝင်ရ |
+| Thai/Khmer script = 0 | ထိုင်း/ခမာ စာလုံးများ မပါဝင်ရ |
+| Placeholder guard | 【?term?】 tokens များကို မပြောင်းလဲရ |
+| Paragraph duplication | Chunk နှစ်ခုကြား paragraph duplication မရှိရ |
+| Markdown preservation | Headers, bold, italic, lists, quotes ပျက်မသွားရ |
+| SVO→SOV conversion | အင်္ဂလိပ် SVO structure မကျန်ရစ်ရ |
+| Archaic words check | သင်သည်/ဤ/ထို မပါဝင်ရ (မင်း/ဒီ/အဲဒီ သုံးရန်) |
+| Particle repetition | တူညီသော particle တစ်ခုကို paragraph တွင် ≤ 2 ကြိမ်သာ |
+
+### Fluency Scorer (7 Dimensions)
+
+`src/utils/fluency_scorer.py` မှ reference-free fluency scoring ကို ဆောင်ရွက်သည်။
+
+| Dimension | Description |
+|---|---|
+| F1: Lexical Diversity | Type-Token Ratio (TTR) |
+| F2: Particle Diversity | မြန်မာဝါကျဖွဲ့ဆက်မှု ကွဲပြားမှု |
+| F3: Sentence Flow | Sentence length variance + proper break punctuation |
+| F4: Syllable Richness | Compound word density |
+| F5: Paragraph Rhythm | Paragraph length variance |
+| F6: Punctuation Health | Proper use of ။ and ၊ |
+| F7: Repetition Penalty | Consecutive identical particle/word penalty |
+
+---
+
+## 🎯 Model Warnings (အရေးကြီးသော Model သတိပေးချက်များ)
+
+### ✅ Proven Myanmar Output Models
+
+| Model | Works? | Use Case | Temperature |
+|---|---|---|---|
+| `padauk-gemma:q8_0` | ✅ **PRIMARY** | EN→MM, CN→MM (direct) | ≤ 0.2 |
+| `sailor2-20b:latest` | ✅ Alternative | EN→MM, CN→MM | ≤ 0.35 |
+
+### ❌ Models That FAIL for Myanmar Output
+
+| Model | Problem |
+|---|---|
+| `sailor2:8b` | **FAILED** — Myanmar ratio 11-55% (required 70%). Outputs English instead of Myanmar. |
+| `qwen2.5:14b` | Outputs Chinese/Japanese, NOT Myanmar. Use for CN→EN pivot only. |
+| `qwen:7b` | Outputs English, NOT Myanmar. Use for validation/checking only. |
+
+### ⚠️ Pivot Models (CN→EN Only)
+
+| Model | Use |
+|---|---|
+| `alibayram/hunyuan:7b` | CN→EN pivot Stage 1. Does NOT output Myanmar. |
+| `qwen2.5:14b` | CN→EN only. Does NOT output Myanmar. |
+
+### 🔴 Critical: Padauk-Gemma Temperature Rule
+
+> **padauk-gemma:q8_0** ၏ temperature ကို **0.2 ထက်မကျော်ရပါ။**
+> Temperature > 0.2 ဆိုပါက glossary-comparison garbage output များ ထွက်လာပြီး translation quality ပျက်စီးသွားပါမည်။
+
+---
+
+## 📁 Directory Structure (အဓိကဖိုင်များ)
+
+```
+novel_translation_project/
+├── config/                      # Configuration files
+├── data/
+│   ├── input/{novel}/           # Source chapter files (*.md)
+│   └── output/{novel}/          # Translated output
+├── src/
+│   ├── main.py                  # Entry point
+│   ├── cli/                     # CLI modules
+│   ├── agents/                  # Translation agents
+│   ├── pipeline/                # Pipeline orchestrator
+│   ├── memory/                  # MemoryManager, VersionManager
+│   ├── utils/                   # Ollama, File I/O, Chunker, Postprocessor
+│   ├── web/                     # Flask Web UI
+│   └── training/                # Fine-tuning scaffold
+├── tests/                       # 440+ tests
+├── logs/                        # Translation logs, quality reports
+├── requirements.txt
+└── README.md
+```
+
+---
+
+## 🐛 Troubleshooting (အဖြစ်များသော Error များ)
+
+### 1. Ollama ကို Run မထားပါက
+
+```
+Error: Could not connect to Ollama at http://localhost:11434
+```
+
+**Solution:** `ollama serve` ဖြင့် Ollama ကို run ပါ။
+
+### 2. Low Myanmar Ratio
+
+```
+Error: Myanmar ratio 45% is below threshold 70%
+```
+
+**Solutions:**
+- `padauk-gemma:q8_0` model ကိုသာ သုံးပါ
+- Temperature ကို 0.2 သို့လျှော့ပါ
+- `--mode single_stage` ကိုသုံးပါ
+
+### 3. Database Lock Error
+
+```
+Error: database is locked
+```
+
+**Solution:** အခြား process မှ database ကိုသုံးနေခြင်းမရှိစေရန် စစ်ဆေးပါ။ System က 30 စက္ကန့်အထိ auto-retry လုပ်ပေးသည်။
+
+### 4. Ollama OOM
+
+```
+Error: Ollama process killed (OOM)
+```
+
+**Solutions:** Chunk size ကို 800 သို့လျှော့ပါ။ ပိုသေးသော model ကိုသုံးပါ။ `--unload-after-chapter` flag ကိုသုံးပါ။
+
+---
+
+## 🧪 Testing (စမ်းသပ်ခြင်း)
+
+```bash
+# Test အားလုံး run ရန် (440+ tests passing)
+pytest tests/ -v --tb=short
+
+# Specific test file
 pytest tests/test_translator.py -v
 pytest tests/test_postprocessor.py -v
-pytest tests/test_chunker.py -v
 
-# Run with coverage
-pytest tests/ --cov=src
+# Coverage with report
+pytest tests/ --cov=src --cov-report=term-missing
 ```
 
-## Human Reference Corpus
+---
 
-The project includes a benchmark system that compares AI output against human-translated Myanmar chapters.
+## 🔒 Stability Rules
 
-**Source:** `/home/wangyi/Desktop/DownloadNovel/CreateNovelDataSet`
+1. **NO CRASHES**: Ollama call အားလုံးတွင် timeout + retry + exception handling ပါရှိရမည်
+2. **NO HIDDEN STATE BUGS**: State အားလုံးသည် MemoryManager တစ်ခုတည်းမှသာ flow လုပ်ရမည်
+3. **NO HANGING REQUESTS**: Retry loop အားလုံးတွင် hard maximum iteration count ရှိရမည်
 
-Available novels:
-- `outside-of-time` (1847 en / 771 mm chapters)
-- `eternal-sacred-king` (1981 en / 1348 mm chapters)
-- `a-will-eternal` (1315 en / 1315 mm chapters)
-- `renegade-immortal` (2083 en / 1268 mm chapters)
-- `daoist-master-of-qing-xuan` (308 en / 1023 mm chapters)
+---
 
-Compare your latest translation:
-```bash
-python -m src.main --novel outside-of-time --chapter 1 --compare-human
-```
-
-## Linting
-
-```bash
-# Lint source code
-ruff check src/ tests/ --select=E,F
-```
-
-## License
-
-MIT License
+> **Note:** CLI flags, file paths, model names များသည် project ၏ လက်ရှိ source code ပေါ်တွင် အခြေခံထားပါသည်။
