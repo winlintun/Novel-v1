@@ -1816,8 +1816,6 @@ class MemoryManager:
         if not self.use_sql:
             return 0
         
-        from src.db.repositories.glossary_repo import GLOBAL_NOVEL_ID
-        
         # Get all approved terms (novel-specific + global)
         all_terms = self.glossary_repo.get_terms_by_novel(
             self.novel_id, status="approved", include_global=True, limit=500

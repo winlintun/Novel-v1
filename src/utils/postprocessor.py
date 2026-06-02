@@ -1025,8 +1025,8 @@ def check_content_completeness(source: str, translation: str) -> dict:
         return len([p.strip() for p in text.split('\n\n') if p.strip()])
     
     def count_dialogues(text: str) -> int:
-        return len([l.strip() for l in text.split('\n')
-                    if l.strip().startswith(('"', '"', '"'))])
+        return len([line.strip() for line in text.split('\n')
+                    if line.strip().startswith(('"', '"', '"'))])
     
     src_paras = count_paragraphs(source)
     trans_paras = count_paragraphs(translation)

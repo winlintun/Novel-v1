@@ -5,9 +5,12 @@
 ---
 
 ## Last Updated
-- Date: 2026-05-31
-- Last task completed: Dead code cleanup — removed 11 dead source files, 3 dead packages, 4 dead configs, 11 dead test files. Project cleanup script (clean_run.sh). .gitignore reorganized. Cultural knowledge additions (Buddhist terms, historical/political, festivals/food, poetry adaptation). Human verification CLI (--rate-rejected). Fine-tuning scaffold (--finetune). Performance optimizations (glossary cache, lru_cache, O(N) logging). 441/441 tests pass.
+- Date: 2026-06-03
+- Last task completed: Fixed 137 ruff E/F errors across 18 files — unused imports, f-string placeholders, ambiguous variable names, undefined names, unused variables, bare except, import ordering. All checks pass.
 - Git commit: `pending`
+
+## Session Summary (2026-06-03)
+- ✅ **Ruff E/F cleanup** — Fixed 137 errors across 18 files: added unused imports to `__all__` (prompts/__init__.py), removed dead imports (9 files), converted F541 f-strings to plain strings (5 files), renamed ambiguous `l`→`line` (5 files), fixed undefined names (flask_app.py `re`, commands.py `logger`), removed unused variables (4 files), added noqa for deliberate E402 (2 files), fixed bare except (flask_app.py). 0 errors remain.
 
 ## Session Summary (2026-05-31)
 - ✅ **Dead code cleanup** — removed 11 dead source files (fast_translator, fast_refiner, pivot_translator, glossary_sync, prompt_patch, ram_monitor, performance_logger, glossary_suggestor, glossary_matcher, ingest_rag_export, glossary_miner), 3 dead packages (src/database/, src/core/, src/types/), 4 dead configs (settings.sailor2.yaml, settings.translategemma.yaml, settings.qwen2.5.yaml, error_recovery.yaml), 11 dead test files. Cleanup script: `clean_run.sh`. 28 test files → 441 tests pass.

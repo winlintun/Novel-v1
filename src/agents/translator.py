@@ -4,7 +4,6 @@ Translator Agent
 Core Chinese to Myanmar translation using Ollama.
 """
 
-import re
 import logging
 from typing import Dict, List, Optional, Any
 
@@ -18,10 +17,6 @@ from src.agents.base_agent import BaseAgent
 from src.agents.prompts import (
     LANGUAGE_GUARD,
     TRANSLATOR_SYSTEM_PROMPT,
-    FALLBACK_CN_RULES,
-    FALLBACK_EN_RULES,
-    build_translator_prompt,
-    get_fallback_rules,
 )
 
 
@@ -44,8 +39,8 @@ def get_language_prompt(source_lang: str, model_name: str = "", scene_type: str 
         scene_type: Scene type for dynamic rule injection
             ("narration" | "dialogue" | "action" | "confrontation")
     """
-    from src.agents.prompts import build_translator_prompt
-    return build_translator_prompt(source_lang, model_name, scene_type)
+    from src.agents.prompts import build_translator_prompt as _build_translator_prompt
+    return _build_translator_prompt(source_lang, model_name, scene_type)
 
 
 
@@ -236,9 +231,9 @@ class Translator(BaseAgent):
                 'battle', 'battled', 'kick', 'kicked',
             ]
 
-        lines = [l for l in text.split('\n') if l.strip()]
+        lines = [line for line in text.split('\n') if line.strip()]
         total_lines = len(lines) if lines else 1
-        dialogue_lines = sum(1 for l in lines if any(q in l for q in '""「」『』'))
+        dialogue_lines = sum(1 for line in lines if any(q in line for q in '""「」『』'))
         exclamation_count = text.count('!') + text.count('！')
         confrontation_count = sum(1 for kw in confrontation_kw if kw in text)
         action_count = sum(1 for kw in action_kw if kw in text)

@@ -4,10 +4,8 @@ Unit tests for src/utils/model_registry.py.
 
 import unittest
 import json
-import os
 import tempfile
 from pathlib import Path
-from unittest.mock import patch
 
 
 class TestModelRegistry(unittest.TestCase):
@@ -21,7 +19,6 @@ class TestModelRegistry(unittest.TestCase):
 
     def _make_registry(self):
         """Mock the REGISTRY_PATH and import model_registry."""
-        import importlib
         import src.utils.model_registry as mr
         mr.REGISTRY_PATH = self.registry_path
         return mr

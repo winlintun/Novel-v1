@@ -22,17 +22,12 @@ from tqdm import tqdm
 # ── Optional imports (RAG) ──────────────────────────────────────────────────
 try:
     import chromadb
-    from chromadb.utils import embedding_functions
     CHROMA_AVAILABLE = True
 except ImportError:
     CHROMA_AVAILABLE = False
     print("[WARN] chromadb not installed. SQLite-only mode.")
 
-try:
-    from sentence_transformers import SentenceTransformer
-    ST_AVAILABLE = True
-except ImportError:
-    ST_AVAILABLE = False
+ST_AVAILABLE = False
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -371,7 +366,7 @@ def run_pipeline(
     enable_chroma: bool = False,
 ):
     print(f"\n{'='*60}")
-    print(f"  Novel-v1 Dataset Pipeline")
+    print("  Novel-v1 Dataset Pipeline")
     print(f"  Input:   {input_file}")
     print(f"  DB:      {db_path}")
     print(f"  Chroma: {chroma_path}")
@@ -392,7 +387,7 @@ def run_pipeline(
     if collection:
         print(f"[3/5] ChromaDB enabled: {chroma_path}")
     else:
-        print(f"[3/5] ChromaDB skipped (not installed)")
+        print("[3/5] ChromaDB skipped (not installed)")
 
     novel_slug = infer_novel_slug(input_file)
 
@@ -400,7 +395,7 @@ def run_pipeline(
     stats = {"total": 0, "extracted": 0, "usable": 0, "rejected": 0, "duplicates": 0}
     rejected_samples = []
 
-    print(f"\n[4/5] Processing pairs...\n")
+    print("\n[4/5] Processing pairs...\n")
     for i, record in enumerate(tqdm(records, desc="Pairs"), 1):
         stats["total"] += 1
         pair = extract_pair(record)
@@ -441,7 +436,7 @@ def run_pipeline(
 
     # Report
     print(f"\n{'='*60}")
-    print(f"  PIPELINE COMPLETE")
+    print("  PIPELINE COMPLETE")
     print(f"{'='*60}")
     print(f"  Total records loaded  : {stats['total']}")
     print(f"  Pairs extracted       : {stats['extracted']}")
@@ -451,17 +446,17 @@ def run_pipeline(
     print(f"  Usable rate           : {stats['usable']/max(stats['extracted'],1)*100:.1f}%")
 
     if rejected_samples:
-        print(f"\n  Sample rejected pairs:")
+        print("\n  Sample rejected pairs:")
         for s in rejected_samples:
             print(f"    EN: {s['en']}")
             print(f"    MY: {s['my']}")
             print(f"    Score: {s['score']} | Reason: {s['reason']}\n")
 
-    print(f"\n  Next steps:")
-    print(f"  1. Review rejected pairs manually → fix alignment")
-    print(f"  2. Human-rate usable pairs (UPDATE translation_pairs SET human_score=4 WHERE id=?)")
-    print(f"  3. Use only human_score >= 4 pairs for RAG retrieval")
-    print(f"  4. Add more JSONL files: python dataset_pipeline.py --input novel2_dataset.jsonl")
+    print("\n  Next steps:")
+    print("  1. Review rejected pairs manually → fix alignment")
+    print("  2. Human-rate usable pairs (UPDATE translation_pairs SET human_score=4 WHERE id=?)")
+    print("  3. Use only human_score >= 4 pairs for RAG retrieval")
+    print("  4. Add more JSONL files: python dataset_pipeline.py --input novel2_dataset.jsonl")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -578,7 +573,7 @@ def run_batch_ingest(
 
     # Summary
     print(f"\n{'='*60}")
-    print(f"  BATCH INGESTION COMPLETE")
+    print("  BATCH INGESTION COMPLETE")
     print(f"{'='*60}")
     print(f"  Files processed       : {len(jsonl_files)}")
     print(f"  Total records         : {total_stats['total']}")

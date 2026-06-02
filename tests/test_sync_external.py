@@ -2,15 +2,12 @@
 Tests for external glossary sync module.
 """
 
-import os
 import sqlite3
-import tempfile
 import pytest
 from src.db.sync_external import (
     sync_external_glossary,
     make_novel_id,
     make_term_id,
-    GLOBAL_NOVEL_ID,
 )
 
 
@@ -229,7 +226,7 @@ class TestSyncExternalGlossary:
         conn.row_factory = sqlite3.Row
 
         # Use a non-existent external DB to simulate failure after connection
-        result = sync_external_glossary(conn, "test-novel", "/nonexistent.db")
+        sync_external_glossary(conn, "test-novel", "/nonexistent.db")
 
         # No terms should have been inserted
         count = conn.execute("SELECT COUNT(*) FROM glossary_terms").fetchone()[0]

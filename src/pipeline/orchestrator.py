@@ -1751,11 +1751,9 @@ class TranslationPipeline:
         
         Returns scene type string for use in build_linguistic_context().
         """
-        import re
-        
         # Count dialogue lines (quotes)
-        dialogue_lines = len([l for l in text.split('\n')
-                              if l.strip().startswith(('"', '"', '"'))])
+        dialogue_lines = len([line for line in text.split('\n')
+                              if line.strip().startswith(('"', '"', '"'))])
         
         # Count action indicators
         action_keywords = ['strike', 'attack', 'fight', 'kill', 'sword', 'slash',
@@ -1768,9 +1766,8 @@ class TranslationPipeline:
         confrontation_count = sum(1 for kw in confrontation_keywords if kw.lower() in text.lower())
         
         # Count exclamation marks (emotional intensity)
-        exclamation_count = text.count('!')
         
-        total_lines = len([l for l in text.split('\n') if l.strip()])
+        total_lines = len([line for line in text.split('\n') if line.strip()])
         dialogue_ratio = dialogue_lines / total_lines if total_lines > 0 else 0
         
         # Decision logic

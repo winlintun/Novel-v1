@@ -4,7 +4,6 @@ Benchmark: Compare model output vs human reference translation.
 Uses existing translation_reviewer checks + semantic similarity.
 """
 
-import os
 import re
 import sys
 import json
@@ -16,8 +15,8 @@ from typing import Optional, List
 project_root = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.utils.translation_reviewer import review_translation
-from src.utils.file_handler import FileHandler
+from src.utils.translation_reviewer import review_translation  # noqa: E402
+from src.utils.file_handler import FileHandler  # noqa: E402
 
 DATASET_DIR = project_root.parent.parent / "DownloadNovel" / "CreateNovelDataSet"
 OUTPUT_DIR = project_root / "data" / "output"
@@ -237,7 +236,7 @@ def print_benchmark(results: List[dict], fmt: str = "table"):
         s = r.get("semantic") or {}
         gap = r.get("gap_analysis") or {}
 
-        print(f"\n  📊 QUALITY SCORES")
+        print("\n  📊 QUALITY SCORES")
         print(f"  {'Metric':<35} {'Model':>8} {'Human':>8} {'Diff':>8}")
         print(f"  {'─'*35} {'─'*8} {'─'*8} {'─'*8}")
 
@@ -251,20 +250,20 @@ def print_benchmark(results: List[dict], fmt: str = "table"):
         print(f"  {'Critical Issues':<35} {str(mq.get('critical_count', 'N/A')):>8} {str(hq.get('critical_count', 'N/A')):>8}")
         print(f"  {'Warnings':<35} {str(mq.get('warning_count', 'N/A')):>8} {str(hq.get('warning_count', 'N/A')):>8}")
 
-        print(f"\n  🔤 ARCHAIC WORDS")
+        print("\n  🔤 ARCHAIC WORDS")
         arch = gap.get("archaic", {})
         m_arch = arch.get("model", {})
         h_arch = arch.get("human", {})
         for word in ['ဤ', 'ထို', 'သင်သည်']:
             print(f"  {word:<35} {str(m_arch.get(word, 0)):>8} {str(h_arch.get(word, 0)):>8}")
 
-        print(f"\n  📐 CONTENT METRICS")
-        l = gap.get("length", {})
-        print(f"  {'Chars':<35} {str(l.get('model_chars', 'N/A')):>8} {str(l.get('human_chars', 'N/A')):>8}")
-        print(f"  {'Paragraphs':<35} {str(l.get('model_paragraphs', 'N/A')):>8} {str(l.get('human_paragraphs', 'N/A')):>8}")
-        print(f"  {'Length ratio (model/human)':<35} {str(l.get('ratio', 'N/A')):>8}")
+        print("\n  📐 CONTENT METRICS")
+        length_info = gap.get("length", {})
+        print(f"  {'Chars':<35} {str(length_info.get('model_chars', 'N/A')):>8} {str(length_info.get('human_chars', 'N/A')):>8}")
+        print(f"  {'Paragraphs':<35} {str(length_info.get('model_paragraphs', 'N/A')):>8} {str(length_info.get('human_paragraphs', 'N/A')):>8}")
+        print(f"  {'Length ratio (model/human)':<35} {str(length_info.get('ratio', 'N/A')):>8}")
 
-        print(f"\n  🧠 SEMANTIC SIMILARITY")
+        print("\n  🧠 SEMANTIC SIMILARITY")
         print(f"  {'Cosine similarity':<35} {str(s.get('cosine_similarity', 'N/A')):>8}")
         print(f"  {'Paragraph similarity (avg)':<35} {str(s.get('paragraph_similarity', 'N/A')):>8}")
         print(f"  {'Paragraph coverage (>.70)':<35} {str(s.get('paragraph_coverage', 'N/A')):>8}")
@@ -272,7 +271,7 @@ def print_benchmark(results: List[dict], fmt: str = "table"):
         model_checks = mq.get("checks", {})
         human_checks = hq.get("checks", {})
         if model_checks and human_checks:
-            print(f"\n  ✅ DETAILED CHECKS")
+            print("\n  ✅ DETAILED CHECKS")
             for name in ["Fluency Score", "Myanmar Ratio", "H1 Count", "Archaic Words", "Latin/English Leakage"]:
                 mc = model_checks.get(name, {})
                 hc = human_checks.get(name, {})

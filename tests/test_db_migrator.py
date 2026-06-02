@@ -118,7 +118,6 @@ class TestJsonToSqlMigrator:
         novel_slug = "empty-novel"
         glossary_dir = tmp_path / "data" / "output" / novel_slug / "glossary"
         glossary_dir.mkdir(parents=True)
-        output_dir = tmp_path / "data" / "output" / novel_slug
 
         original_cwd = Path.cwd()
         import os

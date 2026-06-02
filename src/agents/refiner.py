@@ -4,7 +4,6 @@ Polishes Myanmar translation for better flow, tone, and literary quality.
 Uses batch processing for 5-10x speedup.
 """
 
-import re
 import logging
 from typing import List, Optional
 
@@ -76,9 +75,9 @@ class Refiner(BaseAgent):
         """Detect scene type from Myanmar text for dynamic rule injection."""
         confrontation_kw = ['နင်', 'သေ', 'သတ်', 'မုန်း', 'လက်စား', 'ဒီကောင်', 'မိစ္ဆာ']
         action_kw = ['ထိုး', 'တိုက်', 'ခုတ်', 'ပစ်', 'ရိုက်', 'ကန်', 'ဓား', 'လက်သီး']
-        lines = [l for l in text.split('\n') if l.strip()]
+        lines = [line for line in text.split('\n') if line.strip()]
         total_lines = len(lines) if lines else 1
-        dialogue_lines = sum(1 for l in lines if any(q in l for q in '""「」'))
+        dialogue_lines = sum(1 for line in lines if any(q in line for q in '""「」'))
         exclamation_count = text.count('!')
         confrontation_count = sum(1 for kw in confrontation_kw if kw in text)
         action_count = sum(1 for kw in action_kw if kw in text)

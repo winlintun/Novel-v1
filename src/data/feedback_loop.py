@@ -11,15 +11,7 @@ Flow:
 import sqlite3
 import hashlib
 import re
-from pathlib import Path
 from typing import Optional
-from datetime import datetime
-
-try:
-    import chromadb
-    CHROMA_AVAILABLE = True
-except ImportError:
-    CHROMA_AVAILABLE = False
 
 # Myanmar Unicode range
 MYANMAR_RE = re.compile(r"[\u1000-\u109F]")

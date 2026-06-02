@@ -7,7 +7,6 @@ Usage:
     python -m src.utils.compare_models --novel sample --chapter 1
 """
 
-import os
 import sys
 import logging
 from pathlib import Path
@@ -19,9 +18,9 @@ project_root = Path(__file__).parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from src.config.skeleton_models import get_skeleton_manager
-from src.config.loader import load_config
-from src.pipeline.orchestrator import TranslationPipeline
+from src.config.skeleton_models import get_skeleton_manager  # noqa: E402
+from src.config.loader import load_config  # noqa: E402
+from src.pipeline.orchestrator import TranslationPipeline  # noqa: E402
 
 
 # Configure logging
@@ -164,33 +163,33 @@ def save_translation(
     # Build content
     lines = [
         f"# Translation: {result['display_name']}",
-        f"",
+        "",
         f"**Model:** {result['model_name']}",
         f"**Novel:** {novel}",
         f"**Chapter:** {chapter}",
         f"**Duration:** {result['duration']:.1f}s",
         f"**Status:** {'✓ Success' if result['success'] else '✗ Failed'}",
-        f"",
-        f"## Parameters",
+        "",
+        "## Parameters",
         f"- Temperature: {temp}",
         f"- Max Tokens: {max_tokens}",
         f"- Repeat Penalty: {repeat_penalty}",
         f"- Chunk Size: {chunk_size}",
-        f"",
-        f"---",
-        f"",
-        f"## Translation",
-        f"",
+        "",
+        "---",
+        "",
+        "## Translation",
+        "",
         result['translation'] if result['translation'] else "[No output]",
-        f"",
+        "",
     ]
     
     # Add metrics if available
     if result.get('metrics'):
         lines.extend([
-            f"",
-            f"## Metrics",
-            f"",
+            "",
+            "## Metrics",
+            "",
         ])
         for key, value in result['metrics'].items():
             lines.append(f"- {key}: {value}")
@@ -198,11 +197,11 @@ def save_translation(
     # Add error if failed
     if result.get('error'):
         lines.extend([
-            f"",
-            f"## Error",
-            f"```",
+            "",
+            "## Error",
+            "```",
             f"{result['error']}",
-            f"```",
+            "```",
         ])
     
     # Write file
@@ -320,16 +319,16 @@ def create_comparison_summary(
     summary_file = temp_dir / f"_comparison_summary_ch{chapter:03d}.md"
     
     lines = [
-        f"# Model Comparison Summary",
-        f"",
+        "# Model Comparison Summary",
+        "",
         f"**Novel:** {novel}",
         f"**Chapter:** {chapter}",
         f"**Date:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-        f"",
-        f"## Results Overview",
-        f"",
-        f"| Model | Status | Duration | Output Size |",
-        f"|-------|--------|----------|-------------|",
+        "",
+        "## Results Overview",
+        "",
+        "| Model | Status | Duration | Output Size |",
+        "|-------|--------|----------|-------------|",
     ]
     
     for r in results:
@@ -340,9 +339,9 @@ def create_comparison_summary(
         )
     
     lines.extend([
-        f"",
-        f"## Files Generated",
-        f"",
+        "",
+        "## Files Generated",
+        "",
     ])
     
     for r in results:
@@ -351,21 +350,21 @@ def create_comparison_summary(
         lines.append(f"- [{filename}]({filename})")
     
     lines.extend([
-        f"",
-        f"## Quick Comparison",
-        f"",
-        f"First 500 characters of each translation:",
-        f"",
+        "",
+        "## Quick Comparison",
+        "",
+        "First 500 characters of each translation:",
+        "",
     ])
     
     for r in results:
         preview = r['translation'][:500] if r['translation'] else "[No output]"
         lines.extend([
             f"### {r['display_name']}",
-            f"```",
+            "```",
             f"{preview}",
-            f"```",
-            f"",
+            "```",
+            "",
         ])
     
     with open(summary_file, 'w', encoding='utf-8') as f:
@@ -429,7 +428,7 @@ def main():
     if saved_files:
         logger.info(f"\n{'='*60}")
         logger.info(f"Comparison complete! Generated {len(saved_files)} files.")
-        logger.info(f"Location: logs/temp/")
+        logger.info("Location: logs/temp/")
         logger.info(f"{'='*60}")
     else:
         logger.error("No files generated. Check errors above.")

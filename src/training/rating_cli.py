@@ -13,7 +13,7 @@ import json
 import logging
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List
 
 logger = logging.getLogger(__name__)
 
@@ -212,7 +212,7 @@ def run_rating_cli(novel: str) -> int:
             "rejected": rejected, "skipped": skipped,
         })
 
-    print(f"\n=== Rating Complete! ===")
+    print("\n=== Rating Complete! ===")
     print(f"  Accepted: {accepted}")
     print(f"  Rejected: {rejected}")
     print(f"  Skipped:  {skipped}")

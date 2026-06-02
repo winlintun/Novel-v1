@@ -165,8 +165,7 @@ def run_finetuning(novel: Optional[str] = None,
             AutoModelForCausalLM, AutoTokenizer, TrainingArguments, Trainer,
             BitsAndBytesConfig,
         )
-        from peft import LoraConfig, get_peft_model, PeftModel
-        from datasets import Dataset, DatasetDict
+        from peft import LoraConfig, get_peft_model
     except ImportError as e:
         logger.error(
             f"Missing ML dependency: {e}. "
@@ -353,7 +352,7 @@ def run_finetuning(novel: Optional[str] = None,
     test_results = trainer.evaluate(tokenized["test"])
     logger.info(f"Test loss: {test_results.get('eval_loss', 'N/A')}")
 
-    print(f"\n=== Fine-tuning Complete! ===")
+    print("\n=== Fine-tuning Complete! ===")
     print(f"  Adapter: {adapter_name}")
     print(f"  Location: {output_dir}")
     print(f"  Train samples: {len(dataset['train'])}")

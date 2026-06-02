@@ -470,15 +470,15 @@ def run_glossary_generation(args: argparse.Namespace) -> int:
             print(f"  Terms extracted: {total_terms}")
             print(f"  Terms pending review: {len(pending)}")
             print(f"{'='*60}")
-            print(f"\n  ⚠️  NEXT STEPS:")
-            print(f"  1. Review pending terms in Web UI or approve via CLI:")
+            print("\n  ⚠️  NEXT STEPS:")
+            print("  1. Review pending terms in Web UI or approve via CLI:")
             print(f"     python -m src.main --approve-glossary --novel {args.novel}")
-            print(f"  2. (Or) Review and approve individual terms:")
+            print("  2. (Or) Review and approve individual terms:")
             print(f"     python -m src.main --auto-promote --novel {args.novel}")
-            print(f"  3. Then translate:")
+            print("  3. Then translate:")
             print(f"     python -m src.main --novel {args.novel} --all")
-            print(f"\n  ℹ️  Global Xianxia terms are automatically included.")
-            print(f"  ℹ️  Term usage will be tracked after translation starts.")
+            print("\n  ℹ️  Global Xianxia terms are automatically included.")
+            print("  ℹ️  Term usage will be tracked after translation starts.")
             print(f"{'='*60}\n")
             return 0
 
@@ -1006,6 +1006,7 @@ def run_finetune(args: argparse.Namespace) -> int:
 
 def run_rating_cli(args: argparse.Namespace) -> int:
     """Run the interactive rejected-chunk rating CLI."""
+    logger = setup_logging()
     novel = args.novel
     if not novel:
         logger.error("--novel is required for --rate-rejected")
@@ -1736,7 +1737,7 @@ def run_compare_human(args: argparse.Namespace) -> int:
         result = run_benchmark(args.novel, args.chapter)
 
         print(f"\n{'='*60}")
-        print(f"  COMPARISON RESULTS")
+        print("  COMPARISON RESULTS")
         print(f"{'='*60}")
         print(f"  Cosine Similarity:  {result.get('cosine_similarity', 'N/A')}")
         print(f"  Paragraph Similarity: {result.get('paragraph_similarity', 'N/A')}")
@@ -1773,7 +1774,7 @@ def run_compare_models(args: argparse.Namespace) -> int:
         logger.info(f"Novel: {args.novel}")
         logger.info(f"Chapter: {args.chapter}")
         logger.info(f"Categories: {args.model_categories}")
-        logger.info(f"Output: logs/temp/")
+        logger.info("Output: logs/temp/")
         logger.info(f"{'='*60}\n")
         
         # Run comparison
@@ -1785,9 +1786,9 @@ def run_compare_models(args: argparse.Namespace) -> int:
         
         if saved_files:
             logger.info(f"\n{'='*60}")
-            logger.info(f"✓ Comparison complete!")
+            logger.info("✓ Comparison complete!")
             logger.info(f"  Generated {len(saved_files)} files")
-            logger.info(f"  Location: logs/temp/")
+            logger.info("  Location: logs/temp/")
             logger.info(f"{'='*60}\n")
             
             # Show generated files

@@ -6,6 +6,7 @@ Replaces Streamlit with a traditional Flask-based web interface.
 
 import os
 import sys
+import re
 import json
 import yaml
 import time
@@ -23,7 +24,7 @@ if project_root not in sys.path:
 
 # Import pipeline components (optional - for future use)
 try:
-    from src.config.skeleton_models import get_skeleton_manager, SkeletonModelManager
+    from src.config.skeleton_models import get_skeleton_manager
 except ImportError as e:
     logging.warning(f"Could not import skeleton models: {e}")
     get_skeleton_manager = None
@@ -773,7 +774,7 @@ def api_progress():
                     else:
                         data['elapsed_time'] = f"{seconds}s"
                     data['elapsed_seconds'] = elapsed_seconds
-                except:
+                except Exception:
                     data['elapsed_time'] = "calculating..."
 
             # If orchestrator already marked it completed/error, trust that
@@ -1265,6 +1266,7 @@ def api_editor_save():
     if not paragraphs:
         return jsonify({'error': 'No content to save'}), 400
 
+    from src.utils.file_handler import FileHandler
     try:
         content = '\n\n'.join(paragraphs)
         # Write a backup first

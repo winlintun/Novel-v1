@@ -10,7 +10,6 @@ Usage:
 """
 
 import sqlite3
-import hashlib
 import logging
 from pathlib import Path
 from typing import Optional
@@ -18,7 +17,6 @@ from dataclasses import dataclass
 
 try:
     import chromadb
-    from chromadb.utils import embedding_functions
     from chromadb.errors import NotFoundError as ChromaNotFoundError
     CHROMA_AVAILABLE = True
 except ImportError:
@@ -407,7 +405,7 @@ class RAGRetriever:
             # If we have query words, use LIKE with OR to widen candidate pool
             if words:
                 like_conditions = " AND (" + " OR ".join(
-                    [f"en_text LIKE ?" for _ in words]
+                    ["en_text LIKE ?" for _ in words]
                 ) + ")"
                 sql += like_conditions
                 for w in words:

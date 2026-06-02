@@ -126,7 +126,7 @@ SUGGESTIONS:
             return "analysis result"
         
         self.mock_client.chat.side_effect = count_calls
-        result = self.agent.reflect_and_improve("မြန်မာစာသားကိုပြောင်းလဲ", max_iterations=3)
+        self.agent.reflect_and_improve("မြန်မာစာသားကိုပြောင်းလဲ", max_iterations=3)
         # Without improvements, only one iteration happens
         self.assertGreaterEqual(call_count, 1)
 

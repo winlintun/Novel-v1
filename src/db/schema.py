@@ -218,9 +218,6 @@ class SchemaManager:
         Returns True if migration was applied, False if already done.
         """
         # Check if column already exists
-        result = self.db.fetchone(
-            "PRAGMA table_info(glossary_terms)"
-        )
         columns = self.db.fetchall("PRAGMA table_info(glossary_terms)")
         has_scope = any(c["name"] == "scope" for c in columns)
         
