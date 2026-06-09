@@ -66,19 +66,12 @@ class TestEndToEnd(unittest.TestCase):
         self.assertEqual(info['chapter_num'], 1)
 
     def test_memory_manager_persistence(self):
-        """Test memory manager save/load cycle."""
-        glossary_path = Path(self.temp_dir) / "glossary.json"
-        context_path = Path(self.temp_dir) / "context.json"
-
-        # Create and populate
-        memory = MemoryManager(str(glossary_path), str(context_path))
+        """Test memory manager save/load cycle via DB."""
+        memory = MemoryManager(novel_name="test_integration")
         memory.add_term("主角", "ဇော်ဂျီ", "character", 1)
         memory.push_to_buffer("Test paragraph")
-        memory.save_memory()
 
-        # Load and verify
-        new_memory = MemoryManager(str(glossary_path), str(context_path))
-
+        new_memory = MemoryManager(novel_name="test_integration")
         self.assertEqual(new_memory.get_term("主角"), "ဇော်ဂျီ")
 
 

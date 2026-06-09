@@ -137,11 +137,24 @@ data/input/
 
 # ── Large binary data files (CI performance) ────────────────────────────────
 data/novel_translation.db
+data/novel_translation.db-shm
+data/novel_translation.db-wal
 data/novel_v1_dataset.db
+data/novel_alignment.db
+data/novel_alignment.db-shm
+data/novel_alignment.db-wal
 data/chroma_db/
+data/chroma/
+data/cache/
+data/reports/
 data/evaluation/
 data/output/*/glossary/
 data/output/**/*.mm.md
 data/output/**/*.mm.meta.json
 data/output/**/*.human.md
 data/output/**/*.single_stage.md
+
+# ── Template / reference docs (not project code) ────────────────────────────
+glossary_template.md
+dataset_aligment.md
+CLAUDE.md

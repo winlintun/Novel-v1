@@ -200,12 +200,12 @@ class PathsConfig(BaseModel):
         description="Books directory"
     )
     glossary_file: str = Field(
-        default="data/output/default/glossary/glossary.json",
-        description="Path to glossary file"
+        default="",  # DB-only — path unused
+        description="Deprecated: glossary is stored in novel_translation.db"
     )
     context_memory_file: str = Field(
-        default="data/output/default/glossary/context_memory.json",
-        description="Path to context memory file"
+        default="",  # DB-only — path unused
+        description="Deprecated: context is stored in context_snapshots table"
     )
     log_file: str = Field(
         default="logs/translation.log",

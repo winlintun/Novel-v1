@@ -188,8 +188,7 @@ class GlossaryGenerator(BaseAgent):
 
     def save_to_pending(self, terms: List[Dict[str, Any]], chapter_num: int = 0):
         """
-        Save extracted terms to glossary_pending.json with duplicate checking.
-        Now compatible with v3.2.1 schema (source_term, target_term).
+        Save extracted terms to the database as pending glossary entries.
         Checks for duplicates against: approved glossary + existing pending terms.
         """
         # Load existing pending terms to check for duplicates

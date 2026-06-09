@@ -12,6 +12,7 @@ Usage:
 """
 
 import argparse
+import os
 import shutil
 import subprocess
 import sys
@@ -21,9 +22,13 @@ from pathlib import Path
 # Add parent to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+IS_WINDOWS = os.name == "nt"
+
 
 def run_command(cmd, check=True, timeout=30):
     """Run a shell command and return output."""
+    if IS_WINDOWS and any(kw in cmd for kw in ["ps aux", "free -h", "grep", "lsof", "fuser", "sudo", "pkill", "killall", "systemctl", "swapoff"]):
+        return None  # Silently skip Linux-only commands on Windows
     try:
         result = subprocess.run(
             cmd,
@@ -42,12 +47,20 @@ def run_command(cmd, check=True, timeout=30):
 
 def check_ollama_status():
     """Check if Ollama is running and what models are loaded."""
+    if IS_WINDOWS:
+        print("Ollama status check uses platform-specific commands.")
+        print("On Windows, check Task Manager or run: ollama list")
+        print()
+    
     print("=" * 60)
     print("🔍 OLLAMA STATUS CHECK")
     print("=" * 60)
     
     # Check if Ollama process is running
-    ps_output = run_command("ps aux | grep 'ollama serve' | grep -v grep", check=False)
+    if IS_WINDOWS:
+        ps_output = run_command("tasklist /FI \"IMAGENAME eq ollama.exe\" 2>NUL", check=False)
+    else:
+        ps_output = run_command("ps aux | grep 'ollama serve' | grep -v grep", check=False)
     if ps_output:
         print("✓ Ollama server is RUNNING")
         # Parse PID and memory
@@ -65,7 +78,10 @@ def check_ollama_status():
     # Check loaded models
     print("\n📦 Loaded Models in Memory:")
     print("-" * 40)
-    models_output = run_command("ollama ps 2>/dev/null", check=False)
+    if IS_WINDOWS:
+        models_output = run_command("ollama ps 2>NUL", check=False)
+    else:
+        models_output = run_command("ollama ps 2>/dev/null", check=False)
     if models_output and "NAME" in models_output:
         print(models_output)
         # Count models
@@ -81,7 +97,8 @@ def check_ollama_status():
     # Check available models
     print("\n📋 Available Models:")
     print("-" * 40)
-    list_output = run_command("ollama list 2>/dev/null", check=False)
+    redirect = "2>NUL" if IS_WINDOWS else "2>/dev/null"
+    list_output = run_command(f"ollama list {redirect}", check=False)
     if list_output:
         # Count available models
         lines = list_output.strip().split('\n')
@@ -178,6 +195,15 @@ def stop_all_models(verbose=True):
 
 def stop_ollama_service():
     """Stop the Ollama service completely."""
+    if IS_WINDOWS:
+        print("\n🔴 Stopping Ollama service...")
+        print("-" * 40)
+        stop_all_models(verbose=False)
+        run_command("taskkill /F /IM ollama.exe 2>NUL", check=False, timeout=10)
+        print("  ✓ Ollama process terminated (if running)")
+        print()
+        return
+    
     print("\n🔴 Stopping Ollama service...")
     print("-" * 40)
     

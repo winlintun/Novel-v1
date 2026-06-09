@@ -5,9 +5,17 @@
 ---
 
 ## Last Updated
-- Date: 2026-06-03
-- Last task completed: Fixed 137 ruff E/F errors across 18 files — unused imports, f-string placeholders, ambiguous variable names, undefined names, unused variables, bare except, import ordering. All checks pass.
+- Date: 2026-06-09
+- Last task completed: Windows compatibility fixes — Linux paths, SIGTERM, cleanup.py, diagnose.py
 - Git commit: `pending`
+
+## Session Summary (2026-06-09)
+- ✅ **Glossary Template Integration** — Created `scripts/import_universal_glossary.py`, `glossary_extraction/` package (8 files), `tools/mine_glossary.py`, `tools/glossary_stats.py`, `glossary_app/` Flask review UI (6 files). Imported 490 universal terms into DB. Updated README.
+- ✅ **Dataset Alignment Pipeline** — Created `src/dataset_alignment/` package (10 files), `src/validators/` package (6 files), `config/rule.yaml`, `tools/run_dataset_alignment.py`. Full BGE-M3 DP alignment, 16 validators, RAG population. Updated README.
+- ✅ **DB-only Glossary Refactoring** — Removed all JSON glossary file references from `memory_manager.py`, `config/models.py`, `cli/commands.py`, `diagnose.py`, `scripts/bootstrap_glossary.py`, 4 config YAMLs. Zero JSON glossary files in `src/`.
+- ✅ **RAG Paths Fixed** — Changed RAG ChromaDB/SQLite paths from `/home/wangyi/...` Linux paths to local `data/chroma` and `data/novel_v1_dataset.db`. Model changed from `translategemma:12b` to `padauk-gemma:q8_0`.
+- ✅ **Windows Compatibility** — Fixed `sync_external.py` Linux path default. Wrapped `SIGTERM` in platform guard. Fixed `diagnose.py` references to `.sh` scripts. Added Windows guard to `tools/cleanup.py`. Created `clean_run.bat`.
+- ✅ **Translation verified** — Chapter 1 of a-will-eternal: chunk 1 (quality 83, MM 98%), chunk 2 (quality 90, MM 99%), chunk 3-5 in progress. Checkpoint auto-resume works.
 
 ## Session Summary (2026-06-03)
 - ✅ **Ruff E/F cleanup** — Fixed 137 errors across 18 files: added unused imports to `__all__` (prompts/__init__.py), removed dead imports (9 files), converted F541 f-strings to plain strings (5 files), renamed ambiguous `l`→`line` (5 files), fixed undefined names (flask_app.py `re`, commands.py `logger`), removed unused variables (4 files), added noqa for deliberate E402 (2 files), fixed bare except (flask_app.py). 0 errors remain.

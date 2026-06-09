@@ -21,7 +21,7 @@ model_roles:
   - yxchia/seallms-v3-7b:Q4_K_M
   translator:
   - padauk-gemma:q8_0
-  - translategemma:12b
+  - gemma4-e4b-it:q8_0
 models:
   checker: padauk-gemma:q8_0
   editor: padauk-gemma:q8_0
@@ -33,7 +33,7 @@ models:
   refiner: padauk-gemma:q8_0
   retry_num_predict: 4096
   timeout: 300
-  translator: translategemma:12b
+  translator: padauk-gemma:q8_0
   use_gpu: true
   gemma_4_e4b:
     name: gemma-4-e4b-it:q8_0
@@ -61,8 +61,8 @@ output:
   preserve_formatting: true
 paths:
   books_dir: books
-  context_memory_file: data/context_memory_{novel_name}.json
-  glossary_file: data/glossary_{novel_name}.json
+  context_memory_file: ""   # DB-only — stored in context_snapshots table
+  glossary_file: ""         # DB-only — stored in novel_translation.db
   input_dir: data/input
   log_file: logs/translation.log
   output_dir: data/output
@@ -102,19 +102,41 @@ translation_pipeline:
     two_stage: "2-stage pipeline: Stage 1(gemma-4-e4b) -> Stage 2(padauk-gemma:refinement)"
   use_reflection: false
   use_fiction_editor: false
-  stage1_model: translategemma:12b
+  stage1_model: gemma4-e4b-it:q8_0
   stage2_model: padauk-gemma:q8_0
   reflection_model: padauk-gemma:q8_0
 
 rag:
   enabled: true
-  chroma_path: /home/wangyi/Desktop/DownloadNovel/CreateNovelDataSet/dataset_alignment_project/data/chroma
-  db_path: /home/wangyi/Desktop/DownloadNovel/CreateNovelDataSet/dataset_alignment_project/data/alignment.db
-  feedback_db: /home/wangyi/Desktop/DownloadNovel/CreateNovelDataSet/dataset_alignment_project/data/alignment.db
-  feedback_chroma: /home/wangyi/Desktop/DownloadNovel/CreateNovelDataSet/dataset_alignment_project/data/chroma
+  chroma_path: data/chroma
+  db_path: data/novel_v1_dataset.db
+  feedback_db: data/novel_v1_dataset.db
+  feedback_chroma: data/chroma
   feedback_min_score: 3.0
   feedback_min_myanmar_ratio: 0.70
   top_k: 3
   min_score: 2.5
   min_similarity: 0.3
   novel_filter: null
+
+# ── Dataset Alignment Pipeline ──────────────────────────────────────────────
+# Processes parallel EN/MM chapter files → creates aligned sentence pairs → populates RAG DB
+alignment_pipeline:
+  source_lang: "en"
+  target_lang: "my"
+  input_dir: "data/input"
+  output_dir: "data/output"
+  paths:
+    db_dir: "data"
+    cache_dir: "data/cache/alignment"
+    reports_dir: "data/reports/alignment"
+    chroma_dir: "data/chroma"
+  embedding:
+    model: "models/bge-m3"
+    device: "cpu"
+    batch_size: 32
+  llm_judge:
+    enabled: false
+    provider: "ollama"
+    model: "qwen2.5:14b"
+    sample_rate: 0.05

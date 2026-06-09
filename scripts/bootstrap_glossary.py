@@ -1,23 +1,26 @@
 #!/usr/bin/env python3
 """
 scripts/bootstrap_glossary.py
-Semi-Automated Glossary Bootstrapping
-Extracts proper nouns from Chinese text and creates initial glossary entries.
+Semi-Automated Glossary Bootstrapping (DB-only)
+Extracts proper nouns from Chinese/English source text and creates
+initial glossary entries directly in the SQLite database.
 """
 
 import re
 import json
 import argparse
 import logging
-import shutil
 from pathlib import Path
 from collections import Counter
 from typing import List, Tuple
 
-# Add src to path for imports
 import sys
-sys.path.insert(0, '/home/wangyi/Desktop/Novel_Translation/novel_translation_project')
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from src.db.connection import DatabaseConnection
+from src.db.schema import SchemaManager
+from src.db.repositories.glossary_repo import GlossaryRepository
+from src.db.repositories.novel_repo import NovelRepository
 from src.utils.file_handler import FileHandler
 
 # Setup logging
@@ -144,12 +147,6 @@ def main() -> int:
         help="Name of the novel for glossary metadata"
     )
     parser.add_argument(
-        "--output",
-        "-o",
-        default="data/glossary_pending.json",
-        help="Output file path (default: data/glossary_pending.json)"
-    )
-    parser.add_argument(
         "--min-count",
         type=int,
         default=2,
@@ -204,30 +201,41 @@ def main() -> int:
     
     logger.info(f"Found {len(terms)} significant terms")
     
-    # Create pending glossary
-    pending_glossary = create_pending_glossary(terms, chapter_num=1)
+    # Insert terms directly into the database
+    db = DatabaseConnection("data/novel_translation.db")
+    schema = SchemaManager(db)
+    schema.create_all()
+    repo = GlossaryRepository(db)
+    novel_repo = NovelRepository(db)
     
-    # Save using FileHandler for atomic writes with backup
-    output_path = Path(args.output)
-    try:
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        # Create backup if file exists
-        if output_path.exists():
-            backup_path = output_path.with_suffix('.json.bak')
-            shutil.copy2(output_path, backup_path)
-            logger.info(f"Created backup: {backup_path}")
-        
-        # Use FileHandler for atomic JSON write
-        FileHandler.write_json(str(output_path), pending_glossary)
-        logger.info(f"Saved {len(pending_glossary['pending_terms'])} pending terms to: {output_path}")
-        
-    except PermissionError:
-        logger.error(f"Permission denied writing to: {output_path}")
-        return 1
-    except Exception as e:
-        logger.error(f"Error saving glossary: {e}")
-        return 1
+    novel_name = args.novel_name or Path(args.input_file).parent.name
+    novel_id = f"novel_{novel_name.replace('-', '_').replace(' ', '_')}"
+    if not novel_repo.exists(novel_id):
+        novel_repo.create(novel_id, novel_name, "chinese")
+    
+    pending_glossary = create_pending_glossary(terms, chapter_num=1)
+    inserted = 0
+    for t in pending_glossary.get("pending_terms", []):
+        try:
+            existing = repo.get_term_by_source(novel_id, t["source"])
+            if existing:
+                continue
+            repo.add_term(
+                novel_id=novel_id,
+                source_term=t["source"],
+                target_term=t["target"],
+                category=t["category"],
+                status="pending",
+                enforcement_level="soft",
+                confidence=0.5,
+            )
+            inserted += 1
+        except Exception as e:
+            logger.warning(f"Failed to insert term '{t['source']}': {e}")
+    
+    db.close()
+    
+    logger.info(f"Inserted {inserted} pending terms into database for novel '{novel_name}'")
     
     # Summary
     logger.info(f"\nTop 10 terms:")
@@ -235,10 +243,9 @@ def main() -> int:
         logger.info(f"  {term}: {count} occurrences")
     
     print("\nNext steps:")
-    print("1. Review glossary_pending.json")
+    print("1. Review pending terms via Web UI or CLI (--approve-glossary)")
     print("2. Add proper Myanmar translations for each term")
-    print("3. Set 'verified: true' for approved terms")
-    print("4. Move to data/glossary.json for production use")
+    print("3. Approve via: python -m src.main --novel <name> --approve-glossary")
     
     return 0
 

@@ -74,9 +74,13 @@ class TranslationPipeline:
         self._progress_callback: Optional[Callable] = None
         self._version_manager = None
 
-        # Register signal handlers
+        # Register signal handlers (SIGTERM not available on Windows)
         signal.signal(signal.SIGINT, self._signal_handler)
-        signal.signal(signal.SIGTERM, self._signal_handler)
+        if hasattr(signal, 'SIGTERM'):
+            try:
+                signal.signal(signal.SIGTERM, self._signal_handler)
+            except (ValueError, OSError):
+                pass
 
     def _signal_handler(self, signum: int, frame: Any) -> None:
         """Handle shutdown signals gracefully."""
@@ -955,7 +959,8 @@ class TranslationPipeline:
             return None
 
         patterns = [
-            # Format 1: {novel}_chapter_{XXX}.md (e.g., 古道仙鸿_chapter_009.md)
+            # Format 1: {novel}_chapter_{XXXX}.md (e.g., a-will-eternal_chapter_0001.md)
+            novel_dir / f"{novel}_chapter_{chapter:04d}.md",
             novel_dir / f"{novel}_chapter_{chapter:03d}.md",
             # Format 2: {chapter}.md (e.g., 009.md)
             novel_dir / f"{chapter:03d}.md",

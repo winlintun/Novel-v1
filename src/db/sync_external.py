@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 EXTERNAL_DB_PATH = os.environ.get(
     "GLOSSARY_SYSTEM_DB_PATH",
-    "/home/wangyi/Desktop/Glossary_System/db/glossary_system.db",
+    "",  # Windows default: no external DB — sync is skipped with a warning
 )
 GLOBAL_NOVEL_ID = "novel_global_xianxia"
 

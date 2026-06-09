@@ -455,9 +455,7 @@ def run_glossary_generation(args: argparse.Namespace) -> int:
                 except Exception as e:
                     logger.error(f"Chapter {ch_num} failed: {e}")
 
-        # Always persist glossary.json + context_memory.json so all 3 files
-        # exist after glossary generation, even when the novel is brand new.
-        memory.save_memory()
+        memory.save_memory()  # no-op — DB writes are immediate
         logger.info(f"Glossary generation completed: {completed} chapters processed, {total_terms} terms extracted")
 
         # For --init-glossary: print review instructions and exit cleanly
@@ -945,12 +943,12 @@ def run_glossary_promotion(args: argparse.Namespace) -> int:
 
 
 def run_glossary_approval(args: argparse.Namespace) -> int:
-    """Bulk approve ALL pending glossary terms and add to glossary.json.
+    """Bulk approve ALL pending glossary terms.
 
     This command:
-    1. Reads glossary_pending.json
-    2. Adds all "pending" status terms to glossary.json
-    3. Removes approved terms from pending list
+    1. Gets all pending terms from the database
+    2. Sets their status to "approved"
+    3. Records audit log entries
 
     Args:
         args: Parsed command line arguments (must have --novel)

@@ -264,7 +264,7 @@ def create_parser() -> argparse.ArgumentParser:
     utility_group.add_argument(
         "--approve-glossary",
         action="store_true",
-        help="Bulk approve ALL pending glossary terms and add to glossary.json"
+        help="Bulk approve ALL pending glossary terms in the database"
     )
     utility_group.add_argument(
         "--stats",

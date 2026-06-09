@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Glossary Review — Novel-v2</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen">
+
+  <header class="bg-slate-900 text-white shadow">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+      <h1 class="text-xl font-semibold">Glossary Review</h1>
+      <div class="flex items-center gap-3">
+        <select id="novel-select"
+                class="bg-slate-800 text-white text-sm rounded px-2 py-1 border border-slate-700">
+          <option value="">Loading&hellip;</option>
+        </select>
+        <button id="refresh-btn"
+                class="text-sm px-3 py-1 rounded bg-blue-600 hover:bg-blue-500">
+          Refresh
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 py-6 grid grid-cols-12 gap-4">
+
+    <aside class="col-span-12 md:col-span-3 space-y-4">
+
+      <div class="bg-white rounded-lg shadow p-4">
+        <h2 class="text-sm font-semibold text-slate-600 uppercase mb-2">Stats</h2>
+        <div id="stats-panel" class="space-y-1 text-sm">
+          <div class="text-slate-400">No novel selected</div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow p-4 space-y-3">
+        <h2 class="text-sm font-semibold text-slate-600 uppercase">Filters</h2>
+
+        <div>
+          <label class="text-xs text-slate-500 block mb-1">Status</label>
+          <select id="filter-status"
+                  class="w-full text-sm border border-slate-300 rounded px-2 py-1">
+            <option value="pending" selected>Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+            <option value="all">All</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="text-xs text-slate-500 block mb-1">Category</label>
+          <select id="filter-category"
+                  class="w-full text-sm border border-slate-300 rounded px-2 py-1">
+            <option value="">All</option>
+            <option>character</option>
+            <option>location</option>
+            <option>organization</option>
+            <option>technique</option>
+            <option>cultivation_concept</option>
+            <option>item_artifact</option>
+            <option>title_honorific</option>
+            <option>power_level</option>
+            <option>general</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="text-xs text-slate-500 block mb-1">
+            Min confidence: <span id="conf-label">0.00</span>
+          </label>
+          <input id="filter-confidence" type="range" min="0" max="1" step="0.05"
+                 value="0" class="w-full">
+        </div>
+
+        <div>
+          <label class="text-xs text-slate-500 block mb-1">Search</label>
+          <input id="filter-search" type="text" placeholder="source or target&hellip;"
+                 class="w-full text-sm border border-slate-300 rounded px-2 py-1">
+        </div>
+
+        <div>
+          <label class="text-xs text-slate-500 block mb-1">Sort</label>
+          <select id="filter-sort"
+                  class="w-full text-sm border border-slate-300 rounded px-2 py-1">
+            <option value="confidence_desc">Confidence (high &rarr; low)</option>
+            <option value="confidence_asc">Confidence (low &rarr; high)</option>
+            <option value="usage_desc">Usage count</option>
+            <option value="created_desc">Newest first</option>
+            <option value="source_asc">Source (A&ndash;Z)</option>
+          </select>
+        </div>
+
+        <button id="bulk-approve-btn"
+                class="w-full text-sm bg-emerald-600 hover:bg-emerald-500
+                       text-white rounded px-3 py-2 disabled:opacity-50"
+                disabled>
+          Bulk approve selected
+        </button>
+      </div>
+    </aside>
+
+    <section class="col-span-12 md:col-span-9">
+      <div class="flex items-center justify-between mb-3">
+        <div class="text-sm text-slate-600">
+          <span id="terms-count">0</span> terms
+        </div>
+        <div class="text-xs text-slate-400">
+          Tip: click a row to expand details
+        </div>
+      </div>
+
+      <div id="terms-list" class="space-y-2">
+      </div>
+
+      <div id="empty-state"
+           class="hidden text-center py-16 text-slate-400">
+        No terms match the current filters.
+      </div>
+
+      <div id="loading"
+           class="hidden text-center py-16 text-slate-400">
+        Loading&hellip;
+      </div>
+    </section>
+  </main>
+
+  <div id="toast-container"
+       class="fixed bottom-4 right-4 space-y-2 z-50"></div>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

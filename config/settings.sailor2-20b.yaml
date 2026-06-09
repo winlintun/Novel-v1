@@ -53,8 +53,8 @@ paths:
   input_dir: "data/input"
   output_dir: "data/output"
   books_dir: "books"
-  glossary_file: "data/glossary_{novel_name}.json"
-  context_memory_file: "data/context_memory_{novel_name}.json"
+  glossary_file: ""   # DB-only — stored in novel_translation.db
+  context_memory_file: ""
   log_file: "logs/translation.log"
   templates_dir: "templates"
 

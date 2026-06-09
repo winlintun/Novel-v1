@@ -332,8 +332,8 @@ def test_memory_manager():
         
         # Create a test memory manager
         memory = MemoryManager(
-            glossary_path="data/glossary.json",
-            context_path="data/context_memory.json"
+            glossary_path="",
+            context_path=""
         )
         
         print_test("MemoryManager creation", "PASS")

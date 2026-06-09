@@ -240,10 +240,24 @@ python -m src.main --test
 
 # Python cache ရှင်းလင်းရန်
 python -m src.main --clean
-# Or: ./clean_run.sh
+# Or: clean_run.bat (Windows) / ./clean_run.sh (Linux)
 
 # Version ကြည့်ရန်
 python -m src.main --version
+
+# Import universal glossary blueprint (490+ mined terms)
+python scripts/import_universal_glossary.py
+python scripts/import_universal_glossary.py --dry-run
+
+# Mine glossary from parallel EN/MM corpus
+python tools/mine_glossary.py --novel-id novel_wayfarer --en-dir data/input/wayfarer --my-dir data/output/wayfarer --dry-run
+
+# Glossary statistics from DB
+python tools/glossary_stats.py
+python tools/glossary_stats.py --novel novel_wayfarer --json
+
+# Launch Glossary Review UI (standalone, port 5001)
+python -m glossary_app.app
 ```
 
 ---
@@ -363,6 +377,201 @@ auto_approve_by_confidence(threshold=0.85)       # Auto-approve high confidence 
 
 ---
 
+### Glossary Tools & Workflow
+
+#### Import Universal Glossary (One-time)
+
+Import 490+ mined xianxia/cultivation terms from the universal glossary blueprint into the database:
+
+```bash
+# Preview what will be imported (no DB changes)
+python scripts/import_universal_glossary.py --dry-run
+
+# Import all terms into the database
+python scripts/import_universal_glossary.py
+
+# Use custom paths
+python scripts/import_universal_glossary.py --db-path custom/path.db --blueprint custom/blueprint.json
+```
+
+All terms are inserted with `scope='global'` so they are available to ALL novels automatically. Terms with missing/placeholder targets are set to `status='pending'` for human review.
+
+#### Offline Glossary Mining (EN/MM parallel corpus)
+
+Extract new glossary terms from aligned English-Myanmar chapter pairs:
+
+```bash
+python tools/mine_glossary.py \
+    --novel-id novel_wayfarer \
+    --en-dir data/input/wayfarer \
+    --my-dir data/output/wayfarer \
+    --dry-run              # preview first; remove to commit
+
+# With LLM verification (default: uses qwen2.5:14b)
+python tools/mine_glossary.py --novel-id novel_wayfarer \
+    --en-dir data/input/wayfarer \
+    --my-dir data/output/wayfarer \
+    --limit-chapters 5
+
+# Skip LLM verification for speed
+python tools/mine_glossary.py --novel-id novel_wayfarer \
+    --en-dir data/input/wayfarer \
+    --my-dir data/output/wayfarer \
+    --no-llm
+```
+
+The mining pipeline: alignment → candidate extraction → scoring → dedup → (optional) LLM verify → DB insert.
+
+#### Glossary Statistics
+
+Quick reports from the database:
+
+```bash
+# All novels
+python tools/glossary_stats.py
+
+# Single novel
+python tools/glossary_stats.py --novel novel_wayfarer
+
+# JSON output for scripting
+python tools/glossary_stats.py --novel novel_global_xianxia --json
+```
+
+#### Glossary Review UI
+
+Standalone Flask web app for reviewing, approving, rejecting, and editing glossary terms:
+
+```bash
+# Start the review UI (port 5001)
+python -m glossary_app.app
+
+# Open http://127.0.0.1:5001
+```
+
+Features:
+- Filter by status (pending/approved/rejected), category, confidence
+- Search by source or target term
+- Edit target translation and category inline
+- Add/remove variants (alternate spellings)
+- Approve/reject individual terms
+- Bulk approve multiple terms at once
+- Audit log for every action
+- All data persisted to `data/novel_translation.db` — no JSON files
+
+#### DB-Only Architecture
+
+All glossary operations use SQLite as the single source of truth:
+- **No JSON files** for glossary data
+- All reads/writes through `MemoryManager` → `GlossaryRepository`
+- Audit trail via `audit_log` table
+- Term variants via `term_variants` table
+- Usage tracking via `term_usage` table
+
+---
+
+## 🔍 Dataset Alignment Pipeline (RAG Data Preparation)
+
+Populates the RAG database with aligned EN→MY sentence pairs from existing chapter files, enabling few-shot retrieval during translation.
+
+### Architecture
+
+```
+data/input/{novel}/*.md  ──┐
+data/output/{novel}/*.mm.md ─┤
+                            ▼
+              Dataset Alignment Pipeline
+              ├── Phase 1: Scan & ingest chapter files
+              ├── Phase 2: Pair source/target chapters
+              ├── Phase 3: BGE-M3 embedding (models/bge-m3)
+              ├── Phase 4: DP sentence alignment (1:1 / 1:NULL)
+              ├── Phase 5: Quality validators (16 checks)
+              ├── Phase 6: Populate RAG database
+              └── Phase 7: HTML + JSON report
+
+                            ▼
+              RAGRetriever (translate time)
+              ├── ChromaDB (semantic, if enabled)
+              └── SQLite (keyword fallback)
+                            ▼
+              Few-shot examples → LLM prompt
+```
+
+### How It Helps Translation
+
+| Before DAP | After DAP |
+|---|---|
+| LLM translates each chunk from scratch | LLM receives 3 similar EN-MY pairs as examples |
+| Terminology varies between chunks | Terms follow dataset patterns |
+| Character names transliterated inconsistently | Names match verified translations |
+| No context for literary register | Examples demonstrate correct register |
+
+### Usage
+
+```bash
+# Process a single novel
+python tools/run_dataset_alignment.py --novel a-will-eternal
+
+# Process all novels in data/input/
+python tools/run_dataset_alignment.py --all
+
+# Quick run (skip validators, only populate RAG)
+python tools/run_dataset_alignment.py --novel a-will-eternal --skip-validators
+
+# Skip RAG population (validation only)
+python tools/run_dataset_alignment.py --novel a-will-eternal --no-rag
+
+# Adjust alignment sensitivity (default: 0.50)
+python tools/run_dataset_alignment.py --novel a-will-eternal --min-similarity 0.6
+```
+
+### What Gets Populated
+
+| Database | Table | Purpose |
+|---|---|---|
+| `data/novel_v1_dataset.db` | `translation_pairs` | RAG example retrieval (SQLite) |
+| `data/novel_alignment.db` | `files, chapters, sentences` | Pipeline state & metadata |
+| `data/novel_alignment.db` | `alignments` | 1:1 aligned sentence pairs |
+| `data/novel_alignment.db` | `issues` | Validation findings |
+| `data/chroma/` | ChromaDB vectors | Semantic search (optional, needs --enable-chroma) |
+
+### Data Flow (End-to-End)
+
+```
+1. python tools/run_dataset_alignment.py --novel reverend-insanity
+   ↓
+2. Pipeline reads chapters from data/input/reverend-insanity/
+   + data/output/reverend-insanity/
+   ↓
+3. Aligned 1:1 pairs inserted into data/novel_v1_dataset.db
+   ↓
+4. python -m src.main --novel reverend-insanity --chapter 5
+   ↓
+5. RAGRetriever finds relevant pairs from novel_v1_dataset.db
+   ↓
+6. Pairs injected into translator prompt as few-shot examples
+   ↓
+7. Better terminology, name, and register consistency
+```
+
+### Validators (16 checks)
+
+| Category | Checks |
+|---|---|
+| Structural | Chapter pairing, missing chapters, file naming, encoding, duplicates |
+| Content | Omission, hallucination (dates/URLs), English leak |
+| Linguistic | Myanmar ratio, script purity (Indic/Chinese/Thai/Khmer), punctuation |
+| Metadata | Source/target file presence, char counts |
+| Noise | Translator notes, ads, formatting artifacts, OCR errors |
+| Quality | ChrF score (via sacrebleu), BERTScore (GPU, disabled by default) |
+
+### Reports
+
+After each run, reports are saved to `data/reports/alignment/`:
+- `{novel}_alignment_report.html` — Interactive HTML with expandable issue categories
+- `{novel}_alignment_report.json` — Machine-readable summary
+
+---
+
 ## ✅ Quality System (အရည်အသွေးစနစ်)
 
 ### Quality Gates
@@ -452,6 +661,23 @@ novel_translation_project/
 │   ├── utils/                   # Ollama, File I/O, Chunker, Postprocessor
 │   ├── web/                     # Flask Web UI
 │   └── training/                # Fine-tuning scaffold
+├── glossary_extraction/         # Glossary mining pipeline (offline)
+│   ├── config.py                # Pipeline configuration
+│   ├── db.py                    # DB helpers (DB-only, no JSON)
+│   ├── alignment.py             # EN/MM sentence alignment
+│   ├── candidates.py            # Candidate term extraction
+│   ├── scoring.py               # Term scoring and ranking
+│   ├── llm.py                   # LLM verification (Ollama)
+│   └── pipeline.py              # Main pipeline coordinator
+├── glossary_app/                # Glossary Review Flask UI (standalone)
+│   ├── app.py                   # Flask entry (port 5001)
+│   ├── routes.py                # REST API (12 endpoints)
+│   ├── db.py                    # DB helpers
+│   ├── templates/index.html     # Tailwind SPA
+│   └── static/                  # JS + CSS
+├── tools/
+│   ├── mine_glossary.py         # CLI: glossary mining from parallel corpus
+│   └── glossary_stats.py        # CLI: glossary statistics from DB
 ├── tests/                       # 440+ tests
 ├── logs/                        # Translation logs, quality reports
 ├── requirements.txt

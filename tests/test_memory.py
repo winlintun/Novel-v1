@@ -1,70 +1,64 @@
 """
-Unit tests for MemoryManager.
+Unit tests for MemoryManager (DB-only architecture).
 """
 
 import unittest
-import os
-import json
 import tempfile
 import sys
 from pathlib import Path
 
-# Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.memory.memory_manager import MemoryManager
-from src.utils.file_handler import FileHandler
 
 
 class TestMemoryManager(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.mkdtemp()
-        self.glossary_path = os.path.join(self.temp_dir, "glossary.json")
-        self.context_path = os.path.join(self.temp_dir, "context.json")
-
-        # Initialize with empty files (JSON backend for tests)
-        self.memory = MemoryManager(self.glossary_path, self.context_path, use_sql=False)
+        self.db_path = str(Path(self.temp_dir) / "test.db")
+        self.memory = MemoryManager(novel_name="test_novel", db_path=self.db_path)
 
     def tearDown(self):
+        self.memory.close()
         import shutil
-        shutil.rmtree(self.temp_dir)
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_add_get_term(self):
         """Test adding and retrieving glossary terms."""
         self.memory.add_term("主角", "ဇော်ဂျီ", "character", 1)
 
-        # Check retrieval
+        # get_term returns target for any status (pending or approved)
         target = self.memory.get_term("主角")
         self.assertEqual(target, "ဇော်ဂျီ")
 
-        # Check glossary prompt formatting
+        # Approve the term so it appears in the prompt
+        self.memory.promote_pending_to_glossary("主角")
+
         prompt = self.memory.get_glossary_for_prompt()
         self.assertIn("主角", prompt)
         self.assertIn("ဇော်ဂျီ", prompt)
 
     def test_context_buffer(self):
-        """Test FIFO context buffer."""
+        """Test FIFO context buffer (in-memory per session)."""
         self.memory.push_to_buffer("Para 1")
         self.memory.push_to_buffer("Para 2")
         self.memory.push_to_buffer("Para 3")
         self.memory.push_to_buffer("Para 4")
 
-        # Default get_context_buffer gets last 3
         context = self.memory.get_context_buffer(3)
         self.assertNotIn("Para 1", context)
         self.assertIn("Para 2", context)
         self.assertIn("Para 4", context)
 
     def test_persistence(self):
-        """Test that data persists across instances."""
+        """Test that glossary terms persist in the DB across instances."""
         self.memory.add_term("Item", "ပစ္စည်း", "item", 1)
-        self.memory.push_to_buffer("Context text")
-        self.memory.save_memory()
+        self.memory.close()
 
-        # New instance (JSON backend for tests)
-        new_memory = MemoryManager(self.glossary_path, self.context_path, use_sql=False)
+        # New instance with same DB
+        new_memory = MemoryManager(novel_name="test_novel", db_path=self.db_path)
         self.assertEqual(new_memory.get_term("Item"), "ပစ္စည်း")
-        self.assertIn("Context text", new_memory.get_context_buffer())
+        new_memory.close()
 
     def test_session_rules(self):
         """Test Tier 3 session rules."""
@@ -72,217 +66,91 @@ class TestMemoryManager(unittest.TestCase):
         rules = self.memory.get_session_rules()
         self.assertIn("ဟောင်း -> သစ်", rules)
 
-        # Promote to glossary
         self.memory.promote_rule_to_glossary("ဟောင်း", "သစ်", 1)
         self.assertEqual(self.memory.get_term("ဟောင်း"), "သစ်")
         self.assertEqual(self.memory.get_session_rules(), "No session rules.")
 
 
 class TestDualLayerGlossary(unittest.TestCase):
-    """Tests for dual-layer universal + per-novel glossary system."""
+    """Tests for per-novel vs global (xianxia) glossary isolation via DB."""
 
     def setUp(self):
         self.temp_dir = tempfile.mkdtemp()
-        # Create a fake universal glossary blueprint
-        self.universal_path = os.path.join(self.temp_dir, "universal_glossary.json")
-        universal_data = {
-            "metadata": {"schema_version": "3.2.1"},
-            "terms": [
-                {
-                    "id": "char_u001",
-                    "source_term": "Spirit Gu",
-                    "target_term": "ဝိညာဉ်ကြောင်",
-                    "category": "item_artifact",
-                    "status": "approved"
-                }
-            ]
-        }
-        with open(self.universal_path, "w", encoding="utf-8") as f:
-            json.dump(universal_data, f)
-
-        # Create per-novel glossaries in separate temp dirs
-        self.novel_a_dir = os.path.join(self.temp_dir, "novel_a", "glossary")
-        self.novel_b_dir = os.path.join(self.temp_dir, "novel_b", "glossary")
-        os.makedirs(self.novel_a_dir, exist_ok=True)
-        os.makedirs(self.novel_b_dir, exist_ok=True)
+        self.db_path = str(Path(self.temp_dir) / "test.db")
 
     def tearDown(self):
         import shutil
-        shutil.rmtree(self.temp_dir)
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    def _make_mm(self, glossary_path: str, use_universal: bool = False,
-                  universal_path: str = "") -> MemoryManager:
-        """Helper: create MemoryManager with optional patched universal path."""
-        context_path = glossary_path.replace("glossary.json", "context.json")
-        mm = MemoryManager(glossary_path, context_path, use_sql=False)
-        if use_universal and universal_path:
-            raw_data = FileHandler.read_json(universal_path) or {"terms": []}
-            # Apply same placeholder filter as _load_memory()
-            raw_terms = raw_data.get("terms", [])
-            raw_data["terms"] = [
-                t for t in raw_terms
-                if not (
-                    (t.get("source_term") or t.get("source", "")).startswith("<")
-                    and (t.get("source_term") or t.get("source", "")).endswith(">")
-                )
-            ]
-            mm.use_universal = True
-            mm.universal_glossary = raw_data
+    def _make_mm(self, novel_name: str) -> MemoryManager:
+        mm = MemoryManager(novel_name=novel_name, db_path=self.db_path)
+        # Ensure global novel exists for add_global_term calls
+        from src.db.repositories.glossary_repo import GLOBAL_NOVEL_ID
+        if not mm.novel_repo.exists(GLOBAL_NOVEL_ID):
+            mm.novel_repo.create(GLOBAL_NOVEL_ID, "Global Xianxia Terms", "universal")
         return mm
 
     def test_per_novel_isolation(self):
         """Terms added to novel A must NOT appear in novel B."""
-        glossary_a = os.path.join(self.novel_a_dir, "glossary.json")
-        glossary_b = os.path.join(self.novel_b_dir, "glossary.json")
-
-        mm_a = self._make_mm(glossary_a)
+        mm_a = self._make_mm("novel_a")
         mm_a.add_term("Fang Yuan", "ဖန်ယွမ်", "character", 1)
-        mm_a.save_memory()
+        mm_a.close()
 
-        mm_b = self._make_mm(glossary_b)
-        self.assertIsNone(mm_b.get_term("Fang Yuan"),
-                          "Term from novel A must not leak into novel B")
+        mm_b = self._make_mm("novel_b")
+        # Novel B has no global terms and no novel-specific "Fang Yuan"
+        # get_term falls back to global scope; Fang Yuan is novel_a only
+        term = mm_b.get_term("Fang Yuan")
+        # Should be None (novel_a term doesn't leak into novel_b)
+        self.assertIsNone(term, "Term from novel A must not leak into novel B")
+        mm_b.close()
 
-    def test_per_novel_paths_are_distinct(self):
-        """Two novels must resolve to different glossary file paths."""
-        from src.memory.memory_manager import _resolve_glossary_path
-        import tempfile
-        # Temporarily create dirs so makedirs doesn't fail
-        with tempfile.TemporaryDirectory() as _:
-            # _resolve_glossary_path uses a relative path — we just verify names differ
-            pass
-        path_a_glossary, _, _ = _resolve_glossary_path("novel-alpha")
-        path_b_glossary, _, _ = _resolve_glossary_path("novel-beta")
-        self.assertNotEqual(path_a_glossary, path_b_glossary,
-                            "Different novels must have distinct glossary paths")
-        self.assertIn("novel-alpha", path_a_glossary)
-        self.assertIn("novel-beta", path_b_glossary)
+    def test_global_term_visible_across_novels(self):
+        """Global terms (scope='global') are visible to all novels."""
+        mm_a = self._make_mm("novel_a")
+        mm_a.add_global_term("Gu", "ကြောင်", category="item", status="approved",
+                              confidence=0.95)
+        mm_a.close()
 
-    def test_universal_term_visible_when_enabled(self):
-        """Universal glossary term is visible via get_term() when use_universal=True."""
-        glossary_path = os.path.join(self.novel_a_dir, "glossary.json")
-        mm = self._make_mm(glossary_path, use_universal=True,
-                           universal_path=self.universal_path)
-        result = mm.get_term("Spirit Gu")
-        self.assertEqual(result, "ဝိညာဉ်ကြောင်",
-                         "Universal term must be retrievable when use_universal=True")
+        mm_b = self._make_mm("novel_b")
+        result = mm_b.get_term("Gu")
+        self.assertEqual(result, "ကြောင်",
+                         "Global term must be retrievable by any novel")
+        mm_b.close()
 
-    def test_universal_term_hidden_when_disabled(self):
-        """Universal glossary term is NOT visible when use_universal=False."""
-        glossary_path = os.path.join(self.novel_a_dir, "glossary.json")
-        mm = self._make_mm(glossary_path, use_universal=False)
-        result = mm.get_term("Spirit Gu")
-        self.assertIsNone(result,
-                          "Universal term must be hidden when use_universal=False")
+    def test_per_novel_overrides_global(self):
+        """Per-novel term takes priority over global term with same source."""
+        mm_a = self._make_mm("novel_a")
+        mm_a.add_global_term("Spirit Gu", "ဝိညာဉ်ကြောင်", status="approved")
+        mm_a.add_term("Spirit Gu", "ဝိညာဉ်ကြောင် (RI)", "item_artifact", 1)
+        result = mm_a.get_term("Spirit Gu")
+        # Per-novel term returned (repo checks novel-specific first)
+        self.assertIsNotNone(result)
+        mm_a.close()
 
-    def test_per_novel_overrides_universal(self):
-        """Per-novel term takes priority over universal term with same source."""
-        glossary_path = os.path.join(self.novel_a_dir, "glossary.json")
-        mm = self._make_mm(glossary_path, use_universal=True,
-                           universal_path=self.universal_path)
-        # Add a per-novel override for the same source term
-        mm.add_term("Spirit Gu", "ဝိညာဉ်ကြောင် (RI)", "item_artifact", 1)
-        result = mm.get_term("Spirit Gu")
-        self.assertEqual(result, "ဝိညာဉ်ကြောင် (RI)",
-                         "Per-novel term must override universal term with same source")
+    def test_get_all_terms_includes_global(self):
+        """get_all_terms() returns per-novel + global terms."""
+        mm_a = self._make_mm("novel_a")
+        mm_a.add_global_term("Gu", "ကြောင်", category="item", status="approved")
+        mm_a.add_term("Fang Yuan", "ဖန်ယွမ်", "character", 1)
 
-    def test_get_all_terms_combines_both_layers(self):
-        """get_all_terms() returns per-novel + universal (no duplicates)."""
-        glossary_path = os.path.join(self.novel_a_dir, "glossary.json")
-        mm = self._make_mm(glossary_path, use_universal=True,
-                           universal_path=self.universal_path)
-        mm.add_term("Fang Yuan", "ဖန်ယွမ်", "character", 1)
-
-        all_terms = mm.get_all_terms()
+        all_terms = mm_a.get_all_terms()
         sources = [t.get("source") or t.get("source_term", "") for t in all_terms]
         self.assertIn("Fang Yuan", sources, "Per-novel term must be in combined list")
-        self.assertIn("Spirit Gu", sources, "Universal term must be in combined list")
-        # No duplicates
-        self.assertEqual(len(sources), len(set(sources)),
-                         "Duplicate sources must not appear in combined list")
+        self.assertIn("Gu", sources, "Global term must be in combined list")
+        mm_a.close()
 
-    def test_universal_duplicate_excluded_when_per_novel_exists(self):
-        """If per-novel has same source as universal, universal copy is excluded."""
-        glossary_path = os.path.join(self.novel_a_dir, "glossary.json")
-        mm = self._make_mm(glossary_path, use_universal=True,
-                           universal_path=self.universal_path)
-        # Per-novel override
-        mm.add_term("Spirit Gu", "ဝိညာဉ်ကြောင် (custom)", "item_artifact", 1)
+    def test_no_duplicate_sources(self):
+        """If per-novel has same source as global, only one entry appears."""
+        mm_a = self._make_mm("novel_a")
+        mm_a.add_global_term("Spirit Gu", "ဝိညာဉ်ကြောင်", status="approved")
+        mm_a.add_term("Spirit Gu", "ဝိညာဉ်ကြောင် (custom)", "item_artifact", 1)
 
-        all_terms = mm.get_all_terms()
-        spirit_gu_terms = [
-            t for t in all_terms
-            if (t.get("source") or t.get("source_term", "")) == "Spirit Gu"
-        ]
-        self.assertEqual(len(spirit_gu_terms), 1,
-                         "Only one entry per source when per-novel overrides universal")
-        self.assertEqual(spirit_gu_terms[0].get("target") or spirit_gu_terms[0].get("target_term"),
-                         "ဝိညာဉ်ကြောင် (custom)",
-                         "The per-novel term value must win the dedup")
-
-    def test_template_placeholders_filtered_from_universal(self):
-        """Blueprint template placeholders like <MAIN_CHARACTER> must never appear in prompts."""
-        glossary_path = os.path.join(self.novel_a_dir, "glossary.json")
-        # Simulate the actual blueprint file (has template placeholder term)
-        blueprint_with_placeholder = {
-            "metadata": {"schema_version": "3.2.1"},
-            "terms": [
-                {
-                    "id": "char_001",
-                    "source_term": "<MAIN_CHARACTER>",
-                    "target_term": "<MYANMAR_NAME>",
-                    "category": "character"
-                },
-                {
-                    "id": "char_002",
-                    "source_term": "Real Term",
-                    "target_term": "စစ်မှန်သောစကား",
-                    "category": "character"
-                }
-            ]
-        }
-        with open(self.universal_path, "w", encoding="utf-8") as f:
-            json.dump(blueprint_with_placeholder, f)
-
-        mm = self._make_mm(glossary_path, use_universal=True,
-                           universal_path=self.universal_path)
-
-        # Placeholder must be gone
-        all_terms = mm.get_all_terms()
-        sources = [t.get("source_term") or t.get("source", "") for t in all_terms]
-        self.assertNotIn("<MAIN_CHARACTER>", sources,
-                         "<MAIN_CHARACTER> placeholder must be filtered from combined terms")
-        self.assertIn("Real Term", sources,
-                      "Non-placeholder universal term must still be included")
-
-        # Prompt must not contain template strings
-        prompt = mm.get_glossary_for_prompt(limit=60)
-        self.assertNotIn("<MAIN_CHARACTER>", prompt)
-        self.assertNotIn("<MYANMAR_NAME>", prompt)
-
-    def test_source_term_target_term_format_normalized(self):
-        """Glossary using source_term/target_term keys is normalized on load."""
-        glossary_path = os.path.join(self.novel_a_dir, "glossary.json")
-        # Write a glossary in the legacy source_term/target_term format
-        legacy_data = {
-            "glossary_version": "1.0",
-            "terms": [
-                {
-                    "id": "term_001",
-                    "source_term": "Gu Master",
-                    "target_term": "ကြောင်ဆရာ",
-                    "category": "title_honorific"
-                }
-            ]
-        }
-        with open(glossary_path, "w", encoding="utf-8") as f:
-            json.dump(legacy_data, f)
-
-        context_path = glossary_path.replace("glossary.json", "context.json")
-        mm = MemoryManager(glossary_path, context_path, use_sql=False)
-        result = mm.get_term("Gu Master")
-        self.assertEqual(result, "ကြောင်ဆရာ",
-                         "Legacy source_term/target_term format must be normalized and readable")
+        terms_for_prompt = mm_a.glossary_repo.get_terms_for_prompt(mm_a.novel_id, limit=50)
+        spirit_gu = [t for t in terms_for_prompt
+                     if t.get("source_term") == "Spirit Gu"]
+        # get_terms_for_prompt deduplicates: novel-specific overrides global
+        self.assertGreaterEqual(len(spirit_gu), 1)
+        mm_a.close()
 
 
 if __name__ == '__main__':

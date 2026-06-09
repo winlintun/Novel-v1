@@ -40,7 +40,7 @@ app.secret_key = os.environ.get('SECRET_KEY', 'novel-translation-secret-key-2024
 # Configuration
 app.config['UPLOAD_FOLDER'] = 'data/input'
 app.config['OUTPUT_FOLDER'] = 'data/output'
-app.config['GLOSSARY_PATH'] = 'data/glossary.json'
+app.config['DB_PATH'] = 'data/novel_translation.db'
 app.config['CONFIG_PATH'] = 'config/settings.yaml'
 
 
