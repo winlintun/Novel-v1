@@ -116,7 +116,10 @@ class Checker(BaseAgent):
         _MYANMAR = r'\u1000-\u109F'
         _PUNCT = r'\u2000-\u206F\u3000-\u303F'
         _ALLOWED = r'\s\d.,!?;:\-\'"()[]{}'
-        non_myanmar = re.findall(r'[^\u1000-\u109F\u2000-\u206F\u3000-\u303F\s\d.,!?;:\-\'"()[]{}]', text)
+        # NOTE: '[' and ']' MUST be escaped inside the class \u2014 an unescaped ']'
+        # closes the class early, turning the rest into literals and making this
+        # check silently match almost nothing.
+        non_myanmar = re.findall(r'[^\u1000-\u109F\u2000-\u206F\u3000-\u303F\s\d.,!?;:\-\'"()\[\]{}]', text)
         if len(non_myanmar) > len(text) * 0.3:  # More than 30% non-Myanmar
             issues.append(f"High non-Myanmar character ratio: {len(non_myanmar)} chars")
 
@@ -298,22 +301,4 @@ class Checker(BaseAgent):
             'incomplete_issues': incomplete_issues_count
         }
 
-    def generate_report(self, chapter_num: int, result: Dict) -> str:
-        """Generate human-readable check report."""
-        lines = [
-            f"Chapter {chapter_num} Quality Check",
-            "=" * 40,
-            f"Score: {result['score']:.1f}/100",
-            f"Status: {'✓ PASSED' if result['passed'] else '✗ FAILED'}",
-            f"Total Issues: {len(result['issues'])}",
-            ""
-        ]
 
-        if result['issues']:
-            lines.append("Issues Found:")
-            for issue in result['issues'][:10]:  # Show first 10
-                lines.append(f"  - {issue}")
-            if len(result['issues']) > 10:
-                lines.append(f"  ... and {len(result['issues']) - 10} more")
-
-        return "\n".join(lines)

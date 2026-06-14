@@ -75,15 +75,34 @@ Return ONLY valid JSON. No markdown fences. No explanation. No preamble.
     {{
       "source": "Exact term as it appears in source text",
       "target": "Myanmar transliteration or translation",
-      "category": "character|location|organization|item_artifact|technique|power_level|cultivation_concept|title_honorific|event",
+      "category": "character|creature|place|organization|title|cultivation|technique|item|food|currency|concept",
+      "subtype": "specific kind, see SUBTYPE list below (or omit if unsure)",
       "confidence": 0.85
     }}
   ]
 }}
 
+## SUBTYPE (fine-grained kind under the coarse category)
+- place    : empire, dynasty, kingdom, country, region, province, prefecture, district,
+             township, city, town, village, hamlet, ward, street, marketplace, mountain,
+             peak, range, river, lake, sea, valley, gorge, forest, plains, desert,
+             wilderness, secret_realm, dungeon, cave_abode, sealed_land, spiritual_vein,
+             hall, pavilion, tower, terrace, gate, courtyard, manor, estate, temple,
+             shrine, monastery, tomb, ancestral_hall
+- organization : sect, clan, family, guild, alliance
+- title    : king, prince, princess, noble, lord, official_rank, minister, general,
+             sect_master, peak_master, elder, steward, disciple, family_head,
+             patriarch, matriarch
+- cultivation  : realm, rank, stage, spiritual_root, concept
+- technique : sword_art, body_technique, spell, skill, formation
+- item     : weapon, artifact, pill, treasure, material, talisman
+- creature : beast, spirit_beast, demon_beast, monster, mount
+- concept  : term, law, dao, direction, event
+
 ## FIELD RULES
 1. confidence: Float 0.0-1.0. >=0.95 = auto-merge eligible. <0.70 = flag for manual review.
 2. deduplication: Merge case variants into one entry. Use the most common spelling.
+3. subtype: choose the most specific kind from the SUBTYPE list. If none fits, omit the field.
 
 ## FALLBACK
 If no terms found, return EXACTLY:
@@ -156,6 +175,14 @@ class GlossaryGenerator(BaseAgent):
     Agent responsible for automatic glossary generation from source text.
     """
 
+    # Sliding-window extraction parameters. Each window is one bounded Ollama
+    # call (chat() enforces its own timeout + retry cap). MAX_WINDOWS_PER_FILE
+    # is a hard ceiling so an unexpectedly huge file can never spawn an
+    # unbounded number of requests (NO HANGING REQUESTS rule).
+    WINDOW_SIZE = 4000
+    WINDOW_STEP = 2000
+    MAX_WINDOWS_PER_FILE = 20
+
     def __init__(
         self,
         ollama_client: Optional[OllamaClient] = None,
@@ -181,10 +208,30 @@ class GlossaryGenerator(BaseAgent):
             self.log_error(f"Term extraction failed: {e}")
             return []
 
+    def _iter_windows(self, content: str) -> List[str]:
+        """Split content into overlapping windows for full-coverage extraction.
+
+        Short chapters (<= WINDOW_SIZE) yield a single window. Longer chapters
+        are scanned with a sliding window (WINDOW_SIZE chars, WINDOW_STEP step)
+        so terms in the second half are not missed. The number of windows is
+        hard-capped at MAX_WINDOWS_PER_FILE to bound the number of Ollama calls.
+        """
+        if len(content) <= self.WINDOW_SIZE:
+            return [content] if content else []
+
+        windows: List[str] = []
+        start = 0
+        while start < len(content) and len(windows) < self.MAX_WINDOWS_PER_FILE:
+            windows.append(content[start:start + self.WINDOW_SIZE])
+            start += self.WINDOW_STEP
+        return windows
+
     def process_files(self, file_paths: List[str], source_lang: str = "Chinese") -> List[Dict[str, Any]]:
         """
         Process multiple files to generate a comprehensive glossary.
-        Uses single sample per file for speed - duplicate terms across files are deduped.
+        Each file is scanned with an overlapping sliding window so terms in the
+        second half of long chapters are not missed. Duplicate terms (within a
+        file and across files) are deduplicated by source term.
         Expects fields: source, target, category, confidence.
         """
         all_terms = {} # Use dict to deduplicate by source term
@@ -195,14 +242,15 @@ class GlossaryGenerator(BaseAgent):
                 with open(path, 'r', encoding='utf-8-sig') as f:
                     content = f.read()
 
-                # Single sample from the first 4000 chars - fast extraction
-                # Duplicate detection across multiple files provides coverage
-                sample = content[:4000]
-                terms = self.extract_terms(sample, source_lang)
-                for term in terms:
-                    source = term.get("source") or term.get("source_term")
-                    if source and source not in all_terms:
-                        all_terms[source] = term
+                # Sliding-window extraction: full coverage instead of only the
+                # first WINDOW_SIZE chars. extract_terms() already truncates to
+                # 4000 chars and handles its own errors per call.
+                for window in self._iter_windows(content):
+                    terms = self.extract_terms(window, source_lang)
+                    for term in terms:
+                        source = term.get("source") or term.get("source_term")
+                        if source and source not in all_terms:
+                            all_terms[source] = term
 
             except Exception as e:
                 self.log_error(f"Error reading {path}: {e}")
@@ -230,6 +278,7 @@ class GlossaryGenerator(BaseAgent):
             source = term.get("source") or term.get("source_term", "")
             target = term.get("target") or term.get("target_term", "")
             category = term.get("category", "item")
+            subtype = term.get("subtype") or None
             confidence = float(term.get("confidence", 0.0))
             
             # Skip invalid terms (empty)
@@ -256,6 +305,7 @@ class GlossaryGenerator(BaseAgent):
                 category=category,
                 chapter=chapter_num,
                 confidence=confidence,
+                subtype=subtype,
             )
             existing_sources.add(source_lower)  # Track to avoid duplicates within this run
             saved_count += 1

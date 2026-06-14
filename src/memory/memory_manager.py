@@ -6,7 +6,6 @@ No JSON glossary files are used.
 """
 
 import logging
-import os
 import re
 import json as _json
 from typing import Dict, List, Any, Optional
@@ -14,6 +13,18 @@ from datetime import datetime
 from collections import deque
 
 logger = logging.getLogger(__name__)
+
+
+def _make_novel_id(novel_name: str) -> str:
+    """Generate a sanitized, consistent novel_id from a novel name/slug.
+
+    (Previously imported from src.db.sync_external, which is no longer used.)
+    """
+    safe = (
+        novel_name.replace('/', '_').replace('\\', '_')
+        .replace(' ', '_').replace('-', '_')
+    )
+    return f"novel_{safe}"
 
 
 class MemoryManager:
@@ -33,6 +44,7 @@ class MemoryManager:
         context_path: str = "",
         use_universal: bool = False,
         use_sql: bool = True,
+        auto_seed_global: bool = True,
     ):
         self.use_sql = True  # always True — kept for external callers
         self.novel_name = novel_name
@@ -53,25 +65,22 @@ class MemoryManager:
         self.chapter_repo = ChapterRepository(self.db)
         self.context_repo = ContextRepository(self.db)
 
-        from src.db.sync_external import make_novel_id, sync_external_glossary
-
-        self.novel_id = make_novel_id(novel_name) if novel_name else "novel_default"
+        self.novel_id = _make_novel_id(novel_name) if novel_name else "novel_default"
         if not self.novel_repo.exists(self.novel_id):
             self.novel_repo.create(self.novel_id, novel_name or "default", "chinese")
 
-        # Sync terms from authoritative external glossary DB on startup
-        if novel_name:
-            conn = self.db.connect()
-            sync_result = sync_external_glossary(conn, novel_name, force=True)
-            if sync_result["errors"]:
-                logger.warning(f"External glossary sync errors: {sync_result['errors']}")
-            else:
-                total = sync_result["synced"] + sync_result["global_synced"]
-                if total > 0:
-                    logger.info(
-                        f"Synced {total} terms from external glossary "
-                        f"({sync_result['synced']} novel + {sync_result['global_synced']} global)"
-                    )
+        # Auto-seed the built-in global xianxia glossary when the global set is
+        # empty (replaces the old external-DB sync). Idempotent and cheap on
+        # subsequent runs — returns immediately once terms exist. Disable with
+        # auto_seed_global=False (e.g. tests that need an empty glossary).
+        if auto_seed_global:
+            try:
+                from src.db.global_terms_seed import ensure_global_terms_seeded
+                seed_result = ensure_global_terms_seeded(self.glossary_repo, self.novel_repo)
+                if not seed_result.get("already_seeded") and seed_result.get("added"):
+                    logger.info(f"Seeded {seed_result['added']} global glossary terms")
+            except Exception as e:
+                logger.warning(f"Global term auto-seed skipped: {e}")
 
         self.glossary: Dict[str, Any] = {"terms": [], "total_terms": 0}
         self.context_memory: Dict[str, Any] = {
@@ -768,6 +777,7 @@ class MemoryManager:
         category: str = "general",
         chapter: int = 0,
         confidence: float = 0.0,
+        subtype: Optional[str] = None,
     ) -> bool:
         """Add a term to the novel-specific pending glossary for review.
 
@@ -799,6 +809,13 @@ class MemoryManager:
             logger.debug(f"Updated pending term chapter count: {source} (usage_count={usage_count})")
             return True
 
+        # Reject blank/whitespace targets outright — they would create an orphan
+        # glossary row with no translation (the validation below only runs for a
+        # non-empty, non-placeholder target).
+        if not target or not target.strip():
+            logger.warning(f"Rejected empty pending target for '{source}'")
+            return False
+
         # Validate target: reject pure non-Myanmar unless it's a placeholder
         if target and not target.startswith("【?") and not target.startswith("["):
             if not self._is_valid_myanmar_text(target):
@@ -813,6 +830,7 @@ class MemoryManager:
             status='pending',
             enforcement_level='soft',
             confidence=confidence,
+            subtype=subtype,
         )
         logger.info(f"Added pending glossary term: {source} -> {target} (confidence={confidence})")
         return True
@@ -928,7 +946,11 @@ class MemoryManager:
                 confidence += 0.40
             elif chapter_count >= 2:
                 confidence += 0.25
-            if category in ("character", "place"):
+            # Accept both the short ("place") and GlossaryGenerator
+            # ("location") vocabularies so location/character terms get
+            # the same confidence credit regardless of which extractor
+            # produced them.
+            if category in ("character", "place", "location", "title_honorific"):
                 confidence += 0.20
             if target and not target.startswith("【?") and "?" not in target:
                 confidence += 0.15

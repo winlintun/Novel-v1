@@ -1,5 +1,5 @@
 {
-  "last_updated": "2026-05-24T07:30:00Z",
+  "last_updated": "2026-06-14T13:58:34Z",
   "notes": "ERR-052 through ERR-054 are from May 2 session — postprocessor and pipeline fixes. ERR-067 is from May 8 session — fixed bare chapter numeral heading format. ERR-070/071 from May 24 — chapter 4 partial completion fixes.",
   "errors": [
     {
@@ -343,6 +343,60 @@
       "prevention": "Prompt format examples must use obviously placeholder values (like '<translation>') not real words. Never use a real language name as a placeholder value in prompt format examples.",
       "times_seen": 1,
       "last_seen": "2026-05-24"
+    },
+    {
+      "id": "ERR-072",
+      "error_type": "RagAutoScoreScaleMismatch",
+      "trigger": "alignment stored cosine similarity (0.65-1.0) in auto_score but RAGRetriever filters auto_score>=min_score(2.5, a 0-5 scale) → most human pairs silently never retrieved",
+      "solution": "map similarity→quality (min(2.5+sim*2.5,5.0)) at ingestion; backfill existing rows",
+      "prevention": "keep one documented scale per column; assert range at write",
+      "times_seen": 1,
+      "last_seen": "2026-06-14T13:58:34Z"
+    },
+    {
+      "id": "ERR-073",
+      "error_type": "ChromaBatchSizeExceeded",
+      "trigger": "collection.upsert of >5461 items (chroma 1.x max_batch_size) or embedding tens of thousands at once → crash/OOM",
+      "solution": "batch encode+upsert at min(client.get_max_batch_size(),2000)",
+      "prevention": "always chunk bulk Chroma writes",
+      "times_seen": 1,
+      "last_seen": "2026-06-14T13:58:34Z"
+    },
+    {
+      "id": "ERR-074",
+      "error_type": "BadAlignmentPairOmission",
+      "trigger": "BGE-M3 1:1 alignment maps a long EN compound sentence to one short MY clause (omission) or unrelated MY (misalignment); similarity alone can't separate near 0.65",
+      "solution": "rag_pair_quality(): reject length_ratio<0.55, EN>60&ratio>2.6, latin-leak; set usable=0",
+      "prevention": "length-ratio + latin-leak gate at RAG ingestion",
+      "times_seen": 1,
+      "last_seen": "2026-06-14T13:58:34Z"
+    },
+    {
+      "id": "ERR-075",
+      "error_type": "CharClassBracketNoOp",
+      "trigger": "unescaped ] inside [^...] closes the class early, turning the rest into literals → regex silently matches almost nothing (checker non-Myanmar ratio check)",
+      "solution": "escape \\[ \\] inside character classes",
+      "prevention": "test regex against known positive/negative inputs",
+      "times_seen": 1,
+      "last_seen": "2026-06-14T13:58:34Z"
+    },
+    {
+      "id": "ERR-076",
+      "error_type": "TibetanShadLookAlike",
+      "trigger": "Tibetan ། (U+0F0D) used where Myanmar sentence-ender ။ (U+104B) intended; visually identical → find/replace mismatch in formatter",
+      "solution": "use Myanmar ။ (U+104B) consistently; verify codepoints",
+      "prevention": "codepoint-audit Myanmar punctuation in regexes",
+      "times_seen": 1,
+      "last_seen": "2026-06-14T13:58:34Z"
+    },
+    {
+      "id": "ERR-077",
+      "error_type": "GlobalTermsEmptyNoSync",
+      "trigger": "global glossary empty because external GLOSSARY_SYSTEM_DB_PATH unset and seed never run → generate-glossary has no global terms",
+      "solution": "built-in src/db/global_terms_seed.py auto-seeded on empty global set in MemoryManager init",
+      "prevention": "ship seed data in src; don't depend on an external DB that may not exist",
+      "times_seen": 1,
+      "last_seen": "2026-06-14T13:58:34Z"
     }
   ]
 }

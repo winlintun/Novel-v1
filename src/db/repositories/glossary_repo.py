@@ -26,29 +26,47 @@ class GlossaryRepository:
                  category: str = "general", status: str = "pending",
                  enforcement_level: str = "soft", context_condition: Optional[str] = None,
                  confidence: float = 0.0, scope: str = "novel",
-                 variants: Optional[list[str]] = None) -> dict:
+                 variants: Optional[list[str]] = None,
+                 subtype: Optional[str] = None) -> dict:
         """Insert a new glossary term.
-        
+
         Args:
             novel_id: Novel identifier (e.g., 'novel_wayfarer')
             source_term: Source text term
             target_term: Myanmar translation
-            category: Term category
+            category: Term category (coarse). If a fine label is passed (e.g.
+                "mountain") it is normalized to its coarse category and the fine
+                label is stored as subtype automatically.
             status: pending/approved
             enforcement_level: soft/hard
             context_condition: Optional context condition
             confidence: Confidence score
             scope: 'novel' (novel-specific) or 'global' (all novels)
             variants: Optional list of alternate spellings/variants
+            subtype: Fine-grained label under the coarse category (e.g.
+                "mountain", "sect_master"). If None, derived from `category`.
         """
+        from src.glossary_taxonomy import normalize_category
+
+        # Resolve (category, subtype) through the taxonomy so callers can pass
+        # either a coarse category, a fine subtype, or a natural-language label.
+        norm_category, norm_subtype = normalize_category(category)
+        if subtype:
+            # An explicit subtype wins; re-anchor the coarse category to it.
+            sub_cat, sub_sub = normalize_category(subtype)
+            norm_subtype = sub_sub or norm_subtype
+            if sub_cat != "general":
+                norm_category = sub_cat
+        category, subtype = norm_category, norm_subtype
+
         term_id = f"term_{novel_id}_{hashlib.md5(source_term.encode()).hexdigest()[:8]}"
         now = datetime.now().isoformat()
         self.db.execute(
             """INSERT INTO glossary_terms
-               (id, novel_id, source_term, target_term, canonical_form, category,
+               (id, novel_id, source_term, target_term, canonical_form, category, subtype,
                 status, enforcement_level, context_condition, confidence, usage_count, scope, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)""",
-            (term_id, novel_id, source_term, target_term, source_term, category,
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)""",
+            (term_id, novel_id, source_term, target_term, source_term, category, subtype,
              status, enforcement_level, context_condition, confidence, scope, now),
         )
         
@@ -333,3 +351,97 @@ class GlossaryRepository:
             (novel_id, min_chapters),
         )
         return [dict(r) for r in rows]
+
+    # ── term_relationships ──────────────────────────────────────────────
+
+    def add_relationship(self, novel_id: str, src_term_id: str, dst_term_id: str,
+                         relation_type: str, confidence: float = 1.0,
+                         add_inverse: bool = False) -> Optional[int]:
+        """Create a directed edge (src) --relation--> (dst) between two terms.
+
+        Idempotent: the UNIQUE(src,dst,relation) constraint means re-inserting the
+        same edge is ignored. Returns the new row id, or None if it already existed
+        or the relation_type is unknown.
+
+        Args:
+            add_inverse: also insert the inverse edge (e.g. master_of ⇄ disciple_of)
+                so the graph is queryable from both ends. See RELATION_INVERSE.
+        """
+        from src.glossary_taxonomy import is_valid_relation, RELATION_INVERSE
+
+        if not is_valid_relation(relation_type):
+            logger.warning(f"Unknown relation_type '{relation_type}' — skipped")
+            return None
+
+        cur = self.db.execute(
+            """INSERT OR IGNORE INTO term_relationships
+               (novel_id, src_term_id, dst_term_id, relation_type, confidence)
+               VALUES (?, ?, ?, ?, ?)""",
+            (novel_id, src_term_id, dst_term_id, relation_type, confidence),
+        )
+        new_id = cur.lastrowid if cur.rowcount > 0 else None
+
+        if add_inverse and relation_type in RELATION_INVERSE:
+            inv = RELATION_INVERSE[relation_type]
+            self.db.execute(
+                """INSERT OR IGNORE INTO term_relationships
+                   (novel_id, src_term_id, dst_term_id, relation_type, confidence)
+                   VALUES (?, ?, ?, ?, ?)""",
+                (novel_id, dst_term_id, src_term_id, inv, confidence),
+            )
+
+        logger.debug(f"Relationship: {src_term_id} --{relation_type}--> {dst_term_id}")
+        return new_id
+
+    def get_relationships(self, term_id: str, direction: str = "out") -> list[dict]:
+        """Fetch relationship edges for a term.
+
+        Args:
+            direction: 'out' (term is src), 'in' (term is dst), or 'both'.
+        """
+        if direction == "out":
+            rows = self.db.fetchall(
+                "SELECT * FROM term_relationships WHERE src_term_id = ?", (term_id,)
+            )
+        elif direction == "in":
+            rows = self.db.fetchall(
+                "SELECT * FROM term_relationships WHERE dst_term_id = ?", (term_id,)
+            )
+        else:
+            rows = self.db.fetchall(
+                "SELECT * FROM term_relationships WHERE src_term_id = ? OR dst_term_id = ?",
+                (term_id, term_id),
+            )
+        return [dict(r) for r in rows]
+
+    def get_related_terms(self, term_id: str, relation_type: Optional[str] = None) -> list[dict]:
+        """Fetch the full glossary rows of terms directly related to `term_id`.
+
+        Returns each neighbour term joined with the edge's relation_type and
+        direction, so callers can render e.g. "Greenwood Village (located_in) →
+        Yan State" for relationship-aware glossary injection.
+        """
+        sql = """
+            SELECT gt.*, r.relation_type AS relation_type, 'out' AS direction
+              FROM term_relationships r
+              JOIN glossary_terms gt ON gt.id = r.dst_term_id
+             WHERE r.src_term_id = ?
+            UNION ALL
+            SELECT gt.*, r.relation_type AS relation_type, 'in' AS direction
+              FROM term_relationships r
+              JOIN glossary_terms gt ON gt.id = r.src_term_id
+             WHERE r.dst_term_id = ?
+        """
+        params: list = [term_id, term_id]
+        if relation_type:
+            sql = f"SELECT * FROM ({sql}) WHERE relation_type = ?"
+            params.append(relation_type)
+        return [dict(r) for r in self.db.fetchall(sql, tuple(params))]
+
+    def delete_relationships(self, term_id: str) -> int:
+        """Delete all edges touching a term. Returns rows removed."""
+        cur = self.db.execute(
+            "DELETE FROM term_relationships WHERE src_term_id = ? OR dst_term_id = ?",
+            (term_id, term_id),
+        )
+        return cur.rowcount

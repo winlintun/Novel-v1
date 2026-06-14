@@ -102,11 +102,14 @@ class TestMemoryManagerSQLBackend:
         with open(pending_file, 'w', encoding='utf-8-sig') as f:
             json.dump({"pending_terms": []}, f)
         
-        mm_sql = MemoryManager(novel_name="sql-test", use_sql=True, db_path=db_path)
+        mm_sql = MemoryManager(novel_name="sql-test", use_sql=True, db_path=db_path,
+                               auto_seed_global=False)
         mm_json = MemoryManager(
             glossary_path=str(glossary_file),
             context_path=str(context_file),
-            use_sql=False
+            use_sql=False,
+            db_path=str(tmp_path / "json_backend.db"),  # isolate from the real DB
+            auto_seed_global=False,
         )
         mm_json.pending_path = str(pending_file)
 
@@ -117,10 +120,13 @@ class TestMemoryManagerSQLBackend:
 
         mm_sql.close()
 
-    def test_sql_json_parity_get_term(self, db_path):
+    def test_sql_json_parity_get_term(self, db_path, tmp_path):
         """get_term should return same value for both backends."""
-        mm_sql = MemoryManager(novel_name="sql-test2", use_sql=True, db_path=db_path)
-        mm_json = MemoryManager(novel_name="json-test2", use_sql=False)
+        mm_sql = MemoryManager(novel_name="sql-test2", use_sql=True, db_path=db_path,
+                               auto_seed_global=False)
+        mm_json = MemoryManager(novel_name="json-test2", use_sql=False,
+                                db_path=str(tmp_path / "json_backend2.db"),
+                                auto_seed_global=False)
 
         mm_sql.add_term("气", "စွမ်းအင်", "concept")
         mm_json.add_term("气", "စွမ်းအင်", "concept")

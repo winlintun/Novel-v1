@@ -2117,3 +2117,127 @@ Updated config to use available models:
 - No cross-agent imports (modular boundaries intact). CONFIRMED.
 - Type hints present on all new functions. CONFIRMED.
 - Minor pre-existing issues noted: `is_valid_myanmar_syllable` type hint mismatch, no targeted unit tests for new functions.
+
+---
+
+### BUG FIX SESSION (2026-06-14): RAG human-corpus not reaching the model
+**Scope**: `src/agents/translator.py`, `src/dataset_alignment/pipeline.py`, `data/novel_v1_dataset.db`
+**Goal**: Make padauk-gemma:q8_0 translate more like a human by actually feeding it the
+human reference translations in `data/input/{novel}/mm/*.md` as few-shot examples.
+
+**Root causes found**:
+1. **auto_score scale mismatch (silent RAG starvation).** The alignment pipeline stored
+   cosine SIMILARITY (0.65–1.0) in `translation_pairs.auto_score`, but `RAGRetriever`
+   filters `auto_score >= min_score` (default 2.5, a 0–5 QUALITY scale). Result: 374 of
+   417 human pairs were below the gate and never retrieved. Only 43 were visible.
+   FIX: map similarity→quality at ingestion `quality = min(2.5 + sim*2.5, 5.0)`; backfilled
+   the 374 existing rows (`.bak` written first). Retrievable pairs 43 → 417.
+2. **ChromaDB never populated.** `_populate_rag_database()` wrote SQLite only, so semantic
+   retrieval (`alignment_pairs` collection) was empty and silently degraded to keyword
+   overlap. FIX: added `_ingest_pairs_to_chroma()` (BGE-M3 embeddings, best-effort, no crash
+   if chromadb/sentence-transformers missing).
+3. **Few-shot examples cut mid-syllable + weak framing.** `_build_rag_examples` did
+   `text[:200]`, splitting Myanmar syllable clusters, and labelled them only "match style".
+   FIX: `_clip_example()` clips on whitespace (never mid-syllable); reframed as "HUMAN
+   REFERENCE TRANSLATIONS — imitate this voice/register/rhythm".
+
+**Remaining manual step (heavy, not run here — needs chromadb + sentence-transformers + BGE-M3)**:
+`python -c "from src.dataset_alignment.pipeline import run_alignment_pipeline; print(run_alignment_pipeline('a-will-eternal'))"`
+to align all 1315 human chapters into SQLite + ChromaDB for full-corpus semantic few-shot.
+
+**Tests**: translator suite 21 passed; 6 TestMemoryManager failures are pre-existing Windows
+tmpdir-cleanup PermissionErrors (SQLite WAL lock in teardown), unrelated to these changes.
+
+**Review follow-up (2026-06-14): ChromaDB batch-size crash.** Self-review of the above
+found `_ingest_pairs_to_chroma()` embedded + upserted ALL pairs in one call. A full novel
+(~tens of thousands of sentence pairs) would OOM in `encode` and exceed ChromaDB's max
+batch size (5461 in chroma 1.x), crashing the very bulk run users were told to do.
+FIX: batch encode+upsert at min(get_max_batch_size(), 2000). Verified: 4500 pairs ingest
+across 3 batches into a real collection (count=4500).
+
+### DATA-QUALITY FIX (2026-06-14): bad RAG pairs (omission / misalignment)
+**Scope**: `src/dataset_alignment/pipeline.py`, `data/novel_v1_dataset.db`, `tests/test_rag_pair_quality.py`
+**Problem**: BGE-M3 1:1 sentence alignment produced corrupt EN→MY pairs that, used as
+few-shot examples, teach padauk-gemma the WRONG behaviour:
+  - Omission: long EN compound sentence aligned to one short MY clause (rest dropped).
+    e.g. EN "Both were heavily wounded, and despite ... it was still..." → MY only
+    "Both were heavily wounded." (length_ratio 0.39).
+  - Misalignment: MY about entirely different content, e.g. EN "his face was pale,
+    considering giving up climbing..." → MY "he thought about the incense stick passed
+    down before his parents died" (length_ratio 0.42).
+  Cross-lingual cosine similarity does NOT discriminate these near the 0.65 threshold
+  (a correct pair scored 0.648, a misalignment 0.652), so similarity-only filtering missed them.
+**Fix**: added `rag_pair_quality(en, my)` — rejects my_too_short_omission (lr<0.55),
+my_too_long_merge (EN>60 chars & lr>2.6), latin_leak (>10% Latin in MY), too_short_abs,
+low_myanmar_ratio. Wired into `_populate_rag_database` ingestion gate (replaces ad-hoc
+inline checks) and used to clean the existing DB: 18/374 pairs marked usable=0 (.bak2 saved);
+356 clean pairs remain retrievable. Verified RAGRetriever no longer returns the flagged
+misalignment. 6 unit tests pass (tests/test_rag_pair_quality.py).
+**Deeper pass (optional, not run — needs Ollama)**: semantic misalignments whose lengths
+happen to match still slip through length-based filtering. `src/dataset_alignment/llm_judge.py::judge_pair`
+can verify pair faithfulness with an LLM for a definitive clean.
+
+### FEATURE (2026-06-14): two-tier glossary taxonomy + term relationships
+**Scope**: src/db/schema.py, src/glossary_taxonomy.py (new), src/db/repositories/glossary_repo.py,
+src/memory/memory_manager.py, src/agents/glossary_generator.py, src/agents/context_updater.py,
+tests/test_glossary_taxonomy.py (new). User-approved design (two-tier category+subtype, edge table).
+**Added**:
+- Schema v3 migration: glossary_terms.subtype column + term_relationships(src,dst,relation_type,...)
+  edge table with FKs to glossary_terms(id) and UNIQUE(src,dst,relation). Idempotent migrate_to_v3();
+  guarded for partial DBs. Real DB migrated via create_all() (.bak_v3 saved).
+- src/glossary_taxonomy.py: 12 coarse categories / 106 fine subtypes covering the user's full list
+  (places, admin divisions, structures, titles, sect/clan positions, cultivation, etc.) + alias map
+  (incl. natural-language + misspellings) + RELATION_TYPES (located_in, member_of, heads, master_of,
+  ruled_by, owns, ...) + inverse edges. normalize_category() maps any input → (coarse, subtype),
+  never drops unknowns.
+- glossary_repo: add_term(subtype=) auto-derives coarse+fine via taxonomy; add_relationship(add_inverse=),
+  get_relationships(direction), get_related_terms(), delete_relationships(). Works for global + per-novel
+  terms in one DB — edges key on term id (which encodes scope), so a novel term can link to a global term.
+- add_pending_term(subtype=) passthrough; glossary_generator extraction prompt now emits category+subtype;
+  context_updater bucket-map extended for new coarse categories.
+**Tests**: 18/18 pass (taxonomy + DB subtype/relationship incl. global↔per-novel + idempotency + inverse).
+db_repositories "errors" are pre-existing Windows tmpdir-teardown PermissionErrors (test bodies pass).
+
+### FEATURE (2026-06-14): auto-seed global terms; remove external glossary sync
+**Scope**: src/db/global_terms_seed.py (new), src/memory/memory_manager.py,
+scripts/seed_global_terms.py, removed src/db/sync_external.py + tests/test_sync_external.py.
+**Why**: global terms came only from (a) a manual seed script and (b) an external Glossary
+System DB (GLOSSARY_SYSTEM_DB_PATH, empty on this machine → sync always skipped). Fresh DBs
+had ZERO global terms, so generate-glossary had none to merge.
+**Change**:
+- New src/db/global_terms_seed.py = single source of truth for the 158-entry global xianxia
+  seed + ensure_global_terms_seeded(repos) (seeds only when global set empty) + seed_global_terms(db_path).
+- MemoryManager.__init__: removed external-DB sync; calls ensure_global_terms_seeded on startup
+  (gated by new auto_seed_global=True param; idempotent, cheap once seeded). Added local
+  _make_novel_id (was imported from the deleted sync module).
+- scripts/seed_global_terms.py reduced to a thin CLI wrapper over the new module.
+- Deleted src/db/sync_external.py and tests/test_sync_external.py (external sync no longer used).
+- Fixed corrupted seed entry "ancestor" (had Thai chars บรร) → ဘိုးဘွား.
+**Tests**: fresh DB auto-seeds 157 terms on init, idempotent on re-init, no-op when populated.
+Fixed 2 test regressions from auto-seed by passing auto_seed_global=False in test_memory.py /
+test_memory_sql.py and isolating the parity tests' mm_json onto its own DB (was a pre-existing
+flaw: mm_json used the real default DB). Remaining failure test_memory.py::test_add_get_term is
+PRE-EXISTING (calls non-existent promote_pending_to_glossary; only promote_rule_to_glossary exists).
+
+### CODE REVIEW (2026-06-14): opencode `review all codebase` — bug triage + fixes
+Ran `opencode run` (deepseek-v4-flash) over src/. It returned 10 findings; triaged each:
+FIXED (real):
+- #1 translator.py: dead code after `return` in translate_chunks (orphan clear_buffer + recursive call) — removed.
+- #2 checker.py:119: unescaped []  in char class made the non-Myanmar-ratio check a silent no-op
+  (NOT a crash as reported) — escaped \[ \].
+- #5 formatter.py:124-125: double-sentence-ender find/replace mismatched AND used Tibetan ། (U+0F0D)
+  vs Myanmar ။ (U+104B); count != replacement — aligned both to Myanmar ။.
+- #6 glossary_taxonomy.py: RELATION_INVERSE 'rules' missing from RELATION_TYPES (my prior change) — added.
+- #7 fluency_scorer.py:443: avg_sentence_len numerator split on '။' but divided by sent_count from a
+  different regex split — now uses the same `re.split(r'[။၏၊\n]+')`.
+- #8 schema.py get_table_count: f-string table_name (SQL-injection-prone) — now validates via table_exists.
+- #10 memory_manager.add_pending_term: blank/whitespace target bypassed validation → orphan row — added guard.
+REJECTED:
+- #3 rapidfuzz import "no fallback / not a dependency" — FALSE: rapidfuzz is installed and listed in
+  requirements.txt + requirements-ci.txt.
+- #9 postprocessor.py:150 short-English-line skip — deliberate conservative heuristic, not an off-by-one.
+NOTED (real, deferred — needs design):
+- #4 postprocessor.check_content_completeness: _NAME_PATTERN matches Myanmar but is run on EN/CN source,
+  so missing_names is always [] (diagnostic only; not in pass/fail). Proper fix needs bilingual name mapping.
+Verified behaviorally + tests: 52 passed in the memory/taxonomy/quality sweep; only pre-existing
+test_add_get_term (non-existent promote_pending_to_glossary) still fails, unrelated to these fixes.

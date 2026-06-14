@@ -1,45 +1,57 @@
-﻿{
-  "session_id": "2026-06-09-001",
-  "started_at": "2026-06-09T00:00:00Z",
-  "current_step": "Post-implementation review",
-  "last_action": "Windows compatibility fixes — Linux paths, SIGTERM, cleanup.py, diagnose.py",
-  "next_action": "Run code review workflow",
-  "open_files": ["src/db/sync_external.py", "src/pipeline/orchestrator.py", "diagnose.py", "tools/cleanup.py"],
+{
+  "session_id": "2026-06-14-002",
+  "started_at": "2026-06-14T13:58:34Z",
+  "current_step": "Complete — DOC phase, review passed",
+  "last_action": "AGENTS.md post-implementation review + session-end updates",
+  "next_action": "None",
+  "open_files": [],
   "pending_decisions": [],
-  "session_errors": [],
+  "session_errors": [
+    {
+      "step": "RAG",
+      "error": "auto_score stored similarity(0.65-1.0) vs retriever min_score 2.5 → 374/417 pairs invisible",
+      "resolved_by": "map similarity→0-5 quality at ingestion + backfill existing rows"
+    },
+    {
+      "step": "ChromaDB ingest",
+      "error": "single upsert exceeds chroma max_batch_size 5461 / OOM on full corpus",
+      "resolved_by": "batch encode+upsert at min(get_max_batch_size(),2000)"
+    },
+    {
+      "step": "checker.py",
+      "error": "unescaped [] in non-Myanmar char class made ratio check a silent no-op",
+      "resolved_by": "escaped \\[ \\]"
+    },
+    {
+      "step": "formatter.py",
+      "error": "double-sentence-ender find/replace mismatch + Tibetan U+0F0D look-alike for Myanmar U+104B",
+      "resolved_by": "aligned both patterns to Myanmar ။"
+    },
+    {
+      "step": "tests",
+      "error": "auto-seed perturbed memory/parity tests",
+      "resolved_by": "auto_seed_global=False in tests + isolated mm_json DB"
+    }
+  ],
   "changes_made": {
-    "src/dataset_alignment/": "Created 10 files — DAP pipeline (config, database, loaders, preprocessing, embedder, alignment, llm_judge, reporter, pipeline)",
-    "src/validators/": "Created 6 files — structural, content, linguistic, metadata, noise, quality validators",
-    "tools/run_dataset_alignment.py": "Created CLI for DAP pipeline",
-    "tools/glossary_stats.py": "Created glossary statistics CLI",
-    "tools/mine_glossary.py": "Created glossary mining CLI",
-    "scripts/import_universal_glossary.py": "Import 490 universal terms to DB",
-    "glossary_app/": "Created Flask review UI (6 files)",
-    "glossary_extraction/": "Created mining pipeline (8 files)",
-    "src/db/sync_external.py": "Changed Linux path default to empty string",
-    "src/pipeline/orchestrator.py": "Added SIGTERM platform guard for Windows",
-    "diagnose.py": "Replaced JSON checks with DB queries, fixed .sh references",
-    "tools/cleanup.py": "Added IS_WINDOWS guard for Linux-only commands",
-    "config/settings.yaml": "Fixed RAG paths, model name, added alignment_pipeline config",
-    "config/settings.pivot.yaml": "Removed JSON glossary paths",
-    "config/settings.fast.yaml": "Removed JSON glossary paths",
-    "config/settings.sailor2-20b.yaml": "Removed JSON glossary paths",
-    "config/rule.yaml": "Created noise patterns config",
-    "config/models.py": "Deprecated JSON glossary_file/context_memory_file defaults",
-    "README.md": "Added glossary tools, DAP, dataset alignment sections"
+    "src/agents/translator.py": "RAG few-shot reframed + _clip_example syllable-safe; removed dead code after return",
+    "src/dataset_alignment/pipeline.py": "rag_pair_quality() filter; auto_score→0-5 mapping; batched ChromaDB ingestion",
+    "src/glossary_taxonomy.py": "NEW: 12 coarse/106 subtypes + relation types + inverses",
+    "src/db/schema.py": "v3 migration: subtype column + term_relationships table; get_table_count injection guard",
+    "src/db/repositories/glossary_repo.py": "add_term(subtype=) + relationship CRUD",
+    "src/db/global_terms_seed.py": "NEW: 158 global terms + ensure_global_terms_seeded",
+    "src/memory/memory_manager.py": "auto-seed on empty global terms; removed external sync; _make_novel_id local; blank-target guard; auto_seed_global param",
+    "src/agents/context_updater.py": "category_map extended for new coarse categories",
+    "src/agents/glossary_generator.py": "subtype passthrough + prompt emits subtype",
+    "src/utils/formatter.py": "fixed double-sentence-ender collapse",
+    "src/utils/fluency_scorer.py": "consistent sentence split for avg length",
+    "DELETED": "src/db/sync_external.py + tests/test_sync_external.py"
   },
   "review_status": {
-    "reviewer_a": null,
-    "reviewer_b": null,
-    "final_status": "PENDING_REVIEW"
+    "reviewer_a": "PASS",
+    "reviewer_b": "PASS",
+    "final_status": "READY_TO_COMMIT"
   },
-  "last_checkpoint": {
-    "chapter": 1,
-    "chunk_index": 4,
-    "total_chunks": 10,
-    "stage": "translate",
-    "timestamp": "2026-06-09T20:35:09.345728",
-    "quality_score": 88,
-    "myanmar_ratio": 0.9840055632823366
-  }
+  "commit_hash": "d4731e4",
+  "task": "RAG human-corpus wiring + two-tier glossary taxonomy/relationships + global-term auto-seed + opencode bug-fix pass"
 }

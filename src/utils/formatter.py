@@ -121,8 +121,8 @@ def fix_punctuation(text: str) -> tuple[str, FixResult]:
     changes += n
 
     # Double sentence-ender ။ ။ → ။  (with optional space between)
-    n = len(re.findall(r'(။)[ \t]*(།)+', text))
-    text = re.sub(r'(།)[ \t]*(།)+', '།', text)
+    n = len(re.findall(r'။[ 	]*(?:။)+', text))
+    text = re.sub(r'။[ 	]*(?:။)+', '။', text)
     changes += n
 
     # Space(s) immediately before ! or ? (when NOT part of common patterns like ?!)

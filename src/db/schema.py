@@ -8,7 +8,7 @@ from src.db.connection import DatabaseConnection
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 CREATE_TABLES = """
 -- novels
@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS glossary_terms (
     target_term TEXT NOT NULL,
     canonical_form TEXT NOT NULL,
     category TEXT NOT NULL DEFAULT 'general',
+    subtype TEXT,
     status TEXT NOT NULL DEFAULT 'pending',
     enforcement_level TEXT NOT NULL DEFAULT 'soft',
     context_condition TEXT,
@@ -47,6 +48,20 @@ CREATE TABLE IF NOT EXISTS term_variants (
     match_type TEXT NOT NULL DEFAULT 'exact',
     case_sensitive INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY (term_id) REFERENCES glossary_terms(id) ON DELETE CASCADE
+);
+
+-- term_relationships (directed graph edges between glossary terms)
+CREATE TABLE IF NOT EXISTS term_relationships (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    novel_id TEXT NOT NULL,
+    src_term_id TEXT NOT NULL,
+    dst_term_id TEXT NOT NULL,
+    relation_type TEXT NOT NULL,
+    confidence REAL NOT NULL DEFAULT 1.0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (src_term_id) REFERENCES glossary_terms(id) ON DELETE CASCADE,
+    FOREIGN KEY (dst_term_id) REFERENCES glossary_terms(id) ON DELETE CASCADE,
+    UNIQUE (src_term_id, dst_term_id, relation_type)
 );
 
 -- chapters
@@ -141,7 +156,14 @@ CREATE INDEX IF NOT EXISTS idx_glossary_novel_status ON glossary_terms(novel_id,
 CREATE INDEX IF NOT EXISTS idx_glossary_scope ON glossary_terms(scope);
 CREATE INDEX IF NOT EXISTS idx_glossary_scope_status ON glossary_terms(scope, status);
 
+CREATE INDEX IF NOT EXISTS idx_glossary_subtype ON glossary_terms(subtype);
+
 CREATE INDEX IF NOT EXISTS idx_variants_term ON term_variants(term_id);
+
+CREATE INDEX IF NOT EXISTS idx_term_rel_novel ON term_relationships(novel_id);
+CREATE INDEX IF NOT EXISTS idx_term_rel_src ON term_relationships(src_term_id);
+CREATE INDEX IF NOT EXISTS idx_term_rel_dst ON term_relationships(dst_term_id);
+CREATE INDEX IF NOT EXISTS idx_term_rel_type ON term_relationships(relation_type);
 
 CREATE INDEX IF NOT EXISTS idx_chapters_novel ON chapters(novel_id);
 CREATE INDEX IF NOT EXISTS idx_chapters_novel_num ON chapters(novel_id, chapter_num);
@@ -179,14 +201,15 @@ class SchemaManager:
         
         # Run migrations for existing databases
         self.migrate_to_v2()
+        self.migrate_to_v3()
 
     def drop_all(self) -> None:
         """Drop all tables (DANGEROUS — for testing only)."""
         conn = self.db.connect()
         tables = [
             "audit_log", "chapter_versions", "sync_job_chapters", "sync_jobs",
-            "context_snapshots", "term_usage", "chapters", "term_variants",
-            "glossary_terms", "novels",
+            "context_snapshots", "term_usage", "chapters", "term_relationships",
+            "term_variants", "glossary_terms", "novels",
         ]
         for table in tables:
             conn.execute(f"DROP TABLE IF EXISTS {table}")
@@ -206,7 +229,14 @@ class SchemaManager:
         return result is not None
 
     def get_table_count(self, table_name: str) -> int:
-        """Get row count for a table."""
+        """Get row count for a table.
+
+        table_name is interpolated into SQL (identifiers can't be bound as
+        params), so it MUST be a real existing table — verify against
+        sqlite_master first to prevent SQL injection via a crafted name.
+        """
+        if not self.table_exists(table_name):
+            raise ValueError(f"Unknown table: {table_name!r}")
         result = self.db.fetchone(f"SELECT COUNT(*) as cnt FROM {table_name}")
         if result:
             return result["cnt"]
@@ -236,3 +266,60 @@ class SchemaManager:
         
         logger.info("Schema v2 migration complete: added scope column")
         return True
+
+    def migrate_to_v3(self) -> bool:
+        """Add subtype column and term_relationships table (v2→v3).
+
+        - glossary_terms.subtype: fine-grained label under the coarse category
+          (e.g. category='place', subtype='mountain'). See src/glossary_taxonomy.py.
+        - term_relationships: directed edges between terms (located_in, member_of,
+          heads, master_of, ...).
+
+        Idempotent: returns True if anything was applied, False if already at v3.
+        """
+        applied = False
+
+        # If glossary_terms doesn't exist yet, create_all's CREATE TABLE IF NOT
+        # EXISTS already built it WITH the subtype column — nothing to ALTER.
+        if not self.table_exists("glossary_terms"):
+            columns = []
+        else:
+            columns = self.db.fetchall("PRAGMA table_info(glossary_terms)")
+        has_subtype = any(c["name"] == "subtype" for c in columns)
+        if columns and not has_subtype:
+            # NOTE: no NOT NULL — existing rows must back-fill to NULL cleanly.
+            self.db.execute("ALTER TABLE glossary_terms ADD COLUMN subtype TEXT")
+            self.db.execute(
+                "CREATE INDEX IF NOT EXISTS idx_glossary_subtype ON glossary_terms(subtype)"
+            )
+            applied = True
+            logger.info("Schema v3: added glossary_terms.subtype column")
+
+        if not self.table_exists("term_relationships"):
+            self.db.execute(
+                """CREATE TABLE IF NOT EXISTS term_relationships (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    novel_id TEXT NOT NULL,
+                    src_term_id TEXT NOT NULL,
+                    dst_term_id TEXT NOT NULL,
+                    relation_type TEXT NOT NULL,
+                    confidence REAL NOT NULL DEFAULT 1.0,
+                    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                    FOREIGN KEY (src_term_id) REFERENCES glossary_terms(id) ON DELETE CASCADE,
+                    FOREIGN KEY (dst_term_id) REFERENCES glossary_terms(id) ON DELETE CASCADE,
+                    UNIQUE (src_term_id, dst_term_id, relation_type)
+                )"""
+            )
+            for stmt in (
+                "CREATE INDEX IF NOT EXISTS idx_term_rel_novel ON term_relationships(novel_id)",
+                "CREATE INDEX IF NOT EXISTS idx_term_rel_src ON term_relationships(src_term_id)",
+                "CREATE INDEX IF NOT EXISTS idx_term_rel_dst ON term_relationships(dst_term_id)",
+                "CREATE INDEX IF NOT EXISTS idx_term_rel_type ON term_relationships(relation_type)",
+            ):
+                self.db.execute(stmt)
+            applied = True
+            logger.info("Schema v3: created term_relationships table")
+
+        if not applied:
+            logger.info("Schema v3: subtype + term_relationships already present")
+        return applied

@@ -5,17 +5,24 @@
 ---
 
 ## Last Updated
-- Date: 2026-06-09
-- Last task completed: Windows compatibility fixes — Linux paths, SIGTERM, cleanup.py, diagnose.py
-- Git commit: `pending`
+- Date: 2026-06-14
+- Last task completed: Glossary relationships/taxonomy + global-term auto-seed + RAG human-corpus wiring + opencode bug-fix pass
+- Git commit: `d4731e4` (pre-session)
 
-## Session Summary (2026-06-09)
-- ✅ **Glossary Template Integration** — Created `scripts/import_universal_glossary.py`, `glossary_extraction/` package (8 files), `tools/mine_glossary.py`, `tools/glossary_stats.py`, `glossary_app/` Flask review UI (6 files). Imported 490 universal terms into DB. Updated README.
-- ✅ **Dataset Alignment Pipeline** — Created `src/dataset_alignment/` package (10 files), `src/validators/` package (6 files), `config/rule.yaml`, `tools/run_dataset_alignment.py`. Full BGE-M3 DP alignment, 16 validators, RAG population. Updated README.
-- ✅ **DB-only Glossary Refactoring** — Removed all JSON glossary file references from `memory_manager.py`, `config/models.py`, `cli/commands.py`, `diagnose.py`, `scripts/bootstrap_glossary.py`, 4 config YAMLs. Zero JSON glossary files in `src/`.
-- ✅ **RAG Paths Fixed** — Changed RAG ChromaDB/SQLite paths from `/home/wangyi/...` Linux paths to local `data/chroma` and `data/novel_v1_dataset.db`. Model changed from `translategemma:12b` to `padauk-gemma:q8_0`.
-- ✅ **Windows Compatibility** — Fixed `sync_external.py` Linux path default. Wrapped `SIGTERM` in platform guard. Fixed `diagnose.py` references to `.sh` scripts. Added Windows guard to `tools/cleanup.py`. Created `clean_run.bat`.
-- ✅ **Translation verified** — Chapter 1 of a-will-eternal: chunk 1 (quality 83, MM 98%), chunk 2 (quality 90, MM 99%), chunk 3-5 in progress. Checkpoint auto-resume works.
+## Session Summary (2026-06-14 — Part 2: RAG, taxonomy, seeding, bug fixes)
+- ✅ **RAG human-corpus wiring** — `translator._build_rag_examples` reframed as "imitate this human translator" + syllable-safe `_clip_example` (no mid-cluster cuts). Fixed `auto_score` scale bug (similarity 0.65–1.0 stored where retriever filtered ≥2.5 → 374/417 pairs invisible); mapped to 0–5 quality and backfilled. Added ChromaDB ingestion (`_ingest_pairs_to_chroma`, batched ≤2000 for the 5461 cap) to the alignment pipeline.
+- ✅ **Bad-pair filter** — `rag_pair_quality()` rejects omission/misalignment pairs (MY≪EN, latin-leak); 18/374 flagged `usable=0`; wired into ingestion. Tests: `tests/test_rag_pair_quality.py` (6).
+- ✅ **Two-tier glossary taxonomy + relationships (schema v3)** — added `glossary_terms.subtype` + `term_relationships` edge table (`migrate_to_v3`, idempotent). New `src/glossary_taxonomy.py` (12 coarse categories / 106 subtypes + relation types + inverses). Repo: `add_term(subtype=)`, `add_relationship`, `get_related_terms`. Works for global+per-novel in one DB. Tests: `tests/test_glossary_taxonomy.py` (18).
+- ✅ **Global-term auto-seed; external sync removed** — new `src/db/global_terms_seed.py` (158 terms) + `ensure_global_terms_seeded` called in `MemoryManager.__init__` (gated by `auto_seed_global`). Deleted `src/db/sync_external.py` + its test. Fixed corrupted seed entry "ancestor" (Thai chars → ဘိုးဘွား). Real DB seeded (157 global terms).
+- ✅ **opencode `review all codebase` pass** — fixed 7 real bugs: translator dead code; checker.py non-Myanmar regex (unescaped `[]` → silent no-op); formatter double-`။` find/replace mismatch + Tibetan `།` look-alike; taxonomy inverse `rules` missing; fluency avg-sentence-len split mismatch; `get_table_count` SQL-injection guard; `add_pending_term` blank-target guard. Rejected 2 false positives (rapidfuzz, short-English heuristic); noted 1 deferred (missing_names needs bilingual mapping).
+- ✅ **Lint** — all touched files pass `ruff --select=E,F --ignore=E501`.
+- ⚠️ **Tests** — 409 passed. 26 failures + 50 errors are ALL pre-existing (stale tests for non-existent methods `check_consistency`/`suggest_improvements`/`promote_pending_to_glossary`; Windows tmpdir-teardown PermissionErrors; subprocess/encoding env issues) — none in modules changed this session.
+
+## Session Summary (2026-06-14)
+- ✅ **Glossary extraction fixes** — Pruned both prompts to 4 actionable fields (source, target, category, confidence). Wired confidence through save_to_pending() → add_pending_term() → glossary_repo.add_term(). Fixed triple-rename chain (source_term→source, target_term→target). Added --from-mm flag for paired EN↔MM extraction. Added CROSS_LINGUAL_GLOSSARY_PROMPT as module-level constant. Fixed _find_chapter_file() glob fallback for mismatched file names. Fixed tuple unpacking crash in commands.py:506. Fixed Web UI hardcoded novel_wayfarer.
+- ✅ **Dataset alignment fixes** — Fixed _is_mostly_en() counting matches instead of chars (KEY BUG). Added lang filter in get_all_aligned_pairs(). Raised min_sim from 0.50 to 0.65 everywhere. Fixed DP skip cost from 2.0 to 1.0. Added post-hoc language sanity filter. Added mm/ directory scan. Added EN/MM ratio + length-ratio bounds. Improved Myanmar sentence segmentation.
+- ✅ **RAG DB populated** — 374 verified EN↔MM pairs ingested from sample/a-will-eternal1. 0 wrong pairs (100% Myanmar ratio >= 0.5).
+- ✅ **Code review** — Reviewer A+B both PASS. Commit: d4731e4.
 
 ## Session Summary (2026-06-03)
 - ✅ **Ruff E/F cleanup** — Fixed 137 errors across 18 files: added unused imports to `__all__` (prompts/__init__.py), removed dead imports (9 files), converted F541 f-strings to plain strings (5 files), renamed ambiguous `l`→`line` (5 files), fixed undefined names (flask_app.py `re`, commands.py `logger`), removed unused variables (4 files), added noqa for deliberate E402 (2 files), fixed bare except (flask_app.py). 0 errors remain.
@@ -653,7 +660,8 @@ pytest tests/ -v
 ---
 
 ## Known Issues
-- None
+- `data/intput/` is a typo — should be `data/input/`
+- English chapter files are in `en/` subfolder but pipeline expects them directly in `data/input/{novel}/`
 
 ## Fixed: Chapter Range Translation Error
 

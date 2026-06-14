@@ -1,16 +1,41 @@
 {
   "current_phase": "DOC",
-  "task": "Dead code cleanup — full project audit and cleanup",
+  "task": "RAG wiring + glossary taxonomy/relationships + global-term auto-seed + opencode bug-fix pass",
   "feature_type": 1,
   "phases": {
-    "PLAN":   { "status": "DONE",        "runner": "Agent",  "requires_human": false },
-    "BUILD":  { "status": "DONE",        "runner": "Agent",  "requires_human": false },
-    "TEST":   { "status": "DONE",        "runner": "Agent",  "requires_human": false },
-    "VERIFY": { "status": "DONE",        "runner": "Agent",  "requires_human": false,
-                "score": null, "retry_count": 0 },
-    "AUDIT":  { "status": "DONE",        "runner": "Gemini", "requires_human": false },
-    "DOC":    { "status": "IN_PROGRESS", "runner": "Agent",  "requires_human": false,
-                "skippable": false }
+    "PLAN": {
+      "status": "DONE",
+      "runner": "Agent",
+      "requires_human": false
+    },
+    "BUILD": {
+      "status": "DONE",
+      "runner": "Agent",
+      "requires_human": false
+    },
+    "TEST": {
+      "status": "DONE",
+      "runner": "Agent",
+      "requires_human": false
+    },
+    "VERIFY": {
+      "status": "DONE",
+      "runner": "Agent",
+      "requires_human": false,
+      "score": null,
+      "retry_count": 0
+    },
+    "AUDIT": {
+      "status": "DONE",
+      "runner": "Gemini",
+      "requires_human": false
+    },
+    "DOC": {
+      "status": "DONE",
+      "runner": "Agent",
+      "requires_human": false,
+      "skippable": false
+    }
   },
-  "updated_at": "2026-05-31T00:00:00Z"
+  "updated_at": "2026-06-14T13:58:34Z"
 }

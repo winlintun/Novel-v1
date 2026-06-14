@@ -5,6 +5,7 @@ Extracts entities and updates glossary/context.
 """
 
 import logging
+import re
 from typing import Dict, List, Any
 
 from src.utils.ollama_client import OllamaClient
@@ -73,12 +74,35 @@ class ContextUpdater(BaseAgent):
                 'items_artifacts': []
             }
 
-            # Map category to result keys
+            # Map category to result keys.
+            # Handles BOTH the short EXTRACTOR_SYSTEM_PROMPT vocabulary
+            # (character|place|level|item) AND the richer GlossaryGenerator
+            # vocabulary (location|power_level|item_artifact|technique|
+            # cultivation_concept|organization|title_honorific|event) so terms
+            # are never silently miscategorized into items_artifacts.
             category_map = {
+                # short EXTRACTOR vocabulary
                 'character': 'characters',
                 'place': 'sects_organizations',
                 'level': 'cultivation_realms',
-                'item': 'items_artifacts'
+                'item': 'items_artifacts',
+                # GlossaryGenerator vocabulary
+                'location': 'sects_organizations',
+                'organization': 'sects_organizations',
+                'power_level': 'cultivation_realms',
+                'cultivation_concept': 'cultivation_realms',
+                'item_artifact': 'items_artifacts',
+                'technique': 'items_artifacts',
+                'title_honorific': 'characters',
+                'event': 'items_artifacts',
+                # two-tier taxonomy coarse categories (src/glossary_taxonomy.py)
+                # ('place' already mapped above)
+                'creature': 'characters',
+                'title': 'characters',
+                'cultivation': 'cultivation_realms',
+                'food': 'items_artifacts',
+                'currency': 'items_artifacts',
+                'concept': 'items_artifacts',
             }
 
             for term in new_terms:
@@ -134,7 +158,6 @@ class ContextUpdater(BaseAgent):
                 target = translation if translation and translation != f"[{name}]" else f"【?{name}?】"
 
                 # Reject if target is the literal English word "Myanmar" (model bug)
-                import re
                 if re.fullmatch(r'myanmar', target, re.IGNORECASE):
                     logger.warning(f"Rejected non-Myanmar target for '{name}': '{target}'")
                     continue

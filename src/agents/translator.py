@@ -15,7 +15,6 @@ from src.utils.postprocessor import clean_output, validate_output, detect_langua
 from src.utils.cultural_injector import build_cultural_injection
 from src.agents.base_agent import BaseAgent
 from src.agents.prompts import (
-    LANGUAGE_GUARD,
     TRANSLATOR_SYSTEM_PROMPT,
 )
 
@@ -27,20 +26,46 @@ logger = logging.getLogger(__name__)
 _TRUNCATION_RETRY_TOKENS = 4096
 
 
-def get_language_prompt(source_lang: str, model_name: str = "", scene_type: str = "narration") -> str:
+def _clip_example(text: str, limit: int) -> str:
+    """Clip a few-shot example to ``limit`` chars without splitting a syllable.
+
+    Myanmar syllable clusters are consonant + combining marks (U+102B–U+103E,
+    etc.). A blind ``text[:200]`` slice (the old behaviour) routinely cut a
+    cluster in half, producing a broken glyph in the prompt that the model then
+    imitated. We back off to the last whitespace so the example always ends on a
+    clean word boundary, then append an ellipsis to signal it was trimmed.
+    """
+    text = " ".join(text.split())  # collapse newlines/runs so examples stay compact
+    if len(text) <= limit:
+        return text
+    cut = text[:limit]
+    sp = cut.rfind(" ")
+    if sp > limit * 0.5:  # only honour the space if it isn't pathologically early
+        cut = cut[:sp]
+    return cut.rstrip() + "…"
+
+
+def get_language_prompt(
+    source_lang: str,
+    model_name: str = "",
+    scene_type: str = "narration",
+    genre: str = "",
+) -> str:
     """Get system prompt based on source language with full translation rules.
 
     Incorporates cn_mm_rules.py (CN→MM) and en_mm_rules.py (EN→MM)
-    linguistic transformation rules for comprehensive prompt generation.
+    linguistic transformation rules for comprehensive prompt generation,
+    plus genre-specific rules for novel-type adaptation.
     
     Args:
         source_lang: Source language ("chinese" or "english")
         model_name: Model name for prompt optimization (fast prompt for padauk-gemma)
         scene_type: Scene type for dynamic rule injection
             ("narration" | "dialogue" | "action" | "confrontation")
+        genre: Novel genre ("xianxia", "wuxia", "fantasy", "romance", "general")
     """
     from src.agents.prompts import build_translator_prompt as _build_translator_prompt
-    return _build_translator_prompt(source_lang, model_name, scene_type)
+    return _build_translator_prompt(source_lang, model_name, scene_type, genre)
 
 
 
@@ -90,7 +115,13 @@ class Translator(BaseAgent):
         if self._custom_system_prompt:
             return self._custom_system_prompt
         model_name = getattr(self.ollama, 'model', '') if self.ollama else ''
-        return get_language_prompt(source_lang, model_name=model_name, scene_type=scene_type)
+        genre = self.config.get('project', {}).get('novel_genre', '') if self.config else ''
+        return get_language_prompt(
+            source_lang,
+            model_name=model_name,
+            scene_type=scene_type,
+            genre=genre,
+        )
 
     def build_prompt(self, text: str, rolling_context: str = "") -> str:
         """Build translation prompt with memory context and rolling translation context.
@@ -194,11 +225,21 @@ class Translator(BaseAgent):
             if not examples:
                 return ""
 
-            parts = ["REFERENCE TRANSLATION EXAMPLES (match style and terminology):"]
+            # Frame the retrieved pairs as a human translator's work to imitate.
+            # padauk-gemma follows demonstrated STYLE far more reliably than
+            # abstract rules, so this is the strongest single lever for making
+            # output read like a person rather than a machine.
+            parts = [
+                "HUMAN REFERENCE TRANSLATIONS — a professional Myanmar translator produced the pairs below.",
+                "Study HOW they translate: natural Burmese flow, SOV order, particle choice (သည်/က/ကို/မှာ),",
+                "idiomatic word choice, dialogue register, and sentence rhythm. Match that voice exactly.",
+                "Do NOT copy their wording or content — only imitate their style on the SOURCE TEXT.",
+                "",
+            ]
             for i, ex in enumerate(examples, 1):
                 parts.append(f"Example {i}:")
-                parts.append(f"EN: {ex.en_text[:200]}")
-                parts.append(f"MY: {ex.my_text[:200]}")
+                parts.append(f"  English source : {_clip_example(ex.en_text, 320)}")
+                parts.append(f"  Human Myanmar  : {_clip_example(ex.my_text, 400)}")
                 parts.append("")
 
             return "\n".join(parts)
@@ -429,43 +470,6 @@ Myanmar Translation:"""
 
         return translated
 
-    def translate_with_fallback(
-        self,
-        text: str,
-        source_lang: str = "english",
-        chapter_num: int = 0
-    ) -> str:
-        """Translate with fallback retry on empty or short output."""
-        result = self.translate_paragraph(text, chapter_num)
-
-        if not result or len(result.strip()) < 50:
-            logger.warning("Empty or short output detected. Using fallback prompt...")
-            fallback_prompt = self.get_fallback_prompt(source_lang)
-
-            prompt = self.build_prompt(text)
-            system_prompt = fallback_prompt
-
-            result = self.ollama.chat(
-                prompt=prompt,
-                system_prompt=system_prompt
-            )
-
-        if not result:
-            logger.error("Translation returned empty after fallback")
-            raise ValueError("Translation failed completely. Check model and prompt.")
-
-        return result
-
-    def get_fallback_prompt(self, source_lang: str) -> str:
-        """Get minimal fallback prompt for retry on empty output."""
-        target_instr = "Chinese text to Myanmar" if source_lang.lower() == "chinese" else "English text to Myanmar"
-
-        return LANGUAGE_GUARD + f"""
-You are a professional translator. Translate the following {target_instr}.
-Keep all names and terms as-is. Output ONLY the translation. No preamble.
-
-Text to translate:"""
-
     def translate_chunks(
         self,
         chunks: List[Dict],
@@ -514,32 +518,3 @@ Text to translate:"""
                 translated.append(f"[TRANSLATION ERROR: {e}]")
 
         return translated
-
-    def translate_chapter(
-        self,
-        chunks: List[Dict[str, Any]],
-        chapter_num: int = 0
-    ) -> str:
-        """
-        Translate pre-processed chunks (recommended flow).
-        
-        This method expects chunks from Preprocessor.create_chunks() to be passed in.
-        For the old monolithic flow, use Preprocessor + translate_chunks() externally.
-        
-        Args:
-            chunks: List of chunk dictionaries from Preprocessor
-            chapter_num: Chapter number
-            
-        Returns:
-            Full translated chapter
-        """
-        logger.info(f"Translating Chapter {chapter_num}")
-
-        # Clear context buffer for new chapter
-        self.memory.clear_buffer()
-
-        # Translate chunks
-        translated_chunks = self.translate_chunks(chunks, chapter_num)
-
-        # Join results
-        return '\n\n'.join(translated_chunks)

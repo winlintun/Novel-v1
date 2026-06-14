@@ -10,7 +10,7 @@ from src.dataset_alignment.config import get_alignment_config
 from src.dataset_alignment.database import connect, init_db, insert_issue
 from src.dataset_alignment.loaders import ingest_files, scan_novel_dir, read_chapter_text
 from src.dataset_alignment.preprocessing import (
-    CleanResult, clean_text, extract_title_and_body, normalize_text, segment_sentences,
+    clean_text, extract_title_and_body, normalize_text, segment_sentences,
 )
 from src.dataset_alignment.embedder import BGEEmbedder
 from src.dataset_alignment.alignment import (
@@ -99,7 +99,7 @@ def run_alignment_pipeline(
         summary["files_ingested"] += counts.get("inserted", 0)
         logger.info(f"  Inserted: {counts}")
 
-        logger.info(f"Phase 3: PAIR — matching chapters")
+        logger.info("Phase 3: PAIR — matching chapters")
         pair_results = check_chapter_pairing(novel)
         summary["chapters_paired"] += pair_results.get("paired", 0)
         logger.info(f"  Paired: {pair_results}")
@@ -147,18 +147,18 @@ def run_alignment_pipeline(
             logger.info(f"  Alignments: {align_total} total, {align_1to1} 1:1")
 
         if not skip_validators:
-            logger.info(f"Phase 5: VALIDATE — running quality checks")
+            logger.info("Phase 5: VALIDATE — running quality checks")
             issues = _run_validators(novel)
             summary["issues_found"] += issues
             logger.info(f"  Issues found: {issues}")
 
         if populate_rag:
-            logger.info(f"Phase 6: RAG — ingesting aligned pairs into RAG database")
+            logger.info("Phase 6: RAG — ingesting aligned pairs into RAG database")
             rag_count = _populate_rag_database(novel, min_similarity=min_similarity)
             summary["rag_pairs_ingested"] += rag_count
             logger.info(f"  RAG pairs ingested: {rag_count}")
 
-        logger.info(f"Phase 7: REPORT — generating report")
+        logger.info("Phase 7: REPORT — generating report")
         report_path = build_report(novel)
         summary["report_path"] = str(report_path)
         logger.info(f"  Report: {report_path}")
@@ -273,7 +273,10 @@ def _run_validators(novel: str) -> int:
 def _populate_rag_database(novel: str, min_similarity: float = 0.65) -> int:
     """Ingest aligned 1:1 pairs into the RAG database (novel_v1_dataset.db).
 
-    Inserts into translation_pairs table used by RAGRetriever.
+    Inserts into translation_pairs table used by RAGRetriever (SQLite fallback)
+    AND into the ChromaDB ``alignment_pairs`` collection (semantic retrieval).
+    Without the ChromaDB half, RAGRetriever silently degrades to keyword-overlap
+    matching and the human few-shot examples it surfaces are usually irrelevant.
     """
     pairs = get_all_aligned_pairs(novel, min_similarity=min_similarity)
     if not pairs:
@@ -308,20 +311,25 @@ def _populate_rag_database(novel: str, min_similarity: float = 0.65) -> int:
 
     import hashlib
     imported = 0
+    usable_pairs: list[dict] = []  # collected for ChromaDB semantic ingestion
     for pair in pairs:
         en_text = pair["en_text"]
         my_text = pair["my_text"]
         score = pair["score"]
 
-        if len(en_text) < 10 or len(my_text) < 10:
+        # Reject omission / misalignment pairs so they never become few-shot
+        # examples (they teach the model to drop or fabricate content).
+        ok, reason = rag_pair_quality(en_text, my_text)
+        if not ok:
+            logger.debug(f"  Rejecting pair ({reason}): {en_text[:50]!r}")
             continue
 
-        length_ratio = len(my_text) / max(len(en_text), 1)
-        my_ratio = _myanmar_ratio(my_text)
-        if my_ratio < 0.50:
-            continue
-        if length_ratio < 0.25 or length_ratio > 4.0:
-            continue
+        # `score` from alignment is a cosine SIMILARITY (0.65–1.0), but the
+        # auto_score column / RAGRetriever filter use a 0–5 QUALITY scale. Storing
+        # the raw similarity makes every aligned pair fall below the retriever's
+        # default min_score=2.5 gate, so it never surfaces. Map onto 0–5 here:
+        # a 1:1 human-aligned pair is high quality, so 0.65→~4.1, 1.0→5.0.
+        quality_score = round(min(2.5 + score * 2.5, 5.0), 3)
 
         pair_id = hashlib.sha256(en_text.encode()).hexdigest()[:16]
 
@@ -332,7 +340,7 @@ def _populate_rag_database(novel: str, min_similarity: float = 0.65) -> int:
                     myanmar_ratio, length_ratio, aligned, usable,
                     chapter_num)
                    VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1, ?)""",
-                (pair_id, en_text, my_text, novel, score,
+                (pair_id, en_text, my_text, novel, quality_score,
                  _myanmar_ratio(my_text),
                  len(my_text) / max(len(en_text), 1),
                  pair.get("chapter_id", 0)),
@@ -342,11 +350,92 @@ def _populate_rag_database(novel: str, min_similarity: float = 0.65) -> int:
         except Exception as e:
             logger.debug(f"Skipping pair ingestion: {e}")
 
+        usable_pairs.append({
+            "id": pair_id,
+            "en_text": en_text,
+            "my_text": my_text,
+            "score": quality_score,
+            "chapter_id": pair.get("chapter_id", 0),
+        })
+
     conn.commit()
     conn.close()
 
     logger.info(f"  Ingested {imported} new pairs into RAG database for {novel}")
+
+    # Semantic half: embed + upsert into ChromaDB so RAGRetriever can do true
+    # similarity search. Best-effort — a missing chromadb/sentence-transformers
+    # install must never break the alignment run (Stability Rule 1: no crashes).
+    chroma_count = _ingest_pairs_to_chroma(novel, usable_pairs)
+    if chroma_count:
+        logger.info(f"  Embedded {chroma_count} pairs into ChromaDB for {novel}")
+
     return imported
+
+
+def _ingest_pairs_to_chroma(novel: str, pairs: list[dict]) -> int:
+    """Embed and upsert usable pairs into the ChromaDB ``alignment_pairs`` collection.
+
+    RAGRetriever queries this collection with BGE-M3 query embeddings and reads
+    ``my_text``/``auto_score``/``source_file``/``novel`` from each pair's
+    metadata, so we write exactly those keys. Returns the number of pairs
+    upserted, or 0 if ChromaDB or the embedder is unavailable.
+    """
+    if not pairs:
+        return 0
+
+    try:
+        import chromadb
+    except ImportError:
+        logger.warning(
+            "  chromadb not installed — semantic RAG skipped. "
+            "Install chromadb to enable similarity-based few-shot retrieval."
+        )
+        return 0
+
+    try:
+        embedder = BGEEmbedder()
+        chroma_path = Path("data/chroma")
+        chroma_path.mkdir(parents=True, exist_ok=True)
+        client = chromadb.PersistentClient(path=str(chroma_path))
+        collection = client.get_or_create_collection(name="alignment_pairs")
+
+        # Batch both the embed and the upsert. A full novel yields tens of
+        # thousands of sentence pairs — embedding them all at once risks OOM, and
+        # ChromaDB rejects any single upsert larger than its max batch size
+        # (5461 in chroma 1.x). Stay well under that.
+        try:
+            max_batch = min(client.get_max_batch_size(), 2000)
+        except Exception:
+            max_batch = 2000
+
+        ingested = 0
+        for start in range(0, len(pairs), max_batch):
+            batch = pairs[start:start + max_batch]
+            texts = [p["en_text"] for p in batch]
+            embeddings = embedder.encode(texts)
+            if embeddings is None or getattr(embeddings, "size", 0) == 0:
+                logger.warning(
+                    "  BGE-M3 produced no embeddings for batch at offset %d — skipping it.",
+                    start,
+                )
+                continue
+            collection.upsert(
+                ids=[p["id"] for p in batch],
+                embeddings=[e.tolist() for e in embeddings],
+                documents=texts,
+                metadatas=[{
+                    "my_text": p["my_text"][:1000],
+                    "auto_score": str(p["score"]),
+                    "source_file": f"{novel}_chapter_{p['chapter_id']}",
+                    "novel": novel,
+                } for p in batch],
+            )
+            ingested += len(batch)
+        return ingested
+    except Exception as e:
+        logger.warning(f"  ChromaDB ingestion failed ({e}) — semantic RAG skipped.")
+        return 0
 
 
 def _myanmar_ratio(text: str) -> float:
@@ -354,3 +443,46 @@ def _myanmar_ratio(text: str) -> float:
     mm = re.compile(r"[\u1000-\u109F\uAA60-\uAA7F\uA9E0-\uA9FF]")
     matches = mm.findall(text)
     return len(matches) / max(len(text), 1)
+
+
+def rag_pair_quality(en_text: str, my_text: str) -> tuple[bool, str]:
+    """Decide whether an EN\u2192MY pair is clean enough to use as a RAG few-shot example.
+
+    BGE-M3 sentence alignment produces two recurring kinds of bad pairs, both of
+    which actively teach the model the wrong behaviour if shown as examples:
+
+    1. **Omission** \u2014 a long English compound sentence aligned to a single short
+       Myanmar clause that only renders the first part (the rest of the EN is
+       dropped). Signal: Myanmar far shorter than English (length_ratio < 0.55).
+    2. **Misalignment** \u2014 the Myanmar sentence is about entirely different content
+       than the English (the aligner matched the wrong neighbour). These usually
+       ALSO show up as a length mismatch, and are caught by the same band.
+
+    Returns (is_usable, reason). reason == "ok" when the pair passes.
+    """
+    en_text = (en_text or "").strip()
+    my_text = (my_text or "").strip()
+    el, ml = len(en_text), len(my_text)
+
+    if el < 10 or ml < 12:
+        return False, "too_short_abs"
+
+    if _myanmar_ratio(my_text) < 0.50:
+        return False, "low_myanmar_ratio"
+
+    # Latin leakage on the Myanmar side \u2014 a real human translation has almost none.
+    latin = sum(1 for c in my_text if c.isascii() and c.isalpha())
+    if latin / ml > 0.10:
+        return False, "latin_leak"
+
+    length_ratio = ml / max(el, 1)
+    # Omission: Myanmar far shorter than English. This is the dominant defect.
+    if length_ratio < 0.55:
+        return False, "my_too_short_omission"
+    # Runaway merge: Myanmar much longer, but ONLY suspicious when the English is
+    # itself long. Short EN ("Days passed.") legitimately expands a lot in Myanmar,
+    # so we do not penalise high ratios on short sources.
+    if el > 60 and length_ratio > 2.6:
+        return False, "my_too_long_merge"
+
+    return True, "ok"

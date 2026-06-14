@@ -16,7 +16,7 @@ class TestMemoryManager(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.mkdtemp()
         self.db_path = str(Path(self.temp_dir) / "test.db")
-        self.memory = MemoryManager(novel_name="test_novel", db_path=self.db_path)
+        self.memory = MemoryManager(novel_name="test_novel", db_path=self.db_path, auto_seed_global=False)
 
     def tearDown(self):
         self.memory.close()
@@ -56,7 +56,7 @@ class TestMemoryManager(unittest.TestCase):
         self.memory.close()
 
         # New instance with same DB
-        new_memory = MemoryManager(novel_name="test_novel", db_path=self.db_path)
+        new_memory = MemoryManager(novel_name="test_novel", db_path=self.db_path, auto_seed_global=False)
         self.assertEqual(new_memory.get_term("Item"), "ပစ္စည်း")
         new_memory.close()
 
@@ -83,7 +83,7 @@ class TestDualLayerGlossary(unittest.TestCase):
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def _make_mm(self, novel_name: str) -> MemoryManager:
-        mm = MemoryManager(novel_name=novel_name, db_path=self.db_path)
+        mm = MemoryManager(novel_name=novel_name, db_path=self.db_path, auto_seed_global=False)
         # Ensure global novel exists for add_global_term calls
         from src.db.repositories.glossary_repo import GLOBAL_NOVEL_ID
         if not mm.novel_repo.exists(GLOBAL_NOVEL_ID):

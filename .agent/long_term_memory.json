@@ -1,5 +1,5 @@
 {
-  "last_updated": "2026-05-31T00:00:00Z",
+  "last_updated": "2026-06-14T13:58:34Z",
   "lessons": [
     {
       "date": "2026-05-31",
@@ -24,6 +24,30 @@
       "context": "RAG system",
       "lesson": "RAG is wired into the codebase (rag_retriever, feedback_loop, ChromaDB) but OFF by default (config rag: {}). It works when enabled.",
       "action": "RAG is available. Document how to enable it in settings.yaml (rag.enabled: true)."
+    },
+    {
+      "date": "2026-06-14",
+      "context": "RAG human-corpus",
+      "lesson": "A whole RAG pipeline can be silently dead: ChromaDB empty + a scale-mismatched filter meant the 1315-chapter human corpus never reached the model. Verify retrieval returns rows end-to-end, not just that ingestion 'ran'.",
+      "action": "After any RAG change, assert retrieve_similar() returns >0 expected rows."
+    },
+    {
+      "date": "2026-06-14",
+      "context": "Glossary taxonomy",
+      "lesson": "category column was free-text (no CHECK), so richer categories needed no migration — only subtype (additive column) + a relationship edge table did. Check column constraints before assuming a migration is required.",
+      "action": "PRAGMA table_info + look for CHECK before planning schema work."
+    },
+    {
+      "date": "2026-06-14",
+      "context": "Auto-seed vs tests",
+      "lesson": "Making MemoryManager auto-seed 157 global terms on every init perturbed count/parity tests and exposed a test that wrote to the REAL default DB. Gate new always-on startup behavior behind a flag (auto_seed_global) so tests can opt out.",
+      "action": "New startup side-effects get a default-on flag; tests pass it False and use isolated db_path."
+    },
+    {
+      "date": "2026-06-14",
+      "context": "opencode review triage",
+      "lesson": "External AI review (deepseek) flagged 10 issues; 2 were false positives (rapidfuzz 'missing' though in requirements; a deliberate heuristic) and 1 mischaracterized a no-op as a crash. Always verify each finding against the actual code before fixing.",
+      "action": "Triage every external-review finding; reproduce before fixing; record rejected ones."
     }
   ],
   "known_patterns": [
@@ -39,6 +63,9 @@
     }
   ],
   "model_performance": {
-    "padauk-gemma:q8_0": { "avg_quality_score": 82.0, "chapters_tested": 35 }
+    "padauk-gemma:q8_0": {
+      "avg_quality_score": 82.0,
+      "chapters_tested": 35
+    }
   }
 }

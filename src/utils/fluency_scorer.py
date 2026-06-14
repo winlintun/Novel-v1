@@ -440,7 +440,10 @@ def score_fluency(text: str) -> FluencyReport:
     f3_score, sent_count, std_dev, f3_issues = _score_sentence_flow(text)
     report.F3_sentence_flow = f3_score
     report.sentence_count = sent_count
-    report.avg_sentence_len = sum(len(s.split()) for s in text.split('။')) / max(sent_count, 1)
+    # Use the SAME sentence segmentation as _score_sentence_flow (which produced
+    # sent_count); splitting on '။' alone gives a denominator/numerator mismatch.
+    _sents = [s for s in re.split(r'[။၏၊\n]+', text) if s.strip()]
+    report.avg_sentence_len = sum(len(s.split()) for s in _sents) / max(len(_sents), 1)
     report.issues.extend(f3_issues)
 
     # F4: Syllable Richness (15%)
@@ -508,6 +511,4 @@ def score_fluency(text: str) -> FluencyReport:
     return report
 
 
-def score_fluency_quick(text: str) -> float:
-    """Quick fluency score convenience wrapper. Returns composite_score only."""
-    return score_fluency(text).composite_score
+
