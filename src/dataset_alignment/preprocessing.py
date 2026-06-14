@@ -97,8 +97,13 @@ def segment_sentences(text: str, lang: str) -> list[str]:
             return [s.strip() for s in _EN_SEG.segment(text) if s.strip()]
         return [s.strip() for s in text.split(". ") if s.strip()]
     if lang in ("my", "mm", "bur"):
-        chunks = regex.split(r"(?<=[။?!])\s+", text)
-        return [c.strip() for c in chunks if c.strip()]
+        chunks = regex.split(
+            r"(?<=[။?!၊])[\s་]*",
+            text,
+        )
+        chunks = [c.strip() for c in chunks if c.strip()]
+        chunks = [c for c in chunks if len(c) >= 3]
+        return chunks
     return [s.strip() for s in text.split(". ") if s.strip()]
 
 

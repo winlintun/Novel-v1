@@ -160,7 +160,29 @@ def run_translation_pipeline(args: argparse.Namespace) -> int:
         elif is_hybrid_config:
             logger.info(f"🔀 HYBRID config detected: {config_translator} → {config_editor}. Skipping skeleton model.")
 
-        # Apply command line overrides
+        # ── Apply per-novel model/gene config from config/novel_models.yaml ──
+        # This overrides skeleton model but gets overridden by CLI --model flag
+        from pathlib import Path as _Path
+        novel_name_for_config = getattr(args, 'novel', None) or (
+            _Path(args.input_file).stem if getattr(args, 'input_file', None) else None
+        )
+        if novel_name_for_config:
+            try:
+                from src.config.novel_model_loader import (
+                    apply_novel_config_to_appconfig,
+                    get_novel_genre,
+                )
+                apply_novel_config_to_appconfig(novel_name_for_config, config)
+                novel_genre = get_novel_genre(novel_name_for_config)
+                config.project.novel_genre = novel_genre
+                logger.info(
+                    f"Novel config applied: {novel_name_for_config} "
+                    f"[genre={novel_genre}, model={config.models.translator}]"
+                )
+            except Exception as e:
+                logger.debug(f"Could not apply novel model config: {e}")
+
+        # Apply command line overrides (highest priority)
         if args.model:
             config.models.translator = args.model
             config.models.editor = args.model
@@ -386,39 +408,70 @@ def run_glossary_generation(args: argparse.Namespace) -> int:
             if getattr(args, 'all', False):
                 # Discover all chapters in the input folder
                 novel_dir = Path(INPUT_DIR) / args.novel
-                if novel_dir.exists():
+                en_dir = novel_dir / "en"
+                if en_dir.is_dir():
+                    chapters = _discover_chapters(en_dir)
+                elif novel_dir.exists():
                     chapters = _discover_chapters(novel_dir)
-                    logger.info(f"--all flag detected: will scan {len(chapters)} chapters")
                 else:
                     logger.warning(f"Novel directory not found: {novel_dir}")
                     chapters = []
+                if chapters:
+                    logger.info(f"--all flag detected: will scan {len(chapters)} chapters")
             else:
                 chapters = get_chapter_list(args)
                 if not chapters:
                     chapters = list(range(1, 6))  # Default to first 5 chapters
 
         # Resolve chapter file paths first (outside thread pool)
-        chapter_files = []
+        from_mm = getattr(args, 'from_mm', False)
+        chapter_files = []  # list of (chapter_num, en_file) or (chapter_num, en_file, mm_file)
         for chapter_num in chapters:
-            # Try multiple file naming formats
-            # Format 1: {novel_name}_chapter_{XXX}.md (e.g., 古道仙鸿_chapter_001.md)
-            chapter_file = Path(INPUT_DIR) / args.novel / f"{args.novel}_chapter_{chapter_num:03d}.md"
+            search_roots = [
+                Path(INPUT_DIR) / args.novel / "en",
+                Path(INPUT_DIR) / args.novel,
+            ]
+            # Use orchestrator's finder if already loaded, otherwise inline
+            from src.pipeline.orchestrator import TranslationPipeline
+            chapter_file = TranslationPipeline._find_chapter_file(args.novel, chapter_num)
 
-            # Format 2: {XXX}.md (e.g., 001.md) - legacy format
-            if not chapter_file.exists():
-                chapter_file = Path(INPUT_DIR) / args.novel / f"{chapter_num:03d}.md"
-
-            # Format 3: chapter_{XXX}.md (e.g., chapter_001.md)
-            if not chapter_file.exists():
-                chapter_file = Path(INPUT_DIR) / args.novel / f"chapter_{chapter_num:03d}.md"
-
-            if chapter_file.exists():
+            if chapter_file:
+                if from_mm:
+                    # Also find the corresponding MM file
+                    mm_dir = Path(INPUT_DIR) / args.novel / "mm"
+                    mm_file = TranslationPipeline._find_chapter_file(args.novel, chapter_num, target_dir="mm")
+                    if mm_file:
+                        chapter_files.append((chapter_num, chapter_file, mm_file))
+                        continue
+                    else:
+                        logger.warning(f"Chapter {chapter_num}: EN file found but no MM file. Falling back to single-file extraction.")
                 chapter_files.append((chapter_num, chapter_file))
             else:
-                logger.warning(f"Chapter file not found for chapter {chapter_num}")
+                searched = []
+                for root in search_roots:
+                    for fmt in [
+                        f"{args.novel}_chapter_{chapter_num:03d}.md",
+                        f"{args.novel}_chapter_{chapter_num:04d}.md",
+                        f"{args.novel}_{chapter_num:03d}.md",
+                        f"{args.novel}_{chapter_num:04d}.md",
+                        f"{chapter_num:03d}.md",
+                        f"{chapter_num:04d}.md",
+                        f"chapter_{chapter_num:03d}.md",
+                    ]:
+                        searched.append(str(root / fmt))
+                logger.warning(
+                    f"Chapter {chapter_num} not found in data/input/{args.novel}/ "
+                    f"or data/input/{args.novel}/en/.\n"
+                    f"  Tried patterns:\n" + "\n".join(f"    - {s}" for s in searched)
+                )
 
         if not chapter_files:
-            logger.error("No valid chapter files found")
+            logger.error(
+                f"No valid chapter files found for novel '{args.novel}'.\n"
+                f"  Expected location: data/input/{args.novel}/en/{args.novel}_chapter_001.md\n"
+                f"  Or: data/input/{args.novel}/{args.novel}_chapter_001.md\n"
+                f"  Create the directory and add your .md chapter files there."
+            )
             return 1
 
         logger.info(f"Processing {len(chapter_files)} chapters in parallel (max {MAX_GLOSSARY_WORKERS} workers)")
@@ -435,10 +488,14 @@ def run_glossary_generation(args: argparse.Namespace) -> int:
         memory = MemoryManager(novel_name=args.novel)
         generator = GlossaryGenerator(client, memory, config.dict())
 
-        def process_chapter(chapter_num_and_file):
+        def process_chapter(chapter_info):
             """Process a single chapter - thread worker function."""
-            ch_num, ch_file = chapter_num_and_file
-            return generator.generate_from_chapter(str(ch_file), ch_num)
+            if len(chapter_info) == 3:
+                ch_num, en_file, mm_file = chapter_info
+                return generator.generate_from_pair(str(en_file), str(mm_file), ch_num)
+            else:
+                ch_num, ch_file = chapter_info
+                return generator.generate_from_chapter(str(ch_file), ch_num)
 
         # Use ThreadPoolExecutor for parallel processing
         completed = 0
@@ -446,7 +503,8 @@ def run_glossary_generation(args: argparse.Namespace) -> int:
         with ThreadPoolExecutor(max_workers=MAX_GLOSSARY_WORKERS) as executor:
             futures = {executor.submit(process_chapter, cf): cf for cf in chapter_files}
             for future in as_completed(futures):
-                ch_num, ch_file = futures[future]
+                chapter_info = futures[future]
+                ch_num = chapter_info[0]
                 try:
                     terms_count = future.result()
                     completed += 1
@@ -519,11 +577,12 @@ def run_test(args: argparse.Namespace) -> int:
             # Create a sample file
             sample_file.parent.mkdir(parents=True, exist_ok=True)
             sample_file.write_text(
-                "# Sample Chapter\n\n这是一个测试段落。\n\nThis is a test paragraph.",
+                "# Sample Chapter\n\nThis is a test paragraph for the translation pipeline.\n\nThe old man sat beneath the ancient banyan tree, his eyes closed in meditation.\n\n\"Come here, child,\" he said. \"I have something to tell you.\"",
                 encoding="utf-8"
             )
 
         args.input_file = str(sample_file)
+        args.mode = "single_stage"  # Skip QA gate for test
         return run_translation_pipeline(args)
 
     except Exception as e:

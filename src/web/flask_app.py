@@ -257,7 +257,7 @@ def get_translated_chapters(novel_name: str) -> list:
     return translated
 
 
-def get_glossary() -> dict:
+def get_glossary(novel_slug: str = 'wayfarer') -> dict:
     """Load glossary data from the SQLite glossary_term table (single source of truth)."""
     try:
         from src.db.connection import DatabaseConnection
@@ -269,8 +269,9 @@ def get_glossary() -> dict:
         # Get all terms from database (all novels)
         all_terms = []
         
+        novel_id = f'novel_{novel_slug}'
         # Get approved terms (limit=1000 to get all)
-        approved = glossary_repo.get_terms_by_novel('novel_wayfarer', status='approved', limit=1000)
+        approved = glossary_repo.get_terms_by_novel(novel_id, status='approved', limit=1000)
         for t in approved:
             all_terms.append({
                 'source': t['source_term'],
@@ -283,7 +284,7 @@ def get_glossary() -> dict:
             })
         
         # Get pending terms (limit=1000 to get all)
-        pending = glossary_repo.get_terms_by_novel('novel_wayfarer', status='pending', limit=1000)
+        pending = glossary_repo.get_terms_by_novel(novel_id, status='pending', limit=1000)
         for t in pending:
             all_terms.append({
                 'source': t['source_term'],
@@ -499,7 +500,8 @@ def progress():
 @app.route('/glossary', methods=['GET', 'POST'])
 def glossary():
     """Glossary management page"""
-    glossary = get_glossary()
+    novel_slug = request.args.get('novel', 'wayfarer')
+    glossary = get_glossary(novel_slug=novel_slug)
     terms = glossary.get('terms', [])
     
     # Handle term operations
@@ -512,7 +514,8 @@ def glossary():
             
             db = DatabaseConnection('data/novel_translation.db')
             glossary_repo = GlossaryRepository(db)
-            novel_id = 'novel_wayfarer'
+            novel_slug = request.args.get('novel', 'wayfarer')
+            novel_id = f'novel_{novel_slug}'
             
             if action == 'add_term':
                 source = request.form.get('source', '').strip()
@@ -551,7 +554,7 @@ def glossary():
     if category_filter != 'all':
         terms = [t for t in terms if t.get('category') == category_filter]
     
-    categories = list(set(t.get('category', 'general') for t in get_glossary().get('terms', [])))
+    categories = list(set(t.get('category', 'general') for t in get_glossary(novel_slug=novel_slug).get('terms', [])))
     
     return render_template('glossary.html',
                          terms=terms,
@@ -714,7 +717,8 @@ def api_novels():
 @app.route('/api/glossary')
 def api_glossary():
     """API endpoint for glossary"""
-    return jsonify(get_glossary())
+    novel_slug = request.args.get('novel', 'wayfarer')
+    return jsonify(get_glossary(novel_slug=novel_slug))
 
 
 @app.route('/api/translate', methods=['POST'])

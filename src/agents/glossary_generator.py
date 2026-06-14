@@ -57,73 +57,97 @@ Extracted terms will be merged directly into the project glossary pipeline witho
 - "Azure Dragon Sect" -> "အေးရှားဒရဂွန်ဂိုဏ်း"
 
 ### Unicode Safety (STRICT)
-- target_term: Myanmar Unicode ONLY (U+1000-U+109F)
-- NEVER use Thai, Bengali, Korean, Chinese, or English letters in target_term
+- target: Myanmar Unicode ONLY (U+1000-U+109F)
+- NEVER use Thai, Bengali, Korean, Chinese, or English letters in target
 - Standard punctuation only: ? ! : , . (NOT fullwidth variants)
-- Unknown / unresolvable term -> target_term: "【?term?】"
+- Unknown / unresolvable term -> target: "【?term?】"
 
-## OUTPUT SCHEMA (v3.2.1 COMPLIANT)
+## OUTPUT SCHEMA
 Return ONLY valid JSON. No markdown fences. No explanation. No preamble.
 
 {{
   "extraction_meta": {{
     "schema_version": "3.2.1",
     "source_language": "{source_lang}",
-    "total_terms_found": 0,
-    "overall_confidence": "high|medium|low"
+    "total_terms_found": 0
   }},
   "terms": [
     {{
-      "id": "char_001",
-      "source_term": "Exact term as it appears in source text",
-      "target_term": "Myanmar transliteration or translation",
-      "aliases_en": ["alternate English spelling"],
-      "aliases_cn": ["中文变体"],
+      "source": "Exact term as it appears in source text",
+      "target": "Myanmar transliteration or translation",
       "category": "character|location|organization|item_artifact|technique|power_level|cultivation_concept|title_honorific|event",
-      "translation_rule": "transliterate|translate|hybrid|fixed|pattern_match",
-      "priority": 1,
-      "gender": "male|female|unknown|n/a",
-      "affiliation": [],
-      "status": "pending",
-      "usage_frequency": "high|medium|low",
-      "chapter_first_seen": 0,
-      "description": "One sentence: role or context in the story for AI tone matching",
-      "context_variants": {{
-        "formal":   {{"self": "ကျွန်တော်", "target": "ခင်ဗျား", "honorific": "ဆရာ"}},
-        "casual":   {{"self": "ငါ",        "target": "မင်း",     "honorific": ""}},
-        "hostile":  {{"self": "ငါ",        "target": "နင်",      "honorific": "မိစ္ဆာကောင်"}},
-        "pleading": {{"self": "ကျွန်တော်", "target": "အရှင်",   "honorific": "ကျေးဇူးပြု၍"}},
-        "intimate": {{"self": "ငါ",        "target": "မင်း",     "honorific": "ချစ်သူ"}}
-      }},
-      "relationships": [],
-      "usage_example": {{
-        "source": "Short source sentence showing the term in context",
-        "target": ""
-      }},
-      "confidence": 0.85,
-      "notes": "Transliteration rationale, ambiguity, or usage tip"
+      "confidence": 0.85
     }}
   ]
 }}
 
-## FIELD RULES (ENFORCE STRICTLY)
-1. id: Format {{category_prefix}}_{{3-digit}} (e.g., char_001, loc_002, org_003). Prefixes: char, loc, org, item, tech, lvl, cult, title, event.
-2. status: ALWAYS "pending" for extracted terms. Human reviewer changes to "approved" later.
-3. context_variants: Fill ONLY for category="character". For ALL other categories, set exactly: "context_variants": {{}}
-4. relationships: Array of objects. Only fill if source text explicitly shows a relationship. Format: [{{"target_id": "char_XXX", "relation_type": "master|disciple|enemy|sibling", "attitude": "respectful|hostile|neutral", "default_address": "formal|casual", "override_conditions": []}}]
-5. usage_frequency: high (5+ times or plot-critical), medium (2-4 times), low (1 time).
-6. confidence: Float 0.0-1.0. >=0.95 = auto-merge eligible. <0.70 = flag for manual review.
-7. translation_rule: character/location -> "transliterate" or "hybrid". cultivation/power -> "translate" or "fixed". technique -> "translate".
-8. deduplication: Merge case variants ("Fang yuan" / "Fang Yuan") into one entry. Add variants to aliases_en or aliases_cn.
+## FIELD RULES
+1. confidence: Float 0.0-1.0. >=0.95 = auto-merge eligible. <0.70 = flag for manual review.
+2. deduplication: Merge case variants into one entry. Use the most common spelling.
 
 ## FALLBACK
 If no terms found, return EXACTLY:
-{{"extraction_meta": {{"schema_version": "3.2.1", "source_language": "{source_lang}", "total_terms_found": 0, "overall_confidence": "high"}}, "terms": []}}
+{{"extraction_meta": {{"schema_version": "3.2.1", "source_language": "{source_lang}", "total_terms_found": 0}}, "terms": []}}
 
 SOURCE LANGUAGE: {source_lang}
 
 TEXT TO ANALYZE:
 {text}
+
+OUTPUT (RAW JSON ONLY, NO MARKDOWN):"""
+
+CROSS_LINGUAL_GLOSSARY_PROMPT = """You are a bilingual terminology extraction specialist for Wuxia/Xianxia novels.
+
+## TASK
+You are given the SAME chapter in TWO languages: English (source) and Myanmar (translation).
+For each named entity in the English text (characters, places, techniques, items, etc.),
+find its corresponding translation in the Myanmar text and output a glossary entry.
+
+## EXTRACTION CATEGORIES
+1. character           : Named people, spirits, demons, gods
+2. location            : Places, sects, realms, buildings
+3. organization        : Sects, clans, guilds, factions
+4. item_artifact       : Named weapons, pills, treasures, cauldrons
+5. technique           : Named skills, spells, sword arts, techniques
+6. power_level         : Cultivation ranks, realm names, grade tiers
+7. cultivation_concept : Energy types, dao concepts, laws, paths
+8. title_honorific     : Formal titles, kinship terms, epithets
+
+## RULES
+- Extract the EXACT English term from the English text
+- Find its EXACT Myanmar equivalent in the Myanmar text — use the term AS IT APPEARS in the translation, do NOT re-translate or guess
+- If a term appears in English but NOT in the Myanmar text, skip it (it wasn't translated)
+- If a term appears in Myanmar but NOT in the English text, skip it (it was inserted by the translator)
+- Use Myanmar Unicode ONLY (U+1000-U+109F) for target
+- Unknown / no match -> target: "【?term?】"
+
+## OUTPUT
+Return ONLY valid JSON. No markdown. No explanation.
+
+{{
+  "extraction_meta": {{
+    "schema_version": "3.2.1",
+    "source_language": "English",
+    "total_terms_found": 0
+  }},
+  "terms": [
+    {{
+      "source": "Exact English term from source text",
+      "target": "Exact Myanmar term from translation text",
+      "category": "character|location|organization|item_artifact|technique|power_level|cultivation_concept|title_honorific",
+      "confidence": 0.85
+    }}
+  ]
+}}
+
+## FALLBACK
+If no terms found: {{"extraction_meta": {{"schema_version": "3.2.1", "source_language": "English", "total_terms_found": 0}}, "terms": []}}
+
+ENGLISH TEXT:
+{en_text}
+
+MYANMAR TEXT:
+{mm_text}
 
 OUTPUT (RAW JSON ONLY, NO MARKDOWN):"""
 
@@ -161,7 +185,7 @@ class GlossaryGenerator(BaseAgent):
         """
         Process multiple files to generate a comprehensive glossary.
         Uses single sample per file for speed - duplicate terms across files are deduped.
-        Now compatible with v3.2.1 schema (source_term, target_term, etc.)
+        Expects fields: source, target, category, confidence.
         """
         all_terms = {} # Use dict to deduplicate by source term
 
@@ -176,8 +200,7 @@ class GlossaryGenerator(BaseAgent):
                 sample = content[:4000]
                 terms = self.extract_terms(sample, source_lang)
                 for term in terms:
-                    # v3.2.1 schema uses source_term instead of source
-                    source = term.get("source_term") or term.get("source")
+                    source = term.get("source") or term.get("source_term")
                     if source and source not in all_terms:
                         all_terms[source] = term
 
@@ -202,14 +225,18 @@ class GlossaryGenerator(BaseAgent):
         saved_count = 0
         skipped_duplicates = 0
         
+        placeholder_count = 0
         for term in terms:
-            # v3.2.1 schema: source_term, target_term, category
-            source = term.get("source_term") or term.get("source", "")
-            target = term.get("target_term") or term.get("target_proposal", "")
+            source = term.get("source") or term.get("source_term", "")
+            target = term.get("target") or term.get("target_term", "")
             category = term.get("category", "item")
+            confidence = float(term.get("confidence", 0.0))
             
-            # Skip invalid terms (placeholders, empty)
-            if not source or not target or "【?term?】" in target:
+            # Skip invalid terms (empty)
+            if not source or not target:
+                continue
+            if "【?term?】" in target:
+                placeholder_count += 1
                 continue
             
             source_lower = source.lower()
@@ -227,13 +254,16 @@ class GlossaryGenerator(BaseAgent):
                 source=source,
                 target=target,
                 category=category,
-                chapter=chapter_num
+                chapter=chapter_num,
+                confidence=confidence,
             )
             existing_sources.add(source_lower)  # Track to avoid duplicates within this run
             saved_count += 1
 
-        total_skipped = (len(terms) - saved_count - skipped_duplicates)
-        self.log_info(f"Saved {saved_count} terms, skipped {skipped_duplicates} duplicates, {total_skipped} invalid/placeholder.")
+        self.log_info(
+            f"Saved {saved_count} terms, skipped {skipped_duplicates} duplicates, "
+            f"{placeholder_count} placeholders."
+        )
 
     def generate_from_chapter(self, chapter_file: str, chapter_num: int = 0) -> int:
         """
@@ -272,6 +302,59 @@ class GlossaryGenerator(BaseAgent):
             if terms:
                 self.save_to_pending(terms, chapter_num)
                 logger.info(f"✅ Chapter {chapter_num}: Extracted {len(terms)} terms")
+            else:
+                logger.info(f"⚠️ Chapter {chapter_num}: No terms found")
+
+            return len(terms)
+
+        except Exception as e:
+            logger.error(f"❌ Failed to process chapter {chapter_num}: {e}")
+            return 0
+
+    def generate_from_pair(self, en_file: str, mm_file: str, chapter_num: int = 0) -> int:
+        """
+        Generate glossary terms by pairing English source with Myanmar translation.
+        Reads both files and asks the model to identify named entities in the
+        English text and find their corresponding Myanmar equivalents.
+
+        Args:
+            en_file: Path to the English source chapter
+            mm_file: Path to the Myanmar translation chapter
+            chapter_num: Chapter number for logging
+
+        Returns:
+            Number of terms extracted
+        """
+        # Uses module-level constant: CROSS_LINGUAL_GLOSSARY_PROMPT
+
+        try:
+            logger.info(f"Reading chapter {chapter_num}: EN={en_file} MM={mm_file}")
+
+            with open(en_file, 'r', encoding='utf-8-sig') as f:
+                en_content = f.read()
+            with open(mm_file, 'r', encoding='utf-8-sig') as f:
+                mm_content = f.read()
+
+            if not en_content.strip() or not mm_content.strip():
+                logger.warning(f"Chapter {chapter_num}: one of the files is empty")
+                return 0
+
+            prompt = CROSS_LINGUAL_GLOSSARY_PROMPT.format(
+                en_text=en_content[:2500],
+                mm_text=mm_content[:2500],
+            )
+
+            try:
+                response = self.client.chat(prompt=prompt)
+                data = extract_json_from_response(response)
+                terms = data.get("terms", [])
+            except Exception as e:
+                logger.error(f"Term extraction failed for chapter {chapter_num}: {e}")
+                terms = []
+
+            if terms:
+                self.save_to_pending(terms, chapter_num)
+                logger.info(f"✅ Chapter {chapter_num}: Extracted {len(terms)} terms from EN↔MM pair")
             else:
                 logger.info(f"⚠️ Chapter {chapter_num}: No terms found")
 

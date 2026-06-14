@@ -131,7 +131,7 @@ class TestGlossaryGenerator(unittest.TestCase):
         )
         
         # v3.2.1 schema fields
-        terms = [{"source_term": "test", "target_term": "စမ်း", "category": "character"}]
+        terms = [{"source": "test", "target": "စမ်း", "category": "character"}]
         generator.save_to_pending(terms, chapter_num=1)
         
         self.mock_memory.add_pending_term.assert_called_once()
@@ -148,7 +148,7 @@ class TestGlossaryGenerator(unittest.TestCase):
         
         # v3.2.1 schema
         self.mock_ollama.chat.return_value = {
-            "message": {"content": '{"extraction_meta": {"schema_version": "3.2.1", "source_language": "English", "total_terms_found": 1, "overall_confidence": "high"}, "terms": [{"source_term": "t", "target_term": "တ", "category": "character"}]}'}
+            "message": {"content": '{"extraction_meta": {"schema_version": "3.2.1", "source_language": "English", "total_terms_found": 1, "overall_confidence": "high"}, "terms": [{"source": "t", "target": "တ", "category": "character"}]}'}
         }
         
         with patch("builtins.open", mock_open(read_data="test")):

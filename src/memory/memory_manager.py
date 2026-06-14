@@ -766,12 +766,14 @@ class MemoryManager:
         source: str,
         target: str,
         category: str = "general",
-        chapter: int = 0
+        chapter: int = 0,
+        confidence: float = 0.0,
     ) -> bool:
         """Add a term to the novel-specific pending glossary for review.
 
         If the term already exists in pending, increments its chapter
-        appearance count and updates the last-seen chapter.
+        appearance count, updates the last-seen chapter, and updates
+        the target if a better suggestion is available.
         
         Validates that the target contains Myanmar text before accepting
         (skips validation for placeholder targets like 【?term?】).
@@ -784,9 +786,15 @@ class MemoryManager:
         existing = self.glossary_repo.get_term_by_source(self.novel_id, source)
         if existing:
             usage_count = existing.get('usage_count', 0) + 1
+            update_fields: dict = {'usage_count': usage_count}
+            # Update target if new one is better (not a placeholder)
+            if target and "【?" not in target and existing.get('target_term') != target:
+                update_fields['target_term'] = target
+            if confidence > existing.get('confidence', 0):
+                update_fields['confidence'] = confidence
             self.glossary_repo.update_term(
                 existing['id'],
-                usage_count=usage_count,
+                **update_fields,
             )
             logger.debug(f"Updated pending term chapter count: {source} (usage_count={usage_count})")
             return True
@@ -804,8 +812,9 @@ class MemoryManager:
             category=category,
             status='pending',
             enforcement_level='soft',
+            confidence=confidence,
         )
-        logger.info(f"Added pending glossary term: {source} -> {target}")
+        logger.info(f"Added pending glossary term: {source} -> {target} (confidence={confidence})")
         return True
 
     def get_pending_terms(self) -> List[Dict[str, Any]]:
@@ -822,52 +831,6 @@ class MemoryManager:
             }
             for t in terms
         ]
-
-    def promote_pending_to_glossary(
-        self,
-        source: str,
-        chapter: int = 0,
-        verified: bool = True
-    ) -> bool:
-        """Promote a pending term to the approved glossary.
-
-        Args:
-            source: The source term to promote
-            chapter: Current chapter number
-            verified: Mark term as verified
-
-        Returns:
-            True if promoted successfully, False if not found
-        """
-        term = self.glossary_repo.get_term_by_source(self.novel_id, source)
-        if not term or term.get('status') != 'pending':
-            return False
-
-        target = term.get('target_term', '')
-        self.glossary_repo.update_term(
-            term['id'],
-            status='approved',
-            reviewed_at=datetime.now().isoformat()
-        )
-        logger.info(f"Promoted pending term to glossary: {source} -> {target}")
-        self._invalidate_cache()
-        return True
-
-    def reject_pending_term(self, source: str) -> bool:
-        """Remove a pending term without promoting to glossary.
-
-        Args:
-            source: The source term to reject
-
-        Returns:
-            True if rejected successfully, False if not found
-        """
-        term = self.glossary_repo.get_term_by_source(self.novel_id, source)
-        if not term or term.get('status') != 'pending':
-            return False
-        self.glossary_repo.delete_term(term['id'])
-        logger.info(f"Rejected pending term: {source}")
-        return True
 
     def bulk_approve_all_pending(self) -> int:
         """Bulk approve ALL pending terms regardless of confidence.
@@ -901,18 +864,20 @@ class MemoryManager:
         return approved_count
 
     def auto_approve_pending_terms(self) -> int:
-        """Promote pending terms that have been marked approved via the review UI.
+        """Promote all pending terms to approved status.
+
+        Unlike auto_approve_by_confidence which uses heuristics, this is
+        a simple bulk operation: promote EVERY pending term.
 
         Returns:
             Number of terms promoted
         """
         pending = self.glossary_repo.get_terms_by_novel(self.novel_id, status='pending')
-        approved = [t for t in pending if t.get('user_marked_approved')]
-        if not approved:
+        if not pending:
             return 0
 
         promoted_count = 0
-        for term in approved:
+        for term in pending:
             result = self.glossary_repo.update_term(
                 term['id'],
                 status='approved',
@@ -921,7 +886,7 @@ class MemoryManager:
             if result:
                 promoted_count += 1
 
-        logger.info(f"Auto-approved {promoted_count}/{len(approved)} pending glossary terms")
+        logger.info(f"Approved {promoted_count}/{len(pending)} pending glossary terms")
         self._invalidate_cache()
         return promoted_count
 
@@ -965,7 +930,7 @@ class MemoryManager:
                 confidence += 0.25
             if category in ("character", "place"):
                 confidence += 0.20
-            if target and not target.startswith("[【?") and not target.startswith("[") and "?" not in target:
+            if target and not target.startswith("【?") and "?" not in target:
                 confidence += 0.15
             if target and not any(ord(c) < 128 for c in target):
                 confidence += 0.10
@@ -1055,7 +1020,8 @@ class MemoryManager:
         if not self._is_valid_myanmar_text(target):
             logger.warning(f"Rejected non-Myanmar target for global term '{source}': '{target}'")
             return False
-        existing = self.glossary_repo.get_term_by_source(self.novel_id, source)
+        from src.db.repositories.glossary_repo import GLOBAL_NOVEL_ID
+        existing = self.glossary_repo.get_term_by_source(GLOBAL_NOVEL_ID, source)
         if existing:
             return False
         self.glossary_repo.add_global_term(
@@ -1079,7 +1045,7 @@ class MemoryManager:
             {
                 "id": t["id"], "source": t["source_term"], "target": t["target_term"],
                 "category": t["category"], "verified": t["status"] == "approved",
-                "chapter_last_seen": t["usage_count"],
+                "usage_count": t["usage_count"],
                 "scope": t.get("scope", "novel"),
             }
             for t in terms

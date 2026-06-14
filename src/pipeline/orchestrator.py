@@ -560,11 +560,13 @@ class TranslationPipeline:
                 chapter_num = int(m.group(1))
             self._current_chapter = chapter_num
 
+            # Ensure progress_logger exists for error handling
+            progress_logger = None
+
             # Preprocess
             chunks = self._preprocess(text, chapter_label)
 
             # Initialize progress logger for real-time tracking
-            progress_logger = None
             try:
                 progress_logger = ProgressLogger(
                     book_id=self._current_novel or "unknown",
@@ -921,6 +923,8 @@ class TranslationPipeline:
         Handles multiple naming conventions:
         - {novel}_chapter_001.md, {novel}_0001.md, 001.md, chapter_001.md
         
+        Also checks the en/ subdirectory (data/input/{novel}/en/).
+        
         Args:
             novel_dir: Novel directory path
             
@@ -930,49 +934,71 @@ class TranslationPipeline:
         import re
 
         chapters: set = set()
-        for f in novel_dir.glob("*.md"):
-            # Try pure-digit stem: "009.md"
-            if f.stem.isdigit():
-                chapters.add(int(f.stem))
-                continue
+        search_dirs = [novel_dir]
+        en_dir = novel_dir / "en"
+        if en_dir.is_dir():
+            search_dirs.append(en_dir)
 
-            # Try patterns like "xxx_chapter_009" or "xxx_0009"
-            m = re.search(r'(?:chapter[\s_-]*)?(\d{3,4})$', f.stem)
-            if m:
-                chapters.add(int(m.group(1)))
+        for d in search_dirs:
+            for f in d.glob("*.md"):
+                if f.stem.isdigit():
+                    chapters.add(int(f.stem))
+                    continue
+                m = re.search(r'(?:chapter[\s_-]*)?(\d{3,4})$', f.stem)
+                if m:
+                    chapters.add(int(m.group(1)))
 
         return sorted(chapters)
 
     @staticmethod
-    def _find_chapter_file(novel: str, chapter: int) -> Optional[Path]:
+    def _find_chapter_file(novel: str, chapter: int, target_dir: Optional[str] = None) -> Optional[Path]:
         """Find a chapter file using multiple naming conventions.
         
         Args:
             novel: Novel name
             chapter: Chapter number
+            target_dir: If set, only search this subdirectory (e.g. "en" or "mm").
+                        If None, search en/ → mm/ → novel root.
             
         Returns:
             Path to chapter file, or None if not found
         """
-        novel_dir = Path(INPUT_DIR) / novel
-        if not novel_dir.is_dir():
-            return None
+        base_dir = Path(INPUT_DIR) / novel
+        if not base_dir.is_dir():
+            # Check common typo: data/intput/ instead of data/input/
+            typo_dir = Path("data/intput") / novel
+            if typo_dir.is_dir():
+                base_dir = typo_dir
+            else:
+                return None
 
-        patterns = [
-            # Format 1: {novel}_chapter_{XXXX}.md (e.g., a-will-eternal_chapter_0001.md)
-            novel_dir / f"{novel}_chapter_{chapter:04d}.md",
-            novel_dir / f"{novel}_chapter_{chapter:03d}.md",
-            # Format 2: {chapter}.md (e.g., 009.md)
-            novel_dir / f"{chapter:03d}.md",
-            novel_dir / f"{chapter:04d}.md",
-            # Format 3: {novel}_{chapter}.md (e.g., reverend-insanity_0009.md)
-            novel_dir / f"{novel}_{chapter:03d}.md",
-            novel_dir / f"{novel}_{chapter:04d}.md",
-        ]
+        if target_dir:
+            search_dirs = [base_dir / target_dir]
+        else:
+            # Check en/ subdirectory first, then mm/, then novel root
+            search_dirs = [base_dir / "en", base_dir / "mm", base_dir]
 
-        for p in patterns:
-            if p.exists():
-                return p
+        for novel_dir in search_dirs:
+            if not novel_dir.is_dir():
+                continue
+            patterns = [
+                novel_dir / f"{novel}_chapter_{chapter:04d}.md",
+                novel_dir / f"{novel}_chapter_{chapter:03d}.md",
+                novel_dir / f"{chapter:03d}.md",
+                novel_dir / f"{chapter:04d}.md",
+                novel_dir / f"{novel}_{chapter:03d}.md",
+                novel_dir / f"{novel}_{chapter:04d}.md",
+            ]
+            for p in patterns:
+                if p.exists():
+                    return p
+
+            # Fallback: glob for any file containing "chapter_{chapter}" 
+            # (handles mismatched novel name prefix, e.g. dir=a-will-eternal1 but file=a-will-eternal_chapter_001.md)
+            for padded in (f"{chapter:04d}", f"{chapter:03d}", f"{chapter}"):
+                matches = sorted(novel_dir.glob(f"*chapter_{padded}.md"))
+                if matches:
+                    return matches[0]
 
         return None
 
@@ -998,6 +1024,11 @@ class TranslationPipeline:
                     "metrics": {},
                     "chapter": "all"
                 }]
+
+            # Check en/ subdirectory first (preferred layout)
+            en_dir = novel_dir / "en"
+            if en_dir.is_dir():
+                novel_dir = en_dir
 
             chapters = self._discover_chapters(novel_dir)
 
@@ -1902,8 +1933,16 @@ class TranslationPipeline:
         """
         input_path = Path(input_path)
 
-        # Determine output path
-        relative = input_path.relative_to(INPUT_DIR) if str(input_path).startswith(INPUT_DIR) else input_path.name
+        # Determine output path (strip lang/ subdir like en/ or zh/)
+        if str(input_path).startswith(INPUT_DIR):
+            relative = input_path.relative_to(INPUT_DIR)
+            # Strip language subdirectory (en/, zh/) from output path
+            parts = list(relative.parts)
+            if len(parts) >= 2 and parts[1] in ("en", "zh", "mm"):
+                parts.pop(1)
+            relative = Path(*parts)
+        else:
+            relative = Path(input_path.name)
         output_path = Path(OUTPUT_DIR) / relative
         output_path = output_path.with_suffix('.mm.md')
 

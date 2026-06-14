@@ -28,7 +28,7 @@ def run_alignment_pipeline(
     novel_name: Optional[str] = None,
     skip_validators: bool = False,
     populate_rag: bool = True,
-    min_similarity: float = 0.50,
+    min_similarity: float = 0.65,
 ) -> dict:
     """Run the full dataset alignment pipeline for one or all novels.
 
@@ -270,7 +270,7 @@ def _run_validators(novel: str) -> int:
     return total
 
 
-def _populate_rag_database(novel: str, min_similarity: float = 0.55) -> int:
+def _populate_rag_database(novel: str, min_similarity: float = 0.65) -> int:
     """Ingest aligned 1:1 pairs into the RAG database (novel_v1_dataset.db).
 
     Inserts into translation_pairs table used by RAGRetriever.
@@ -293,7 +293,9 @@ def _populate_rag_database(novel: str, min_similarity: float = 0.55) -> int:
             en_text         TEXT NOT NULL,
             my_text         TEXT NOT NULL,
             novel_slug      TEXT,
+            chapter_num     INTEGER,
             auto_score      REAL,
+            human_score     REAL,
             myanmar_ratio   REAL,
             length_ratio    REAL,
             aligned         INTEGER,
@@ -312,6 +314,13 @@ def _populate_rag_database(novel: str, min_similarity: float = 0.55) -> int:
         score = pair["score"]
 
         if len(en_text) < 10 or len(my_text) < 10:
+            continue
+
+        length_ratio = len(my_text) / max(len(en_text), 1)
+        my_ratio = _myanmar_ratio(my_text)
+        if my_ratio < 0.50:
+            continue
+        if length_ratio < 0.25 or length_ratio > 4.0:
             continue
 
         pair_id = hashlib.sha256(en_text.encode()).hexdigest()[:16]

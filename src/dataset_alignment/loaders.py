@@ -24,7 +24,13 @@ def scan_novel_dir(novel_dir: Path) -> list[dict]:
     tgt_dir = novel_dir.parent.parent / "output" / novel_dir.name
 
     records = []
-    for fp in sorted(src_dir.glob("*.md")):
+    # Check both novel_dir directly and novel_dir/en/ subdirectory
+    md_files = sorted(src_dir.glob("*.md"))
+    if not md_files:
+        en_dir = src_dir / "en"
+        if en_dir.exists():
+            md_files = sorted(en_dir.glob("*.md"))
+    for fp in md_files:
         if fp.name.endswith(".mm.md"):
             continue
         record = {
@@ -50,6 +56,23 @@ def scan_novel_dir(novel_dir: Path) -> list[dict]:
                 "sha256": _sha256_file(tgt_fp),
                 "byte_size": tgt_fp.stat().st_size,
                 "chapter_no": record.get("chapter_no"),
+            })
+
+    # Also scan for target files in novel_dir/mm/ subdirectory
+    mm_dir = src_dir / "mm"
+    if mm_dir.exists():
+        for mm_fp in sorted(mm_dir.glob("*.md")):
+            if mm_fp.name.endswith(".mm.md"):
+                continue
+            match = re.search(r"chapter_(\d+)", mm_fp.name)
+            records.append({
+                "novel": novel,
+                "lang": cfg.tgt_lang,
+                "path": str(mm_fp),
+                "filename": mm_fp.name,
+                "sha256": _sha256_file(mm_fp),
+                "byte_size": mm_fp.stat().st_size,
+                "chapter_no": int(match.group(1)) if match else None,
             })
 
     return records

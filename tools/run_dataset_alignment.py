@@ -33,8 +33,8 @@ def main() -> int:
     parser.add_argument("--all", action="store_true", help="Process all novels in data/input/")
     parser.add_argument("--skip-validators", action="store_true", help="Skip quality validation")
     parser.add_argument("--no-rag", action="store_true", help="Skip RAG database population")
-    parser.add_argument("--min-similarity", type=float, default=0.50,
-                        help="Minimum cosine similarity for 1:1 alignment (default: 0.50)")
+    parser.add_argument("--min-similarity", type=float, default=0.65,
+                        help="Minimum cosine similarity for 1:1 alignment (default: 0.65)")
     parser.add_argument("--log-level", default="INFO",
                         choices=["DEBUG", "INFO", "WARNING", "ERROR"])
 

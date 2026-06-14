@@ -2,6 +2,7 @@
 
 import json
 import logging
+import re
 
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
@@ -9,6 +10,19 @@ from sklearn.metrics.pairwise import cosine_similarity
 from src.dataset_alignment.config import get_alignment_config
 from src.dataset_alignment.database import connect
 from src.dataset_alignment.embedder import BGEEmbedder
+
+_MM_CHARS = re.compile(r"[\u1000-\u109F\uAA60-\uAA7F\uA9E0-\uA9FF]")
+_EN_CHARS = re.compile(r"[a-zA-Z]")
+
+
+def _is_mostly_mm(text: str) -> bool:
+    mm = len(_MM_CHARS.findall(text))
+    return mm / max(len(text), 1) > 0.30
+
+
+def _is_mostly_en(text: str) -> bool:
+    en = len(_EN_CHARS.findall(text))
+    return en / max(len(text), 1) > 0.20
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +86,7 @@ def align_sentences(
     src_sents: list[str],
     tgt_sents: list[str],
     embedder: BGEEmbedder,
-    min_sim: float = 0.50,
+    min_sim: float = 0.65,
 ) -> list[dict]:
     """DP-based sentence alignment using cosine similarity of BGE-M3 embeddings.
 
@@ -97,18 +111,20 @@ def align_sentences(
         for j in range(n + 1):
             if dp[i][j] == INF:
                 continue
-            if i < m and j < n and sim_matrix[i][j] >= min_sim:
-                cost = 1 - sim_matrix[i][j]
-                if dp[i + 1][j + 1] > dp[i][j] + cost:
-                    dp[i + 1][j + 1] = dp[i][j] + cost
-                    parent[(i + 1, j + 1)] = (i, j, "1:1", sim_matrix[i][j])
+            if i < m and j < n:
+                sim = sim_matrix[i][j]
+                if sim >= min_sim:
+                    cost = 1 - sim
+                    if dp[i + 1][j + 1] > dp[i][j] + cost:
+                        dp[i + 1][j + 1] = dp[i][j] + cost
+                        parent[(i + 1, j + 1)] = (i, j, "1:1", sim)
             if i < m:
-                if dp[i + 1][j] > dp[i][j] + 2.0:
-                    dp[i + 1][j] = dp[i][j] + 2.0
+                if dp[i + 1][j] > dp[i][j] + 1.0:
+                    dp[i + 1][j] = dp[i][j] + 1.0
                     parent[(i + 1, j)] = (i, j, "1:NULL", None)
             if j < n:
-                if dp[i][j + 1] > dp[i][j] + 2.0:
-                    dp[i][j + 1] = dp[i][j] + 2.0
+                if dp[i][j + 1] > dp[i][j] + 1.0:
+                    dp[i][j + 1] = dp[i][j] + 1.0
                     parent[(i, j + 1)] = (i, j, "NULL:1", None)
 
     alignments = []
@@ -126,6 +142,32 @@ def align_sentences(
         i, j = pi, pj
 
     alignments.reverse()
+
+    # Post-hoc language sanity filter: drop 1:1 alignments where the
+    # source text is not English or the target text is not Myanmar.
+    filtered = []
+    dropped = 0
+    for a in alignments:
+        if a["kind"] != "1:1":
+            filtered.append(a)
+            continue
+        src_texts = [src_sents[i] for i in a["src_ids"] if i < len(src_sents)]
+        tgt_texts = [tgt_sents[j] for j in a["tgt_ids"] if j < len(tgt_sents)]
+        if not src_texts or not tgt_texts:
+            filtered.append(a)
+            continue
+        if not _is_mostly_en(src_texts[0]) or not _is_mostly_mm(tgt_texts[0]):
+            dropped += 1
+            continue
+        filtered.append(a)
+
+    if dropped:
+        logger.info(
+            f"Language filter dropped {dropped}/{len(alignments)} "
+            f"1:1 alignments (source not EN or target not MM)"
+        )
+    alignments = filtered
+
     return alignments
 
 
@@ -144,7 +186,7 @@ def store_alignments(chapter_id: int, alignments: list[dict]) -> None:
             )
 
 
-def get_all_aligned_pairs(novel: str, min_similarity: float = 0.55) -> list[dict]:
+def get_all_aligned_pairs(novel: str, min_similarity: float = 0.65) -> list[dict]:
     """Get all 1:1 aligned sentence pairs for a novel with similarity above threshold.
 
     Returns pairs ready for RAG ingestion:
@@ -171,14 +213,20 @@ def get_all_aligned_pairs(novel: str, min_similarity: float = 0.55) -> list[dict
                 continue
 
             src = conn.execute(
-                "SELECT text FROM sentences WHERE chapter_id=? AND seq=?",
+                "SELECT text FROM sentences WHERE chapter_id=? AND seq=? AND lang='en'",
                 (r["chapter_id"], src_ids[0]),
             ).fetchone()
             tgt = conn.execute(
-                "SELECT text FROM sentences WHERE chapter_id=? AND seq=?",
+                "SELECT text FROM sentences WHERE chapter_id=? AND seq=? AND lang='my'",
                 (r["chapter_id"], tgt_ids[0]),
             ).fetchone()
             if src and tgt:
+                my_ratio = len(_MM_CHARS.findall(tgt["text"])) / max(len(tgt["text"]), 1)
+                en_ratio = len(_EN_CHARS.findall(src["text"])) / max(len(src["text"]), 1)
+                if my_ratio < 0.50:
+                    continue
+                if en_ratio < 0.30:
+                    continue
                 pairs.append({
                     "en_text": src["text"],
                     "my_text": tgt["text"],

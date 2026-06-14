@@ -235,6 +235,11 @@ def create_parser() -> argparse.ArgumentParser:
         help="Generate glossary from novel chapters"
     )
     utility_group.add_argument(
+        "--from-mm",
+        action="store_true",
+        help="Extract glossary from existing EN↔MM translation pairs (reads en/ and mm/ both)"
+    )
+    utility_group.add_argument(
         "--init-glossary",
         action="store_true",
         help="Generate initial glossary (chapters 1-5) then stop for human review. Run --approve-glossary after reviewing."
