@@ -257,54 +257,96 @@ def get_translated_chapters(novel_name: str) -> list:
     return translated
 
 
-def get_glossary(novel_slug: str = 'wayfarer') -> dict:
-    """Load glossary data from the SQLite glossary_term table (single source of truth)."""
+def _slug_to_novel_id(novel_slug: str) -> str:
+    """Convert a novel slug to its DB novel_id, matching MemoryManager.
+
+    The DB stores ids with hyphens/spaces converted to underscores
+    (e.g. 'a-will-eternal1' -> 'novel_a_will_eternal1'). The old code used
+    f'novel_{slug}' which kept the hyphens and never matched any rows — that is
+    why the web UI showed no pending (or novel) terms.
+    """
+    from src.memory.memory_manager import _make_novel_id
+    return _make_novel_id(novel_slug)
+
+
+def _term_to_dict(t: dict, status: str) -> dict:
+    return {
+        'source': t['source_term'],
+        'target': t['target_term'],
+        'category': t['category'],
+        'subtype': t.get('subtype') or '',
+        'verified': status == 'approved',
+        'status': status,
+        'scope': t.get('scope', 'novel'),
+        'confidence': t.get('confidence', 0.0),
+        'usage_count': t.get('usage_count', 0),
+    }
+
+
+def get_glossary(novel_slug: str = 'wayfarer', include_global: bool = False) -> dict:
+    """Load glossary data for a novel from SQLite (single source of truth).
+
+    Returns approved + pending terms for the novel. Global terms are excluded by
+    default so the per-novel review list stays focused (their count is reported
+    separately as `global_count`).
+    """
     try:
         from src.db.connection import DatabaseConnection
         from src.db.repositories.glossary_repo import GlossaryRepository
-        
+
         db = DatabaseConnection('data/novel_translation.db')
         glossary_repo = GlossaryRepository(db)
-        
-        # Get all terms from database (all novels)
-        all_terms = []
-        
-        novel_id = f'novel_{novel_slug}'
-        # Get approved terms (limit=1000 to get all)
-        approved = glossary_repo.get_terms_by_novel(novel_id, status='approved', limit=1000)
-        for t in approved:
-            all_terms.append({
-                'source': t['source_term'],
-                'target': t['target_term'],
-                'category': t['category'],
-                'verified': True,
-                'status': 'approved',
-                'confidence': t.get('confidence', 0.0),
-                'usage_count': t.get('usage_count', 0)
-            })
-        
-        # Get pending terms (limit=1000 to get all)
-        pending = glossary_repo.get_terms_by_novel(novel_id, status='pending', limit=1000)
-        for t in pending:
-            all_terms.append({
-                'source': t['source_term'],
-                'target': t['target_term'],
-                'category': t['category'],
-                'verified': False,
-                'status': 'pending',
-                'confidence': t.get('confidence', 0.0),
-                'usage_count': t.get('usage_count', 0)
-            })
-        
+
+        novel_id = _slug_to_novel_id(novel_slug)
+
+        approved = glossary_repo.get_terms_by_novel(
+            novel_id, status='approved', limit=2000, include_global=include_global)
+        pending = glossary_repo.get_terms_by_novel(
+            novel_id, status='pending', limit=2000, include_global=False)
+
+        approved_terms = [_term_to_dict(t, 'approved') for t in approved]
+        pending_terms = [_term_to_dict(t, 'pending') for t in pending]
+
+        # Count global terms (auto-included at translation time) for display.
+        try:
+            global_count = len(glossary_repo.get_global_terms(status='approved'))
+        except Exception:
+            global_count = 0
+
+        all_terms = pending_terms + approved_terms  # pending first for review
         return {
             'terms': all_terms,
+            'pending_terms': pending_terms,
+            'approved_terms': approved_terms,
             'total_terms': len(all_terms),
-            'approved_count': len(approved),
-            'pending_count': len(pending)
+            'approved_count': len(approved_terms),
+            'pending_count': len(pending_terms),
+            'global_count': global_count,
         }
     except Exception as e:
         logger.error(f"Failed to load glossary from database: {e}")
-        return {'terms': [], 'total_terms': 0, 'approved_count': 0, 'pending_count': 0}
+        return {'terms': [], 'pending_terms': [], 'approved_terms': [],
+                'total_terms': 0, 'approved_count': 0, 'pending_count': 0, 'global_count': 0}
+
+
+def _default_novel_slug() -> str:
+    """Pick a sensible default novel for the glossary page.
+
+    The old code hardcoded 'wayfarer', which usually does not exist — so the
+    page loaded an empty glossary and showed neither approved nor pending terms
+    even when other novels had plenty. Prefer the first novel that actually has
+    glossary terms; fall back to the first novel on disk, then to 'wayfarer'.
+    """
+    novels = get_novels()
+    if not novels:
+        return 'wayfarer'
+    for n in novels:
+        try:
+            if get_glossary(novel_slug=n['name']).get('total_terms', 0) > 0:
+                return n['name']
+        except Exception:
+            continue
+    return novels[0]['name']
 
 
 def save_glossary(glossary: dict) -> bool:
@@ -499,68 +541,111 @@ def progress():
 
 @app.route('/glossary', methods=['GET', 'POST'])
 def glossary():
-    """Glossary management page"""
-    novel_slug = request.args.get('novel', 'wayfarer')
-    glossary = get_glossary(novel_slug=novel_slug)
-    terms = glossary.get('terms', [])
-    
-    # Handle term operations
+    """Glossary management page — pending review, add, approve, reject/delete."""
+    novel_slug = request.args.get('novel') or _default_novel_slug()
+
+    # Handle term operations FIRST, then re-load so the page reflects the change
+    # (the old code loaded before mutating and showed stale data).
     if request.method == 'POST':
         action = request.form.get('action')
-        
         try:
             from src.db.connection import DatabaseConnection
             from src.db.repositories.glossary_repo import GlossaryRepository
-            
+
             db = DatabaseConnection('data/novel_translation.db')
             glossary_repo = GlossaryRepository(db)
-            novel_slug = request.args.get('novel', 'wayfarer')
-            novel_id = f'novel_{novel_slug}'
-            
+            novel_id = _slug_to_novel_id(novel_slug)
+
             if action == 'add_term':
                 source = request.form.get('source', '').strip()
                 target = request.form.get('target', '').strip()
                 category = request.form.get('category', 'general')
-                
+                subtype = request.form.get('subtype', '').strip() or None
                 if source and target:
                     glossary_repo.add_term(
-                        novel_id=novel_id,
-                        source_term=source,
-                        target_term=target,
-                        category=category,
-                        status='approved'
+                        novel_id=novel_id, source_term=source, target_term=target,
+                        category=category, subtype=subtype, status='approved',
                     )
-                    flash(f'Term "{source}" added successfully', 'success')
-            
+                    flash(f'Term "{source}" added.', 'success')
+                else:
+                    flash('Source and Myanmar translation are both required.', 'error')
+
+            elif action == 'edit_term':
+                # Edit an existing (approved) term's Myanmar translation and/or
+                # category in place. Identified by its current source term.
+                source = request.form.get('source', '').strip()
+                new_target = request.form.get('target', '').strip()
+                new_category = request.form.get('category', '').strip()
+                term = glossary_repo.get_term_by_source(novel_id, source)
+                if not term:
+                    flash(f'Term "{source}" not found.', 'error')
+                elif not new_target:
+                    flash('Myanmar translation cannot be empty.', 'error')
+                else:
+                    updates = {'target_term': new_target}
+                    if new_category:
+                        updates['category'] = new_category
+                    glossary_repo.update_term(term['id'], **updates)
+                    flash(f'Updated "{source}".', 'success')
+
+            elif action in ('verify_term', 'approve_term'):
+                source = request.form.get('source', '')
+                term = glossary_repo.get_term_by_source(novel_id, source)
+                if term:
+                    glossary_repo.update_term(term['id'], status='approved')
+                    flash(f'Approved "{source}".', 'success')
+
+            elif action == 'reject_term':
+                # "Not needed" — mark rejected so it stays hidden AND is not
+                # re-suggested on the next extraction (extractor skips known sources).
+                source = request.form.get('source', '')
+                term = glossary_repo.get_term_by_source(novel_id, source)
+                if term:
+                    glossary_repo.update_term(term['id'], status='rejected')
+                    flash(f'Rejected "{source}".', 'success')
+
             elif action == 'delete_term':
                 source = request.form.get('source', '')
                 term = glossary_repo.get_term_by_source(novel_id, source)
                 if term:
                     glossary_repo.delete_term(term['id'])
-                    flash(f'Term "{source}" deleted', 'success')
-            
-            elif action == 'verify_term':
-                source = request.form.get('source', '')
-                term = glossary_repo.get_term_by_source(novel_id, source)
-                if term:
+                    flash(f'Deleted "{source}".', 'success')
+
+            elif action == 'approve_all_pending':
+                pending = glossary_repo.get_terms_by_novel(
+                    novel_id, status='pending', limit=5000, include_global=False)
+                for term in pending:
                     glossary_repo.update_term(term['id'], status='approved')
-                    flash(f'Term "{source}" verified', 'success')
+                flash(f'Approved all {len(pending)} pending terms.', 'success')
+
         except Exception as e:
             logger.error(f"Failed to perform glossary action: {e}")
             flash(f'Error: {str(e)}', 'error')
-    
-    # Filter by category
+
+    glossary = get_glossary(novel_slug=novel_slug)
+    terms = glossary.get('terms', [])
+
+    # Filter by category (applies to the approved list display)
     category_filter = request.args.get('category', 'all')
+    approved_terms = glossary.get('approved_terms', [])
     if category_filter != 'all':
-        terms = [t for t in terms if t.get('category') == category_filter]
-    
-    categories = list(set(t.get('category', 'general') for t in get_glossary(novel_slug=novel_slug).get('terms', [])))
-    
+        approved_terms = [t for t in approved_terms if t.get('category') == category_filter]
+
+    categories = sorted(set(t.get('category', 'general') for t in terms))
+    novels = get_novels()
+
     return render_template('glossary.html',
+                         novels=novels,
+                         novel_slug=novel_slug,
+                         pending_terms=glossary.get('pending_terms', []),
+                         approved_terms=approved_terms,
                          terms=terms,
                          categories=categories,
                          category_filter=category_filter,
-                         total_terms=len(terms))
+                         total_terms=glossary.get('total_terms', 0),
+                         pending_count=glossary.get('pending_count', 0),
+                         approved_count=glossary.get('approved_count', 0),
+                         global_count=glossary.get('global_count', 0))
 
 
 @app.route('/settings', methods=['GET', 'POST'])
@@ -717,7 +802,7 @@ def api_novels():
 @app.route('/api/glossary')
 def api_glossary():
     """API endpoint for glossary"""
-    novel_slug = request.args.get('novel', 'wayfarer')
+    novel_slug = request.args.get('novel') or _default_novel_slug()
     return jsonify(get_glossary(novel_slug=novel_slug))
 
 

@@ -6,6 +6,17 @@
 
 ---
 
+### SESSION (2026-06-15): Web glossary UI + resume None-hole + RAG bge-m3 model path
+**Scope**: `src/pipeline/orchestrator.py`, `src/web/flask_app.py`, `src/web/templates/glossary.html`, `config/settings.yaml`, `src/dataset_alignment/embedder.py`
+**Status**: READY_TO_COMMIT (Reviewer A + B PASS)
+**Verification**: ruff E,F (ignore E501) clean on touched files; `pytest test_chunker test_postprocessor` 62 pass; 3 changed modules import OK; bge-m3 loads locally (1024-dim).
+
+- **ERR-078 — Glossary page shows no terms despite DB having them**: `/glossary` + `/api/glossary` hardcoded `novel='wayfarer'` (a novel that doesn't exist on disk), so the page always loaded an empty glossary. *Fix*: `_default_novel_slug()` picks the first novel that actually has terms (→ first novel → 'wayfarer'); `novel_slug = request.args.get('novel') or _default_novel_slug()`. Also rebuilt the page to surface the already-existing pending-review backend data + inline edit.
+- **ERR-079 — `TypeError: object of type 'NoneType' has no len()` in `_postprocess`**: chunk-resume pads `translated` with `None` placeholders for non-contiguous / stale-rejected checkpoints; re-translation used `translated.append(...)` instead of filling slot `i`, leaving a `None` mid-list (chunks also reordered, length inflated past the partial-completion guard). *Fix*: `if i < len(translated): translated[i] = chunk else: append`; partial guard now counts non-`None` (`completed = sum(1 for c in ... if c is not None)`). Reproduced + verified in isolation.
+- **ERR-080 — "Could not load query embedding model 'BAAI/bge-m3'"**: `rag:` config lacked `embedding_model`, so orchestrator fell back to HF id `BAAI/bge-m3`; its HF cache snapshot is an interrupted download (weights `.incomplete`, no `pytorch_model.bin`) → fails under `local_files_only=True` → RAG silently degraded to SQLite. Complete model is local at `models/bge-m3`. *Fix*: added `rag.embedding_model: models/bge-m3` (+`embedding_device: cpu`) and changed the two hardcoded `'BAAI/bge-m3'` defaults (orchestrator, alignment embedder) to `'models/bge-m3'`. Verified the local model loads and embeds.
+
+---
+
 ### CODE REVIEW SESSION (2026-05-30): Quality-pipeline fixes (RAG + data loss + name consistency + truncation)
 **Scope**: `rag_retriever.py`, `orchestrator.py`, `postprocessor.py`, `ollama_client.py`, `translator.py`, `config/settings.yaml`
 **Reviewers**: REVIEWER A (Architecture & Logic) + REVIEWER B (Myanmar Translation & Quality)

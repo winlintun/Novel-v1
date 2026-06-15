@@ -1,6 +1,6 @@
-{
-  "session_id": "2026-06-14-002",
-  "started_at": "2026-06-14T13:58:34Z",
+﻿{
+  "session_id": "2026-06-15-001",
+  "started_at": "2026-06-15T15:26:19Z",
   "current_step": "Complete — DOC phase, review passed",
   "last_action": "AGENTS.md post-implementation review + session-end updates",
   "next_action": "None",
@@ -8,50 +8,47 @@
   "pending_decisions": [],
   "session_errors": [
     {
-      "step": "RAG",
-      "error": "auto_score stored similarity(0.65-1.0) vs retriever min_score 2.5 → 374/417 pairs invisible",
-      "resolved_by": "map similarity→0-5 quality at ingestion + backfill existing rows"
+      "step": "web glossary",
+      "error": "ERR-078 hardcoded novel='wayfarer' → empty page",
+      "resolved_by": "_default_novel_slug() + request.args fallback"
     },
     {
-      "step": "ChromaDB ingest",
-      "error": "single upsert exceeds chroma max_batch_size 5461 / OOM on full corpus",
-      "resolved_by": "batch encode+upsert at min(get_max_batch_size(),2000)"
+      "step": "orchestrator resume",
+      "error": "ERR-079 None hole in translated_chunks → NoneType len() crash in _postprocess",
+      "resolved_by": "in-place slot fill + non-None partial guard"
     },
     {
-      "step": "checker.py",
-      "error": "unescaped [] in non-Myanmar char class made ratio check a silent no-op",
-      "resolved_by": "escaped \\[ \\]"
+      "step": "RAG embedder",
+      "error": "ERR-080 BAAI/bge-m3 HF cache incomplete under local_files_only",
+      "resolved_by": "point config+defaults to local models/bge-m3"
     },
     {
-      "step": "formatter.py",
-      "error": "double-sentence-ender find/replace mismatch + Tibetan U+0F0D look-alike for Myanmar U+104B",
-      "resolved_by": "aligned both patterns to Myanmar ။"
-    },
-    {
-      "step": "tests",
-      "error": "auto-seed perturbed memory/parity tests",
-      "resolved_by": "auto_seed_global=False in tests + isolated mm_json DB"
+      "step": "lint",
+      "error": "pre-existing unused Path import in embedder.py (touched file)",
+      "resolved_by": "removed import"
     }
   ],
   "changes_made": {
-    "src/agents/translator.py": "RAG few-shot reframed + _clip_example syllable-safe; removed dead code after return",
-    "src/dataset_alignment/pipeline.py": "rag_pair_quality() filter; auto_score→0-5 mapping; batched ChromaDB ingestion",
-    "src/glossary_taxonomy.py": "NEW: 12 coarse/106 subtypes + relation types + inverses",
-    "src/db/schema.py": "v3 migration: subtype column + term_relationships table; get_table_count injection guard",
-    "src/db/repositories/glossary_repo.py": "add_term(subtype=) + relationship CRUD",
-    "src/db/global_terms_seed.py": "NEW: 158 global terms + ensure_global_terms_seeded",
-    "src/memory/memory_manager.py": "auto-seed on empty global terms; removed external sync; _make_novel_id local; blank-target guard; auto_seed_global param",
-    "src/agents/context_updater.py": "category_map extended for new coarse categories",
-    "src/agents/glossary_generator.py": "subtype passthrough + prompt emits subtype",
-    "src/utils/formatter.py": "fixed double-sentence-ender collapse",
-    "src/utils/fluency_scorer.py": "consistent sentence split for avg length",
-    "DELETED": "src/db/sync_external.py + tests/test_sync_external.py"
+    "src/web/templates/glossary.html": "pending-review panel + novel selector + inline edit (edit_term) + toggleEdit JS + stats wired to backend counts",
+    "src/web/flask_app.py": "_default_novel_slug(); edit_term action; novel_slug fallback in /glossary + /api/glossary",
+    "src/pipeline/orchestrator.py": "resume in-place slot fill (was append); partial guard counts non-None; rag embedding_model default -> models/bge-m3",
+    "config/settings.yaml": "rag.embedding_model: models/bge-m3 + embedding_device: cpu",
+    "src/dataset_alignment/embedder.py": "default model -> models/bge-m3; removed unused Path import"
   },
   "review_status": {
     "reviewer_a": "PASS",
     "reviewer_b": "PASS",
     "final_status": "READY_TO_COMMIT"
   },
-  "commit_hash": "d4731e4",
-  "task": "RAG human-corpus wiring + two-tier glossary taxonomy/relationships + global-term auto-seed + opencode bug-fix pass"
+  "commit_hash": null,
+  "task": "Web glossary UI (pending review + edit + default-novel) + orchestrator resume None-hole fix + RAG bge-m3 model-path fix",
+  "last_checkpoint": {
+    "chapter": 1,
+    "chunk_index": 3,
+    "total_chunks": 19,
+    "stage": "translate",
+    "timestamp": "2026-06-15T23:32:24.820375",
+    "quality_score": 100,
+    "myanmar_ratio": 0.9679012345679012
+  }
 }

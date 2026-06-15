@@ -5,9 +5,16 @@
 ---
 
 ## Last Updated
-- Date: 2026-06-14
-- Last task completed: Glossary relationships/taxonomy + global-term auto-seed + RAG human-corpus wiring + opencode bug-fix pass
-- Git commit: `d4731e4` (pre-session)
+- Date: 2026-06-15
+- Last task completed: Web glossary UI (pending review + edit + default-novel), orchestrator resume None-hole fix, RAG bge-m3 model-path fix
+- Git commit: `afa15c4` (pre-session)
+
+## Session Summary (2026-06-15 — Web glossary UI + resume bug + RAG model path)
+- ✅ **Web glossary page rebuilt** (`src/web/templates/glossary.html`, `src/web/flask_app.py`) — backend already exposed `pending_terms`/`approved_terms`/counts + `reject`/`approve_all` actions but the template ignored them. Added: dedicated **Pending review** panel (per-term Approve/Reject/Delete + "Approve all", clear "No pending terms" empty state), a **novel selector**, stats wired to real backend counts (+global), and **inline edit** of approved terms (new `edit_term` action updates target/category; `toggleEdit()` JS).
+- ✅ **Default-novel fix** — glossary page/API hardcoded `novel='wayfarer'` (non-existent) → empty page. Added `_default_novel_slug()` (first novel with terms → first novel → 'wayfarer'); wired into `/glossary` + `/api/glossary`. This was why "DB has terms but page shows nothing" (ERR-078).
+- ✅ **Orchestrator resume None-hole bug** (`src/pipeline/orchestrator.py`) — translation crashed at `_postprocess`: `TypeError: object of type 'NoneType' has no len()`. Resume pads `translated` with `None` for non-contiguous/rejected checkpoints; the loop `append`ed re-translations instead of filling the hole → `None` stayed mid-list, chunks reordered, length inflated so the partial-guard waved it through. Fixed: fill slot in place (`translated[i]=` when `i<len`), and harden partial guard to count non-`None` (ERR-079).
+- ✅ **RAG bge-m3 model path** (`config/settings.yaml`, `orchestrator.py`, `src/dataset_alignment/embedder.py`) — "Could not load query embedding model 'BAAI/bge-m3'": the `rag:` config had no `embedding_model` key → orchestrator defaulted to HF id `BAAI/bge-m3`, whose HF cache copy is an interrupted download (no weights) and fails under `local_files_only=True`, silently disabling semantic RAG. Complete model is local at `models/bge-m3`. Fixed config key + both hardcoded defaults → `models/bge-m3`; verified it loads (1024-dim) (ERR-080).
+- ✅ **Lint/tests** — `ruff --select=E,F --ignore=E501` clean on all touched files (removed pre-existing unused `Path` import in embedder.py). `test_chunker` + `test_postprocessor` = 62 pass. All 3 changed modules import cleanly.
 
 ## Session Summary (2026-06-14 — Part 2: RAG, taxonomy, seeding, bug fixes)
 - ✅ **RAG human-corpus wiring** — `translator._build_rag_examples` reframed as "imitate this human translator" + syllable-safe `_clip_example` (no mid-cluster cuts). Fixed `auto_score` scale bug (similarity 0.65–1.0 stored where retriever filtered ≥2.5 → 374/417 pairs invisible); mapped to 0–5 quality and backfilled. Added ChromaDB ingestion (`_ingest_pairs_to_chroma`, batched ≤2000 for the 5461 cap) to the alignment pipeline.

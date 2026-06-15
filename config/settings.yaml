@@ -118,6 +118,13 @@ rag:
   min_score: 2.5
   min_similarity: 0.3
   novel_filter: null
+  # Use the COMPLETE local model dir, not the HF repo id 'BAAI/bge-m3'.
+  # The HF cache copy of BAAI/bge-m3 is an interrupted download (weights
+  # .incomplete, snapshot has no pytorch_model.bin), so with local_files_only=True
+  # it fails to load and RAG silently falls back to SQLite. models/bge-m3 has the
+  # full 2.2GB weights and is what the alignment pipeline already uses.
+  embedding_model: models/bge-m3
+  embedding_device: cpu
 
 # ── Dataset Alignment Pipeline ──────────────────────────────────────────────
 # Processes parallel EN/MM chapter files → creates aligned sentence pairs → populates RAG DB

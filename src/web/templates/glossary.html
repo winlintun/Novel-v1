@@ -186,6 +186,58 @@
     color: var(--rose);
   }
 
+  /* Inline edit mode for a term card */
+  .term-view {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    width: 100%;
+  }
+
+  .term-edit {
+    display: none;
+    align-items: center;
+    gap: var(--space-3);
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .term-card.editing { border-color: var(--gold-dim); box-shadow: var(--shadow-sm); }
+  .term-card.editing .term-view { display: none; }
+  .term-card.editing .term-edit { display: flex; }
+
+  .term-edit-source {
+    font-family: var(--font-mono);
+    font-weight: 500;
+    color: var(--text);
+    min-width: 120px;
+  }
+
+  .term-edit-target {
+    flex: 1;
+    min-width: 160px;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 1rem;
+    background: var(--ivory);
+  }
+
+  .term-edit-target:focus {
+    outline: none;
+    border-color: var(--gold-dim);
+    box-shadow: 0 0 0 3px rgba(201, 168, 76, 0.12);
+    background: var(--paper);
+  }
+
+  .term-edit-cat {
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--paper);
+    font-size: 0.85rem;
+  }
+
   /* Add Term Form */
   .add-term-form {
     background: var(--paper);
@@ -229,6 +281,110 @@
   .stat-value {
     font-weight: 600;
     color: var(--text);
+  }
+
+  /* Pending Review Panel */
+  .pending-panel {
+    background: var(--paper);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--amber);
+    border-radius: var(--radius);
+    margin-bottom: var(--space-5);
+    overflow: hidden;
+  }
+
+  .pending-panel.is-empty {
+    border-left-color: var(--emerald);
+  }
+
+  .pending-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    border-bottom: 1px solid var(--ivory-2);
+  }
+
+  .pending-panel.is-empty .pending-header {
+    border-bottom: none;
+  }
+
+  .pending-title {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-family: var(--font-serif);
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .pending-count-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 7px;
+    border-radius: var(--radius-full);
+    background: var(--amber);
+    color: var(--ink);
+    font-size: 0.75rem;
+    font-weight: 700;
+    font-family: var(--font-mono);
+  }
+
+  .pending-list {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .pending-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--ivory-2);
+  }
+
+  .pending-row:last-child { border-bottom: none; }
+  .pending-row:hover { background: var(--ivory); }
+
+  .pending-row .term-source { min-width: 130px; }
+
+  .pending-confidence {
+    font-size: 0.7rem;
+    color: var(--text-3);
+    font-family: var(--font-mono);
+  }
+
+  .pending-row-actions {
+    display: flex;
+    gap: var(--space-2);
+    margin-left: auto;
+  }
+
+  .pending-empty {
+    text-align: center;
+    padding: var(--space-6) var(--space-4);
+    color: var(--text-2);
+  }
+
+  .pending-empty .check {
+    font-size: 2rem;
+    color: var(--emerald);
+    display: block;
+    margin-bottom: var(--space-2);
+  }
+
+  /* Section heading for approved list */
+  .section-heading {
+    font-family: var(--font-serif);
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--text);
+    margin: var(--space-2) 0 var(--space-3);
   }
 
   /* Empty State */
@@ -277,7 +433,7 @@
     <!-- Add Term Form -->
     <div class="add-term-form card">
       <h3 class="form-title">Add New Term</h3>
-      <form method="POST">
+      <form method="POST" action="{{ url_for('glossary', novel=novel_slug) }}">
         <input type="hidden" name="action" value="add_term">
         
         <div class="form-group">
@@ -320,16 +476,16 @@
             <span class="stat-value">{{ total_terms }}</span>
           </div>
           <div class="stat-row">
-            <span class="stat-label">Verified</span>
-            <span class="stat-value" style="color: var(--emerald);">
-              {{ terms|selectattr('verified')|list|length }}
-            </span>
+            <span class="stat-label">Approved</span>
+            <span class="stat-value" style="color: var(--emerald);">{{ approved_count }}</span>
           </div>
           <div class="stat-row">
-            <span class="stat-label">Pending</span>
-            <span class="stat-value" style="color: var(--amber);">
-              {{ terms|rejectattr('verified')|list|length }}
-            </span>
+            <span class="stat-label">Pending review</span>
+            <span class="stat-value" style="color: var(--amber);">{{ pending_count }}</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">Global terms</span>
+            <span class="stat-value">{{ global_count }}</span>
           </div>
           <div class="stat-row">
             <span class="stat-label">Categories</span>
@@ -362,12 +518,86 @@
 
   <!-- ── Main Content ── -->
   <div>
+    <!-- Novel selector -->
+    {% if novels %}
+    <div class="form-group" style="margin-bottom: var(--space-4);">
+      <label class="form-label">Novel</label>
+      <select id="novelSelect" class="form-control"
+              onchange="window.location.href='{{ url_for('glossary') }}?novel=' + encodeURIComponent(this.value)">
+        {% for novel in novels %}
+        <option value="{{ novel.name }}" {% if novel_slug == novel.name %}selected{% endif %}>
+          {{ novel.name }}&nbsp;&nbsp;({{ novel.chapter_count }} ch.)
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    {% endif %}
+
+    <!-- Pending Review -->
+    <div class="pending-panel {% if not pending_terms %}is-empty{% endif %}">
+      <div class="pending-header">
+        <span class="pending-title">
+          <span>Pending review</span>
+          {% if pending_terms %}<span class="pending-count-badge">{{ pending_count }}</span>{% endif %}
+        </span>
+        {% if pending_terms %}
+        <form method="POST" action="{{ url_for('glossary', novel=novel_slug) }}"
+              onsubmit="return confirm('Approve all {{ pending_count }} pending terms?');">
+          <input type="hidden" name="action" value="approve_all_pending">
+          <button type="submit" class="btn btn-gold btn-sm">✓ Approve all</button>
+        </form>
+        {% endif %}
+      </div>
+
+      {% if pending_terms %}
+      <div class="pending-list">
+        {% for term in pending_terms %}
+        <div class="pending-row">
+          <div class="term-source">{{ term.source }}</div>
+          <div class="term-arrow">→</div>
+          <div class="term-target myanmar-text">{{ term.target }}</div>
+          <span class="term-category">{{ term.category or 'general' }}</span>
+          {% if term.confidence %}<span class="pending-confidence">{{ '%.0f'|format(term.confidence * 100) }}%</span>{% endif %}
+          <div class="pending-row-actions">
+            <form method="POST" action="{{ url_for('glossary', novel=novel_slug) }}" style="display:inline;">
+              <input type="hidden" name="action" value="approve_term">
+              <input type="hidden" name="source" value="{{ term.source }}">
+              <button type="submit" class="term-btn" title="Approve">✓</button>
+            </form>
+            <form method="POST" action="{{ url_for('glossary', novel=novel_slug) }}" style="display:inline;"
+                  title="Reject (hide and don't suggest again)">
+              <input type="hidden" name="action" value="reject_term">
+              <input type="hidden" name="source" value="{{ term.source }}">
+              <button type="submit" class="term-btn" title="Reject">✕</button>
+            </form>
+            <form method="POST" action="{{ url_for('glossary', novel=novel_slug) }}" style="display:inline;"
+                  onsubmit="return confirm('Delete this term permanently?');">
+              <input type="hidden" name="action" value="delete_term">
+              <input type="hidden" name="source" value="{{ term.source }}">
+              <button type="submit" class="term-btn delete" title="Delete">🗑</button>
+            </form>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="pending-empty">
+        <span class="check">✓</span>
+        <strong>No pending terms</strong>
+        <p class="empty-state-description">All extracted terms have been reviewed.</p>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Approved terms -->
+    <h3 class="section-heading">Approved terms</h3>
+
     <!-- Toolbar -->
     <div class="glossary-toolbar">
-      <div class="search-box mt-4">
+      <div class="search-box">
         <input type="text" id="searchInput" placeholder="Search terms..." autocomplete="off">
       </div>
-      
+
       <div class="category-filters" id="categoryFilters">
         <button class="category-pill active" data-category="all">All</button>
         {% for cat in categories %}
@@ -377,37 +607,47 @@
     </div>
 
     <!-- Terms List -->
-    {% if terms %}
+    {% if approved_terms %}
     <div class="terms-grid" id="termsGrid">
-      {% for term in terms %}
+      {% for term in approved_terms %}
       <div class="term-card" data-category="{{ term.category or 'general' }}" data-search="{{ term.source.lower() }} {{ term.target.lower() }}">
-        <div class="term-source">{{ term.source }}</div>
-        <div class="term-arrow">→</div>
-        <div class="term-target myanmar-text">{{ term.target }}</div>
-        <div class="term-meta">
-          <span class="term-category">{{ term.category or 'general' }}</span>
-          {% if term.verified %}
-          <span class="badge badge-verified">✓</span>
-          {% else %}
-          <span class="badge badge-pending">pending</span>
-          {% endif %}
+        <!-- View mode -->
+        <div class="term-view">
+          <div class="term-source">{{ term.source }}</div>
+          <div class="term-arrow">→</div>
+          <div class="term-target myanmar-text">{{ term.target }}</div>
+          <div class="term-meta">
+            <span class="term-category">{{ term.category or 'general' }}</span>
+            <span class="badge badge-verified">✓</span>
+          </div>
+          <div class="term-actions">
+            <button type="button" class="term-btn" title="Edit term" onclick="toggleEdit(this)">✎</button>
+            <form method="POST" action="{{ url_for('glossary', novel=novel_slug) }}" style="display: inline;" onsubmit="return confirm('Delete this term?');">
+              <input type="hidden" name="action" value="delete_term">
+              <input type="hidden" name="source" value="{{ term.source }}">
+              <button type="submit" class="term-btn delete" title="Delete term">🗑</button>
+            </form>
+          </div>
         </div>
-        <div class="term-actions">
-          <form method="POST" style="display: inline;">
-            <input type="hidden" name="action" value="verify_term">
-            <input type="hidden" name="source" value="{{ term.source }}">
-            <button type="submit" class="term-btn" title="Verify term">✓</button>
-          </form>
-          <form method="POST" style="display: inline;" onsubmit="return confirm('Delete this term?');">
-            <input type="hidden" name="action" value="delete_term">
-            <input type="hidden" name="source" value="{{ term.source }}">
-            <button type="submit" class="term-btn delete" title="Delete term">🗑</button>
-          </form>
-        </div>
+        <!-- Edit mode -->
+        <form class="term-edit" method="POST" action="{{ url_for('glossary', novel=novel_slug) }}">
+          <input type="hidden" name="action" value="edit_term">
+          <input type="hidden" name="source" value="{{ term.source }}">
+          <span class="term-edit-source">{{ term.source }}</span>
+          <span class="term-arrow">→</span>
+          <input type="text" name="target" class="term-edit-target myanmar-text" value="{{ term.target }}" required>
+          <select name="category" class="term-edit-cat">
+            {% for cat in ['character', 'place', 'item', 'technique', 'general'] %}
+            <option value="{{ cat }}" {% if (term.category or 'general') == cat %}selected{% endif %}>{{ cat|capitalize }}</option>
+            {% endfor %}
+          </select>
+          <button type="submit" class="btn btn-gold btn-sm" title="Save changes">Save</button>
+          <button type="button" class="btn btn-ghost btn-sm" onclick="toggleEdit(this)">Cancel</button>
+        </form>
       </div>
       {% endfor %}
     </div>
-    
+
     <!-- No Results Message -->
     <div id="noResults" class="glossary-empty" style="display: none;">
       <div class="glossary-empty-icon">🔍</div>
@@ -418,16 +658,16 @@
     <div class="card">
       <div class="glossary-empty">
         <div class="glossary-empty-icon">📝</div>
-        <h4 class="empty-state-title">No glossary terms yet</h4>
+        <h4 class="empty-state-title">No approved terms yet</h4>
         <p class="empty-state-description">
-          Add terms to maintain consistency across translations.
+          Approve pending terms above, or add terms manually to maintain consistency across translations.
         </p>
       </div>
     </div>
     {% endif %}
   </div>
 
-  
+
 </div>
 {% endblock %}
 
@@ -486,16 +726,30 @@
   });
 })();
 
+// Toggle inline edit mode for an approved term card.
+// Works for both the "✎ Edit" and "Cancel" buttons (both live inside the card).
+function toggleEdit(btn) {
+  const card = btn.closest('.term-card');
+  if (!card) return;
+  const entering = !card.classList.contains('editing');
+  card.classList.toggle('editing');
+  if (entering) {
+    const input = card.querySelector('.term-edit-target');
+    if (input) { input.focus(); input.select(); }
+  }
+}
+
 // Export glossary
+const CURRENT_NOVEL = {{ novel_slug|tojson }};
 function exportGlossary() {
-  fetch('/api/glossary')
+  fetch('/api/glossary?novel=' + encodeURIComponent(CURRENT_NOVEL))
     .then(r => r.json())
     .then(data => {
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'glossary-export.json';
+      a.download = 'glossary-' + CURRENT_NOVEL + '.json';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

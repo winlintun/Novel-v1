@@ -1,7 +1,6 @@
 """BGE-M3 multilingual embedder with disk caching for RAG ingestion."""
 
 import hashlib
-from pathlib import Path
 from typing import Optional
 
 import numpy as np
@@ -15,7 +14,7 @@ class BGEEmbedder:
     def __init__(self, model_name: Optional[str] = None):
         cfg = get_alignment_config()
         self.model_name = model_name or cfg.get(
-            "alignment_pipeline", "embedding", "model", default="BAAI/bge-m3",
+            "alignment_pipeline", "embedding", "model", default="models/bge-m3",
         )
         self.device = cfg.get(
             "alignment_pipeline", "embedding", "device", default="cpu",

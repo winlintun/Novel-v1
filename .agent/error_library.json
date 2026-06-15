@@ -1,5 +1,5 @@
 {
-  "last_updated": "2026-06-14T13:58:34Z",
+  "last_updated": "2026-06-15T15:25:57Z",
   "notes": "ERR-052 through ERR-054 are from May 2 session — postprocessor and pipeline fixes. ERR-067 is from May 8 session — fixed bare chapter numeral heading format. ERR-070/071 from May 24 — chapter 4 partial completion fixes.",
   "errors": [
     {
@@ -397,6 +397,33 @@
       "prevention": "ship seed data in src; don't depend on an external DB that may not exist",
       "times_seen": 1,
       "last_seen": "2026-06-14T13:58:34Z"
+    },
+    {
+      "id": "ERR-078",
+      "error_type": "WebGlossaryEmptyDefaultNovel",
+      "trigger": "Glossary web page/API hardcoded novel='wayfarer' which doesn't exist → page shows no terms even though DB has them",
+      "solution": "_default_novel_slug() picks first novel with terms; novel_slug = request.args.get('novel') or _default_novel_slug()",
+      "prevention": "Never hardcode a novel slug as a UI default; derive from get_novels()/DB",
+      "times_seen": 1,
+      "last_seen": "2026-06-15T15:25:57Z"
+    },
+    {
+      "id": "ERR-079",
+      "error_type": "ResumeNoneHoleInPostprocess",
+      "trigger": "_postprocess crashes 'object of type NoneType has no len()' — resume left None placeholder mid translated_chunks (non-contiguous/stale checkpoints), append() didn't fill the hole, partial guard checked len() not content",
+      "solution": "Fill slot in place: if i<len(translated): translated[i]=chunk else append. Partial guard counts non-None: completed=sum(1 for c in chunks if c is not None)",
+      "prevention": "When resuming indexed lists, assign by index not append; gate completion on content not length",
+      "times_seen": 1,
+      "last_seen": "2026-06-15T15:25:57Z"
+    },
+    {
+      "id": "ERR-080",
+      "error_type": "EmbeddingModelHFCacheIncomplete",
+      "trigger": "'Could not load query embedding model BAAI/bge-m3' — rag config missing embedding_model → default HF id resolves to interrupted HF cache download (no weights) under local_files_only=True; RAG silently falls back to SQLite",
+      "solution": "Point config + code defaults to the complete local dir models/bge-m3 (rag.embedding_model + orchestrator/embedder defaults)",
+      "prevention": "Prefer local model paths over HF repo ids when local_files_only=True; keep one canonical embedding-model path across rag+alignment config",
+      "times_seen": 1,
+      "last_seen": "2026-06-15T15:25:57Z"
     }
   ]
 }

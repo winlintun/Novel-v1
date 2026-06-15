@@ -1,6 +1,6 @@
 {
   "current_phase": "DOC",
-  "task": "RAG wiring + glossary taxonomy/relationships + global-term auto-seed + opencode bug-fix pass",
+  "task": "Web glossary UI + orchestrator resume None-hole fix + RAG bge-m3 model-path fix",
   "feature_type": 1,
   "phases": {
     "PLAN": {
@@ -37,5 +37,5 @@
       "skippable": false
     }
   },
-  "updated_at": "2026-06-14T13:58:34Z"
+  "updated_at": "2026-06-15T15:26:19Z"
 }

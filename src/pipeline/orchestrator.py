@@ -372,7 +372,7 @@ class TranslationPipeline:
                     # match zero rows and silently disable retrieval, so respect
                     # the configured filter (null = search the whole corpus).
                     novel_filter=rag_config.get('novel_filter'),
-                    embedding_model=rag_config.get('embedding_model', 'BAAI/bge-m3'),
+                    embedding_model=rag_config.get('embedding_model', 'models/bge-m3'),
                     embedding_device=rag_config.get('embedding_device', 'cpu'),
                 )
                 self.logger.info(f"RAG Retriever initialized: chroma={chroma_path}, db={db_path}")
@@ -585,9 +585,15 @@ class TranslationPipeline:
             # If timeout or shutdown stopped the pipeline before all chunks
             # were translated, do NOT save partial output. The user must
             # re-run and resume from checkpoints.
-            if len(translated_chunks) < len(chunks):
+            # Count actually-translated chunks: a resume can leave None holes in
+            # the list (non-contiguous / rejected checkpoints). Those holes mean
+            # the chunk was NOT translated, even though list length may match — so
+            # gate on non-None content, never on len() alone (which let a None
+            # slip into _postprocess and crash on len(None)).
+            completed = sum(1 for c in translated_chunks if c is not None)
+            if completed < len(chunks):
                 self.logger.error(
-                    f"Partial completion: {len(translated_chunks)}/{len(chunks)} chunks "
+                    f"Partial completion: {completed}/{len(chunks)} chunks "
                     f"translated. File NOT saved. Checkpoints available for resumption."
                 )
                 return {
@@ -595,11 +601,11 @@ class TranslationPipeline:
                     "output_path": None,
                     "glossary_updates": [],
                     "errors": [
-                        f"Partial completion: {len(translated_chunks)}/{len(chunks)} chunks done"
+                        f"Partial completion: {completed}/{len(chunks)} chunks done"
                     ],
                     "metrics": {
                         "partial": True,
-                        "completed": len(translated_chunks),
+                        "completed": completed,
                         "total": len(chunks),
                     },
                     "chapter": Path(filepath).stem,
@@ -1523,7 +1529,16 @@ class TranslationPipeline:
 
             # Always preserve translated output BEFORE timeout check, so partial
             # progress is never lost even if a chunk is slow (report.md 2.4).
-            translated.append(translated_chunk)
+            # CRITICAL: when resuming, `translated` may already hold None
+            # placeholders at this index (non-contiguous checkpoints, or a stale
+            # checkpoint that was rejected). Re-translating such a hole must FILL
+            # the existing slot in place — appending would leave the None mid-list
+            # and push this chunk out of order, crashing _postprocess (ERR: object
+            # of type 'NoneType' has no len()).
+            if i < len(translated):
+                translated[i] = translated_chunk
+            else:
+                translated.append(translated_chunk)
 
             # Save checkpoint immediately for resumability (report.md 2.1)
             # CRITICAL: Only save checkpoint if chunk passed quality gate.
