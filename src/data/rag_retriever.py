@@ -5,7 +5,7 @@ Retrieves similar translation examples from ChromaDB/SQLite during translation
 to inject as few-shot examples into the prompt.
 
 Usage:
-    retriever = RAGRetriever(chroma_path="data/chroma_db", db_path="data/novel_v1_dataset.db")
+    retriever = RAGRetriever(chroma_path="data/chroma", db_path="data/novel_v1_dataset.db")
     examples = retriever.retrieve_similar("The young man walked into the tavern.", top_k=3)
 """
 
@@ -79,19 +79,25 @@ class RAGRetriever:
 
     def __init__(
         self,
-        chroma_path: str = "data/chroma_db",
+        chroma_path: str = "data/chroma",
         db_path: str = "data/novel_v1_dataset.db",
         top_k: int = 3,
         min_score: float = 2.5,
         novel_filter: Optional[str] = None,
-        embedding_model: str = "models/bge-m3-model",
+        embedding_model: str = "models/bge-m3",
         embedding_device: str = "cpu",
+        min_similarity: float = 0.3,
     ):
         self.chroma_path = chroma_path
         self.db_path = db_path
         self.top_k = top_k
         self.min_score = min_score
         self.novel_filter = novel_filter
+        # If Chroma's best semantic match is below this, fall back to SQLite
+        # keyword retrieval. The corpus is sentence-level while translation
+        # queries are paragraph-chunks, so Chroma cosine is often weak — SQLite
+        # word-overlap then provides more useful, entity-matched examples.
+        self.min_similarity = min_similarity
         self.embedding_model = embedding_model
         self.embedding_device = embedding_device
 
@@ -262,14 +268,21 @@ class RAGRetriever:
         k = top_k or self.top_k
         novel = novel_filter or self.novel_filter
 
-        # Try ChromaDB first
+        # Try ChromaDB semantic search first.
+        chroma_examples: list[TranslationExample] = []
         if self._chroma_collection is not None:
-            examples = self._retrieve_from_chroma(query_text, k, novel)
-            if examples:
-                return examples
+            chroma_examples = self._retrieve_from_chroma(query_text, k, novel)
+            # Keep Chroma results only if at least one clears the usefulness bar.
+            # Otherwise fall through to SQLite — sentence-level corpus vs
+            # paragraph-chunk queries makes Chroma cosine weak, and SQLite
+            # keyword/entity overlap often yields more relevant examples.
+            if chroma_examples and max(e.similarity for e in chroma_examples) >= self.min_similarity:
+                return chroma_examples
 
-        # Fallback to SQLite
-        return self._retrieve_from_sqlite(query_text, k, novel)
+        # Fallback to SQLite keyword retrieval. Prefer it when Chroma was weak;
+        # only fall back to the weak Chroma results if SQLite finds nothing.
+        sqlite_examples = self._retrieve_from_sqlite(query_text, k, novel)
+        return sqlite_examples or chroma_examples
 
     def _verify_chroma(self) -> bool:
         """One-time BGE-M3 verification: load embedder, run health query.
@@ -347,7 +360,15 @@ class RAGRetriever:
                 for i, doc_id in enumerate(results["ids"][0]):
                     metadata = results["metadatas"][0][i]
                     distance = results["distances"][0][i]
-                    similarity = 1.0 - distance
+                    # The 'alignment_pairs' collection uses Chroma's DEFAULT
+                    # distance space (squared-L2), not cosine. For the
+                    # normalized BGE-M3 vectors, squared-L2 = 2 - 2*cos, so the
+                    # true cosine similarity is 1 - distance/2. The old
+                    # `1 - distance` halved every score, so genuinely-similar
+                    # pairs (cos ~0.6) fell below min_similarity (0.30) and RAG
+                    # injected nothing. (If the collection is ever recreated with
+                    # hnsw:space=cosine, change this back to 1 - distance.)
+                    similarity = max(0.0, 1.0 - distance / 2.0)
 
                     try:
                         score = float(metadata.get("auto_score", 0.0))

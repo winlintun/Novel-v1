@@ -38,7 +38,10 @@ INPUT_DIR = "data/input"
 OUTPUT_DIR = "data/output"
 WORKING_DIR = "working_data"
 LOG_DIR = "logs"
-MAX_GLOSSARY_WORKERS = 4  # Parallel threads for glossary extraction
+# Sequential by default: a single local Ollama instance serializes requests
+# anyway, and firing 4 concurrent extractions degraded/truncated output (caused
+# the "JSON extraction failed" warnings). 1 = process one chapter at a time.
+MAX_GLOSSARY_WORKERS = 1  # Parallel threads for glossary extraction
 
 
 def _discover_chapters(novel_dir: Path) -> List[int]:
@@ -438,7 +441,6 @@ def run_glossary_generation(args: argparse.Namespace) -> int:
             if chapter_file:
                 if from_mm:
                     # Also find the corresponding MM file
-                    mm_dir = Path(INPUT_DIR) / args.novel / "mm"
                     mm_file = TranslationPipeline._find_chapter_file(args.novel, chapter_num, target_dir="mm")
                     if mm_file:
                         chapter_files.append((chapter_num, chapter_file, mm_file))
@@ -474,16 +476,22 @@ def run_glossary_generation(args: argparse.Namespace) -> int:
             )
             return 1
 
-        logger.info(f"Processing {len(chapter_files)} chapters in parallel (max {MAX_GLOSSARY_WORKERS} workers)")
+        _mode = "sequentially" if MAX_GLOSSARY_WORKERS <= 1 else f"in parallel (max {MAX_GLOSSARY_WORKERS} workers)"
+        logger.info(f"Processing {len(chapter_files)} chapters {_mode}")
 
         # Process chapters in parallel
         from src.agents.glossary_generator import GlossaryGenerator
         from src.utils.ollama_client import OllamaClient
         from src.memory.memory_manager import MemoryManager
 
+        # Glossary extraction is a structured JSON task: use a low temperature for
+        # deterministic, well-formed output. The default 0.5 produced unstable
+        # responses (stray glyphs, truncated JSON) and is above padauk-gemma's
+        # ≤0.2 ceiling anyway.
         client = OllamaClient(
             model=config.models.translator,
-            base_url=config.models.ollama_base_url
+            base_url=config.models.ollama_base_url,
+            temperature=0.1,
         )
         memory = MemoryManager(novel_name=args.novel)
         generator = GlossaryGenerator(client, memory, config.dict())
@@ -497,21 +505,45 @@ def run_glossary_generation(args: argparse.Namespace) -> int:
                 ch_num, ch_file = chapter_info
                 return generator.generate_from_chapter(str(ch_file), ch_num)
 
-        # Use ThreadPoolExecutor for parallel processing
         completed = 0
         total_terms = 0
-        with ThreadPoolExecutor(max_workers=MAX_GLOSSARY_WORKERS) as executor:
-            futures = {executor.submit(process_chapter, cf): cf for cf in chapter_files}
-            for future in as_completed(futures):
-                chapter_info = futures[future]
-                ch_num = chapter_info[0]
+
+        if MAX_GLOSSARY_WORKERS <= 1:
+            # Sequential in the MAIN thread so Ctrl+C (KeyboardInterrupt) can
+            # actually stop the run. A ThreadPoolExecutor keeps the blocking
+            # Ollama call alive in a worker thread (the signal never reaches it),
+            # so the program appears unresponsive to Ctrl+C until the call ends.
+            try:
+                for cf in chapter_files:
+                    ch_num = cf[0]
+                    try:
+                        total_terms += process_chapter(cf)
+                        completed += 1
+                        logger.info(f"Progress: {completed}/{len(chapter_files)} chapters done (extracted {total_terms} terms total)")
+                    except Exception as e:
+                        logger.error(f"Chapter {ch_num} failed: {e}")
+            except KeyboardInterrupt:
+                logger.warning(f"Interrupted by user — stopping after {completed}/{len(chapter_files)} chapters. Extracted terms are saved.")
+                client.cleanup()
+                return 130  # conventional exit code for SIGINT
+        else:
+            # Use ThreadPoolExecutor for parallel processing
+            with ThreadPoolExecutor(max_workers=MAX_GLOSSARY_WORKERS) as executor:
+                futures = {executor.submit(process_chapter, cf): cf for cf in chapter_files}
                 try:
-                    terms_count = future.result()
-                    completed += 1
-                    total_terms += terms_count
-                    logger.info(f"Progress: {completed}/{len(chapter_files)} chapters done (extracted {total_terms} terms total)")
-                except Exception as e:
-                    logger.error(f"Chapter {ch_num} failed: {e}")
+                    for future in as_completed(futures):
+                        ch_num = futures[future][0]
+                        try:
+                            total_terms += future.result()
+                            completed += 1
+                            logger.info(f"Progress: {completed}/{len(chapter_files)} chapters done (extracted {total_terms} terms total)")
+                        except Exception as e:
+                            logger.error(f"Chapter {ch_num} failed: {e}")
+                except KeyboardInterrupt:
+                    logger.warning("Interrupted by user — cancelling pending chapters...")
+                    executor.shutdown(wait=False, cancel_futures=True)
+                    client.cleanup()
+                    return 130
 
         memory.save_memory()  # no-op — DB writes are immediate
         logger.info(f"Glossary generation completed: {completed} chapters processed, {total_terms} terms extracted")

@@ -100,7 +100,7 @@ translation_pipeline:
     lite: "3-stage pipeline: Translate -> Refine -> Quality"
     single_stage: "1-stage pipeline: Direct translation only (RECOMMENDED — full pipeline drops 41-91% of content)"
     two_stage: "2-stage pipeline: Stage 1(gemma-4-e4b) -> Stage 2(padauk-gemma:refinement)"
-  use_reflection: false
+  use_reflection: true
   use_fiction_editor: false
   stage1_model: gemma4-e4b-it:q8_0
   stage2_model: padauk-gemma:q8_0
@@ -143,7 +143,7 @@ alignment_pipeline:
     device: "cpu"
     batch_size: 32
   llm_judge:
-    enabled: false
+    enabled: true
     provider: "ollama"
-    model: "qwen2.5:14b"
+    model: "padauk-gemma:q8_0"
     sample_rate: 0.05

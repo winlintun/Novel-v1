@@ -1,54 +1,46 @@
 ﻿{
-  "session_id": "2026-06-15-001",
-  "started_at": "2026-06-15T15:26:19Z",
-  "current_step": "Complete — DOC phase, review passed",
-  "last_action": "AGENTS.md post-implementation review + session-end updates",
-  "next_action": "None",
+  "session_id": "2026-06-16-002",
+  "started_at": "2026-06-15T17:17:35Z",
+  "current_step": "Complete — opencode review cleanup",
+  "last_action": "Fixed JSON corruption + 27 ruff errors from opencode's overreaching edits",
+  "next_action": "User to validate per-novel-model feature before committing",
   "open_files": [],
-  "pending_decisions": [],
+  "pending_decisions": [
+    "commit opencode feature? needs functional test"
+  ],
   "session_errors": [
     {
-      "step": "web glossary",
-      "error": "ERR-078 hardcoded novel='wayfarer' → empty page",
-      "resolved_by": "_default_novel_slug() + request.args fallback"
+      "step": "opencode run",
+      "error": "corrupted long_term_memory.json (orphaned brace + dup key)",
+      "resolved_by": "manual JSON repair"
     },
     {
-      "step": "orchestrator resume",
-      "error": "ERR-079 None hole in translated_chunks → NoneType len() crash in _postprocess",
-      "resolved_by": "in-place slot fill + non-None partial guard"
-    },
-    {
-      "step": "RAG embedder",
-      "error": "ERR-080 BAAI/bge-m3 HF cache incomplete under local_files_only",
-      "resolved_by": "point config+defaults to local models/bge-m3"
-    },
-    {
-      "step": "lint",
-      "error": "pre-existing unused Path import in embedder.py (touched file)",
-      "resolved_by": "removed import"
+      "step": "opencode run",
+      "error": "27 ruff E/F errors across 26 edited files",
+      "resolved_by": "restored prompts __all__, removed dead vars/imports, ruff --fix"
     }
   ],
   "changes_made": {
-    "src/web/templates/glossary.html": "pending-review panel + novel selector + inline edit (edit_term) + toggleEdit JS + stats wired to backend counts",
-    "src/web/flask_app.py": "_default_novel_slug(); edit_term action; novel_slug fallback in /glossary + /api/glossary",
-    "src/pipeline/orchestrator.py": "resume in-place slot fill (was append); partial guard counts non-None; rag embedding_model default -> models/bge-m3",
-    "config/settings.yaml": "rag.embedding_model: models/bge-m3 + embedding_device: cpu",
-    "src/dataset_alignment/embedder.py": "default model -> models/bge-m3; removed unused Path import"
+    ".agent/long_term_memory.json": "repaired invalid JSON",
+    "src/agents/prompts/__init__.py": "restored __all__ (opencode deleted it)",
+    "src/cli/commands.py": "removed dead mm_dir var",
+    "src/config/novel_model_loader.py": "removed unused config import (opencode new file, kept)",
+    "(ruff --fix)": "removed unused imports in preprocessor/reflection_agent/postprocessor + 3 pre-existing dataset_alignment files"
   },
   "review_status": {
     "reviewer_a": "PASS",
-    "reviewer_b": "PASS",
-    "final_status": "READY_TO_COMMIT"
+    "reviewer_b": "N/A (infra cleanup)",
+    "final_status": "NOT_COMMITTED — feature unreviewed"
   },
   "commit_hash": null,
-  "task": "Web glossary UI (pending review + edit + default-novel) + orchestrator resume None-hole fix + RAG bge-m3 model-path fix",
+  "task": "opencode review run + cleanup of its overreaching edits",
   "last_checkpoint": {
     "chapter": 1,
-    "chunk_index": 3,
-    "total_chunks": 19,
+    "chunk_index": 4,
+    "total_chunks": 4,
     "stage": "translate",
-    "timestamp": "2026-06-15T23:32:24.820375",
+    "timestamp": "2026-06-16T11:55:48.456307",
     "quality_score": 100,
-    "myanmar_ratio": 0.9679012345679012
+    "myanmar_ratio": 0.976878612716763
   }
 }

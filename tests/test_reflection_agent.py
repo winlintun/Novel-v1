@@ -24,10 +24,26 @@ class TestReflectionAgent(unittest.TestCase):
         )
 
     def test_init_default_model(self):
-        """Test initialization with default model."""
+        """Default must NOT be the uninstalled 'qwen:7b' (caused 404). Falls back
+        to the translator/refiner model, ultimately padauk-gemma."""
         agent = ReflectionAgent()
-        self.assertEqual(agent.model, "qwen:7b")
+        self.assertNotEqual(agent.model, "qwen:7b")
+        self.assertEqual(agent.model, "padauk-gemma:q8_0")
         self.assertEqual(agent.temperature, 0.3)
+
+    def test_init_reads_reflection_model_from_translation_pipeline(self):
+        """reflection_model lives under translation_pipeline (the real config
+        shape); it must be read from there, not only the top level (ERR-089)."""
+        agent = ReflectionAgent(config={
+            "translation_pipeline": {"reflection_model": "padauk-gemma:q8_0"},
+            "models": {"refiner": "padauk-gemma:q8_0"},
+        })
+        self.assertEqual(agent.model, "padauk-gemma:q8_0")
+
+    def test_init_falls_back_to_refiner_model(self):
+        """With no reflection_model anywhere, fall back to the refiner model."""
+        agent = ReflectionAgent(config={"models": {"refiner": "gemma4-e4b-it:q8_0"}})
+        self.assertEqual(agent.model, "gemma4-e4b-it:q8_0")
 
     def test_init_custom_model(self):
         """Test initialization with custom model."""
@@ -129,48 +145,6 @@ SUGGESTIONS:
         self.agent.reflect_and_improve("မြန်မာစာသားကိုပြောင်းလဲ", max_iterations=3)
         # Without improvements, only one iteration happens
         self.assertGreaterEqual(call_count, 1)
-
-    def test_check_consistency_missing_term(self):
-        """Test consistency check detects missing terms."""
-        glossary = [{"source": "hero", "target": "နိုင်ငံတော်"}]
-        issues = self.agent.check_consistency("hero became strong", glossary)
-        self.assertEqual(len(issues), 1)
-
-    def test_check_consistency_term_present(self):
-        """Test consistency passes when term is present."""
-        glossary = [{"source": "hero", "target": "နိုင်ငံတော်"}]
-        text = "နိုင်ငံတော် is the hero"
-        issues = self.agent.check_consistency(text, glossary)
-        self.assertEqual(len(issues), 0)
-
-    def test_check_consistency_empty(self):
-        """Test consistency check with empty text."""
-        issues = self.agent.check_consistency("", [{"source": "a", "target": "b"}])
-        self.assertEqual(len(issues), 0)
-
-    def test_compare_with_source_normal_ratio(self):
-        """Test comparison with normal word ratio."""
-        result = self.agent.compare_with_source("one two three", "uno dos tres")
-        self.assertFalse(result["suspicious"])
-        self.assertEqual(result["word_ratio"], 1.0)
-
-    def test_compare_with_source_suspicious_short(self):
-        """Test comparison detects too short translation."""
-        result = self.agent.compare_with_source("one two three four five six", "one")
-        self.assertTrue(result["suspicious"])
-        self.assertIn("short", result["warning"].lower())
-
-    def test_compare_with_source_suspicious_long(self):
-        """Test comparison detects too long translation."""
-        result = self.agent.compare_with_source("one", "one two three four five six")
-        self.assertTrue(result["suspicious"])
-        self.assertIn("long", result["warning"].lower())
-
-    def test_compare_with_source_empty_source(self):
-        """Test comparison with empty source."""
-        result = self.agent.compare_with_source("", "translation")
-        # Empty source divides by 1, so ratio is 1.0
-        self.assertEqual(result["word_ratio"], 1.0)
 
 
 if __name__ == "__main__":

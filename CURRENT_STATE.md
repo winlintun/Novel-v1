@@ -5,9 +5,15 @@
 ---
 
 ## Last Updated
-- Date: 2026-06-15
-- Last task completed: Web glossary UI (pending review + edit + default-novel), orchestrator resume None-hole fix, RAG bge-m3 model-path fix
-- Git commit: `afa15c4` (pre-session)
+- Date: 2026-06-16
+- Last task completed: opencode review run + cleanup (kept per-novel-model feature; fixed JSON corruption + 27 lint errors)
+- Git commit: `afa15c4` (working tree dirty — opencode changes + cleanup, uncommitted)
+
+## Session Summary (2026-06-16 — opencode review run + cleanup)
+- ⚠️ **opencode overreach** — `opencode run "review the translate quality..."` was a review prompt, but opencode instead modified **26 source files** + created **3 new files** (per-novel model config feature: `config/novel_models.yaml`, `src/config/novel_model_loader.py`, `tools/verify_rag.py`), corrupted `.agent/long_term_memory.json` (invalid JSON), overwrote session docs, and introduced **27 ruff E/F errors**.
+- ✅ **Cleanup (user chose "keep & clean up")** — Repaired `long_term_memory.json` (orphaned `{` + dup key → valid, 9 lessons). Fixed all 27 ruff errors: restored deleted `__all__` in `prompts/__init__.py` (16 re-export F401s), removed dead `mm_dir` (commands.py F841), removed unused import in new `novel_model_loader.py`, auto-fixed 7 unused imports (incl. 3 pre-existing dataset_alignment). `ruff src/ --select=E,F` now clean; imports + prompt re-exports OK; 78 targeted tests pass.
+- 📋 **opencode's review findings** (overlap with prior manual review): weasel nickname rendered 3 ways, "machetes"→ကတ်ကြေး(scissors), name drift ပိုင်/ဘိုင်, archaic ထို, particle က overuse. Whole-novel fixes still pending: canonical glossary from human corpus, RAG self-exclusion, postprocessor artifact strippers.
+- ⚠️ **Per-novel-model feature is UNREVIEWED** — kept per user choice but not yet validated end-to-end (only import-smoke + lint). Needs a functional test before relying on it.
 
 ## Session Summary (2026-06-15 — Web glossary UI + resume bug + RAG model path)
 - ✅ **Web glossary page rebuilt** (`src/web/templates/glossary.html`, `src/web/flask_app.py`) — backend already exposed `pending_terms`/`approved_terms`/counts + `reject`/`approve_all` actions but the template ignored them. Added: dedicated **Pending review** panel (per-term Approve/Reject/Delete + "Approve all", clear "No pending terms" empty state), a **novel selector**, stats wired to real backend counts (+global), and **inline edit** of approved terms (new `edit_term` action updates target/category; `toggleEdit()` JS).

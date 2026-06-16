@@ -243,7 +243,8 @@ def load_and_merge_config(
     if override_config:
         override_path = Path(override_config)
         if override_path.exists():
-            override_dict = yaml.safe_load(open(override_path, encoding='utf-8'))
+            with open(override_path, encoding='utf-8') as f:
+                override_dict = yaml.safe_load(f)
             if override_dict:
                 base = merge_configs(base, override_dict)
     

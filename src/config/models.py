@@ -38,10 +38,13 @@ class ProcessingConfig(BaseModel):
         description="Top-k sampling parameter"
     )
     repeat_penalty: float = Field(
-        default=1.5,
+        default=1.3,
         ge=1.0,
         le=2.0,
-        description="Repetition penalty for model generation"
+        description="Repetition penalty for model generation. 1.3 matches every "
+                    "shipped config; the old 1.5 default only ever applied when a "
+                    "config omitted the field (e.g. a skeleton config loaded "
+                    "standalone) and risks degenerate/empty Myanmar output."
     )
     max_retries: int = Field(
         default=3,
@@ -73,11 +76,11 @@ class ModelsConfig(BaseModel):
         description="Model for editing/refinement stage"
     )
     checker: str = Field(
-        default="qwen:7b",
+        default="padauk-gemma:q8_0",
         description="Model for quality checking stage"
     )
     refiner: str = Field(
-        default="qwen:7b",
+        default="padauk-gemma:q8_0",
         description="Model for refinement stage"
     )
     provider: str = Field(
@@ -134,23 +137,23 @@ class ModelRolesConfig(BaseModel):
     """Model role assignments for different agents."""
 
     translator: List[str] = Field(
-        default=["qwen2.5:14b", "qwen2.5:7b", "qwen:7b"],
+        default=["padauk-gemma:q8_0", "gemma4-e4b-it:q8_0"],
         description="Models suitable for translation"
     )
     refiner: List[str] = Field(
-        default=["qwen2.5:14b", "qwen:7b"],
+        default=["padauk-gemma:q8_0"],
         description="Models suitable for refinement"
     )
     checker: List[str] = Field(
-        default=["qwen:7b", "gemma:7b"],
+        default=["padauk-gemma:q8_0"],
         description="Models suitable for quality checking"
     )
     qa_final: List[str] = Field(
-        default=["qwen:7b", "gemma:7b"],
+        default=["padauk-gemma:q8_0"],
         description="Models suitable for final QA"
     )
     glossary_sync: List[str] = Field(
-        default=["qwen:7b"],
+        default=["padauk-gemma:q8_0"],
         description="Models suitable for glossary synchronization"
     )
 
@@ -171,15 +174,15 @@ class TranslationPipelineConfig(BaseModel):
         description="Whether to use fiction editor for literary humanization"
     )
     stage1_model: str = Field(
-        default="qwen2.5:14b",
+        default="padauk-gemma:q8_0",
         description="Model for stage 1 (two-stage mode)"
     )
     stage2_model: str = Field(
-        default="qwen:7b",
+        default="padauk-gemma:q8_0",
         description="Model for stage 2 (two-stage mode)"
     )
     reflection_model: str = Field(
-        default="qwen:7b",
+        default="padauk-gemma:q8_0",
         description="Model for reflection agent"
     )
 
@@ -317,19 +320,19 @@ class FastConfig(BaseModel):
         description="Whether fast mode is enabled"
     )
     translator: str = Field(
-        default="qwen:7b",
+        default="padauk-gemma:q8_0",
         description="Fast mode translator model"
     )
     editor: str = Field(
-        default="qwen:7b",
+        default="padauk-gemma:q8_0",
         description="Fast mode editor model"
     )
     checker: str = Field(
-        default="qwen:7b",
+        default="padauk-gemma:q8_0",
         description="Fast mode checker model"
     )
     refiner: str = Field(
-        default="qwen:7b",
+        default="padauk-gemma:q8_0",
         description="Fast mode refiner model"
     )
     chunk_size: int = Field(

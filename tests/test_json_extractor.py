@@ -10,11 +10,55 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+import json
+
 from src.utils.json_extractor import (
     _repair_json,
+    _close_unbalanced_json,
     extract_json_block,
+    extract_json_from_response,
     safe_parse_terms,
 )
+
+
+class TestTruncatedJsonRecovery(unittest.TestCase):
+    """Recover terms when the model drops trailing closing brackets (ERR-084)."""
+
+    def test_close_missing_root_brace(self):
+        # The real padauk failure mode: terms array closed, root object not.
+        raw = '{"terms": [{"source": "a", "target": "b"}]'
+        self.assertEqual(len(json.loads(_close_unbalanced_json(raw))["terms"]), 1)
+
+    def test_close_deeply_nested(self):
+        self.assertEqual(
+            json.loads(_close_unbalanced_json('{"a":{"b":[1,2,3')),
+            {"a": {"b": [1, 2, 3]}},
+        )
+
+    def test_close_unterminated_string(self):
+        recovered = json.loads(_close_unbalanced_json('{"terms":[{"source":"abc'))
+        self.assertIn("terms", recovered)
+
+    def test_balanced_input_returns_none(self):
+        self.assertIsNone(_close_unbalanced_json('{"terms": []}'))
+
+    def test_extract_from_response_recovers_truncated(self):
+        raw = '{"extraction_meta": {"total_terms_found": 2}, "terms": [{"source": "x"}, {"source": "y"}]'
+        self.assertEqual(len(extract_json_from_response(raw).get("terms", [])), 2)
+
+    def test_safe_parse_terms_recovers_truncated(self):
+        raw = '{"new_terms": [{"source": "x", "target": "y"}]'  # missing root }
+        self.assertEqual(len(safe_parse_terms(raw).get("new_terms", [])), 1)
+
+    def test_recovers_doubled_key_quote(self):
+        # padauk emits {""source" instead of {"source" — invalid but recoverable.
+        raw = '{"terms": [{""source": "a", "target": "b"}, {""source": "c", "target": "d"}]}'
+        self.assertEqual(len(extract_json_from_response(raw).get("terms", [])), 2)
+
+    def test_doubled_quote_fix_preserves_empty_string(self):
+        raw = '{"terms": [{"source": "x", "target": ""}]}'  # legit empty value
+        data = extract_json_from_response(raw)
+        self.assertEqual(data["terms"][0]["target"], "")
 
 
 class TestRepairJson(unittest.TestCase):

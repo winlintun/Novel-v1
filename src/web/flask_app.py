@@ -307,17 +307,21 @@ def get_glossary(novel_slug: str = 'wayfarer', include_global: bool = False) -> 
         approved_terms = [_term_to_dict(t, 'approved') for t in approved]
         pending_terms = [_term_to_dict(t, 'pending') for t in pending]
 
-        # Count global terms (auto-included at translation time) for display.
+        # Global terms (auto-included at translation time). Listed separately so
+        # the per-novel review list stays focused, but still visible on the page.
         try:
-            global_count = len(glossary_repo.get_global_terms(status='approved'))
+            global_rows = glossary_repo.get_global_terms(status='approved')
+            global_terms = [_term_to_dict(t, 'approved') for t in global_rows]
         except Exception:
-            global_count = 0
+            global_terms = []
+        global_count = len(global_terms)
 
         all_terms = pending_terms + approved_terms  # pending first for review
         return {
             'terms': all_terms,
             'pending_terms': pending_terms,
             'approved_terms': approved_terms,
+            'global_terms': global_terms,
             'total_terms': len(all_terms),
             'approved_count': len(approved_terms),
             'pending_count': len(pending_terms),
@@ -325,7 +329,7 @@ def get_glossary(novel_slug: str = 'wayfarer', include_global: bool = False) -> 
         }
     except Exception as e:
         logger.error(f"Failed to load glossary from database: {e}")
-        return {'terms': [], 'pending_terms': [], 'approved_terms': [],
+        return {'terms': [], 'pending_terms': [], 'approved_terms': [], 'global_terms': [],
                 'total_terms': 0, 'approved_count': 0, 'pending_count': 0, 'global_count': 0}
 
 
@@ -571,12 +575,18 @@ def glossary():
                     flash('Source and Myanmar translation are both required.', 'error')
 
             elif action == 'edit_term':
-                # Edit an existing (approved) term's Myanmar translation and/or
-                # category in place. Identified by its current source term.
+                # Edit a term's Myanmar translation and/or category in place,
+                # identified by its source. scope='global' targets the shared
+                # global glossary (novel_global_xianxia) — changes ALL novels.
                 source = request.form.get('source', '').strip()
                 new_target = request.form.get('target', '').strip()
                 new_category = request.form.get('category', '').strip()
-                term = glossary_repo.get_term_by_source(novel_id, source)
+                scope = request.form.get('scope', 'novel')
+                if scope == 'global':
+                    from src.db.repositories.glossary_repo import GLOBAL_NOVEL_ID
+                    term = glossary_repo.get_term_by_source(GLOBAL_NOVEL_ID, source)
+                else:
+                    term = glossary_repo.get_term_by_source(novel_id, source)
                 if not term:
                     flash(f'Term "{source}" not found.', 'error')
                 elif not new_target:
@@ -586,7 +596,10 @@ def glossary():
                     if new_category:
                         updates['category'] = new_category
                     glossary_repo.update_term(term['id'], **updates)
-                    flash(f'Updated "{source}".', 'success')
+                    if scope == 'global':
+                        flash(f'Updated GLOBAL term "{source}" (applies to all novels).', 'success')
+                    else:
+                        flash(f'Updated "{source}".', 'success')
 
             elif action in ('verify_term', 'approve_term'):
                 source = request.form.get('source', '')
@@ -639,6 +652,7 @@ def glossary():
                          novel_slug=novel_slug,
                          pending_terms=glossary.get('pending_terms', []),
                          approved_terms=approved_terms,
+                         global_terms=glossary.get('global_terms', []),
                          terms=terms,
                          categories=categories,
                          category_filter=category_filter,

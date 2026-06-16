@@ -5,7 +5,7 @@ Analyzes translations and suggests improvements.
 """
 
 import logging
-from typing import Dict, List, Optional, Any
+from typing import Dict, Optional, Any
 
 from src.utils.ollama_client import OllamaClient
 from src.agents.base_agent import BaseAgent
@@ -61,8 +61,24 @@ class ReflectionAgent(BaseAgent):
         memory_manager: Optional[MemoryManager] = None
     ):
         super().__init__(ollama_client, config=config, memory_manager=memory_manager)
-        self.model = self.config.get('reflection_model', 'qwen:7b')
-        self.temperature = self.config.get('reflection_temperature', 0.3)
+        # reflection_model lives under translation_pipeline in the configs; the old
+        # top-level lookup always missed it and fell back to 'qwen:7b' (often not
+        # installed → 404). Resolve from the right place and fall back to the
+        # refiner/translator model so reflection never targets an absent model.
+        pipeline = self.config.get('translation_pipeline', {})
+        models = self.config.get('models', {})
+        self.model = (
+            pipeline.get('reflection_model')
+            or self.config.get('reflection_model')   # legacy top-level
+            or models.get('refiner')
+            or models.get('translator')
+            or 'padauk-gemma:q8_0'
+        )
+        self.temperature = (
+            pipeline.get('reflection_temperature')
+            or self.config.get('reflection_temperature')
+            or 0.3
+        )
 
     def _get_glossary_for_prompt(self) -> str:
         """Fetch glossary terms for injection."""
@@ -199,58 +215,4 @@ class ReflectionAgent(BaseAgent):
 
         return current_text
 
-    def check_consistency(
-        self,
-        text: str,
-        glossary_terms: List[Dict[str, str]]
-    ) -> List[str]:
-        """
-        Check consistency with glossary terms.
-        
-        Args:
-            text: Translation to check
-            glossary_terms: List of approved terms
-            
-        Returns:
-            List of consistency issues
-        """
-        issues = []
 
-        for term in glossary_terms:
-            source = term.get("source", "")
-            target = term.get("target", "")
-
-            if source in text and target not in text:
-                issues.append(
-                    f"Term '{source}' found but translation '{target}' not used"
-                )
-
-        return issues
-
-    def compare_with_source(
-        self,
-        source: str,
-        translation: str
-    ) -> Dict[str, Any]:
-        """
-        Compare translation with source for completeness.
-        
-        Args:
-            source: Original text
-            translation: Translated text
-            
-        Returns:
-            Comparison results
-        """
-        source_words = len(source.split())
-        trans_words = len(translation.split())
-
-        ratio = trans_words / max(source_words, 1)
-
-        return {
-            "source_words": source_words,
-            "translation_words": trans_words,
-            "word_ratio": ratio,
-            "suspicious": ratio < 0.5 or ratio > 3.0,
-            "warning": "Translation may be too short or too long" if ratio < 0.5 or ratio > 3.0 else None
-        }

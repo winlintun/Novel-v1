@@ -216,14 +216,21 @@ class Translator(BaseAgent):
                 top_k=self.rag_top_k,
             )
 
+            # The retriever owns the similarity decision: it returns Chroma
+            # results when they clear min_similarity, otherwise SQLite keyword
+            # matches (whose word-overlap score is on a different scale). Do NOT
+            # re-apply the Chroma cosine threshold here — that would discard the
+            # SQLite fallback. Drop only clearly-irrelevant (similarity <= 0).
+            examples = [e for e in examples if e.similarity > 0]
+
             if not examples:
+                logger.info("RAG: 0 examples — no usable match (Chroma + SQLite both empty)")
                 return ""
 
-            # Filter by minimum similarity
-            examples = [e for e in examples if e.similarity >= self.rag_min_similarity]
-
-            if not examples:
-                return ""
+            top_sim = max(e.similarity for e in examples)
+            logger.info(
+                "RAG: %d example(s) injected (top sim %.2f)", len(examples), top_sim,
+            )
 
             # Frame the retrieved pairs as a human translator's work to imitate.
             # padauk-gemma follows demonstrated STYLE far more reliably than

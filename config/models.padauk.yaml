@@ -26,6 +26,18 @@ models:
   use_gpu: true
   gpu_layers: -1
 
+# Sampling — explicit so this config is correct even when loaded standalone
+# (the CLI's --config does a single-file load, not a merge, so without this
+# section it would fall back to Pydantic defaults).
+# padauk-gemma temperature MUST be <= 0.2; repeat_penalty 1.5 corrupts Myanmar.
+processing:
+  temperature: 0.2
+  top_k: 40
+  top_p: 0.95
+  repeat_penalty: 1.3
+  chunk_size: 1200
+  max_retries: 2
+
 # Pipeline Model Assignments
 translation_pipeline:
   mode: "full"

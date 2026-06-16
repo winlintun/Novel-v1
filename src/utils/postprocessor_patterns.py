@@ -79,6 +79,12 @@ INDIC_PATTERN = re.compile(
 # Korean Hangul characters - should not appear in Myanmar output
 KOREAN_PATTERN = re.compile(r"[\uAC00-\uD7AF\u1100-\u11FF\u3000-\u303F]+")
 
+# Japanese kana - Hiragana (U+3040-309F), Katakana (U+30A0-30FF),
+# Katakana Phonetic Extensions (U+31F0-31FF), Halfwidth Katakana (U+FF65-FF9F).
+# Leaks into Myanmar output for untranslated terms (e.g. the stray '\u3044' seen in
+# a-will-eternal ch.1). CJK ideographs are handled by CHINESE_PATTERN.
+JAPANESE_KANA_PATTERN = re.compile(r"[\u3040-\u309F\u30A0-\u30FF\u31F0-\u31FF\uFF65-\uFF9F]+")
+
 # Chinese characters - should not remain in translated output body
 CHINESE_PATTERN = re.compile(r"[\u4E00-\u9FFF\u3400-\u4DBF]+")
 

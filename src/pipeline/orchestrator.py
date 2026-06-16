@@ -270,6 +270,29 @@ class TranslationPipeline:
                 self._version_manager = None
         return self._version_manager
 
+    # Models that corrupt Myanmar output above a hard temperature ceiling.
+    # See CLAUDE.md / AGENTS.md: "padauk-gemma:q8_0 temperature MUST be ≤ 0.2".
+    _MODEL_MAX_TEMPERATURE = {"padauk-gemma": 0.2}
+
+    def _effective_temperature(self, model: str) -> float:
+        """Resolve sampling temperature, enforcing per-model hard ceilings.
+
+        The configured value lives in `processing.temperature` (a shared default
+        of 0.35). For padauk-gemma that exceeds the documented ≤0.2 limit and
+        corrupts Myanmar output, so we clamp it here — structurally, so a stray
+        config value can never re-break the constraint.
+        """
+        temp = float(getattr(self.config.processing, 'temperature', 0.3))
+        for prefix, ceiling in self._MODEL_MAX_TEMPERATURE.items():
+            if prefix in (model or "").lower() and temp > ceiling:
+                self.logger.warning(
+                    "Clamping temperature %.2f -> %.2f for model '%s' "
+                    "(hard ceiling; higher values corrupt Myanmar output).",
+                    temp, ceiling, model,
+                )
+                return ceiling
+        return temp
+
     def _create_ollama_client(self, model: str) -> Any:
         """Create an OllamaClient with the specified model."""
         from src.utils.ollama_client import OllamaClient
@@ -277,7 +300,7 @@ class TranslationPipeline:
             model=model,
             base_url=self.config.models.ollama_base_url,
             timeout=self.config.models.timeout,
-            temperature=getattr(self.config.processing, 'temperature', 0.3),
+            temperature=self._effective_temperature(model),
             top_p=getattr(self.config.processing, 'top_p', 0.92),
             top_k=getattr(self.config.processing, 'top_k', 50),
             repeat_penalty=getattr(self.config.processing, 'repeat_penalty', 1.3),
@@ -374,6 +397,7 @@ class TranslationPipeline:
                     novel_filter=rag_config.get('novel_filter'),
                     embedding_model=rag_config.get('embedding_model', 'models/bge-m3'),
                     embedding_device=rag_config.get('embedding_device', 'cpu'),
+                    min_similarity=rag_config.get('min_similarity', 0.3),
                 )
                 self.logger.info(f"RAG Retriever initialized: chroma={chroma_path}, db={db_path}")
 
@@ -537,6 +561,11 @@ class TranslationPipeline:
         # Store filepath for use by sibling methods (_translate_chunks, feedback loop)
         self._current_filepath = filepath
 
+        # Bind BEFORE the try: both except handlers reference progress_logger, so if
+        # an early step inside the try (e.g. FileHandler.read_text) raises, the
+        # handler must not hit UnboundLocalError and mask the real error.
+        progress_logger = None
+
         try:
             # Clear session rules from previous chapter
             try:
@@ -559,9 +588,6 @@ class TranslationPipeline:
             if m:
                 chapter_num = int(m.group(1))
             self._current_chapter = chapter_num
-
-            # Ensure progress_logger exists for error handling
-            progress_logger = None
 
             # Preprocess
             chunks = self._preprocess(text, chapter_label)

@@ -18,6 +18,7 @@ from src.utils.postprocessor import (
     clean_output,
     validate_output,
     remove_chinese_characters,
+    remove_japanese_kana,
     fix_chapter_heading_format,
     check_sentence_completion,
     detect_ngram_repetition,
@@ -113,6 +114,25 @@ class TestDetectLanguageLeakage(unittest.TestCase):
         result = detect_language_leakage(text)
         self.assertGreater(result["chinese_chars"], 0)
 
+    def test_detect_japanese_kana(self):
+        """Japanese kana leakage is detected (the stray Hiragana い from ch.1)."""
+        text = "မြန်မာစာ " + chr(0x3044) + chr(0x30AB) + " more text"  # い カ
+        result = detect_language_leakage(text)
+        self.assertGreater(result["japanese_chars"], 0)
+
+    def test_remove_japanese_kana_keeps_myanmar(self):
+        """remove_japanese_kana strips kana but preserves Myanmar text."""
+        text = "အမူ" + chr(0x3044) + " ပိုင်ရှောင်ချန်း"  # Myanmar + い + Myanmar
+        cleaned = remove_japanese_kana(text)
+        self.assertNotIn(chr(0x3044), cleaned)
+        self.assertIn("အမူ", cleaned)
+        self.assertIn("ပိုင်ရှောင်ချန်း", cleaned)
+
+    def test_clean_output_strips_japanese_kana(self):
+        """clean_output() removes leaked kana end-to-end."""
+        text = "အခန်း တစ်" + chr(0x3044) + " စာသား"
+        self.assertNotIn(chr(0x3044), clean_output(text))
+
     def test_no_leakage_clean_text(self):
         """Test clean Myanmar text has no leakage."""
         text = "မြန်မာဘာသာ စာသား သန့်သန့်ရှင်းရှင်း"
@@ -163,6 +183,27 @@ class TestMyanmarCharRatio(unittest.TestCase):
 
 class TestCleanOutput(unittest.TestCase):
     """Test full clean_output pipeline."""
+
+    def test_mid_body_hallucinated_heading_does_not_drop_content(self):
+        """A '# အခန်း N' heading hallucinated in a LATE chunk must NOT delete the
+        body before it (catastrophic content-loss bug: 4 chunks -> heading only)."""
+        body1 = "ပထမ စာပိုဒ် " * 10
+        body2 = "ဒုတိယ စာပိုဒ် " * 10
+        # last chunk got mistranslated into a heading
+        joined = f"{body1}\n\n{body2}\n\n# အခန်း ၁\n\n## ခေါင်းစဉ်"
+        out = clean_output(joined, chapter=1)
+        self.assertIn("ပထမ", out)   # chunk 1 body preserved
+        self.assertIn("ဒုတိယ", out)  # chunk 2 body preserved
+        # exactly one chapter heading, at the top
+        self.assertTrue(out.lstrip().startswith("# "))
+        self.assertEqual(sum(1 for ln in out.split("\n") if ln.strip().startswith("# အ")), 1)
+        self.assertGreater(len(out), 100)  # not collapsed to a heading
+
+    def test_leading_heading_still_stripped_and_reinjected(self):
+        """A heading at the TOP is still normalized to the correct one."""
+        out = clean_output("# အခန်း ၉\n\nစာသား", chapter=3)
+        self.assertTrue(out.lstrip().startswith("# အခန်း ၃"))
+        self.assertIn("စာသား", out)
 
     def test_full_pipeline(self):
         """Test complete cleaning pipeline."""

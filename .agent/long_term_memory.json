@@ -1,6 +1,12 @@
 {
-  "last_updated": "2026-06-14T13:58:34Z",
+  "last_updated": "2026-06-16T10:00:00Z",
   "lessons": [
+    {
+      "date": "2026-06-16",
+      "context": "EN→MM quality review a-will-eternal1 Chapter 1",
+      "lesson": "padauk-gemma at temp=0.2 produces 98.9% Myanmar ratio and 96/100 fluency but cannot maintain character-epithet consistency across chunks without glossary injection. 'Weasel' rendered as 3 different animals, name bar had 2 variants. Glossary enforcement in translator.py is advisory (text block) not structural (term table). RAG with human pairs would anchor consistent style.",
+      "action": "Enable RAG before multi-chapter runs. Add recurring epithets/nicknames to glossary. Postprocessor auto-correct known name variants. Current chunk_size 1500 may be too large — 1200 recommended for padauk-gemma."
+    },
     {
       "date": "2026-05-31",
       "context": "Dead code cleanup across project",

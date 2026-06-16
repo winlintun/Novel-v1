@@ -351,6 +351,24 @@
   .pending-row:last-child { border-bottom: none; }
   .pending-row:hover { background: var(--ivory); }
 
+  /* Inline edit for a pending row */
+  .pending-view {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    width: 100%;
+  }
+  .pending-edit {
+    display: none;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  .pending-row.editing { background: var(--ivory); }
+  .pending-row.editing .pending-view { display: none; }
+  .pending-row.editing .pending-edit { display: flex; }
+
   .pending-row .term-source { min-width: 130px; }
 
   .pending-confidence {
@@ -553,30 +571,49 @@
       <div class="pending-list">
         {% for term in pending_terms %}
         <div class="pending-row">
-          <div class="term-source">{{ term.source }}</div>
-          <div class="term-arrow">→</div>
-          <div class="term-target myanmar-text">{{ term.target }}</div>
-          <span class="term-category">{{ term.category or 'general' }}</span>
-          {% if term.confidence %}<span class="pending-confidence">{{ '%.0f'|format(term.confidence * 100) }}%</span>{% endif %}
-          <div class="pending-row-actions">
-            <form method="POST" action="{{ url_for('glossary', novel=novel_slug) }}" style="display:inline;">
-              <input type="hidden" name="action" value="approve_term">
-              <input type="hidden" name="source" value="{{ term.source }}">
-              <button type="submit" class="term-btn" title="Approve">✓</button>
-            </form>
-            <form method="POST" action="{{ url_for('glossary', novel=novel_slug) }}" style="display:inline;"
-                  title="Reject (hide and don't suggest again)">
-              <input type="hidden" name="action" value="reject_term">
-              <input type="hidden" name="source" value="{{ term.source }}">
-              <button type="submit" class="term-btn" title="Reject">✕</button>
-            </form>
-            <form method="POST" action="{{ url_for('glossary', novel=novel_slug) }}" style="display:inline;"
-                  onsubmit="return confirm('Delete this term permanently?');">
-              <input type="hidden" name="action" value="delete_term">
-              <input type="hidden" name="source" value="{{ term.source }}">
-              <button type="submit" class="term-btn delete" title="Delete">🗑</button>
-            </form>
+          <!-- View mode -->
+          <div class="pending-view">
+            <div class="term-source">{{ term.source }}</div>
+            <div class="term-arrow">→</div>
+            <div class="term-target myanmar-text">{{ term.target }}</div>
+            <span class="term-category">{{ term.category or 'general' }}</span>
+            {% if term.confidence %}<span class="pending-confidence">{{ '%.0f'|format(term.confidence * 100) }}%</span>{% endif %}
+            <div class="pending-row-actions">
+              <button type="button" class="term-btn" title="Edit before approving" onclick="toggleEdit(this)">✎</button>
+              <form method="POST" action="{{ url_for('glossary', novel=novel_slug) }}" style="display:inline;">
+                <input type="hidden" name="action" value="approve_term">
+                <input type="hidden" name="source" value="{{ term.source }}">
+                <button type="submit" class="term-btn" title="Approve">✓</button>
+              </form>
+              <form method="POST" action="{{ url_for('glossary', novel=novel_slug) }}" style="display:inline;"
+                    title="Reject (hide and don't suggest again)">
+                <input type="hidden" name="action" value="reject_term">
+                <input type="hidden" name="source" value="{{ term.source }}">
+                <button type="submit" class="term-btn" title="Reject">✕</button>
+              </form>
+              <form method="POST" action="{{ url_for('glossary', novel=novel_slug) }}" style="display:inline;"
+                    onsubmit="return confirm('Delete this term permanently?');">
+                <input type="hidden" name="action" value="delete_term">
+                <input type="hidden" name="source" value="{{ term.source }}">
+                <button type="submit" class="term-btn delete" title="Delete">🗑</button>
+              </form>
+            </div>
           </div>
+          <!-- Edit mode: fix the noisy target/category, then Save (stays pending) -->
+          <form class="pending-edit" method="POST" action="{{ url_for('glossary', novel=novel_slug) }}">
+            <input type="hidden" name="action" value="edit_term">
+            <input type="hidden" name="source" value="{{ term.source }}">
+            <span class="term-edit-source">{{ term.source }}</span>
+            <span class="term-arrow">→</span>
+            <input type="text" name="target" class="term-edit-target myanmar-text" value="{{ term.target }}" required>
+            <select name="category" class="term-edit-cat">
+              {% for cat in ['character', 'place', 'item', 'technique', 'general'] %}
+              <option value="{{ cat }}" {% if (term.category or 'general') == cat %}selected{% endif %}>{{ cat|capitalize }}</option>
+              {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-gold btn-sm" title="Save (stays pending)">Save</button>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="toggleEdit(this)">Cancel</button>
+          </form>
         </div>
         {% endfor %}
       </div>
@@ -665,6 +702,55 @@
       </div>
     </div>
     {% endif %}
+
+    <!-- Global terms: shared across ALL novels, auto-injected at translation time -->
+    {% if global_terms %}
+    <details class="global-terms" style="margin-top: var(--space-6);">
+      <summary class="section-heading" style="cursor: pointer;">
+        Global xianxia terms ({{ global_count }}) — shared across all novels
+      </summary>
+      <p class="empty-state-description" style="margin: var(--space-2) 0 var(--space-3);">
+        These are auto-included in every novel's translation. Manage them from the global glossary, not here.
+      </p>
+      <div class="terms-grid">
+        {% for term in global_terms %}
+        <div class="term-card" data-category="{{ term.category or 'general' }}"
+             data-search="{{ term.source.lower() }} {{ term.target.lower() }}">
+          <!-- View mode -->
+          <div class="term-view">
+            <div class="term-source">{{ term.source }}</div>
+            <div class="term-arrow">→</div>
+            <div class="term-target myanmar-text">{{ term.target }}</div>
+            <div class="term-meta">
+              <span class="term-category">{{ term.category or 'general' }}</span>
+              <span class="badge badge-pending" title="Global term (all novels)">global</span>
+            </div>
+            <div class="term-actions">
+              <button type="button" class="term-btn" title="Edit global term (affects all novels)" onclick="toggleEdit(this)">✎</button>
+            </div>
+          </div>
+          <!-- Edit mode (scope=global → updates the shared glossary for ALL novels) -->
+          <form class="term-edit" method="POST" action="{{ url_for('glossary', novel=novel_slug) }}"
+                onsubmit="return confirm('This is a GLOBAL term — editing it changes it for ALL novels. Continue?');">
+            <input type="hidden" name="action" value="edit_term">
+            <input type="hidden" name="scope" value="global">
+            <input type="hidden" name="source" value="{{ term.source }}">
+            <span class="term-edit-source">{{ term.source }}</span>
+            <span class="term-arrow">→</span>
+            <input type="text" name="target" class="term-edit-target myanmar-text" value="{{ term.target }}" required>
+            <select name="category" class="term-edit-cat">
+              {% for cat in ['character', 'place', 'item', 'technique', 'general'] %}
+              <option value="{{ cat }}" {% if (term.category or 'general') == cat %}selected{% endif %}>{{ cat|capitalize }}</option>
+              {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-gold btn-sm" title="Save (all novels)">Save</button>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="toggleEdit(this)">Cancel</button>
+          </form>
+        </div>
+        {% endfor %}
+      </div>
+    </details>
+    {% endif %}
   </div>
 
 
@@ -729,7 +815,7 @@
 // Toggle inline edit mode for an approved term card.
 // Works for both the "✎ Edit" and "Cancel" buttons (both live inside the card).
 function toggleEdit(btn) {
-  const card = btn.closest('.term-card');
+  const card = btn.closest('.term-card, .pending-row');
   if (!card) return;
   const entering = !card.classList.contains('editing');
   card.classList.toggle('editing');

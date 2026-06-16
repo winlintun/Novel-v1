@@ -7,7 +7,6 @@ Strips: <think>, <answer>, HTML comments, non-Myanmar language leakage.
 import re
 from functools import lru_cache
 from difflib import SequenceMatcher
-from typing import Optional, List
 
 # Import patterns from submodule (extracted for better organization)
 from src.utils.postprocessor_patterns import (
@@ -20,6 +19,7 @@ from src.utils.postprocessor_patterns import (
     BENGALI_PATTERN,
     INDIC_PATTERN,
     KOREAN_PATTERN,
+    JAPANESE_KANA_PATTERN,
     CHINESE_PATTERN,
     LATIN_WORD_PATTERN,
     ENGLISH_COMMON_WORDS,
@@ -35,6 +35,7 @@ _KHMER_PATTERN = KHMER_PATTERN
 _BENGALI_PATTERN = BENGALI_PATTERN
 _INDIC_PATTERN = INDIC_PATTERN
 _KOREAN_PATTERN = KOREAN_PATTERN
+_JAPANESE_KANA_PATTERN = JAPANESE_KANA_PATTERN
 _CHINESE_PATTERN = CHINESE_PATTERN
 _LATIN_WORD_PATTERN = LATIN_WORD_PATTERN
 _ENGLISH_COMMON_WORDS = ENGLISH_COMMON_WORDS
@@ -173,6 +174,7 @@ def detect_language_leakage(text: str) -> dict[str, int]:
     indic_count = len(_INDIC_PATTERN.findall(text))
     chinese_count = len(_CHINESE_PATTERN.findall(text))
     korean_count = len(_KOREAN_PATTERN.findall(text))
+    japanese_count = len(_JAPANESE_KANA_PATTERN.findall(text))
     latin_words = len(_LATIN_WORD_PATTERN.findall(text))
     english_common = len(_ENGLISH_COMMON_WORDS.findall(text))
 
@@ -183,6 +185,7 @@ def detect_language_leakage(text: str) -> dict[str, int]:
         "indic_chars": indic_count,
         "chinese_chars": chinese_count,
         "korean_chars": korean_count,
+        "japanese_chars": japanese_count,
         "latin_words": latin_words,
         "english_common_words": english_common,
         "has_english": latin_words > 0 or english_common > 0,
@@ -220,6 +223,15 @@ def remove_indic_characters(text: str) -> str:
 def remove_korean_characters(text: str) -> str:
     """Remove all Korean Hangul characters from text."""
     return _KOREAN_PATTERN.sub("", text)
+
+
+def remove_japanese_kana(text: str) -> str:
+    """Remove all Japanese kana (Hiragana/Katakana) from text.
+
+    Kana leaks into Myanmar output for untranslated terms (e.g. a stray 'い').
+    CJK ideographs are handled separately by remove_chinese_characters().
+    """
+    return _JAPANESE_KANA_PATTERN.sub("", text)
 
 
 def remove_thai_characters(text: str) -> str:
@@ -618,43 +630,6 @@ def remove_inline_markdown_artifacts(text: str) -> str:
     return '\n'.join(result)
 
 
-def check_paragraph_count(source: str, translation: str, tolerance: float = 0.15) -> dict:
-    """Check if translation has significantly fewer paragraphs than source.
-    
-    The AI translator sometimes compresses or skips content. This validator
-    flags chapters where the paragraph count differs by more than the tolerance.
-    
-    Args:
-        source: Original source text
-        translation: Translated text
-        tolerance: Maximum allowed ratio of missing paragraphs (0.15 = 15%)
-    
-    Returns:
-        Dict with 'pass' (bool), 'source_count', 'trans_count', 'missing_count', 'ratio'
-    """
-    def count_paragraphs(text: str) -> int:
-        """Count non-empty paragraphs."""
-        return len([p for p in text.split('\n\n') if p.strip()])
-    
-    src_count = count_paragraphs(source)
-    trans_count = count_paragraphs(translation)
-    
-    if src_count == 0:
-        return {"pass": True, "source_count": 0, "trans_count": 0, "missing_count": 0, "ratio": 1.0}
-    
-    missing = max(0, src_count - trans_count)
-    ratio = trans_count / src_count
-    passed = ratio >= (1.0 - tolerance)
-    
-    return {
-        "pass": passed,
-        "source_count": src_count,
-        "trans_count": trans_count,
-        "missing_count": missing,
-        "ratio": round(ratio, 3),
-    }
-
-
 def normalize_character_names(text: str, glossary_terms: list[dict]) -> str:
     """Normalize character name spellings to glossary-approved forms.
 
@@ -728,123 +703,6 @@ def normalize_character_names(text: str, glossary_terms: list[dict]) -> str:
             text = text.replace(variant, target)
 
     return text
-
-
-def check_name_consistency(text: str, glossary_terms: dict[str, str]) -> list[dict]:
-    """Detect multiple spellings of the same character name in translated text.
-    
-    For each glossary term, finds all occurrences in the text and checks
-    if there are variant spellings that might indicate inconsistency.
-    
-    Args:
-        text: Translated Myanmar text
-        glossary_terms: Dict mapping source_term -> target_term (approved translations)
-    
-    Returns:
-        List of dicts with 'source', 'expected', 'found_variants', 'locations'
-    """
-    issues = []
-    
-    for source, expected_target in glossary_terms.items():
-        if not expected_target or len(expected_target) < 2:
-            continue
-        
-        # Find all occurrences of the expected target
-        locations = []
-        start = 0
-        while True:
-            idx = text.find(expected_target, start)
-            if idx == -1:
-                break
-            locations.append(idx)
-            start = idx + 1
-        
-        if not locations:
-            continue
-        
-        # Check for similar-looking variants (potential misspellings)
-        # Look for Myanmar sequences near the expected length that appear
-        # in similar contexts (before သည်/က/မှာ particles)
-        name_pattern = re.compile(
-            r'([\u1000-\u109F]{2,8})\s*(?:သည်|က|မှာ|ကို|၏|ပြော|ကြည့်|ရပ်|သွား|လာ)',
-            re.MULTILINE
-        )
-        
-        found_names = set()
-        for match in name_pattern.finditer(text):
-            candidate = match.group(1)
-            # Check if candidate is similar to expected (same length, some overlap)
-            if (abs(len(candidate) - len(expected_target)) <= 2
-                and len(set(candidate) & set(expected_target)) >= min(len(candidate), len(expected_target)) * 0.5):
-                found_names.add(candidate)
-        
-        # If we found variants that aren't the expected target, flag it
-        variants = found_names - {expected_target}
-        if variants:
-            issues.append({
-                "source": source,
-                "expected": expected_target,
-                "found_variants": list(variants),
-                "occurrences": len(locations),
-            })
-    
-    return issues
-
-
-def detect_potential_hallucinations(text: str, known_terms: Optional[set] = None) -> List[str]:
-    """Detect Myanmar proper names that may be LLM hallucinations.
-    
-    Compares proper-name-like sequences against a set of known glossary 
-    target terms. Names found in the text but NOT in the glossary are
-    flagged for human review.
-    
-    A 'proper name' is a 2-8 Myanmar-syllable sequence that appears
-    repeatedly (2+ times) at sentence boundaries — common for named
-    characters and places.
-    
-    Args:
-        text: Translated Myanmar text
-        known_terms: Set of approved Myanmar target terms from glossary
-        
-    Returns:
-        List of potentially hallucinated name strings
-    """
-    if known_terms is None:
-        known_terms = set()
-
-    # Extract 2-8 character Myanmar sequences that appear multiple times
-    # at the start of sentences (common position for proper names in narration)
-    from collections import Counter
-
-    # Find Myanmar sequences that could be names: 2-8 chars long, appearing
-    # after sentence-enders or paragraph starts
-    candidates = re.findall(
-        r'(?:^|\n|[။]\s+|၊\s+)([\u1000-\u109F]{2,8})\s+(?:သည်|က|မှာ|ကို|၏|၌)',
-        text,
-        re.MULTILINE
-    )
-
-    counts = Counter(candidates)
-
-    # A name candidate must appear at least 2 times (to filter noise)
-    warnings = []
-    for name, count in counts.items():
-        if count >= 2 and name not in known_terms:
-            # Also filter common non-name words
-            common_words = {
-                'တစ်ခု', 'တစ်ယောက်', 'အခါ', 'သူတို့', 'တစ်ဦး',
-                'ကျွန်တော်', 'တစ်ချိန်', 'တစ်ခါ', 'ဒီအတွက်',
-                'တစ်စုံ', 'ဘယ်သူ', 'ဘယ်လို', 'အဲဒီ', 'ဒါပေမယ့်',
-                'သူတို့ရဲ့', 'ဘာဖြစ်', 'အဲဒီမှာ', 'အဲဒါ',
-                'ဘယ်လောက်', 'ဒီလို', 'ဒါဟာ', 'ဒါကြောင့်',
-                'အဲဒီအခါ', 'သို့သော်', 'ထို့ကြောင့်', 'အလွန်',
-                'သူသည်', 'ဒါပေမဲ့', 'ထိုအခါ', 'တစ်ခုမှာ',
-            }
-            if name in common_words:
-                continue
-            warnings.append(name)
-
-    return warnings
 
 
 # Myanmar consonant range: U+1000-U+1021 (က-အ) + independent vowels U+1023-U+102A
@@ -1597,13 +1455,14 @@ def clean_output(raw: str, aggressive: bool = False, chapter: int = 0) -> str:
     text = stitch_chunk_boundaries(text)
 
     # Always strip non-Myanmar scripts (unambiguous garbage)
-    # Thai (U+0E00-U+0E7F), Khmer (U+1780-U+17FF), Bengali, Indic, Chinese, Korean
+    # Thai (U+0E00-U+0E7F), Khmer (U+1780-U+17FF), Bengali, Indic, Chinese, Korean, Japanese kana
     text = remove_thai_characters(text)
     text = remove_khmer_characters(text)
     text = remove_chinese_characters(text)
     text = remove_bengali_characters(text)
     text = remove_indic_characters(text)
     text = remove_korean_characters(text)
+    text = remove_japanese_kana(text)
 
     # Only remove Latin words if aggressive mode
     if aggressive:
@@ -1644,22 +1503,27 @@ def clean_output(raw: str, aggressive: bool = False, chapter: int = 0) -> str:
         # Re-split in case an earlier step re-glued the heading to body text;
         # otherwise the removal below would delete the first sentence with it.
         text = separate_heading_from_body(text).strip()
-        # Remove the heading block: "# အခန်း" line + optional following "##" subtitle
-        # Only removes the FIRST occurrence at the start of the text.
+        # Strip a LEADING heading block ("# အခန်း" + optional "##" subtitle) only
+        # when it is the first non-empty line. CRITICAL: a "# အခန်း N" heading the
+        # model hallucinated later in the body must NOT be used as a cut point — the
+        # old code did `lines[heading_end:]`, deleting EVERY line before a mid/late
+        # heading and wiping whole chapters (e.g. last chunk mistranslated into a
+        # heading -> 25% coverage / empty output).
         lines = text.split('\n')
-        heading_end = 0
-        for i, line in enumerate(lines):
-            stripped = line.strip()
-            if re.match(r'^#\s+အခန်း\s+[\u1040-\u1049\d]+', stripped):
-                # Found the heading — skip this line
-                heading_end = i + 1
-                # Also skip the next line if it's a "##" subtitle
-                if heading_end < len(lines) and re.match(r'^##\s+', lines[heading_end].strip()):
-                    heading_end += 1
-                break
-
-        if heading_end > 0:
+        heading_re = re.compile(r'^#\s+အခန်း\s+[၀-၉\d]+')
+        first_idx = next((i for i, line in enumerate(lines) if line.strip()), None)
+        if first_idx is not None and heading_re.match(lines[first_idx].strip()):
+            heading_end = first_idx + 1
+            if heading_end < len(lines) and re.match(r'^##\s+', lines[heading_end].strip()):
+                heading_end += 1
             text = '\n'.join(lines[heading_end:]).strip()
+
+        # Remove any OTHER stray chapter-heading lines hallucinated mid-body,
+        # in place — never drop the surrounding content.
+        text = '\n'.join(
+            line for line in text.split('\n')
+            if not heading_re.match(line.strip())
+        ).strip()
 
         # Inject the CORRECT chapter heading with Myanmar numeral
         chapter_mm = _arabic_to_myanmar_num(chapter)
