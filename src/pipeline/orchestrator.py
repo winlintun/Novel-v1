@@ -752,7 +752,7 @@ class TranslationPipeline:
 
             # Auto-review: generate quality report after saving
             try:
-                self._auto_review(str(output_path), result_text)
+                self._auto_review(str(output_path), result_text, source_text=text)
             except Exception as e:
                 self.logger.warning(f"Auto-review failed (non-fatal): {e}")
 
@@ -2115,7 +2115,7 @@ class TranslationPipeline:
 
         return output_path
 
-    def _auto_review(self, output_path: str, translated_text: str = "") -> None:
+    def _auto_review(self, output_path: str, translated_text: str = "", source_text: str = "") -> None:
         """Run automatic quality review on the translated output file.
 
         Generates a report in logs/report/ that can be read by an AI agent
@@ -2131,6 +2131,7 @@ class TranslationPipeline:
             report, report_path = review_and_report(
                 output_path,
                 novel=self._current_novel,
+                source_text=source_text,
             )
 
             self.logger.info(

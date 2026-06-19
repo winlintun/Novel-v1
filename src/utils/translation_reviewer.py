@@ -384,6 +384,86 @@ def _check_paragraph_duplication(text: str) -> CheckResult:
                        f"{dups} duplicated paragraph boundary(ies) found — chunk overlap artifact", "WARNING")
 
 
+def _check_repetition_loop(text: str, n: int = 3) -> CheckResult:
+    """Detect degenerate n-gram repetition loops (model looping).
+
+    Small LLMs sometimes get stuck emitting the same content phrase over and
+    over (e.g. "X Y Z ... X Y Z ... X Y Z"). The paragraph-duplication and
+    particle checks miss this because the repeats are content words *inside*
+    paragraphs, not whole duplicated paragraphs or grammatical particles.
+
+    We scan word n-grams (n=3 — small enough to catch loops in short chapters):
+    if one n-gram recurs many times, or repeated n-grams make up a large share
+    of the text, the output is a loop and must NOT pass review. Coherent prose
+    repeats 3-grams rarely, so the thresholds stay clear of normal text.
+    """
+    from collections import Counter
+
+    # Drop markdown headings so "# အခန်း" lines don't skew the counts.
+    body = "\n".join(ln for ln in text.splitlines() if not ln.strip().startswith("#"))
+    tokens = body.split()
+    if len(tokens) < n * 3:
+        return CheckResult("Repetition Loop", True, 0, "Too short to assess")
+
+    ngrams = [" ".join(tokens[i:i + n]) for i in range(len(tokens) - n + 1)]
+    counts = Counter(ngrams)
+    _, top_count = counts.most_common(1)[0]
+    repeated = sum(c for c in counts.values() if c > 1)
+    repeat_ratio = repeated / max(len(ngrams), 1)
+
+    if top_count >= 3 or repeat_ratio > 0.22:
+        return CheckResult(
+            "Repetition Loop", False, 45,
+            f"Degenerate repetition (model looping): a {n}-word phrase repeats "
+            f"x{top_count}, {repeat_ratio:.0%} of {n}-grams are repeats",
+            "CRITICAL",
+        )
+    if repeat_ratio > 0.12:
+        return CheckResult(
+            "Repetition Loop", False, 15,
+            f"Notable repetition: {repeat_ratio:.0%} of {n}-grams repeat",
+            "WARNING",
+        )
+    return CheckResult("Repetition Loop", True, 0,
+                       f"No loop (top {n}-gram x{top_count}, {repeat_ratio:.0%} repeats)")
+
+
+def _check_source_coverage(text: str, source_text: str) -> CheckResult:
+    """Compare output size against the source to catch dropped content.
+
+    Reference-free checks cannot see content loss, so when the source is
+    available we compare non-whitespace character counts. Myanmar is somewhat
+    more compact than English, so we only flag clearly-deficient output.
+    """
+    def _non_ws(s: str) -> int:
+        return sum(1 for c in s if not c.isspace())
+
+    src = _non_ws(source_text)
+    # Strip the markdown heading line from the output before measuring.
+    body = "\n".join(ln for ln in text.splitlines() if not ln.strip().startswith("#"))
+    out = _non_ws(body)
+    if src < 50:
+        return CheckResult("Source Coverage", True, 0, "Source too short to assess")
+
+    ratio = out / src
+    if ratio < 0.45:
+        return CheckResult(
+            "Source Coverage", False, 40,
+            f"Severe content loss: output is {ratio:.0%} of source size "
+            f"({out} vs {src} chars) — paragraphs likely dropped",
+            "CRITICAL",
+        )
+    if ratio < 0.65:
+        return CheckResult(
+            "Source Coverage", False, 15,
+            f"Possible content loss: output is {ratio:.0%} of source size "
+            f"({out} vs {src} chars)",
+            "WARNING",
+        )
+    return CheckResult("Source Coverage", True, 0,
+                       f"Output {ratio:.0%} of source size ({out} vs {src} chars)")
+
+
 # ── Fluency Score (Custom Burmese Heuristic) ──────────────────────
 
 def _check_fluency(text: str) -> CheckResult:
@@ -436,6 +516,7 @@ def review_translation(
     log_file: Optional[str] = None,
     chapter: Optional[int] = None,
     novel: Optional[str] = None,
+    source_text: str = "",
 ) -> ReviewReport:
     """Run full quality review on a translated output file.
 
@@ -536,6 +617,9 @@ def review_translation(
     report.add_check(_check_overlong_sentences(text))
     report.add_check(_check_sentence_enders(text))
     report.add_check(_check_paragraph_duplication(text))
+    report.add_check(_check_repetition_loop(text))
+    if source_text:
+        report.add_check(_check_source_coverage(text, source_text))
 
     # Generate TODO items
     if report.critical_fixes:
@@ -642,13 +726,14 @@ def review_and_report(
     log_file: Optional[str] = None,
     chapter: Optional[int] = None,
     novel: Optional[str] = None,
+    source_text: str = "",
 ) -> Tuple[ReviewReport, Path]:
     """Run review and save report. Convenience wrapper.
 
     Returns:
         Tuple of (ReviewReport, path to saved report)
     """
-    report = review_translation(output_file, log_file, chapter, novel)
+    report = review_translation(output_file, log_file, chapter, novel, source_text=source_text)
     report_path = save_review_report(report)
     return report, report_path
 
