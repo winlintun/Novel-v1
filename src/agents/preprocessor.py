@@ -7,7 +7,6 @@ Splits text into chunks, cleans markdown, prepares for translation.
 import re
 import logging
 from typing import List, Dict, Any, Optional
-from pathlib import Path
 
 from src.utils.file_handler import FileHandler
 from src.agents.base_agent import BaseAgent
@@ -62,21 +61,6 @@ class Preprocessor(BaseAgent):
             return "english"
         else:
             return "unknown"
-
-    def _llm_detect_language(self, client: Optional[Any] = None, text: str = "english") -> str:
-        """Fallback language detection using LLM (slower but more accurate)."""
-        if client is None:
-            return "english"
-
-        prompt = f"""Detect the source language of this text. Answer only with one word: 'chinese' or 'english'.
-
-Text: {text[:300]}
-Language:"""
-        try:
-            result = client.generate(prompt)
-            return result.strip().lower()
-        except Exception:
-            return "english"
 
     def estimate_tokens(self, text: str) -> int:
         """Estimate token count for Chinese text."""
@@ -192,30 +176,3 @@ Language:"""
         chunks = self.create_chunks(text)
 
         return chunks
-
-    def get_chapter_info(self, filepath: str) -> Dict[str, Any]:
-        """Extract chapter information from filename."""
-        path = Path(filepath)
-
-        # New format: novel_name_chapter_XXX.md
-        match = re.match(r'(.+)_chapter_(\d+)\.md', path.name)
-
-        if match:
-            novel_name = match.group(1)
-            chapter_num = int(match.group(2))
-        else:
-            # Legacy format: novel_name_XXX.md
-            match = re.match(r'(.+)_(\d+)\.md', path.name)
-            if match:
-                novel_name = match.group(1)
-                chapter_num = int(match.group(2))
-            else:
-                novel_name = path.stem
-                chapter_num = 0
-
-        return {
-            'filepath': filepath,
-            'filename': path.name,
-            'novel_name': novel_name,
-            'chapter_num': chapter_num
-        }

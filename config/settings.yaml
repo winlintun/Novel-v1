@@ -33,7 +33,7 @@ models:
   refiner: padauk-gemma:q8_0
   retry_num_predict: 4096
   timeout: 300
-  translator: padauk-gemma:q8_0
+  translator: gemma4-e4b-it:q8_0  # change model
   use_gpu: true
   gemma_4_e4b:
     name: gemma-4-e4b-it:q8_0

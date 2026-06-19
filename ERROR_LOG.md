@@ -6,6 +6,19 @@
 
 ---
 
+### SESSION (2026-06-19): Genre prompts + JSON glossary mode + Windows console + glossary routing + dead-code cleanup
+**Scope**: `src/main.py`, `src/cli/formatters.py`, `src/utils/ollama_client.py`, `src/agents/glossary_generator.py`, `scripts/glossary_manager.py`, `src/utils/file_handler.py`, `src/agents/prompts/system_prompts.py`, `src/agents/translator.py` (+ large dead-code removal)
+**Status**: UNCOMMITTED (working tree). Touched-suite verification only.
+**Verification**: `pytest tests/test_workflow_routing.py tests/test_translator.py tests/test_postprocessor.py` → 88 passed; the 6 `TestMemoryManager` failures are the known Windows tmpdir-teardown `PermissionError` (WinError 32 on `shutil.rmtree`), pre-existing and unrelated to these changes. New genre + glossary-routing tests pass.
+
+- **ERR-092 — Pending glossary term stored target text in the source-variant column**: `scripts/glossary_manager.py` `add_pending_term` INSERT passed `target_term` into the slot meant for the source variant (5th `?`), so a pending term's source-alias field held its Myanmar target. *Fix*: pass `source_term` for that column.
+- **ERR-093 — Glossary extraction dropped terms because JSON was unconstrained**: `GlossaryGenerator` asked for JSON only via prompt wording; models emitted prose/fences and `extract_json_from_response` recovered nothing. *Fix*: added a `format` kwarg to `OllamaClient.chat()` that forwards Ollama's native structured-output flag (`format="json"`) on both /api/chat and /api/generate (incl. fallback), and `GlossaryGenerator` now calls `chat(prompt=..., format="json")`. Output is constrained to valid JSON.
+- **ERR-094 — `UnicodeEncodeError` printing the auto-detection banner on Windows**: emoji/flag glyphs (🔍🇨🇳🤖•) in `print_auto_detection_result` crashed on CP1252 consoles. *Fix*: `src/cli/formatters.py` reconfigures `sys.stdout`/`sys.stderr` to UTF-8 with `errors='replace'` at import, and the banner now uses ASCII (`[AUTO-DETECTION RESULTS]`, `->`, `*`).
+- **ERR-095 — `--generate-glossary` chained into translation**: with a `--chapter`/`--chapter-range` present, `main()` fell through from glossary generation into the translation pipeline. *Fix*: `--generate-glossary` / `--init-glossary` is now strictly terminal — `run_glossary_generation(args)` is returned directly; the chapter range only scopes which chapters are scanned. Regression test `test_generate_glossary_with_chapter_range_does_not_run_translation`.
+- **ERR-096 — English chapters in `en/` subfolder were invisible**: `FileHandler.list_chapter_files()` searched the novel root and flat dir but not `data/input/{novel}/en/`, where EN sources actually live. *Fix*: added an `en/` glob pass (both `_chapter_` and legacy patterns) ahead of the existing patterns.
+
+---
+
 ### SESSION (2026-06-15): Web glossary UI + resume None-hole + RAG bge-m3 model path
 **Scope**: `src/pipeline/orchestrator.py`, `src/web/flask_app.py`, `src/web/templates/glossary.html`, `config/settings.yaml`, `src/dataset_alignment/embedder.py`
 **Status**: READY_TO_COMMIT (Reviewer A + B PASS)

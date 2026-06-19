@@ -1,0 +1,134 @@
+# ── Per-Novel Model & Genre Configuration ──────────────────────────────────
+# Maps each novel to its own model assignment, genre, and processing settings.
+# The pipeline auto-detects which novel is being translated and applies these
+# settings as overrides on top of config/settings.yaml.
+#
+# USAGE:
+#   Just list your novel below. No CLI flags needed — it's automatic.
+#
+#   If a novel is NOT listed, the `defaults` block at the bottom applies.
+#   ────────────────────────────────────────────────────────────────────────
+
+novels:
+  # ═══════════════════════════════════════════════════════════════════════
+  # 🏯 XIANXIA / CULTIVATION NOVELS
+  # Best model: padauk-gemma:q8_0 (native Myanmar output, proven for
+  # cultivation terminology, confrontation speech patterns)
+  # ═══════════════════════════════════════════════════════════════════════
+  reverend-insanity:
+    genre: xianxia
+    description: "GuDaoXianHong - dark cultivation novel with complex terminology"
+    translator: padauk-gemma:q8_0
+    refiner: padauk-gemma:q8_0
+    checker: qwen:7b
+    temperature: 0.2
+    chunk_size: 1200
+    pipeline_mode: single_stage
+
+  a-will-eternal:
+    genre: xianxia
+    description: "A Will Eternal - comedic xianxia by Er Gen"
+    translator: padauk-gemma:q8_0
+    refiner: padauk-gemma:q8_0
+    temperature: 0.2
+    chunk_size: 1200
+    pipeline_mode: single_stage
+
+  outside-of-time:
+    genre: xianxia
+    description: "Outside of Time - Er Gen's latest xianxia"
+    translator: padauk-gemma:q8_0
+    refiner: padauk-gemma:q8_0
+    checker: qwen:7b
+    temperature: 0.2
+    chunk_size: 1000
+    pipeline_mode: lite
+
+  battle-through-the-heavens:
+    genre: xianxia
+    translator: padauk-gemma:q8_0
+    temperature: 0.2
+    chunk_size: 1200
+
+  martial-peak:
+    genre: xianxia
+    translator: padauk-gemma:q8_0
+    temperature: 0.2
+    chunk_size: 1200
+
+  against-the-gods:
+    genre: xianxia
+    translator: padauk-gemma:q8_0
+    temperature: 0.2
+    chunk_size: 1200
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # ⚔️ WUXIA / MARTIAL ARTS NOVELS
+  # Best model: padauk-gemma:q8_0 with slightly higher temp for literary
+  # ═══════════════════════════════════════════════════════════════════════
+  heavenly-sword:
+    genre: wuxia
+    translator: padauk-gemma:q8_0
+    temperature: 0.25
+    chunk_size: 1200
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # 🐉 FANTASY / WESTERN NOVELS
+  # gemma4-e4b or sailor2-20b are better for Western fantasy prose.
+  # padauk-gemma works too but may need higher temp for literary nuance.
+  # ═══════════════════════════════════════════════════════════════════════
+  wayfarer:
+    genre: fantasy
+    description: "Western fantasy novel in English"
+    translator: padauk-gemma:q8_0
+    refiner: padauk-gemma:q8_0
+    temperature: 0.25
+    chunk_size: 1000
+    pipeline_mode: lite
+
+  the-legendary-mechanic:
+    genre: fantasy
+    translator: padauk-gemma:q8_0
+    temperature: 0.25
+    chunk_size: 1200
+
+  shadow-slave:
+    genre: fantasy
+    translator: padauk-gemma:q8_0
+    temperature: 0.25
+    chunk_size: 1000
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # 💖 ROMANCE / DRAMA
+  # gemma4-e4b or sailor2-20b handle emotional register better, but
+  # padauk-gemma at slightly higher temp also works.
+  # ═══════════════════════════════════════════════════════════════════════
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # 🌏 CHINESE NOVELS (CN→EN→MM pivot)
+  # Stage 1 is always hunyuan:7b; Stage 2 uses the translator below.
+  # ═══════════════════════════════════════════════════════════════════════
+  古道仙鸿:
+    genre: xianxia
+    description: "GuDaoXianHong - Chinese source, CN→EN→MM pivot"
+    translator: padauk-gemma:q8_0
+    temperature: 0.2
+    chunk_size: 1000
+
+  perfect-world:
+    genre: xianxia
+    translator: padauk-gemma:q8_0
+    temperature: 0.2
+    chunk_size: 1000
+
+# ═══════════════════════════════════════════════════════════════════════════
+# DEFAULT SETTINGS (applied when a novel is NOT listed above)
+# ═══════════════════════════════════════════════════════════════════════════
+defaults:
+  genre: xianxia
+  translator: padauk-gemma:q8_0
+  refiner: padauk-gemma:q8_0
+  checker: qwen:7b
+  temperature: 0.2
+  chunk_size: 1200
+  pipeline_mode: single_stage

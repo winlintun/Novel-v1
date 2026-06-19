@@ -392,24 +392,89 @@ ENGLISH → MYANMAR LINGUISTIC RULES:
 # PROMPT BUILDER FUNCTIONS
 # =============================================================================
 
+# ── Genre-specific rule blocks injected into translator prompts ──
+
+_GENRE_RULES: dict[str, str] = {
+    "xianxia": """
+GENRE-SPECIFIC RULES — Xianxia/Cultivation Novel:
+  • Confrontation speeches: ONE accusation per sentence. DROP ခဲ့ for vivid intensity.
+  • Cultivation terms: Use glossary EXACTLY. Never literal translate (e.g. "golden core" ≠ "ရွှေအူတိုင်").
+  • Realm names (筑基, 金丹, 元婴): transliterate from PINYIN, NOT translate meaning.
+  • Techniques/arts: preserve martial flavor. "九幽掌" → "ကိုယူဖျံလက်" (palm strike), NOT literal "nine abyss palm".
+  • Character hierarchy: Senior → သက်ကြီး, Junior → တပည့်. Master → ဆရာ. Never use English "sir/mister".
+  • Battle scenes: SHORT sentences (3-7 words). Fast rhythm. Active verbs. Show impact physically.
+  • Hatred expressions: use Myanmar idioms — အရိုးစွဲအောင် မုန်း (bone-deep hatred).
+  • Death threats: Declarative fate — "နင့်ကို အသေသစ်ရမယ့် နေ့ပဲ" (NOT "မင်းသေစေချင်တယ်").
+  • Enemy address: always မိစ္ဆာကောင်, NEVER နတ်ဆိုး.
+  • World-building terms (sects, halls, elders): ONE consistent spelling per chapter.
+  • Register: epic narration → သည်/၏/သော (literary). Dialogue → တယ်/ဘူး (casual).
+""",
+    "wuxia": """
+GENRE-SPECIFIC RULES — Wuxia/Martial Arts Novel:
+  • Martial arts techniques: preserve wuxia flavor. Use glossary terms. Never translate technique names literally.
+  • Jianghu (江湖) terminology: keep consistent. ဂန်းဟူ / ဂျန်ဟူ — pick ONE spelling per novel.
+  • Honorifics: Master → ဆရာကြီး, Elder → သက်ကြီးဝါကြီး, Chief → အကြီးအကဲ.
+  • Swordsmanship descriptions: use physical, visual language. Show the technique, don't name-drop.
+  • Brotherhood/oath terms: 兄弟 → ညီအကို, 结拜 → ကျမ်းသစ္စာ.
+  • Confrontation: one accusation per sentence. Drop polite registers for enemies.
+  • Battle rhythm: short, punchy sentences. Fast-paced. Minimal description, maximal action.
+  • Keep martial arts philosophy: "the sword is an extension of the self" → preserve in translation.
+""",
+    "fantasy": """
+GENRE-SPECIFIC RULES — Fantasy/Western Novel:
+  • World-building terms (magic systems, races, locations): create consistent Myanmar transliterations.
+  • Keep fantasy terms (wizard, dragon, elf, dwarf) as culturally appropriate Myanmar equivalents or transliterations.
+  • Magic system vocabulary: use glossary. Create transliteration if no Myanmar equivalent exists.
+  • Western names: transliterate based on English pronunciation, NOT pinyin.
+  • Register: literary but accessible. Avoid overly archaic Myanmar.
+  • Description: sensory-rich. Show the fantastical elements through concrete physical detail.
+  • Dialogue: natural. Match register to character's social standing and species.
+  • Action scenes: medium length. Fantasy battles have more description than wuxia.
+""",
+    "romance": """
+GENRE-SPECIFIC RULES — Romance/Drama Novel:
+  • Emotional register: prioritize feeling over action. Show internal states through physical sensation.
+  • Dialogue: natural, flowing. Match intimacy level to relationship stage.
+  • Internal monologue: preserve in Myanmar. Use casual register (တယ်/ဘူး/မယ်).
+  • Descriptive language: sensory, emotional. Focus on atmosphere, facial expressions, body language.
+  • Pronouns: match relationship intimacy. Close → ငါ/မင်း, Distant → ကျွန်တော်/ရှင်.
+  • Particle choice: softer. ပါရှင် / ပါတယ်ရှင် for female speech.
+  • Tension scenes: build through physical description — trembling hands, racing heart, shallow breath.
+  • Register: medium literary. Smooth, flowing sentences. Avoid harsh or abrupt structures.
+""",
+    "general": """
+GENRE-SPECIFIC RULES — General/Literary Novel:
+  • Match register to source text tone (formal, casual, literary, journalistic).
+  • Preserve author voice: distinctive sentence rhythms, word choices, stylistic quirks.
+  • Cultural references: adapt to Myanmar equivalents where possible, explain where not.
+  • Avoid over-adaptation: don't force Myanmar idioms where they don't fit.
+  • Sentence length: match source. Short for action, longer for description.
+  • Consistency: one translator voice throughout the entire chapter.
+""",
+}
+
+
 def build_translator_prompt(
     source_lang: str = "chinese",
     model_name: str = "",
     scene_type: str = "narration",
+    genre: str = "",
 ) -> str:
-    """Get appropriate translator prompt based on source language and model.
+    """Get appropriate translator prompt based on source language, model, and genre.
     
     Injects dynamic linguistic rules via build_linguistic_context()
-    from cn_mm_rules.py / en_mm_rules.py for scene-appropriate translation.
+    from cn_mm_rules.py / en_mm_rules.py for scene-appropriate translation,
+    plus genre-specific rules for novel-type adaptation.
     
     Args:
         source_lang: Source language ("chinese", "english", etc.)
         model_name: Model identifier for optimization
         scene_type: Scene type for dynamic rule injection
             ("narration" | "dialogue" | "action" | "confrontation")
+        genre: Novel genre ("xianxia", "wuxia", "fantasy", "romance", "general")
         
     Returns:
-        System prompt string with dynamic linguistic rules appended
+        System prompt string with dynamic linguistic + genre rules appended
     """
     source_lower = source_lang.lower() if source_lang else "english"
     is_padauk = "padauk" in model_name.lower()
@@ -423,7 +488,7 @@ def build_translator_prompt(
             scene_type=scene_type,
             include_confrontation_rules=(scene_type == "confrontation"),
         )
-        return base + "\n\n" + rules
+        result = base + "\n\n" + rules
     else:
         if is_padauk:
             base = CUSTOM_PADAUK_EN_MM_PROMPT
@@ -433,7 +498,15 @@ def build_translator_prompt(
             source_lang=source_lang,
             scene_type=scene_type,
         )
-        return base + "\n\n" + rules
+        result = base + "\n\n" + rules
+
+    # Append genre-specific rules if we have them
+    genre_lower = genre.lower().strip() if genre else ""
+    genre_block = _GENRE_RULES.get(genre_lower)
+    if genre_block:
+        result += "\n" + genre_block
+
+    return result
 
 # =============================================================================
 # CUSTOM USER PROMPT FOR PADAUK-GEMMA (EN→MM)
@@ -455,74 +528,95 @@ Translate the provided English source text into a polished, literary Burmese nov
 - **Tone and Formality:** Adapt the tone to a polished, novelistic Burmese. Use sentence structures common in modern Burmese literature. The tone should match the scene (e.g., tense, romantic, somber).
 - **Idioms and Figurative Language:** Do not translate source idioms literally. Find the closest Burmese cultural or linguistic equivalent that conveys the same meaning and emotional impact.
 - **Dialogue:** Ensure all dialogue is natural and reflects each character's personality, status, and their relationship with whomever they are speaking.
-- **Careful for using wrong unicode:** padauk-gemma default translate "It's no use pretending" to "မနက်ဖြန်เจ้าสาวကို ကြိုဆိုရမှာပါ". It should be "မနက်ဖြန်က သတို့သမီးကို ကြိုဆိုရမယ့်ရက်". So, make sure don't use wrong unicode text format.
-  - ❌ WRONG: "မနက်ဖြန်เจ้าสาวကို" (contains Thai character เจ้า)
-  - ✅ CORRECT: "မနက်ဖြန်က သတို့သမီးကို" (pure Myanmar Unicode)
-- **Careful for wrong character:** For the question do not use `؟`. use the `?`.
-  - ❌ WRONG: "ဘယ်သူလဲ؟" (Arabic question mark)
-  - ✅ CORRECT: "ဘယ်သူလဲ?" (Standard question mark)
+- **Content completeness:** Translate EVERY sentence and paragraph. NEVER summarize or skip content. Source paragraph count MUST equal output paragraph count.
+- **Vary sentence structure:** NEVER repeat the same sentence pattern more than once in a row. Use diverse Myanmar particles (သည်/ကို/မှာ/အတွက်/ကဲ့သို့/ထို့ကြောင့်/သို့သော်). Each sentence must be unique.
 
-## 4. GLOSSARY ENFORCEMENT (CRITICAL INSTRUCTION)
+## 4. STRUCTURAL RULES (MANDATORY)
 
-You MUST use glossary terms EXACTLY as specified below. No variants, no phonetic guesses. Maintain consistency for every term throughout the entire text.
+### 4a. SVO -> SOV Conversion
+- EN: He [S] struck [V] the enemy [O]
+- MM: သူ [S] ရန်သူကို [O] ထိုးလိုက်တယ် [V]
+- Time/Location phrases ALWAYS move to sentence START
+  - EN: He went to the market yesterday
+  - MM: မနေ့က ဈေးကို သူ သွားခဲ့တယ်
+- Negation (မ/မဟုတ်) precedes the verb
+- Question markers (လား/နည်း) at sentence END
 
-Glossary terms are provided in the REFERENCE TRANSLATION section of the user message. Use them verbatim.
-
-## 5. SENTENCE STRUCTURE (SOV ORDER)
-
-- **Subject-Object-Verb (SOV):** Burmese follows SOV order, not English SVO.
-  - EN: He [S] struck [V] the enemy [O] 
-  - MM: သူ [S] ရန်သူကို [O] ထိုးလိုက်တယ် [V]
-- **Time/Location:** Move to sentence START in Burmese.
-  - EN: He went to the market yesterday.
-  - MM: မနေ့က ဈေးကို သူ သွားခဲ့တယ်。
-
-## 6. DIALOGUE RULES
-
-**Dialogue Tag Format:**
-- ✅ CORRECT: "စကားပြော" လဲ့ [name] ပြောတယ်
+### 4b. Dialogue Format
+- ✅ CORRECT: "စကားပြော" လို့ [name] ပြောတယ်
 - ❌ WRONG: "စကားပြော" ဟု သူ မေးမြန်းလေသည် (archaic, NEVER USE)
+- Vary speech verbs: ပြောတယ်, မေးတယ်, တိုးတိုးပြောတယ်, အော်လိုက်တယ်, အေးစက်စက်နဲ့ပြောတယ်, ပြန်ပြောတယ်
 
-**Pronouns by Relationship:**
-- Enemy/Hostile: နင် (contemptuous)
-- Equal/Casual: မင်း (male/female), ခင်ဗျ (male), ရှင် (female)
+### 4c. Pronouns by Relationship
+- Enemy/Hostile: နင် (2nd, NEVER မင်း to an enemy), ဒီကောင် (3rd contemptuous)
+- Equal/Casual: မင်း / ခင်ဗျ (male) / ရှင် (female)
 - Self (formal): ကျွန်တော် (male), ကျွန်မ (female)
 - Self (casual): ငါ
-- Third person: သူ (male), သူမ (female)
+- Third person: သူ (male), သူမ (female), သူတို့ (plural)
 
-**Gender-Aware Speech Particles (CRITICAL):**
-- MALE speakers MUST end with: ခင်ဗျာ / မင်း (informal), အရှင်း (formal)
-- FEMALE speakers MUST end with: ရှင် / မင်း (informal)
+### 4d. Gender-Aware Speech Particles (CRITICAL)
+- MALE speakers MUST use: ခင်ဗျာ / မင်း (informal), အရှင်း (formal)
+- FEMALE speakers MUST use: ရှင် / မင်း (informal)
 - NEVER use ရှင် for male characters — it's exclusively female ending
+- Example Male: "...ပါတယ်ခင်ဗျာ"
+- Example Female: "...ပါရှင်"
 
-## 7. EMOTIONS: SHOW, DON'T TELL
+### 4e. Tense & Register
+- Past (standard): ခဲ့တယ် / ခဲ့သည်
+- Vivid accusation: DROP ခဲ့ for present-tense intensity ("နင် ငါ့ကို စော်ကားတယ်")
+- Narration: သည် / ၏ / သော / ဖြင့် (literary)
+- Dialogue/close POV: တယ် / ဘူး / မယ် (conversational)
+- NEVER mix formal (သည်) and casual (တယ်) in same narration block
+- NEVER repeat same particle 3+ times consecutively
 
-**Never use abstract emotion labels. Express through physical sensations:**
-- ❌ WRONG: He felt sad
-- ✅ CORRECT: Something cut through his chest like a blade
-- ❌ WRONG: She was angry  
+### 4f. Sentence Rhythm by Scene
+- Action/combat: 3-7 words per sentence MAX
+- Tense confrontation: ONE accusation per sentence — split all comma chains with ။
+- Calm narration: 10-18 words acceptable
+- Romantic/poetic: sensory detail over emotional labels
+
+### 4g. Emotions — SHOW Physically
+- ❌ WRONG: သူ ဝမ်းနည်းတယ် (abstract label)
+- ✅ CORRECT: သူ့ရင်ထဲမှာ တစ်ခုခု ကျိုးသွားသလို ဖြစ်မိတယ် (physical sensation)
+- ❌ WRONG: She was angry
 - ✅ CORRECT: Her jaw tightened
 
-## 8. UNICODE SAFETY (ZERO TOLERANCE)
+## 5. UNICODE SAFETY (ZERO TOLERANCE)
+
+**KNOWN PADAUK-GEMMA BUG — Thai/Bengali leakage:**
+padauk-gemma sometimes mixes Thai characters (เจ้า, พระ) into Myanmar output.
+- ❌ WRONG: "မနက်ဖြန်เจ้าสาวကို" (contains Thai character เจ้า)
+- ✅ CORRECT: "မနက်ဖြန်က သတို့သမီးကို" (pure Myanmar Unicode)
 
 **FORBIDDEN Scripts (not even ONE character allowed):**
 - ❌ Thai script (เจ้า พระ) — U+0E00-U+0E7F
 - ❌ Bengali script (ক খ গ) — U+0980-U+09FF
+- ❌ Devanagari (क ख ग) — U+0900-U+097F
 - ❌ Korean Hangul (봤자 해서) — U+AC00-U+D7FF
 - ❌ Chinese characters (中文) — U+4E00-U+9FFF
 - ❌ Arabic question mark (؟) — U+061F
 - ❌ English words in narration
+- ❌ Latin/English letters in output (D132 -> D၁၃၂ or translate)
 
 **✅ ALLOWED:** Myanmar Unicode only (U+1000-U+109F, U+AA60-U+AA7F, U+A9E0-U+A9FF)
 
-## 9. FORMATTING RULES
+## 6. FORMATTING RULES
 
 - Preserve ALL Markdown: # headings, **bold**, *italic*, lists, > blockquotes, ---
 - Chapter heading format: `# အခန်း [number]\n\n## [Title]`
 - Preserve ellipsis (......) exactly as in source
-- Use 【?term?】 for unknown words — never guess
+- Use 【?term?】 for unknown words — never guess, never leave English/Chinese
+- Preserve original paragraph breaks exactly
 
-## 10. OUTPUT INSTRUCTIONS
+## 7. TERMINOLOGY
+
+- Use glossary terms EXACTLY. No variants, no phonetic guesses.
+- Chinese character names: transliterate from PINYIN, NOT English pronunciation
+- Cultivation terms (Nascent Soul, Golden Core): glossary ONLY — never literal translate
+- Unknown terms: 【?term?】 placeholder — never guess, never leave source language
+- Replace archaic: ဤ->ဒီ, ထို->အဲဒီ, သင်သည်->မင်း
+
+## 8. OUTPUT INSTRUCTIONS
 
 - Output ONLY the final translated Burmese text.
 - NO English words, NO Chinese characters, NO Thai characters.

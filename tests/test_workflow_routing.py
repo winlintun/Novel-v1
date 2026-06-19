@@ -124,6 +124,37 @@ class TestGenerateGlossaryRouting(unittest.TestCase):
         mock_gen.assert_called_once()
         mock_trans.assert_not_called()
 
+    def test_generate_glossary_with_chapter_range_does_not_run_translation(self):
+        """--generate-glossary --chapter-range 1-5 must extract glossary then STOP.
+
+        The chapter range only scopes which chapters are scanned for terms; it
+        must NOT fall through into the translation pipeline.
+        """
+        import unittest.mock as mock
+        import importlib
+        import src.main as main_mod
+        importlib.reload(main_mod)
+
+        with mock.patch("src.main.run_glossary_generation", return_value=0) as mock_gen, \
+             mock.patch("src.main._run_translation_with_opts") as mock_trans, \
+             mock.patch("src.main.parse_arguments") as mock_parse, \
+             mock.patch("src.main.validate_arguments"):
+
+            mock_parse.return_value = argparse.Namespace(
+                clean=False, rebuild_meta=False, ui=False, flask=False,
+                port=5000, test=False,
+                view_file=None, review_file=None, auto_promote=False, stats=False,
+                generate_glossary=True, approve_glossary=False, novel="my-novel",
+                chapter=None, all=False, chapter_range="1-5", input_file=None,
+                config=None, model=None, mode=None, output_dir=None,
+                versions=False, rollback=None, diff=None, preview_sync=None,
+                create_sync_job=None, execute_sync=None, list_sync_jobs=False, audit_log=False
+            )
+            main_mod.main()
+
+        mock_gen.assert_called_once()
+        mock_trans.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

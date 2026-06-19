@@ -3,7 +3,6 @@
 import hashlib
 import re
 from pathlib import Path
-from typing import Optional
 
 from src.dataset_alignment.config import get_alignment_config
 from src.dataset_alignment.database import connect

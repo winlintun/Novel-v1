@@ -174,7 +174,7 @@ class GlossaryManager:
                      usage_count, scope, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, 'pending', 'soft', ?, 0, 'novel', ?)
             """, (term_id, novel_id, source_term, target_term,
-                  target_term, category, confidence, now))
+                  source_term, category, confidence, now))
 
             try:
                 import json

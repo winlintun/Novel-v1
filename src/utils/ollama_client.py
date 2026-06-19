@@ -7,7 +7,7 @@ Supports both /api/chat and /api/generate endpoints.
 import time
 import random
 import logging
-from typing import Iterator, Optional
+from typing import Optional
 import ollama
 
 from src.exceptions import ModelError
@@ -283,7 +283,8 @@ class OllamaClient:
         system_prompt: Optional[str] = None,
         stream: bool = False,
         model: Optional[str] = None,
-        num_predict: Optional[int] = None
+        num_predict: Optional[int] = None,
+        format: Optional[str] = None,
     ) -> str:
         """
         Send chat request to Ollama with retry + timeout + typed exceptions.
@@ -329,6 +330,11 @@ class OllamaClient:
                         options["num_gpu"] = self.gpu_layers
                     options["main_gpu"] = self.main_gpu
 
+                # Ollama native structured-output mode: format="json" constrains
+                # the model to emit valid JSON (no prose/fences), which is far more
+                # reliable than asking for JSON in the prompt. Only passed when set.
+                fmt_kw = {"format": format} if format else {}
+
                 # Fixed: Support both /api/chat and /api/generate endpoints (per need_fix.md)
                 if self.use_generate_endpoint:
                     full_prompt = ""
@@ -340,7 +346,8 @@ class OllamaClient:
                         model=effective_model,
                         prompt=full_prompt,
                         options=options,
-                        keep_alive=self.keep_alive
+                        keep_alive=self.keep_alive,
+                        **fmt_kw,
                     )
                     # Parse response: handles both dict (old) and object (ollama>=0.5)
                     raw_response = self._extract_generate_response(response)
@@ -355,7 +362,8 @@ class OllamaClient:
                         model=effective_model,
                         messages=messages,
                         options=options,
-                        keep_alive=self.keep_alive
+                        keep_alive=self.keep_alive,
+                        **fmt_kw,
                     )
                     # Parse response: handles both dict (old) and object (ollama>=0.5)
                     raw_content = self._extract_chat_response(response)
@@ -374,7 +382,8 @@ class OllamaClient:
                             model=effective_model,
                             prompt=full_prompt,
                             options=options,
-                            keep_alive=self.keep_alive
+                            keep_alive=self.keep_alive,
+                            **fmt_kw,
                         )
                         raw_content = self._extract_generate_response(fallback_resp)
                         if raw_content:
@@ -443,121 +452,4 @@ class OllamaClient:
 
         raise ModelError(f"Ollama failed after {self.max_retries} attempts on model {effective_model}")
 
-    def chat_stream(
-        self,
-        prompt: str,
-        system_prompt: Optional[str] = None,
-        model: Optional[str] = None
-    ) -> Iterator[str]:
-        """
-        Stream chat response from Ollama.
-        
-        Args:
-            prompt: User prompt
-            system_prompt: Optional system prompt
-            model: Override model name per-call (stateless)
-            
-        Yields:
-            Text chunks as they arrive
-        """
-        effective_model = model if model else self.model
 
-        messages = []
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
-        messages.append({"role": "user", "content": prompt})
-
-        try:
-            # Build options with GPU configuration
-            stream_options = {
-                "temperature": self.temperature,
-                "num_predict": 2048,
-                "num_ctx": self.num_ctx,
-                "top_p": self.top_p,
-                "top_k": self.top_k,
-                "repeat_penalty": self.repeat_penalty,
-                "timeout": int(self.timeout),
-            }
-
-            # Add GPU configuration if enabled
-            if self.use_gpu:
-                if self.gpu_layers >= 0:
-                    stream_options["num_gpu"] = self.gpu_layers
-                stream_options["main_gpu"] = self.main_gpu
-
-            stream = self.client.chat(
-                model=effective_model,
-                messages=messages,
-                stream=True,
-                options=stream_options,
-                keep_alive=self.keep_alive
-            )
-
-            for chunk in stream:
-                try:
-                    content = self._extract_chat_response(chunk)
-                    if content:
-                        yield content
-                except Exception:
-                    continue
-
-        except (ConnectionError, ConnectionAbortedError, ConnectionRefusedError) as e:
-            logger.error(f"Ollama streaming connection error: {e}")
-            raise ModelError(f"Ollama connection failed during streaming: {e}") from e
-        except Exception as e:
-            logger.error(f"Streaming error: {e}")
-            raise ModelError(f"Ollama streaming error: {e}") from e
-
-    def check_model_available(self) -> bool:
-        """Check if the configured model is available."""
-        try:
-            models = self.client.list()
-            # Handle both dict (old) and ListResponse object (ollama>=0.5)
-            if hasattr(models, 'models'):
-                model_list = getattr(models, 'models', [])
-            elif isinstance(models, dict):
-                model_list = models.get('models', [])
-            else:
-                model_list = []
-
-            available = []
-            for m in model_list:
-                if hasattr(m, 'model'):
-                    model_name = getattr(m, 'model', '') or getattr(m, 'name', '')
-                elif isinstance(m, dict):
-                    model_name = m.get('model') or m.get('name')
-                else:
-                    model_name = str(m)
-                if model_name:
-                    available.append(model_name)
-
-            if self.model in available:
-                return True
-            else:
-                logger.warning(f"Model '{self.model}' not found. Available: {available}")
-                return False
-
-        except Exception as e:
-            logger.error(f"Cannot connect to Ollama: {e}")
-            return False
-
-    def unload_model(self) -> bool:
-        """
-        Explicitly unload model from GPU to free VRAM.
-        
-        Returns:
-            True if successful, False otherwise
-        """
-        try:
-            logger.info(f"Unloading model {self.model} from GPU...")
-            self.client.generate(
-                model=self.model,
-                prompt="",
-                keep_alive=0,
-                options={"num_predict": 1, "timeout": min(self.timeout, 30)}
-            )
-            logger.info(f"Model {self.model} unloaded from GPU")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to unload model: {e}")
-            return False

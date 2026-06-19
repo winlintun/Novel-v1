@@ -56,7 +56,8 @@ def main() -> int:
     Command priority (descending):
     1. --ui → opens Flask Web UI (pass --novel/--chapter as hints via env vars)
     2. --test, --view, --review, --stats, --auto-promote, --rebuild-meta (standalone)
-    3. --generate-glossary (runs before translation if both specified)
+    3. --generate-glossary (standalone — extracts glossary then STOPS; a
+       --chapter-range only scopes which chapters are scanned, not translated)
     4. Translation pipeline (--novel / --input)
     
     When --ui is used with --novel/--chapter, the settings are passed
@@ -156,17 +157,13 @@ def main() -> int:
     if args.audit_log:
         return run_audit_log(args)
 
-    # ── Glossary generation (standalone or pre-translation) ──
+    # ── Glossary generation (standalone command) ──
+    # --generate-glossary / --init-glossary is a terminal utility: it extracts
+    # the glossary and STOPS. A --chapter-range/--chapter only scopes which
+    # chapters are scanned for terms — it does NOT also trigger translation.
+    # To translate, run a separate command without --generate-glossary.
     if args.generate_glossary or getattr(args, 'init_glossary', False):
-        result = run_glossary_generation(args)
-        if result != 0:
-            return result
-        # For --init-glossary: always stop after glossary generation
-        if getattr(args, 'init_glossary', False):
-            return result
-        # Standalone glossary run — no chapter/all specified, stop here
-        if not (args.chapter or args.all or getattr(args, 'chapter_range', None) or args.input_file):
-            return result
+        return run_glossary_generation(args)
 
     # ── Translation commands ──
     # Validate arguments for translation (chapter/all required)

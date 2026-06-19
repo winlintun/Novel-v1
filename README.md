@@ -4,6 +4,72 @@ AI-powered English/Chinese → Myanmar novel translation system using local LLMs
 
 ---
 
+## ⚡ Interactive Launchers (No Manual Commands)
+
+Don't want to type long `python -m src.main --novel ... --chapter ...` commands? Two menu-driven helper scripts do it for you — they discover your novels/chapters, build the command, and run it.
+
+### `scripts/translate.py` — Run any pipeline function from a menu
+
+```bash
+python scripts/translate.py            # interactive menus
+python scripts/translate.py --dry-run  # show the command without running it
+```
+
+Top-level menu:
+
+```
+=== Novel Translation Launcher ===
+  1. Translate chapters
+  2. Generate glossary
+  3. Approve / promote glossary terms
+  4. Show quality stats
+  5. Review / view a translated file
+  6. Launch web UI
+```
+
+What each option does (it just assembles the matching CLI command):
+
+| Menu | Sub-options | Example command built |
+|------|-------------|-----------------------|
+| **1. Translate chapters** | single / range / all + mode + optional model | `--novel a-will-eternal --chapter 5 --mode single_stage` |
+| **2. Generate glossary** | source chapters / EN↔MM pairs / init 1-5 | `--generate-glossary --chapter-range 1-10 --from-mm` |
+| **3. Approve / promote** | auto-promote / bulk approve | `--novel a-will-eternal --approve-glossary` |
+| **4. Quality stats** | (novel only) | `--stats --novel a-will-eternal` |
+| **5. Review / view file** | view / review + file path | `--view <file.mm.md>` |
+| **6. Web UI** | port prompt | `--ui --port 5000` |
+
+- Novels and chapter numbers are auto-discovered from `data/input/` — just pick from the list.
+- After each action it returns to the main menu; press `q` (or `b`/`back` in a submenu) to go back.
+- `--dry-run` prints the exact command so you can learn the CLI as you go.
+
+### `scripts/change_model.py` — Switch the Ollama model per role
+
+Reassign the model used for each pipeline role (`translator`, `refiner`, `checker`, `editor`) without hand-editing `config/settings.yaml`. It lists the models actually installed in Ollama and edits the YAML in place (comments preserved).
+
+```bash
+python scripts/change_model.py                 # interactive menu
+python scripts/change_model.py --list          # show current roles + installed models
+python scripts/change_model.py --set translator=padauk-gemma:q8_0   # non-interactive
+```
+
+Example `--list` output:
+
+```
+Current role -> model mapping (config/settings.yaml):
+  translator  gemma4-e4b-it:q8_0
+  refiner     padauk-gemma:q8_0
+  checker     padauk-gemma:q8_0
+  editor      padauk-gemma:q8_0
+
+Installed Ollama models:
+   1. gemma4-e4b-it:q8_0
+   2. padauk-gemma:q8_0
+```
+
+> Tip: use `change_model.py` to set the default model, then `translate.py` to run — or override the model right inside the translate menu for a single run.
+
+---
+
 ## 🚀 First-Run Setup Guide
 
 Follow these steps **in order** on your first run. Skipping steps (especially glossary generation and RAG alignment) will significantly reduce translation quality.
@@ -187,6 +253,8 @@ Quality gates enforce: Myanmar ratio ≥ 70%, quality score ≥ 70/100, zero Ind
 ---
 
 ## 🖥️ CLI Reference
+
+> Prefer menus? Run `python scripts/translate.py` to drive everything below interactively (see [Interactive Launchers](#-interactive-launchers-no-manual-commands)).
 
 ### Translation
 
@@ -499,7 +567,7 @@ novel_translation_project/
 │   ├── utils/                 # OllamaClient, FileHandler, Chunker, Postprocessor
 │   ├── web/                   # Flask Web UI
 │   └── training/              # LoRA fine-tuning
-├── scripts/                   # import_universal_glossary.py, bootstrap_glossary.py
+├── scripts/                   # translate.py + change_model.py (interactive launchers), import_universal_glossary.py, bootstrap_glossary.py
 ├── tools/                     # mine_glossary.py, run_dataset_alignment.py, glossary_stats.py
 ├── glossary_extraction/       # Offline glossary mining pipeline
 ├── glossary_app/              # Standalone Glossary Review UI

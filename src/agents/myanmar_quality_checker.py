@@ -296,48 +296,4 @@ class MyanmarQualityChecker(BaseAgent):
 
         return max(0, min(100, score))
 
-    def check_dialogue_tone(
-        self,
-        text: str,
-        character_hierarchy: Dict[str, str] = None
-    ) -> List[str]:
-        """
-        Check dialogue uses appropriate pronouns and honorifics.
-        
-        Args:
-            text: Myanmar text
-            character_hierarchy: Dict of character -> status (superior/inferior/equal)
-            
-        Returns:
-            List of issues
-        """
-        issues = []
 
-        # Check for appropriate pronouns in dialogue
-        # This is a simplified check
-        if '"' in text or '"' in text or '「' in text:
-            # Has dialogue
-            if "ကျွန်တော်" in text and "မင်း" not in text:
-                issues.append(
-                    "Dialogue uses 'ကျွန်တော်' but no 'မင်း' response - possible hierarchy issue"
-                )
-
-        return issues
-
-    def suggest_improvements(self, text: str) -> List[str]:
-        """Generate specific improvement suggestions."""
-        suggestions = []
-
-        quality = self.check_quality(text)
-
-        for issue in quality.get("issues", []):
-            if "archaic" in issue.lower():
-                suggestions.append("Replace archaic words with modern equivalents")
-            if "repetition" in issue.lower():
-                suggestions.append("Rewrite to reduce word repetition")
-            if "particle" in issue.lower():
-                suggestions.append("Add proper Myanmar grammatical particles")
-            if "tone" in issue.lower():
-                suggestions.append("Maintain consistent formality level")
-
-        return suggestions

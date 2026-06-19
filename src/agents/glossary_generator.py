@@ -201,7 +201,7 @@ class GlossaryGenerator(BaseAgent):
         )
 
         try:
-            response = self.client.chat(prompt=prompt)
+            response = self.client.chat(prompt=prompt, format="json")
             data = extract_json_from_response(response)
             return data.get("terms", [])
         except Exception as e:
@@ -395,7 +395,7 @@ class GlossaryGenerator(BaseAgent):
             )
 
             try:
-                response = self.client.chat(prompt=prompt)
+                response = self.client.chat(prompt=prompt, format="json")
                 data = extract_json_from_response(response)
                 terms = data.get("terms", [])
             except Exception as e:

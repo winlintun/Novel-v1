@@ -5,9 +5,20 @@
 ---
 
 ## Last Updated
-- Date: 2026-06-16
-- Last task completed: opencode review run + cleanup (kept per-novel-model feature; fixed JSON corruption + 27 lint errors)
-- Git commit: `afa15c4` (working tree dirty — opencode changes + cleanup, uncommitted)
+- Date: 2026-06-19
+- Last task completed: genre-aware prompts + native JSON glossary mode + Windows console fix + glossary-routing fix + large dead-code cleanup (ERR-092..096)
+- Git commit: HEAD `5497aa7` (working tree dirty — this session's changes, being committed)
+
+## Session Summary (2026-06-19 — genre prompts, JSON glossary, Windows console, routing, cleanup)
+- ✅ **Genre-aware translator prompts** — `build_translator_prompt(genre=...)` appends a genre rule block (xianxia/wuxia/fantasy/romance/general) on top of scene+linguistic rules; translator pulls `project.novel_genre` from config and passes it through (`system_prompts.py`, `translator.py`).
+- ✅ **Native Ollama JSON mode (ERR-093)** — added `format` kwarg to `OllamaClient.chat()` forwarding Ollama's structured-output flag on /api/chat + /api/generate (+fallback); `GlossaryGenerator` now calls `chat(format="json")` so extraction is constrained to valid JSON instead of prompt-wording.
+- ✅ **Glossary pending-insert column bug (ERR-092)** — `scripts/glossary_manager.py` wrote `target_term` into the source-variant column; fixed to `source_term`.
+- ✅ **Windows console UnicodeEncodeError (ERR-094)** — `formatters.py` reconfigures stdout/stderr to UTF-8 (`errors='replace'`); auto-detection banner de-emojified to ASCII.
+- ✅ **`--generate-glossary` no longer falls through to translation (ERR-095)** — `main.py` returns `run_glossary_generation()` directly; `--chapter-range` only scopes which chapters are scanned. New regression test in `test_workflow_routing.py`.
+- ✅ **`en/` chapter discovery (ERR-096)** — `FileHandler.list_chapter_files()` now also scans `data/input/{novel}/en/` (the prior "English chapters in en/ subfolder" known issue is resolved).
+- ✅ **New terminal tooling** — `scripts/translate.py` (interactive launcher), `scripts/change_model.py` (per-role model swap in settings.yaml), `tools/verify_rag.py`; per-novel config `config/novel_models.yaml` + `src/config/novel_model_loader.py`.
+- 🧹 **Dead-code cleanup** — removed `glossary_extraction/` (8), `src/validators/` (7), `src/feedback/` (2), `src/utils/model_registry.py` (+test), dead methods across base_agent/preprocessor/quality_checker/ollama_client, generated blueprint JSON blobs, `logs/temp/` dumps, `sample.md`, stray `main`. Trimmed AGENTS.md crash-pattern gallery. Net 143 files, +346/−27,327.
+- 🧪 **Tests** — touched suites: 88 pass. The 6 `TestMemoryManager` failures are pre-existing Windows tmpdir-teardown `PermissionError` (WinError 32), unrelated to this session.
 
 ## Session Summary (2026-06-16 — opencode review run + cleanup)
 - ⚠️ **opencode overreach** — `opencode run "review the translate quality..."` was a review prompt, but opencode instead modified **26 source files** + created **3 new files** (per-novel model config feature: `config/novel_models.yaml`, `src/config/novel_model_loader.py`, `tools/verify_rag.py`), corrupted `.agent/long_term_memory.json` (invalid JSON), overwrote session docs, and introduced **27 ruff E/F errors**.

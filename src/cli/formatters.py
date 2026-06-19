@@ -12,6 +12,13 @@ Provides formatted output functions for displaying:
 from typing import List, Tuple, Union, Optional
 import sys
 
+# Force UTF-8 encoding for stdout/stderr to prevent UnicodeEncodeError
+# with emoji characters on Windows CP1252 console
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+if hasattr(sys.stderr, 'reconfigure'):
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+
 from src.config.models import AppConfig
 
 
@@ -239,30 +246,26 @@ def print_auto_detection_result(source_lang: str, workflow: str, models: dict) -
         models: Dictionary of selected models with keys like 'translator', 'editor', etc.
     """
     print("\n" + "=" * 70)
-    print("  🔍 AUTO-DETECTION RESULTS")
+    print("  [AUTO-DETECTION RESULTS]")
     print("=" * 70)
 
-    # Language emoji
-    lang_emoji = {"chinese": "🇨🇳", "english": "🇬🇧", "unknown": "❓"}
     lang_display = source_lang.upper() if source_lang != "unknown" else "UNKNOWN"
+    print(f"\n  Source Language: {lang_display}")
 
-    print(f"\n  Source Language: {lang_emoji.get(source_lang, '❓')} {lang_display}")
-
-    # Workflow info
     if workflow == "way1":
-        print("  Workflow:        🔄 way1 (EN → MM direct)")
+        print("  Workflow:        way1 (EN -> MM direct)")
         print("  Description:     English to Myanmar direct translation")
     elif workflow == "way2":
-        print("  Workflow:        🔄 way2 (CN → EN → MM pivot)")
+        print("  Workflow:        way2 (CN -> EN -> MM pivot)")
         print("  Description:     Chinese to English to Myanmar pivot translation")
     else:
-        print("  Workflow:        ⚠️  Using config default")
+        print("  Workflow:        Using config default")
 
      # Model info
     if models:
-        print("\n  🤖 Auto-Selected Models:")
+        print("\n  Auto-Selected Models:")
         for role, model in models.items():
-            print(f"     • {role.capitalize():12} {model}")
+            print(f"     * {role.capitalize():12} {model}")
 
     print("\n" + "=" * 70)
     print()

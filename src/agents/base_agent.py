@@ -55,18 +55,4 @@ class BaseAgent:
         if exception:
             logger.error(f"Exception: {str(exception)}")
 
-    def handle_error(self, error: Exception, context: str = "") -> None:
-        """Centralized error handling."""
-        self.log_error(f"{context}: {str(error)}", error)
 
-    def validate_config(self, required_keys: list) -> bool:
-        """Validate required config keys exist."""
-        missing = [k for k in required_keys if k not in self.config]
-        if missing:
-            self.log_warning(f"Missing config keys: {missing}")
-            return False
-        return True
-
-    def get_config(self, key: str, default: Any = None) -> Any:
-        """Get config value with default."""
-        return self.config.get(key, default)

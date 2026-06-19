@@ -4,7 +4,6 @@ import json
 import logging
 import re
 
-import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 
 from src.dataset_alignment.config import get_alignment_config

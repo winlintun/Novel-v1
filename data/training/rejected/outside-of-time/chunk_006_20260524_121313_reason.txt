@@ -1,2 +1,0 @@
-﻿quality=92
-mm_ratio=0.45

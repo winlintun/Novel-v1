@@ -111,18 +111,6 @@ class TestPreprocessor(unittest.TestCase):
             self.assertIn('text', chunk)
             self.assertIn('size', chunk)
 
-    def test_get_chapter_info(self):
-        """Test chapter info extraction from filename."""
-        preprocessor = Preprocessor()
-
-        filepath = "/path/to/novel_name_001.md"
-        info = preprocessor.get_chapter_info(filepath)
-
-        self.assertEqual(info['novel_name'], 'novel_name')
-        self.assertEqual(info['chapter_num'], 1)
-        self.assertEqual(info['filename'], 'novel_name_001.md')
-
-
 class TestMemoryManager(unittest.TestCase):
     """Test MemoryManager."""
 
@@ -299,20 +287,6 @@ class TestOllamaClient(unittest.TestCase):
 
         self.assertEqual(result, 'Test response')
         mock_client.chat.assert_called_once()
-
-    @patch('src.utils.ollama_client.ollama')
-    def test_check_model_available(self, mock_ollama_module):
-        """Test model availability check."""
-        mock_client = Mock()
-        mock_ollama_module.Client.return_value = mock_client
-
-        mock_client.list.return_value = {'models': [{'name': 'test-model'}]}
-
-        client = OllamaClient(model="test-model")
-        available = client.check_model_available()
-
-        self.assertTrue(available)
-
 
 class TestMyanmarRatio(unittest.TestCase):
     """Tests for _calc_myanmar_ratio() utility in orchestrator."""

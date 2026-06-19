@@ -94,10 +94,11 @@ class FileHandler:
         """List all chapter files for a novel.
         
         Looks for files in:
-        1. data/input/novel_name/novel_name_chapter_XXX.md (subdirectory)
-        2. data/input/novel_name/novel_name_XXX.md (subdirectory, legacy)
-        3. data/input/novel_name_chapter_XXX.md (flat structure)
-        4. data/input/novel_name_XXX.md (flat structure, legacy)
+        1. data/input/novel_name/en/novel_name_chapter_XXX.md (en subdirectory)
+        2. data/input/novel_name/novel_name_chapter_XXX.md (subdirectory, root)
+        3. data/input/novel_name/novel_name_XXX.md (subdirectory, legacy)
+        4. data/input/novel_name_chapter_XXX.md (flat structure)
+        5. data/input/novel_name_XXX.md (flat structure, legacy)
         """
         path = Path(input_dir)
         if not path.exists():
@@ -105,21 +106,25 @@ class FileHandler:
 
         files = []
 
-        # Pattern 1: Files in subdirectory (e.g., data/input/古道仙鸿/古道仙鸿_chapter_001.md)
+        # Pattern 1: Files in en/ subdirectory (e.g., data/input/novel/en/novel_chapter_001.md)
         novel_dir = path / novel_name
         if novel_dir.exists() and novel_dir.is_dir():
-            # Look for _chapter_ pattern first (new format)
+            en_dir = novel_dir / "en"
+            if en_dir.is_dir():
+                pattern_en = f"{novel_name}_chapter_*.md"
+                files.extend(en_dir.glob(pattern_en))
+                pattern_en_legacy = f"{novel_name}_*.md"
+                files.extend(en_dir.glob(pattern_en_legacy))
+
+            # Pattern 2: Files in novel root subdirectory
             pattern1 = f"{novel_name}_chapter_*.md"
             files.extend(novel_dir.glob(pattern1))
-            # Also look for legacy format (novel_name_XXX.md)
             pattern_legacy = f"{novel_name}_*.md"
             files.extend(novel_dir.glob(pattern_legacy))
 
-        # Pattern 2: Flat structure in root input dir
-        # Look for _chapter_ pattern first (new format)
+        # Pattern 3: Flat structure in root input dir
         pattern2 = f"{novel_name}_chapter_*.md"
         files.extend(path.glob(pattern2))
-        # Also look for legacy format (novel_name_XXX.md)
         pattern_flat_legacy = f"{novel_name}_*.md"
         files.extend(path.glob(pattern_flat_legacy))
 
