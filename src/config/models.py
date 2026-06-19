@@ -161,6 +161,8 @@ class ModelRolesConfig(BaseModel):
 class TranslationPipelineConfig(BaseModel):
     """Translation pipeline configuration."""
 
+    model_config = ConfigDict(validate_assignment=True)
+
     mode: Literal["full", "lite", "fast", "single_stage", "two_stage"] = Field(
         default="single_stage",
         description="Pipeline execution mode. single_stage recommended — full/lite pipelines lose 41-91% content"
@@ -172,6 +174,18 @@ class TranslationPipelineConfig(BaseModel):
     use_fiction_editor: bool = Field(
         default=False,
         description="Whether to use fiction editor for literary humanization"
+    )
+    use_syntax_editor: bool = Field(
+        default=False,
+        description="Whether to use mig-burmese-llm for Myanmar syntax checking/editing"
+    )
+    syntax_editor_model: str = Field(
+        default="models/mig-burmese-llm",
+        description="Path to HuggingFace model for Myanmar syntax editing"
+    )
+    syntax_editor_device: Literal["auto", "cpu", "cuda"] = Field(
+        default="auto",
+        description="Device for syntax editor: 'auto', 'cpu', or 'cuda'"
     )
     stage1_model: str = Field(
         default="padauk-gemma:q8_0",

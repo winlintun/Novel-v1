@@ -53,6 +53,7 @@ class TranslationPipeline:
         self._refiner = None
         self._reflection_agent = None
         self._fiction_editor = None
+        self._myanmar_syntax_editor = None
         self._myanmar_checker = None
         self._checker = None
         self._qa_tester = None
@@ -481,6 +482,19 @@ class TranslationPipeline:
                 config=self.config.dict(),
             )
         return self._fiction_editor
+
+    @property
+    def myanmar_syntax_editor(self):
+        """Lazy load Myanmar syntax editor (mig-burmese-llm HF model)."""
+        if self._myanmar_syntax_editor is None:
+            from src.agents.myanmar_syntax_editor import MyanmarSyntaxEditor
+            pipeline = self.config.translation_pipeline
+            self._myanmar_syntax_editor = MyanmarSyntaxEditor(
+                model_path=pipeline.syntax_editor_model,
+                device=pipeline.syntax_editor_device,
+            )
+            self.logger.info("MyanmarSyntaxEditor initialized (HF model)")
+        return self._myanmar_syntax_editor
 
     @property
     def myanmar_checker(self):
@@ -1544,6 +1558,22 @@ class TranslationPipeline:
                     "duration": time.time() - t_fe,
                 })
 
+            # Stage 5c: Myanmar Syntax Editor — check/fix Myanmar grammar (if enabled)
+            use_se = self.config.translation_pipeline.use_syntax_editor
+            if use_se:
+                self.logger.info(f"Step 5c/7: Checking Myanmar syntax for chunk {i+1}/{total}...")
+                t_se = time.time()
+                try:
+                    translated_chunk = self.myanmar_syntax_editor.check_and_fix(translated_chunk)
+                except Exception as e:
+                    self.logger.warning(f"MyanmarSyntaxEditor failed for chunk {i+1}: {e} — using original")
+                self._report({
+                    "type": "chunk_syntax_edited",
+                    "chunk_index": i + 1,
+                    "total_chunks": total,
+                    "duration": time.time() - t_se,
+                })
+
             total_issues = quality_issues + cons_count
             chunk_duration = time.time() - chunk_t0
             self._report({
@@ -2143,6 +2173,14 @@ class TranslationPipeline:
                     self.logger.info(f"Model {client.model} unloaded successfully")
                 except Exception as e:
                     self.logger.error(f"Error cleaning up Ollama client: {e}")
+
+        # Unload HF model (mig-burmese-llm) to free RAM
+        if self._myanmar_syntax_editor:
+            try:
+                self._myanmar_syntax_editor.unload()
+                self.logger.info("HF model (mig-burmese-llm) unloaded")
+            except Exception as e:
+                self.logger.error(f"Error unloading HF model: {e}")
 
         # Save memory manager state and close database connection
         if self._memory_manager:
