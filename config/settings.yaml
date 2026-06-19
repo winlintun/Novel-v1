@@ -91,8 +91,8 @@ storage:
   backend: sqlite
   db_path: data/novel_translation.db
 translation_pipeline:
-  description: "Two-stage EN->MM: translategemma:12b translates -> padauk-gemma:q8_0 refines (lite pipeline: Translate -> Refine -> Quality)"
-  mode: lite
+  description: "EN->MM single-stage direct translation (RECOMMENDED: refine/reflect stages drop 41-91% of content). To change model: python scripts/change_model.py"
+  mode: single_stage
   mode_description:
     fast: "2-stage pipeline: Translate -> Quality (skip refinement)"
     fast_desc: "Fast optimized: CN->EN->MM pivot with quantized models (16GB RAM)"
@@ -100,7 +100,7 @@ translation_pipeline:
     lite: "3-stage pipeline: Translate -> Refine -> Quality"
     single_stage: "1-stage pipeline: Direct translation only (RECOMMENDED — full pipeline drops 41-91% of content)"
     two_stage: "2-stage pipeline: Stage 1(gemma-4-e4b) -> Stage 2(padauk-gemma:refinement)"
-  use_reflection: true
+  use_reflection: false
   use_fiction_editor: false
   use_syntax_editor: true
   syntax_editor_model: models/mig-burmese-llm
