@@ -1,53 +1,48 @@
 #!/usr/bin/env python3
 """
-Simple skeleton model config loader for Web UI.
-Reads config/models.skeleton.yaml with minimal model definitions.
+Model-presets loader for the Web UI dropdown and the --compare-models tool.
+
+The model catalog lives in the single config file (config/settings.yaml) under
+the `model_presets:` section. To change the model used for translation, edit the
+`models:` block or run `python scripts/change_model.py`.
 """
 
 import yaml
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 
+_DEFAULT_PRESETS = {
+    'active_model': 'padauk-gemma-q8',
+    'models': {
+        'padauk-gemma-q8': {
+            'name': 'padauk-gemma:q8_0',
+            'display_name': 'Padauk-Gemma Q8 (Recommended)',
+            'temperature': 0.2,
+            'max_tokens': 4096,
+            'repeat_penalty': 1.3,
+            'chunk_size': 2500,
+        }
+    },
+}
+
 
 class SkeletonModelManager:
-    """Simple manager for skeleton model configuration"""
-    
-    def __init__(self, config_path: str = "config/models.skeleton.yaml"):
+    """Reads the `model_presets:` section of config/settings.yaml."""
+
+    def __init__(self, config_path: str = "config/settings.yaml"):
         self.config_path = Path(config_path)
         self._config: Dict[str, Any] = {}
         self._load_config()
-    
+
     def _load_config(self):
-        """Load configuration from YAML file"""
-        if not self.config_path.exists():
-            self._create_default_config()
-        
+        """Load the `model_presets` section from the single settings file."""
         try:
             with open(self.config_path, 'r', encoding='utf-8') as f:
-                self._config = yaml.safe_load(f) or {}
+                settings = yaml.safe_load(f) or {}
+            self._config = settings.get('model_presets') or dict(_DEFAULT_PRESETS)
         except Exception as e:
-            print(f"Error loading skeleton model config: {e}")
-            self._config = {'active_model': 'padauk-gemma-q8', 'models': {}}
-    
-    def _create_default_config(self):
-        """Create default skeleton config if not exists"""
-        default = {
-            'active_model': 'padauk-gemma-q8',
-            'models': {
-                'padauk-gemma-q8': {
-                    'name': 'padauk-gemma:q8_0',
-                    'display_name': 'Padauk-Gemma Q8 (Recommended)',
-                    'temperature': 0.2,
-                    'max_tokens': 4096,
-                    'repeat_penalty': 1.3,
-                    'chunk_size': 2500
-                }
-            }
-        }
-        self.config_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(self.config_path, 'w', encoding='utf-8') as f:
-            yaml.dump(default, f, default_flow_style=False, allow_unicode=True)
-        self._config = default
+            print(f"Error loading model presets: {e}")
+            self._config = dict(_DEFAULT_PRESETS)
     
     def get_all_models(self) -> Dict[str, Dict[str, Any]]:
         """Get all model definitions"""
@@ -156,13 +151,16 @@ class SkeletonModelManager:
         return config
     
     def _save_config(self) -> bool:
-        """Save configuration to YAML file"""
+        """Persist the model_presets section back into settings.yaml."""
         try:
+            with open(self.config_path, 'r', encoding='utf-8') as f:
+                settings = yaml.safe_load(f) or {}
+            settings['model_presets'] = self._config
             with open(self.config_path, 'w', encoding='utf-8') as f:
-                yaml.dump(self._config, f, default_flow_style=False, allow_unicode=True)
+                yaml.dump(settings, f, default_flow_style=False, allow_unicode=True)
             return True
         except Exception as e:
-            print(f"Error saving skeleton model config: {e}")
+            print(f"Error saving model presets: {e}")
             return False
 
 

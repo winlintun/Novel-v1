@@ -21,18 +21,27 @@ from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
-CONFIG_PATH = Path(__file__).parent / "config_lora.yaml"
+SETTINGS_PATH = Path("config/settings.yaml")
 DATASET_DB = Path("data/novel_v1_dataset.db")
 ADAPTER_DIR = Path("models/adapters")
 
 
 def _load_config() -> dict:
-    """Load LoRA training configuration."""
-    if not CONFIG_PATH.exists():
-        logger.warning("LoRA config not found at %s", CONFIG_PATH)
+    """Load LoRA training configuration from the single settings.yaml file.
+
+    The LoRA hyperparameters live under the `lora_training:` section (formerly
+    the separate src/training/config_lora.yaml).
+    """
+    if not SETTINGS_PATH.exists():
+        logger.warning("Settings file not found at %s", SETTINGS_PATH)
         return {}
-    with open(CONFIG_PATH) as f:
-        return yaml.safe_load(f)
+    try:
+        with open(SETTINGS_PATH, encoding="utf-8") as f:
+            settings = yaml.safe_load(f) or {}
+    except (OSError, yaml.YAMLError) as e:
+        logger.warning("Could not read LoRA config from %s: %s", SETTINGS_PATH, e)
+        return {}
+    return settings.get("lora_training", {})
 
 
 def _load_dataset(novel: Optional[str] = None, min_human_score: int = 3,

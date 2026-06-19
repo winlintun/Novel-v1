@@ -107,17 +107,17 @@ def test_config_loading():
     """Test 3: Verify configuration files load correctly."""
     print_header("TEST 3: Configuration Loading")
     
+    # Single source of truth: config/settings.yaml holds all functionality.
+    # Model changes are made via scripts/change_model.py, not separate preset files.
     config_files = [
         "config/settings.yaml",
-        "config/settings.pivot.yaml",
-        "config/settings.fast.yaml",
     ]
     
     all_passed = True
     for config_file in config_files:
         try:
             import yaml
-            with open(config_file, 'r') as f:
+            with open(config_file, 'r', encoding='utf-8') as f:
                 config = yaml.safe_load(f)
             
             # Verify required keys
@@ -167,6 +167,7 @@ def test_cli_help():
             [sys.executable, "-m", "src.main", "--help"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
             timeout=10
         )
         
@@ -197,7 +198,7 @@ def test_launcher_script():
         assert False
     
     try:
-        with open(launcher_path, 'r') as f:
+        with open(launcher_path, 'r', encoding='utf-8') as f:
             content = f.read()
         
         checks = [
@@ -262,7 +263,7 @@ def test_web_ui_structure():
     all_passed = True
     for page_path, required_elements in pages:
         try:
-            with open(page_path, 'r') as f:
+            with open(page_path, 'r', encoding='utf-8') as f:
                 content = f.read()
             
             for element in required_elements:

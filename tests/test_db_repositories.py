@@ -3,6 +3,7 @@ Tests for all repository CRUD operations.
 """
 
 import pytest
+import os
 import tempfile
 from pathlib import Path
 from src.db.connection import DatabaseConnection
@@ -16,11 +17,15 @@ from src.db.repositories.sync_repo import SyncRepository
 
 @pytest.fixture
 def db():
-    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
-        conn = DatabaseConnection(f.name)
-        yield conn
-        conn.close()
-        Path(f.name).unlink(missing_ok=True)
+    # Close the temp file's OS handle before opening the DB so Windows can
+    # unlink it during teardown (WinError 32 otherwise).
+    fd, path = tempfile.mkstemp(suffix=".db")
+    os.close(fd)
+    conn = DatabaseConnection(path)
+    yield conn
+    conn.close()
+    for p in (path, path + "-wal", path + "-shm"):
+        Path(p).unlink(missing_ok=True)
 
 
 @pytest.fixture

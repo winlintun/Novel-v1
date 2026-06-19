@@ -102,6 +102,9 @@ translation_pipeline:
     two_stage: "2-stage pipeline: Stage 1(gemma-4-e4b) -> Stage 2(padauk-gemma:refinement)"
   use_reflection: true
   use_fiction_editor: false
+  use_syntax_editor: true
+  syntax_editor_model: models/mig-burmese-llm
+  syntax_editor_device: auto
   stage1_model: gemma4-e4b-it:q8_0
   stage2_model: padauk-gemma:q8_0
   reflection_model: padauk-gemma:q8_0
@@ -117,6 +120,10 @@ rag:
   top_k: 3
   min_score: 2.5
   min_similarity: 0.3
+  # Drop retrieved examples whose source is a near-exact match for the text being
+  # translated (cosine >= this). Prevents self-reference leakage when the chapter
+  # being translated is itself in the RAG corpus. Set >= 1.0 to disable.
+  max_similarity: 0.97
   novel_filter: null
   # Use the COMPLETE local model dir, not the HF repo id 'BAAI/bge-m3'.
   # The HF cache copy of BAAI/bge-m3 is an interrupted download (weights
@@ -147,3 +154,217 @@ alignment_pipeline:
     provider: "ollama"
     model: "padauk-gemma:q8_0"
     sample_rate: 0.05
+
+# ── Alignment noise rules (folded from former config/rule.yaml) ──────────────
+# Used by the dataset-alignment preprocessing/validators to strip noise and
+# reject forbidden scripts from target (Myanmar) text.
+alignment_rules:
+  noise_patterns:
+    translator_notes:
+      - "\\(T/?N[:.][^)]*\\)"
+      - "\\[Translator[''']s Note[^\\]]*\\]"
+      - "TL Note:.*"
+      - "\\[TN:.*?\\]"
+    ads:
+      - "(?i)visit\\s+\\S+\\.(com|net|org)"
+      - "(?i)support\\s+(us|me)\\s+on\\s+(patreon|ko-fi)"
+      - "(?i)read\\s+ahead\\s+at\\s+\\S+"
+      - "(?i)discord\\.(gg|com)/\\S+"
+    formatting_artifacts:
+      - "_{3,}"
+      - "-{4,}"
+      - "={4,}"
+      - "\\*{3,}"
+    ocr_errors:
+      - "\\b[Il1]{3,}\\b"
+      - "\\brnm\\b"
+      - "\\bth[ei]s\\b"
+  forbidden_scripts_in_target:
+    - bengali:    "[\\u0980-\\u09FF]+"
+    - devanagari: "[\\u0900-\\u097F]+"
+    - thai:       "[\\u0E00-\\u0E7F]+"
+    - khmer:      "[\\u1780-\\u17FF]+"
+    - tamil:      "[\\u0B80-\\u0BFF]+"
+    - chinese:    "[\\u4E00-\\u9FFF]{2,}"
+
+# ── LoRA fine-tuning config (folded from former src/training/config_lora.yaml) ─
+# Used by src/training/finetune.py.
+lora_training:
+  lora:
+    r: 16
+    lora_alpha: 32
+    lora_dropout: 0.05
+    target_modules:
+      - "q_proj"
+      - "v_proj"
+      - "k_proj"
+      - "o_proj"
+    bias: "none"
+    task_type: "CAUSAL_LM"
+  training:
+    per_device_train_batch_size: 4
+    gradient_accumulation_steps: 2
+    learning_rate: 2.0e-4
+    num_train_epochs: 3
+    warmup_steps: 50
+    logging_steps: 10
+    save_steps: 0
+    evaluation_strategy: "epoch"
+    save_strategy: "epoch"
+    load_best_model_at_end: true
+    metric_for_best_model: "eval_loss"
+    greater_is_better: false
+    fp16: false
+    bf16: false
+    dataloader_num_workers: 2
+  quantization:
+    load_in_4bit: true
+    bnb_4bit_compute_dtype: "float16"
+    bnb_4bit_quant_type: "nf4"
+  dataset:
+    min_human_score: 3
+    min_auto_score: 4
+    test_split: 0.1
+    val_split: 0.1
+    max_train_samples: 10000
+  model:
+    ollama_model_name: "padauk-gemma:q8_0"
+    hf_model_name: "google/gemma-2b"
+    adapter_dir: "models/adapters"
+
+# ── Model presets catalog (folded from former config/models.skeleton.yaml) ───
+# Powers the Web UI model dropdown and the --compare-models tool. To change the
+# model used for translation, run: python scripts/change_model.py
+model_presets:
+  active_model: padauk-gemma-q8
+  models:
+    padauk-gemma-q8:
+      name: padauk-gemma:q8_0
+      display_name: Padauk-Gemma Q8 ⭐ (Recommended)
+      description: Best Myanmar translation quality. 8-bit quantized.
+      category: myanmar
+      temperature: 0.2
+      max_tokens: 4096
+      repeat_penalty: 1.3
+      chunk_size: 2500
+      vram_gb: 8
+    sailor2-20b:
+      name: sailor2-20b:latest
+      display_name: Sailor2-20B (High Quality)
+      description: 20B parameters. Excellent quality but requires more VRAM.
+      category: myanmar
+      temperature: 0.25
+      max_tokens: 8192
+      repeat_penalty: 1.2
+      chunk_size: 3000
+      vram_gb: 11
+    sailor2-8b:
+      name: sailor2:8b
+      display_name: Sailor2-8B (Medium)
+      description: 8B parameters. Good balance of speed and quality.
+      category: myanmar
+      temperature: 0.25
+      max_tokens: 4096
+      repeat_penalty: 1.25
+      chunk_size: 2000
+      vram_gb: 6
+    burmese-gpt-7b:
+      name: burmese-gpt:7b
+      display_name: Burmese-GPT 7B
+      description: Burmese-focused GPT model. 7B parameters.
+      category: myanmar
+      temperature: 0.25
+      max_tokens: 4096
+      repeat_penalty: 1.3
+      chunk_size: 2500
+      vram_gb: 13
+    seallms-v3-7b:
+      name: yxchia/seallms-v3-7b:Q4_K_M
+      display_name: SEALLMS v3-7B Q4
+      description: Southeast Asian language specialist. Quantized.
+      category: myanmar
+      temperature: 0.25
+      max_tokens: 4096
+      repeat_penalty: 1.2
+      chunk_size: 2000
+      vram_gb: 5
+    translategemma-12b:
+      name: translategemma:12b
+      display_name: TranslateGemma 12B
+      description: Translation-specialized Gemma model.
+      category: myanmar
+      temperature: 0.3
+      max_tokens: 4096
+      repeat_penalty: 1.25
+      chunk_size: 2500
+      vram_gb: 8
+    aya-8b:
+      name: aya:8b
+      display_name: Aya 8B (Multilingual)
+      description: Cohere's multilingual model. Good for various languages.
+      category: myanmar
+      temperature: 0.3
+      max_tokens: 4096
+      repeat_penalty: 1.25
+      chunk_size: 2000
+      vram_gb: 5
+    hunyuan-7b:
+      name: alibayram/hunyuan:7b
+      display_name: Hunyuan 7B (CN→EN Pivot)
+      description: Tencent's Chinese model. Use for CN→EN only.
+      category: pivot
+      temperature: 0.3
+      max_tokens: 4096
+      repeat_penalty: 1.1
+      chunk_size: 1500
+      vram_gb: 5
+    qwen2-5-14b:
+      name: qwen2.5:14b
+      display_name: Qwen2.5 14B (CN→EN Pivot)
+      description: Alibaba's model. Good for Chinese understanding.
+      category: pivot
+      temperature: 0.35
+      max_tokens: 8192
+      repeat_penalty: 1.15
+      chunk_size: 2000
+      vram_gb: 9
+    qwen-7b:
+      name: qwen:7b
+      display_name: Qwen 7B (Fast/Test)
+      description: Fast inference for testing. NOT recommended for production.
+      category: utility
+      temperature: 0.45
+      max_tokens: 4096
+      repeat_penalty: 1.3
+      chunk_size: 1500
+      vram_gb: 5
+    gemma-7b:
+      name: gemma:7b
+      display_name: Gemma 7B (Google)
+      description: Google's Gemma model. General purpose.
+      category: utility
+      temperature: 0.35
+      max_tokens: 4096
+      repeat_penalty: 1.2
+      chunk_size: 2000
+      vram_gb: 5
+    deepseek-coder-lite:
+      name: deepseek-coder-v2-lite:latest
+      display_name: DeepSeek Coder Lite
+      description: Code-focused model. NOT for translation.
+      category: utility
+      temperature: 0.3
+      max_tokens: 4096
+      repeat_penalty: 1.2
+      chunk_size: 2000
+      vram_gb: 11
+  categories:
+    myanmar:
+      label: "🇲🇲 Myanmar Translation Models"
+      description: "Models proven to output quality Myanmar text"
+    pivot:
+      label: "🌉 Pivot Models (CN→EN)"
+      description: "For Chinese to English translation (Stage 1 only)"
+    utility:
+      label: "🔧 Utility Models"
+      description: "Testing, validation, and general purpose"

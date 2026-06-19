@@ -32,7 +32,7 @@ class TestMemoryManager(unittest.TestCase):
         self.assertEqual(target, "ဇော်ဂျီ")
 
         # Approve the term so it appears in the prompt
-        self.memory.promote_pending_to_glossary("主角")
+        self.memory.bulk_approve_all_pending()
 
         prompt = self.memory.get_glossary_for_prompt()
         self.assertIn("主角", prompt)

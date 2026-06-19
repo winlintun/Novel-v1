@@ -20,12 +20,6 @@ from src.config import AppConfig, load_config
 from src.cli.parser import get_chapter_list
 from src.exceptions import NovelTranslationError, ConfigurationError
 
-# Try to import skeleton model manager
-try:
-    from src.config.skeleton_models import get_skeleton_manager
-except ImportError:
-    get_skeleton_manager = None
-
 # Try to import compare models utility
 try:
     from src.utils.compare_models import compare_models
@@ -134,56 +128,15 @@ def run_translation_pipeline(args: argparse.Namespace) -> int:
 
     try:
         # Load configuration
+        # config/settings.yaml is the SINGLE source of truth. To change the
+        # translation model, edit its `models:` block or run
+        # `python scripts/change_model.py`. There are no per-novel or skeleton
+        # override files anymore — what's in settings.yaml is what runs.
         config = load_config(args.config)
-
-        # Apply skeleton model config if available and no CLI model override
-        # Skip skeleton model if:
-        #   1. User explicitly passed --config (they chose a specific config file)
-        #   2. Config has different models for different roles (HYBRID mode)
-        config_translator = getattr(config.models, 'translator', None)
-        config_editor = getattr(config.models, 'editor', None)
-
-        # Detect explicit --config: user provided a path different from the default
-        explicit_config = getattr(args, 'config', None) and args.config != "config/settings.yaml"
-        is_hybrid_config = config_translator and config_editor and config_translator != config_editor
-        
-        if get_skeleton_manager and not args.model and not explicit_config and not is_hybrid_config:
-            try:
-                skeleton_mgr = get_skeleton_manager()
-                active_model_key = skeleton_mgr.get_active_model_key()
-                config_dict = skeleton_mgr.apply_model_to_config(
-                    active_model_key, 
-                    config.model_dump()
-                )
-                # Reload config from updated dict
-                config = AppConfig(**config_dict)
-                logger.info(f"Applied skeleton model: {active_model_key}")
-            except Exception as e:
-                logger.debug(f"Could not apply skeleton model config: {e}")
-        elif is_hybrid_config:
-            logger.info(f"🔀 HYBRID config detected: {config_translator} → {config_editor}. Skipping skeleton model.")
-
-        # ── Apply per-novel model/gene config from config/novel_models.yaml ──
-        # This overrides skeleton model but gets overridden by CLI --model flag
-        from pathlib import Path as _Path
-        novel_name_for_config = getattr(args, 'novel', None) or (
-            _Path(args.input_file).stem if getattr(args, 'input_file', None) else None
+        logger.info(
+            f"Models from config: translator={config.models.translator}, "
+            f"editor={config.models.editor}, genre={config.project.novel_genre}"
         )
-        if novel_name_for_config:
-            try:
-                from src.config.novel_model_loader import (
-                    apply_novel_config_to_appconfig,
-                    get_novel_genre,
-                )
-                apply_novel_config_to_appconfig(novel_name_for_config, config)
-                novel_genre = get_novel_genre(novel_name_for_config)
-                config.project.novel_genre = novel_genre
-                logger.info(
-                    f"Novel config applied: {novel_name_for_config} "
-                    f"[genre={novel_genre}, model={config.models.translator}]"
-                )
-            except Exception as e:
-                logger.debug(f"Could not apply novel model config: {e}")
 
         # Apply command line overrides (highest priority)
         if args.model:

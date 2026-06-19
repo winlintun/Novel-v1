@@ -97,6 +97,12 @@ class Translator(BaseAgent):
         self.rag_enabled = rag_config.get('enabled', False)
         self.rag_top_k = rag_config.get('top_k', 3)
         self.rag_min_similarity = rag_config.get('min_similarity', 0.3)
+        # Drop retrieved examples whose source is a near-exact match for the query
+        # (similarity >= this). Such hits mean the corpus contains the very text
+        # being translated (e.g. re-translating a chapter that is itself in the
+        # RAG corpus), so the model would just be handed the existing answer
+        # instead of a *similar* example to imitate. Set >= 1.0 to disable.
+        self.rag_max_similarity = rag_config.get('max_similarity', 0.97)
 
         # Token budget for the truncation retry (config-driven; see config/settings.yaml
         # models.retry_num_predict). Falls back to the module default if unset.
@@ -222,6 +228,29 @@ class Translator(BaseAgent):
             # re-apply the Chroma cosine threshold here — that would discard the
             # SQLite fallback. Drop only clearly-irrelevant (similarity <= 0).
             examples = [e for e in examples if e.similarity > 0]
+
+            # Drop near-exact matches: when the corpus contains the very text
+            # being translated, the top hit is the human translation of THIS
+            # source, so injecting it leaks the answer instead of demonstrating
+            # style on *different* text. Only filter Chroma-scale cosine scores
+            # (0..1); SQLite keyword-overlap scores can also exceed the threshold
+            # but are not true similarities, so leave them when Chroma was empty.
+            dropped = [e for e in examples if e.similarity >= self.rag_max_similarity]
+            filtered = [e for e in examples if e.similarity < self.rag_max_similarity]
+            if dropped and filtered:
+                logger.info(
+                    "RAG: dropped %d near-duplicate example(s) (sim >= %.2f, likely self-reference)",
+                    len(dropped), self.rag_max_similarity,
+                )
+                examples = filtered
+            elif dropped and not filtered:
+                # Every match was a near-duplicate. Keeping them would just echo
+                # the answer; better to inject nothing and let the model translate.
+                logger.info(
+                    "RAG: all %d match(es) were near-duplicates (sim >= %.2f) — injecting none",
+                    len(dropped), self.rag_max_similarity,
+                )
+                return ""
 
             if not examples:
                 logger.info("RAG: 0 examples — no usable match (Chroma + SQLite both empty)")

@@ -13,13 +13,22 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
 class AlignmentConfig:
-    """Wraps settings.yaml + rule.yaml for alignment pipeline config."""
+    """Wraps settings.yaml for alignment pipeline config.
 
-    def __init__(self, settings_path: Path, rules_path: Path):
+    Noise/forbidden-script rules now live in the single config file under the
+    `alignment_rules:` section (formerly the separate config/rule.yaml).
+    """
+
+    def __init__(self, settings_path: Path, rules_path: Path | None = None):
         with settings_path.open(encoding="utf-8") as f:
             self.settings: dict[str, Any] = yaml.safe_load(f) or {}
-        with rules_path.open(encoding="utf-8") as f:
-            self.rules: dict[str, Any] = yaml.safe_load(f) or {}
+        # rules_path is kept for backward compatibility; if a separate rules
+        # file is provided and exists, it wins, otherwise read from settings.
+        if rules_path is not None and Path(rules_path).exists():
+            with Path(rules_path).open(encoding="utf-8") as f:
+                self.rules: dict[str, Any] = yaml.safe_load(f) or {}
+        else:
+            self.rules = self.settings.get("alignment_rules", {})
         self._ensure_dirs()
 
     def _ensure_dirs(self) -> None:
@@ -77,5 +86,4 @@ class AlignmentConfig:
 def get_alignment_config() -> AlignmentConfig:
     return AlignmentConfig(
         settings_path=PROJECT_ROOT / "config" / "settings.yaml",
-        rules_path=PROJECT_ROOT / "config" / "rule.yaml",
     )

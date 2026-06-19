@@ -58,12 +58,15 @@ class TestEndToEnd(unittest.TestCase):
         self.assertEqual(chapters[0].name, "test_novel_001.md")
 
     def test_chapter_info_extraction(self):
-        """Test chapter info extraction."""
-        preprocessor = Preprocessor()
-        info = preprocessor.get_chapter_info(str(self.chapter_file))
+        """Chapter number is parsed from the filename by the current utility."""
+        from src.utils.file_handler import _extract_chapter_num
 
-        self.assertEqual(info['novel_name'], 'test_novel')
-        self.assertEqual(info['chapter_num'], 1)
+        chapter_num = _extract_chapter_num(self.chapter_file.name)
+        self.assertEqual(chapter_num, 1)
+
+        # Novel name is the filename stem minus the numeric chapter suffix.
+        novel_name = self.chapter_file.stem.rsplit("_", 1)[0]
+        self.assertEqual(novel_name, "test_novel")
 
     def test_memory_manager_persistence(self):
         """Test memory manager save/load cycle via DB."""

@@ -72,7 +72,7 @@ def normalize_text(text: str) -> str:
 
 
 def clean_text(text: str) -> CleanResult:
-    """Remove noise patterns defined in rule.yaml."""
+    """Remove noise patterns defined in settings.yaml (alignment_rules section)."""
     cfg = get_alignment_config()
     removed: list[tuple[str, str]] = []
 

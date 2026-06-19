@@ -3,6 +3,7 @@ Tests for SQLite schema creation and integrity.
 """
 
 import pytest
+import os
 import sqlite3
 import tempfile
 from pathlib import Path
@@ -13,11 +14,16 @@ from src.db.schema import SchemaManager, SCHEMA_VERSION
 @pytest.fixture
 def db():
     """Create a temporary database connection."""
-    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
-        conn = DatabaseConnection(f.name)
-        yield conn
-        conn.close()
-        Path(f.name).unlink(missing_ok=True)
+    # NOTE: create the temp file then close its OS handle before opening the DB.
+    # On Windows, a file with an open handle cannot be unlinked (WinError 32),
+    # which previously broke teardown for every DB test.
+    fd, path = tempfile.mkstemp(suffix=".db")
+    os.close(fd)
+    conn = DatabaseConnection(path)
+    yield conn
+    conn.close()
+    for p in (path, path + "-wal", path + "-shm"):
+        Path(p).unlink(missing_ok=True)
 
 
 @pytest.fixture

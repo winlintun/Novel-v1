@@ -122,16 +122,22 @@ class TestMemoryManager(unittest.TestCase):
 
     def tearDown(self):
         import shutil
-        shutil.rmtree(self.temp_dir)
+        # MemoryManager always opens a SQLite connection (use_sql is forced True);
+        # close it so Windows can delete the temp files (WinError 32 otherwise).
+        try:
+            self.memory.close()
+        except Exception:
+            pass
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_add_term_increases_count(self):
-        """Test adding term increases count."""
-        initial = self.memory.glossary.get('total_terms', 0)
+        """Test adding term increases the pending-term count (DB-backed)."""
+        initial = len(self.memory.get_pending_terms())
 
         result = self.memory.add_term("测试", "စမ်းသပ်", "general", 1)
 
         self.assertTrue(result)
-        self.assertEqual(self.memory.glossary['total_terms'], initial + 1)
+        self.assertEqual(len(self.memory.get_pending_terms()), initial + 1)
 
     def test_add_duplicate_term_fails(self):
         """Test adding duplicate term fails."""

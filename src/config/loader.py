@@ -147,12 +147,14 @@ def _find_config_file() -> Path:
     )
 
 
+# Single source of truth: every preset resolves to config/settings.yaml.
+# Model/pipeline changes are made in that one file (or via scripts/change_model.py).
 CONFIG_PRESETS = {
     "en_us": "config/settings.yaml",
-    "zh_cn": "config/settings.pivot.yaml",
+    "zh_cn": "config/settings.yaml",
     "default": "config/settings.yaml",
-    "fast": "config/settings.fast.yaml",
-    "pivot": "config/settings.pivot.yaml",
+    "fast": "config/settings.yaml",
+    "pivot": "config/settings.yaml",
 }
 
 

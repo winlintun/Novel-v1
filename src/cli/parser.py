@@ -40,9 +40,10 @@ def create_parser() -> argparse.ArgumentParser:
 ║    python -m src.main --novel sample --chapter 1 --compare-models    ║
 ║    python compare_all_models.py --novel sample --chapter 1           ║
 ║                                                                      ║
-║  ⚙️  MODEL CONFIG (Skeleton System):                                 ║
-║    # 1. Edit config/models.skeleton.yaml → Set active_model         ║
-║    # 2. Run translation (auto-uses active model):                   ║
+║  ⚙️  MODEL CONFIG (single file: config/settings.yaml):               ║
+║    # 1. Change the model (edits config/settings.yaml):              ║
+║    python scripts/change_model.py                                   ║
+║    # 2. Run translation (uses settings.yaml):                       ║
 ║    python -m src.main --novel sample --chapter 1                     ║
 ║    # Override for one run:                                          ║
 ║    python -m src.main --novel sample --chapter 1 --model qwen:7b     ║
