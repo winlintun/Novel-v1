@@ -5,9 +5,15 @@
 ---
 
 ## Last Updated
-- Date: 2026-06-19
-- Last task completed: genre-aware prompts + native JSON glossary mode + Windows console fix + glossary-routing fix + large dead-code cleanup (ERR-092..096)
-- Git commit: HEAD `5497aa7` (working tree dirty — this session's changes, being committed)
+- Date: 2026-06-20
+- Last task completed: Translate a-will-eternal1 ch4, review quality, fix issues
+- Git commit: HEAD `5497aa7` (working tree dirty — this session's changes, not yet committed)
+
+## Session Summary (2026-06-20 — back_translate, similarity reviewer check, use_syntax_editor=false)
+- ✅ **`use_syntax_editor: false`** — `config/settings.yaml` changed to `false` (Pydantic default already `False`)
+- ✅ **`Translator.back_translate(mm_text) -> en`** — new public method on `Translator` using Ollama chat template (`src/agents/translator.py:509`). Takes Myanmar text, returns English via a simple MM→EN prompt. Reusable by any caller with a Translator instance.
+- ✅ **Checker back-translation similarity check** — new `Checker.check_back_translation_similarity()` with 3-tier cost control: (1) quality gate (skip if score ≥ 80), (2) sampling (default 10% of calls), (3) similarity threshold (default 0.6). Uses `SequenceMatcher` to compare original source vs back-translated text. Integrated into `check_chapter()`. The `Checker` now accepts an optional `ollama_client` parameter; the orchestrator passes `self.ollama_client_checker`.
+- 🧪 **Tests** — all 110 relevant tests pass (test_agents + test_translator + test_workflow_routing + test_postprocessor). All 3 modified `.py` files compile clean. Only pre-existing E501 (line-too-long) lint warnings remain.
 
 ## Session Summary (2026-06-19 — genre prompts, JSON glossary, Windows console, routing, cleanup)
 - ✅ **Genre-aware translator prompts** — `build_translator_prompt(genre=...)` appends a genre rule block (xianxia/wuxia/fantasy/romance/general) on top of scene+linguistic rules; translator pulls `project.novel_genre` from config and passes it through (`system_prompts.py`, `translator.py`).
@@ -69,6 +75,33 @@
 - ✅ **Fix 6 — Glossary injection expanded 5→10**: Global term limit increased from `limit//4` (5) to `limit//2` (10). Added deduplication to skip global terms that overlap with novel-specific entries.
 - ✅ **New config files**: `settings.translategemma.yaml`, `settings.qwen2.5.yaml`, `settings.sailor2-20b.yaml` created.
 - ✅ **Chapters 7-9 human comparison**: Ch7 padauk-gemma (95/100), Ch8 translategemma (94/100), Ch9 qwen2.5 (65/100 — corrupted output, 35% of human size).
+
+## Session Summary (2026-06-20 — ch4 translation + quality review + fixes)
+- ✅ **Translated A Will Eternal 1 chapter 4** — gemma4-e4b-it:q8_0 (hybrid), quality 82-90, 99.6% Myanmar ratio
+- ✅ **Quality review scored 48/100** (pipeline score: 90/100) — 6 critical issues found in translation
+- ✅ **Fixed 6 issues**: (1) ကျင့်တည်းဆိုင် → ကျင့်ကြံ (hallucination for "cultivation"), (2) ညစ်ဂျေး → ညစ်ကျေး (misspelling for "impurities"), (3) ဖုန်မှုန် → အညစ်အကြေး (wrong term for "filth"), (4) ခါရမ်းစွာ → ယိုင်းယိုင် (hallucinated word for "staggered"), (5) နဲဒီ → ဒီ (non-standard dialect), (6) အမှတ်ကိုး တပည့်ညီလေး → ၉ ယောက်မြောက် တပည့်ညီလေး (Ninth Junior Brother ordinal)
+- ✅ **Added postprocessor hallucinated-term correction map** — `HALLUCINATED_TERM_CORRECTIONS` dict in postprocessor.py catches 5 known hallucination patterns at postprocess time
+- ✅ **Added glossary terms**: spirit rice, impurities, filth, Ninth Junior Brother to global_terms_seed.py
+- ✅ **Updated en_mm_rules standard_terms**: added Spirit Rice, Impurities, Ninth Junior Brother with correct Myanmar
+- ✅ **Fixed cultivation glossary entry**: `တရားအားထုတ်ခြင်း` → `ကျင့်ကြံ` (shorter, standard xianxia term)
+- ⚠️ **Register mixing issue** (21 formal + 11 casual) — noted but not fixed; requires prompt improvement for future chapters
+
+## Session Summary (2026-06-20 — ch1 padauk-gemma translation + quality review + fixes)
+- ✅ **Translated A Will Eternal 1 chapter 1** — padauk-gemma:q8_0, pipeline score 100/100
+- ✅ **Deep quality review scored 59/100** — 7 critical issues found:
+  1. **"immortal cultivation" → ထာ၀ရအသက်ရှည်ခြင်းလမ်းစဉ်** (dropped "cultivation" entirely, should be နတ်ကျင့်ခြင်း)
+  2. **"quick-witted" → ဉာဏ်ထက်မြတ်သူ** ("superior intellect" — wrong, should be လိမ္မာပါးမာသူ)
+  3. **"Eastwood" → ဒီအိစ့်ဝုဒ်** (English phonetic transliteration, should be အီးစ်ဝုဒ်)
+  4. **"patted on shoulder" → ခေါင်းညှိတ်** (nodded head — wrong action, should be ပုတ်ပေး)
+  5. **"baby eagle" → လေးတစ်ကောင်** (generic "bird" — should be သိုးကျားငယ်လေး)
+  6. **Register mixing**: narration had 2 casual တယ် in literary သည် context; dialogue used over-literary words; old man used 3 different pronouns
+  7. **Conciseness**: "situations" → အခိုက်အတန့် ("crises" — too dramatic, should be အခြေနေ)
+- ✅ **Fixed all 7 issues in output file directly**
+- ✅ **Expanded HALLUCINATED_TERM_CORRECTIONS**: added 7 new patterns (ဉာဏ်ထက်မြတ်သူ, ထာ၀ရအသက်ရှည်ခြင်း, ခေါင်းညှိတ်, လေးတစ်ကောင်, အခိုက်အတန့်, ဒီအိစ့်ဝုဒ်, နင့်လမ်းစဉ်)
+- ✅ **Added 5 glossary terms**: immortal cultivation, immortal, become an immortal, living forever, quick-witted
+- ✅ **Added 4 vocabulary precision rules**: immortal_cultivation_not_eternal_life, quick_witted_not_superior, patted_shoulder_not_nodded, baby_eagle_not_just_bird
+- ✅ **Added 7 standard_terms**: Immortal Cultivation, Immortal, Become an Immortal, Living Forever, Quick-witted, Baby Eagle, Eastwood Mountain Range
+- ✅ **454 tests pass** (2 pre-existing failures unrelated to changes)
 
 ## In Progress
 - None

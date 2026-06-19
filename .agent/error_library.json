@@ -1,5 +1,5 @@
 {
-  "last_updated": "2026-06-16T03:42:53Z",
+  "last_updated": "2026-06-20T04:15:00Z",
   "notes": "ERR-052 through ERR-054 are from May 2 session — postprocessor and pipeline fixes. ERR-067 is from May 8 session — fixed bare chapter numeral heading format. ERR-070/071 from May 24 — chapter 4 partial completion fixes.",
   "errors": [
     {
@@ -523,6 +523,51 @@
       "prevention": "Always open files via a with-statement.",
       "times_seen": 1,
       "last_seen": "2026-06-16T03:42:53Z"
+    },
+    {
+      "id": "ERR-092",
+      "error_type": "ImmortalCultivationNotEternalLife",
+      "trigger": "Model translates immortal cultivation as journey of eternal life-lengthening, dropping the cultivation verb entirely",
+      "solution": "Add to glossary and postprocessor corrections",
+      "prevention": "Ensure glossary has immortal cultivation term",
+      "times_seen": 1,
+      "last_seen": "2026-06-20"
+    },
+    {
+      "id": "ERR-093",
+      "error_type": "WrongActionVerb",
+      "trigger": "Model translates patted on shoulder as nodded head - different body part entirely",
+      "solution": "Add to HALLUCINATED_TERM_CORRECTIONS",
+      "prevention": "Verify action verbs match source precisely",
+      "times_seen": 1,
+      "last_seen": "2026-06-20"
+    },
+    {
+      "id": "ERR-094",
+      "error_type": "GenericAnimalForSpecific",
+      "trigger": "Model translates baby eagle as generic bird losing metaphor",
+      "solution": "Add to glossary and corrections",
+      "prevention": "Specific names must be preserved",
+      "times_seen": 1,
+      "last_seen": "2026-06-20"
+    },
+    {
+      "id": "ERR-095",
+      "error_type": "EnglishTransliterationInMyanmar",
+      "trigger": "Model phonetically spells English words in Myanmar instead of naturalizing",
+      "solution": "Add to corrections and prompt rules",
+      "prevention": "Naturalize proper nouns rule in prompts",
+      "times_seen": 1,
+      "last_seen": "2026-06-20"
+    },
+    {
+      "id": "ERR-096",
+      "error_type": "RegisterMixingNarration",
+      "trigger": "Narration using literary register has casual တယ3 intrusions",
+      "solution": "Postprocessor scan for mixed register",
+      "prevention": "Strengthen register rule in prompts",
+      "times_seen": 1,
+      "last_seen": "2026-06-20"
     }
   ]
 }

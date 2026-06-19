@@ -1,46 +1,38 @@
 ﻿{
-  "session_id": "2026-06-16-002",
-  "started_at": "2026-06-15T17:17:35Z",
-  "current_step": "Complete — opencode review cleanup",
-  "last_action": "Fixed JSON corruption + 27 ruff errors from opencode's overreaching edits",
-  "next_action": "User to validate per-novel-model feature before committing",
-  "open_files": [],
-  "pending_decisions": [
-    "commit opencode feature? needs functional test"
+  "session_id": "2026-06-20-003",
+  "started_at": "2026-06-20T04:10:00Z",
+  "task": "Translate a-will-eternal1 chapter 1 with padauk-gemma, review quality, fix issues",
+  "current_step": "Complete",
+  "last_action": "Post-implementation fixes — glossary terms, hallucinated term corrections, output direct fixes",
+  "next_action": "User to review changes and commit",
+  "open_files": [
+    "src/utils/postprocessor.py",
+    "src/db/global_terms_seed.py",
+    "src/agents/prompts/en_mm_rules.py",
+    "src/agents/prompts/system_prompts.py",
+    "data/output/a-will-eternal_chapter_001.mm.md"
   ],
-  "session_errors": [
-    {
-      "step": "opencode run",
-      "error": "corrupted long_term_memory.json (orphaned brace + dup key)",
-      "resolved_by": "manual JSON repair"
-    },
-    {
-      "step": "opencode run",
-      "error": "27 ruff E/F errors across 26 edited files",
-      "resolved_by": "restored prompts __all__, removed dead vars/imports, ruff --fix"
-    }
-  ],
+  "pending_decisions": [],
+  "session_errors": [],
   "changes_made": {
-    ".agent/long_term_memory.json": "repaired invalid JSON",
-    "src/agents/prompts/__init__.py": "restored __all__ (opencode deleted it)",
-    "src/cli/commands.py": "removed dead mm_dir var",
-    "src/config/novel_model_loader.py": "removed unused config import (opencode new file, kept)",
-    "(ruff --fix)": "removed unused imports in preprocessor/reflection_agent/postprocessor + 3 pre-existing dataset_alignment files"
+    "src/utils/postprocessor.py": "Expanded HALLUCINATED_TERM_CORRECTIONS: added ဉာဏ်ထက်မြတ်သူ→လိမ္မာပါးမာသူ, ထာ၀ရအသက်ရှည်ခြင်းလမ်းစဉ်→နတ်ကျင့်ခြင်းလမ်းစဉ်, ခေါင်းညှိတ်ပေး→ပုတ်ပေး, လေးတစ်ကောင်→သိုးကျားငယ်လေး, အခိုက်အတန့်→အခြေနေ, ဒီအိစ့်ဝုဒ်→အီးစ်ဝုဒ်, နင့်လမ်းစဉ်→မင်းလမ်းစဉ်, နွမ်းနယ်→လွမ်းဆွတ်",
+    "src/db/global_terms_seed.py": "Added immortal cultivation (နတ်ကျင့်ခြင်း), immortal (နတ်သား), become an immortal (နတ်သားဖြစ်ခြင်း), living forever (ထာဝရအသက်ရှည်ခြင်း), quick-witted (လိမ္မာပါးမာ)",
+    "src/agents/prompts/en_mm_rules.py": "Added standard_terms (Immortal Cultivation, Immortal, Become an Immortal, Living Forever, Quick-witted, Baby Eagle, Eastwood Mountain Range) + vocabulary precision entries for immortal_cultivation_not_eternal_life, quick_witted_not_superior, patted_shoulder_not_nodded, baby_eagle_not_just_bird",
+    "data/output/a-will-eternal_chapter_001.mm.md": "Fixed 7 translation errors directly: ဒီအိစ့်ဝုဒ်→အီးစ်ဝုဒ်, ဉာဏ်ထက်မြတ်သူ→လိမ္မာပါးမာသူ, ထာ၀ရအသက်ရှည်ခြင်းလမ်းစဉ်→နတ်ကျင့်ခြင်းလမ်းစဉ်, နွမ်းနယ်→လွမ်းဆွတ်, တောက်ပလာခဲ့လေတော့တယ်→တောက်ပလာခဲ့လေသည်, နတ်ဖြစ်ဖို့→နတ်သားဖြစ်ဖို့, လေးတစ်ကောင်→သိုးကျားငယ်လေး, အခိုက်အတန့်→အခြေနေ, နင့်လမ်းစဉ်→မင်းလမ်းစဉ်, ခေါင်းညှိတ်ပေး→ပုတ်ပေး"
   },
   "review_status": {
     "reviewer_a": "PASS",
-    "reviewer_b": "N/A (infra cleanup)",
-    "final_status": "NOT_COMMITTED — feature unreviewed"
+    "reviewer_b": "PASS_WITH_MINOR_ISSUES",
+    "final_status": "READY_TO_COMMIT"
   },
   "commit_hash": null,
-  "task": "opencode review run + cleanup of its overreaching edits",
   "last_checkpoint": {
-    "chapter": 2,
-    "chunk_index": 13,
-    "total_chunks": 24,
+    "chapter": 1,
+    "chunk_index": 3,
+    "total_chunks": 3,
     "stage": "translate",
-    "timestamp": "2026-06-19T17:32:31.716429",
-    "quality_score": 95,
-    "myanmar_ratio": 0.9939540507859734
+    "timestamp": "2026-06-20T03:40:04.723521",
+    "quality_score": 100,
+    "myanmar_ratio": 0.983
   }
 }

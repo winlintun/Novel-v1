@@ -754,6 +754,51 @@ VOCABULARY_PRECISION = {
         ],
     },
 
+    "immortal_cultivation_not_eternal_life": {
+        "rule": (
+            "'Immortal cultivation' = နတ်ကျင့်ခြင်း (cultivation practice).\n"
+            "NOT = ထာ၀ရအသက်ရှည်ခြင်းလမ်းစဉ် (journey of eternal life-lengthening).\n"
+            "The word ကျင့် (cultivation/practice) MUST be present.\n"
+            "'Immortal' as a being = နတ်သား (NOT just နတ် which means spirit/deity).\n"
+            "'Become an immortal' = နတ်သားဖြစ်ခြင်း (NOT နတ်ဖြစ်ခြင်း)."
+        ),
+        "mappings": [
+            {
+                "english":   "immortal cultivation",
+                "wrong":     "ထာ၀ရအသက်ရှည်ခြင်းလမ်းစဉ် (drops cultivation entirely)",
+                "correct":   "နတ်ကျင့်ခြင်း / နတ်ကျင့်ခြင်းလမ်းစဉ်",
+            },
+            {
+                "english":   "become an immortal",
+                "wrong":     "နတ်ဖြစ်ဖို့ (just 'become nat/spirit')",
+                "correct":   "နတ်သားဖြစ်ဖို့ ('become immortal being')",
+            },
+        ],
+    },
+
+    "quick_witted_not_superior": {
+        "rule": (
+            "'Quick-witted' = လိမ္မာပါးမာ (clever, sharp-minded, practical).\n"
+            "NOT = ဉာဏ်ထက်မြတ်သူ (person of superior intellect — too formal, wrong register)."
+        ),
+    },
+
+    "patted_shoulder_not_nodded": {
+        "rule": (
+            "Action verbs must match source precisely.\n"
+            "'Patted on the shoulder' = ပခုံးကို ပုတ်ပေး (patted shoulder).\n"
+            "NOT = ခေါင်းညှိတ်ပေး (nodded/adjusted head — completely different action)."
+        ),
+    },
+
+    "baby_eagle_not_just_bird": {
+        "rule": (
+            "Specific animal names must be preserved.\n"
+            "'Baby eagle' = သိုးကျားငယ် (eagle chick).\n"
+            "NOT = လေးတစ်ကောင် (just 'a bird' — loses the metaphor of soaring)."
+        ),
+    },
+
     "narration_verb_precision": {
         "rule": "Describing character's state/appearance — verb choice sets literary register.",
         "mappings": [
@@ -972,6 +1017,16 @@ EN_FROM_CHINESE_RULES = {
             "Karma": "ကမ္မ",
             "Prohibition": "တားမြစ်",
             "Formation": "ဖွဲ့စည်းပုံ",
+            "Spirit Rice": "ဝိညာဉ်ဆန်စပါး",
+            "Impurities": "အညစ်အကြေး",
+            "Ninth Junior Brother": "၉ ယောက်မြောက် တပည့်ညီ",
+            "Immortal Cultivation": "နတ်ကျင့်ခြင်း",
+            "Immortal": "နတ်သား",
+            "Become an Immortal": "နတ်သားဖြစ်ခြင်း",
+            "Living Forever": "ထာဝရအသက်ရှည်ခြင်း",
+            "Quick-witted": "လိမ္မာပါးမာ",
+            "Baby Eagle": "သိုးကျားငယ်",
+            "Eastwood Mountain Range": "အီးစ်ဝုဒ် တောင်တန်း",
         },
     },
 

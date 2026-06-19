@@ -102,11 +102,26 @@ LINGUISTIC RULES — Chinese → Myanmar:
    Use natural casual speech: ငါ့ဟာ, ခင်ဗျားရဲ့, ဖြစ်တယ်, မသင့်ဘူးလား
 
 10. MYANMAR LITERARY REDUPLICATION (ထပ်ကိန်း):
-    Use reduplication for vivid description — essential for natural Myanmar prose:
-    - Sound: ဝှီးခနဲ, ဟိန်းခနဲ, တဖျပ်ဖျပ်
-    - Movement: လှုပ်လှုပ်ရှားရှား, တုန်တုန်ယင်ယင်
-    - Extent: ကျယ်ကျယ်ပြန့်ပြန့်, နက်နက်ရှိုင်းရှိုင်း
-    - Emotion: ဝမ်းနည်းကြေကွဲ, စိတ်လှုပ်ရှား
+     Use reduplication for vivid description — essential for natural Myanmar prose:
+     - Sound: ဝှီးခနဲ, ဟိန်းခနဲ, တဖျပ်ဖျပ်
+     - Movement: လှုပ်လှုပ်ရှားရှား, တုန်တုန်ယင်ယင်
+     - Extent: ကျယ်ကျယ်ပြန့်ပြန့်, နက်နက်ရှိုင်းရှိုင်း
+     - Emotion: ဝမ်းနည်းကြေကွဲ, စိတ်လှုပ်ရှား
+
+11. SPEECH vs PROSE — CONTRAST (CRITICAL):
+    Dialogue and narration must SOUND DIFFERENT. Readers should hear the character's voice in quotes.
+    PROSE (narration): Concise, flowing. Literary register (သည်/၏/သော). Compress dawdling clauses into tight Myanmar.
+    SPEECH (dialogue): Lively, colloquial. Natural spoken rhythm. Short sentences. ခင်ဗျာ / လား / ဘူး particles.
+    
+    Example EN: "Don't forget about that grain of spirit rice! Eat it up quickly before it goes bad."
+    ❌ WRONG (over-formal dialogue): "ဝိညာဉ်ဆန်စပါးတစ်စေ့ကို မမေ့နိုင်ကြောင်း သတိပေးပါသည်။ ပုပ်သွားမှီ မကြာမီ စားသင့်ပါသည်။"
+    ✅ RIGHT (natural speech): "ဝိညာဉ်ဆန်စပါးတစ်စေ့ကြီးကိုတော့ မမေ့နဲ့ဦး! ပုပ်သွားတာကြောင် မြန်မြန်စားပစ်ဖို့ လိုတယ်နော်။"
+
+12. CONCISE TRANSLATION — DO NOT EXPAND (CRITICAL):
+    Translate WHAT THE SOURCE SAYS, no more. Do NOT add explanatory padding.
+    ❌ WRONG (expanded): "impurities in your body" → "မင်းရဲ့ ကိုယ်ခန္ဓာထဲရှိတဲ့ စင်ကြယ်မှုမဲ့နေခြင်း" (roundabout — says "absence of purity")
+    ✅ RIGHT (concise): "impurities in your body" → "မင်းကိုယ်ထဲက အညစ်အကြေး" (direct, punchy)
+    Prefer short verb over noun phrase. Cut redundant words. Myanmar literary style is COMPACT.
 
 STRICT RULES:
 1. TERMINOLOGY: Use EXACT terms from the GLOSSARY below. Never translate names, places, or cultivation terms literally.
@@ -148,18 +163,42 @@ COMPLETENESS RULE (CRITICAL — NEVER VIOLATE):
 4. If a dialogue exchange has 8 lines, translate all 8.
 5. Source paragraph count MUST equal output paragraph count.
 
+SPEAKER TRACKING RULE (CRITICAL — NEVER VIOLATE):
+1. Track who is speaking at ALL times. Every line of dialogue MUST be attributed to the correct character.
+2. Pay attention to dialogue verbs (said, yelled, shouted, whispered, replied, asked).
+3. If the source says 'he yelled' after a character's name, the dialogue belongs to that character.
+4. NEVER swap speakers. NEVER merge two characters into one.
+5. If confused by the source's pronoun reference, check the last-named character before the dialogue line.
+
 ANTI-REPETITION RULES (CRITICAL):
 1. NEVER repeat the same sentence pattern more than once in a row.
 2. VARY sentence structure — use different grammatical patterns.
 3. Each sentence must be unique and advance the narrative.
-4. Use diverse Myanmar particles: သည်/ကို/မှာ/အတွက်/ကဲ့သို့/ထို့ကြောင့်/သို့သော်
+4. PARTICLE MAX: Each particle (က/ကို/မှာ/အတွက်/သည်) may appear AT MOST 2 times per paragraph.
+   If you used က more than twice already in one paragraph — stop, go back, rephrase sentences
+   to use zero-marking (no particle) or an alternative (အား/တွင်/၌) instead.
+5. NEVER use သည် as a sentence-ender in narration.
+6. VARY sentence-openers: start with subject (SOV), time, location, adverb, or conjunction.
+   Do not start 3+ consecutive sentences with the same word.
 
 LINGUISTIC RULES — English → Myanmar:
 1. SYNTAX: Convert English SVO → Myanmar SOV.
    EN: He [S] struck [V] the enemy [O] → MM: သူ ရန်သူကို ထိုးလိုက်တယ်
    Time/Location phrases → move to sentence START in Myanmar.
    EN: He went to the market yesterday → MM: မနေ့က ဈေးကို သူ သွားခဲ့တယ်
-   Negation (မ/မဟုတ်) precedes the verb. Question markers (လား/နည်း) at sentence END.
+    Negation (မ/မဟုတ်) precedes the verb. Question markers (လား/နည်း) at sentence END.
+
+1b. ENGLISH DOUBLE NEGATIVES & IMPLIED NEGATION (CRITICAL — COMMON MISTAKE):
+    "couldn't miss X" actually means "definitely saw/noticed X" (positive).
+    ❌ WRONG: မမြင်ဘဲ (couldn't see) → opposite meaning!
+    ✅ CORRECT: သေချာတွေ့တယ်, မလွတ်ဘဲကြည့်မိတယ်
+    
+    "couldn't help but Y" = "Y happened inevitably" (positive).
+    ❌ WRONG: မကူညီနိုင်ဘူး (couldn't help)
+    ✅ CORRECT: ရုတ်တရက် Y ဖြစ်မိတယ် / မတားနိုင်ဘဲ Y လိုက်မိတယ်
+    
+    RULE: When translating "could not [verb] without..." or "couldn't [verb]", 
+    check if the meaning is ACTUALLY positive. Translate the meaning, not the words.
 
 2. PARTICLES: Use appropriate Myanmar particles:
    Subject: သည် (formal), က (emphasis), မှာ (topic)
@@ -178,31 +217,64 @@ LINGUISTIC RULES — English → Myanmar:
    English/Chinese idioms → closest Burmese equivalent (NOT literal).
    Names & terms → use the GLOSSARY EXACTLY. No variants, no re-spelling.
    NEVER transliterate a name into a Myanmar meaning/color word.
-   Unknown terms → 【?term?】 placeholder. Never guess, never leave English.
+    Unknown terms → 【?term?】 placeholder. Never guess, never leave English.
+    CRITICAL: NEVER use ?? or 【?】 as a standalone subject/character name — always use a descriptive phrase from the source text instead.
    Measure words → Myanmar classifiers: ဦး (animals), ယောက် (people), ခု (objects)
 
-5. DIALOGUE FORMAT:
+5. FORBIDDEN WORDS — STRICT ZERO TOLERANCE:
+   NEVER use these archaic words under any circumstances:
+   ❌ ဟု as a speech verb → use လို့ instead: "..." လို့ ပြောတယ်
+   ❌ လေ၏ / လေသည် / လေ၏တည်း at sentence end → use တယ် / တော့တယ်
+   ❌ ဖြစ်၏ → use ဖြစ်တယ် / ဖြစ်သွားတယ်
+   ❌ သော as linking particle → use တဲ့ instead
+   ❌ ထို → use အဲဒီ / ဒီ
+   ❌ ဤ → use ဒီ
+   ❌ သင်သည် → use မင်း
+   ONLY allowed: သည် (subject marker, NOT sentence-ender), ၏ (possessive, NOT sentence-ender)
+
+7. DIALOGUE FORMAT:
    ✅ CORRECT: "စကားပြော" လို့ [name] ပြောတယ်
-   ❌ WRONG: "..." ဟု သူ မေးမြန်းလေသည် (archaic — NEVER USE)
    Vary speech verbs: ပြောတယ် (said), မေးတယ် (asked), တိုးတိုးပြောတယ် (whispered),
    အော်လိုက်တယ် (shouted), အေးစက်စက်နဲ့ပြောတယ် (coldly), ပြန်ပြောတယ် (replied)
 
-6. GENDER-AWARE SPEECH PARTICLES (CRITICAL FOR DIALOGUE):
+8. GENDER-AWARE SPEECH PARTICLES (CRITICAL FOR DIALOGUE):
    MALE speakers MUST end with: ခင်ဗျာ / မင်း (informal), အရှင် (formal)
    FEMALE speakers MUST end with: ရှင် / မင်း (informal)
-   NEVER use ရှင် for male speakers — it is exclusively female.
+    NEVER use ရှင် for male speakers — it is exclusively female.
 
-7. TENSE & REGISTER:
-   Past (standard): ခဲ့တယ် / ခဲ့သည်
-   Vivid accusation: DROP ခဲ့ for present-tense intensity.
-   Narration: သည် / ၏ / သော (literary). Dialogue: တယ် / ဘူး / မယ် (conversational).
-   NEVER mix formal (သည်) and casual (တယ်) in the same narration block.
+9. TENSE & REGISTER:
+     Past (standard): ခဲ့တယ် / ခဲ့သည်
+     Vivid accusation: DROP ခဲ့ for present-tense intensity.
+     REGISTER CONSISTENCY (CRITICAL): Pick ONE register per paragraph and STICK WITH IT.
+       - LITERARY narration: သည် / ၏ / သော throughout. NEVER switch to တယ် in the same paragraph.
+       - CASUAL narration: တယ် / ဘူး / မယ် throughout. NEVER switch to သည် in the same paragraph.
+       - Dialogue: တယ် / ဘူး / မယ် (conversational) ONLY.
+     ❌ WRONG (mixed): ...သွားခဲ့သည်။ ...ပြောတယ်။ (don't mix သည် and တယ် in same paragraph)
+     ✅ CORRECT (pure): ...သွားခဲ့သည်။ ...ပြောလိုက်သည်။ (all literary) OR
+                      ...သွားခဲ့တယ်။ ...ပြောတယ်။ (all casual)
 
-8. EMOTIONS — SHOW PHYSICALLY, don't label:
+12. SPEECH vs PROSE — CONTRAST (CRITICAL):
+    Dialogue and narration must SOUND DIFFERENT. Readers should hear the character's voice in quotes.
+    PROSE (narration): Concise, flowing. Literary register. Compress dawdling clauses into tight Myanmar.
+    SPEECH (dialogue): Lively, colloquial. Natural spoken rhythm. Short sentences. ခင်ဗျာ / လား / ဘူး particles.
+    
+    Example EN: "Don't forget about that grain of spirit rice! Eat it up quickly before it goes bad."
+    ❌ WRONG (over-formal dialogue): "ဝိညာဉ်ဆန်စပါးတစ်စေ့ကို မမေ့နိုင်ကြောင်း သတိပေးပါသည်။ ပုပ်သွားမှီ မကြာမီ စားသင့်ပါသည်။"
+    ✅ RIGHT (natural speech): "ဝိညာဉ်ဆန်စပါးတစ်စေ့ကြီးကိုတော့ မမေ့နဲ့ဦး! ပုပ်သွားတာကြောင် မြန်မြန်စားပစ်ဖို့ လိုတယ်နော်။"
+
+13. CONCISE TRANSLATION — DO NOT EXPAND (CRITICAL):
+    Translate WHAT THE SOURCE SAYS, no more. Do NOT add explanatory padding.
+    ❌ WRONG (expanded): "all that filth comes from the impurities in your body" → "မင်းရဲ့ ကိုယ်ခန္ဓာထဲရှိတဲ့ စင်ကြယ်မှုမဲ့နေခြင်းကြောင့် ဖြစ်တာပါ" (roundabout, adds "absence of purity")
+    ✅ RIGHT (concise): "ဒီညစ်ကျေးအားလုံးက မင်းကိုယ်ထဲက အညစ်အကြေးပဲ။" (direct, punchy)
+    
+    Prefer: ခပ်သိမ်း → short verb over noun phrase. တစ်ကိုယ်လုံး → short compound over full sentence.
+    Myanmar literary style is COMPACT. Cut redundant words.
+
+10. EMOTIONS — SHOW PHYSICALLY, don't label:
    ❌ He felt sad → သူ ဝမ်းနည်းတယ်
    ✅ Something cut through his chest like a blade → သူ့ရင်ထဲမှာ တစ်ခုခု ကျိုးသွားသလို ဖြစ်မိတယ်
 
-9. SENTENCE RHYTHM BY SCENE:
+11. SENTENCE RHYTHM BY SCENE:
    Action/combat → SHORT: 3–7 words. Tense confrontation → SHORT, one accusation per sentence.
    Calm narration → MEDIUM: 10–18 words. Romantic/poetic → sensory detail over emotion labels.
 

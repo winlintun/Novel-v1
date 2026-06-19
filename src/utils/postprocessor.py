@@ -791,11 +791,17 @@ def fix_degraded_placeholders(text: str) -> str:
     """Fix degraded placeholders: 【??】 → 【?term?】.
     
     Also handle variants like 【?】, 【??】, 【???】.
+    Also handles standalone "??" used as subject placeholder (model collapse).
     """
     if not text:
         return text
     # Replace any degraded 【?*】 pattern with standard 【?term?】
     text = re.sub(r'【\?+\s*】', '【?term?】', text)
+    # Fix standalone "??" as subject: "?? သည်" → "【?character?】" 
+    # (model uses ?? when it doesn't know the character name)
+    text = re.sub(r'\?\?\s+(သည်|က|မှာ|တို့)', '【?character?】 \\1', text)
+    # Fix "??" at start of a line
+    text = re.sub(r'^\?\?', '【?character?】', text, flags=re.MULTILINE)
     return text
 
 
@@ -807,6 +813,22 @@ LOANWORD_REPLACEMENTS = {
     'ကွန်ရက်': 'ပိုက်ကွန်',         # network → net (cultivation context)
 }
 
+# Hallucinated term corrections — model produces non-word compounds
+# These are NOT loanwords but model hallucinations that must be corrected
+HALLUCINATED_TERM_CORRECTIONS = {
+    'ကျင့်တည်းဆိုင်': 'ကျင့်ကြံ',      # "cultivation" hallucinated compound → correct term
+    'ကျင့်တည်းဆိုင်ဖို့': 'ကျင့်ကြံရန်',  # conjugated form
+    'ညစ်ဂျေး': 'ညစ်ကျေး',              # "impurities/filth" — misspelled ဂျေး → ကျေး
+    'နဲဒီ': 'ဒီ',                          # non-standard dialect → standard ဒီ
+    'ခါရမ်းစွာ': 'ယိုင်းယိုင်',            # "staggered" — hallucinated non-word
+    'ဉာဏ်ထက်မြတ်သူ': 'လိမ္မာပါးမာသူ',  # "quick-witted" → not "superior intellect"
+    'ထာ၀ရအသက်ရှည်ခြင်းလမ်းစဉ်': 'နတ်ကျင့်ခြင်းလမ်းစဉ်',  # "immortal cultivation" — must keep ကျင့်
+    'ခေါင်းညှိတ်ပေး': 'ပခုံးကို ပုတ်ပေး',  # "patted on shoulder" not "nodded head"
+    'လေးတစ်ကောင်': 'သိုးကျားငယ်လေး',    # "baby eagle" not just "a bird"
+    'အခိုက်အတန့်': 'အခြေနေ',            # "situations" (neutral) not "crises/hardships"
+    'ဒီအိစ့်ဝုဒ်': 'အီးစ်ဝုဒ်',           # English transliteration cleanup
+}
+
 # Forbidden hallucinated patterns — delete entirely
 FORBIDDEN_HALLUCINATIONS = [
     # Patterns observed as model hallucinations with no source equivalent
@@ -815,15 +837,19 @@ FORBIDDEN_HALLUCINATIONS = [
 
 
 def replace_loanwords(text: str) -> str:
-    """Replace English loanwords transliterated into Myanmar with native equivalents.
+    """Replace English loanwords and hallucinated terms with correct Myanmar equivalents.
     
     Universal rules applied to ALL Chinese novels translated via English source.
+    Also corrects model-hallucinated non-word compounds.
     """
     if not text:
         return text
     
     for loanword, replacement in LOANWORD_REPLACEMENTS.items():
         text = text.replace(loanword, replacement)
+    
+    for wrong, correct in HALLUCINATED_TERM_CORRECTIONS.items():
+        text = text.replace(wrong, correct)
     
     # Delete hallucinated terms entirely
     for hallucination in FORBIDDEN_HALLUCINATIONS:
