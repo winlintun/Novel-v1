@@ -2121,6 +2121,37 @@ class TranslationPipeline:
                 f"Repetition detected: {ngram_detail}"
             )
 
+        # Cross-lingual adequacy gate (BGE-M3) — opt-in via
+        # translation_pipeline.use_adequacy_gate. Surfaces meaning-level errors
+        # (omission, hallucination, meaning-flip) that surface checks miss.
+        # Reported as warnings only for now (non-blocking); promote to issues or
+        # a retry trigger once thresholds are tuned on real chapters.
+        if getattr(self.config.translation_pipeline, 'use_adequacy_gate', False):
+            try:
+                adq = self.checker.check_adequacy(source_text, translated_text)
+                if adq.get('checked'):
+                    low = [i for i in adq['issues'] if i['type'] == 'low_adequacy']
+                    halluc = [i for i in adq['issues'] if i['type'] == 'possible_hallucination']
+                    self.logger.info(
+                        f"Adequacy gate: chapter score {adq['score']:.2f}, "
+                        f"{len(low)} weak source sentence(s), "
+                        f"{len(halluc)} possible hallucination(s)"
+                    )
+                    if low:
+                        report['warnings'].append(
+                            f"Adequacy: {len(low)} source sentence(s) weakly covered "
+                            f"(score {adq['score']:.2f}); e.g. \"{low[0]['source']}\" "
+                            f"(sim {low[0]['best_sim']})"
+                        )
+                    if halluc:
+                        report['warnings'].append(
+                            f"Adequacy: {len(halluc)} target sentence(s) possibly "
+                            f"hallucinated; e.g. \"{halluc[0]['target']}\" "
+                            f"(sim {halluc[0]['best_sim']})"
+                        )
+            except Exception as e:
+                self.logger.debug(f"Adequacy gate failed (non-fatal): {e}")
+
         return report
 
     def _save_output(self, input_path: str, text: str, extra_meta: Optional[Dict[str, Any]] = None, source_text: str = "") -> Path:

@@ -15,6 +15,11 @@ from src.utils.ollama_client import OllamaClient
 
 logger = logging.getLogger(__name__)
 
+# Sentinel so the lazy adequacy embedder can be loaded exactly once (and so a
+# previous failed load is not retried on every call). Tests can inject a stub
+# by assigning checker._adequacy_embedder directly.
+_UNSET = object()
+
 
 class Checker(BaseAgent):
     """
@@ -33,6 +38,8 @@ class Checker(BaseAgent):
     ):
         super().__init__(ollama_client=ollama_client, memory_manager=memory_manager, config=config)
         self.memory = memory_manager
+        # Lazy-loaded BGE-M3 embedder for the cross-lingual adequacy gate.
+        self._adequacy_embedder = _UNSET
 
     def check_glossary_consistency(
         self, text: str, source_text: Optional[str] = None
@@ -366,6 +373,127 @@ English translation:"""
         if dupe_count >= 2:
             issues.append(f"Model repetition loop: {dupe_count} consecutive duplicate lines")
         return issues
+
+    # ── Cross-lingual adequacy gate (BGE-M3) ──────────────────────────────────
+
+    @property
+    def adequacy_embedder(self):
+        """Lazily load the BGE-M3 embedder used for the adequacy gate.
+
+        Returns the embedder, or None if sentence-transformers / the model are
+        unavailable (e.g. in CI). The result is cached — including a failed load
+        as None — so we never retry a broken import on every chunk.
+        """
+        if self._adequacy_embedder is _UNSET:
+            try:
+                from src.dataset_alignment.embedder import BGEEmbedder
+                self._adequacy_embedder = BGEEmbedder()
+            except Exception as e:  # pragma: no cover - depends on optional deps
+                logger.debug(f"Adequacy embedder unavailable, gate disabled: {e}")
+                self._adequacy_embedder = None
+        return self._adequacy_embedder
+
+    @staticmethod
+    def _strip_noise(text: str) -> str:
+        """Remove BOM/zero-width chars, markdown headings, and footnote markers.
+
+        The BOM/zero-width strip must run first: a leading \\ufeff before '#'
+        otherwise defeats the heading regex, leaking the title line as a
+        "sentence" that matches nothing (a false hallucination flag).
+        """
+        text = text.replace('﻿', '').replace('​', '')
+        text = re.sub(r'(?m)^\s*#.*$', ' ', text)          # markdown headings
+        text = re.sub(r'\[[0-9၀-၉]+\]', ' ', text)         # footnote markers [1]/[၁]
+        return text
+
+    @classmethod
+    def _split_source_sentences(cls, text: str) -> List[str]:
+        """Split English/source text into sentences for adequacy matching."""
+        text = cls._strip_noise(text or "")
+        parts = re.split(r'(?<=[.!?])\s+|\n{2,}', text)
+        return [p.strip() for p in parts if len(p.strip()) >= 12]
+
+    @classmethod
+    def _split_target_sentences(cls, text: str) -> List[str]:
+        """Split Myanmar text into sentences (terminator ။, dialogue, breaks)."""
+        text = cls._strip_noise(text or "")
+        # Split on the Myanmar sentence terminator and hard breaks; keep quotes.
+        parts = re.split(r'(?<=။)\s*|\n{2,}', text)
+        return [p.strip() for p in parts if len(p.strip()) >= 6]
+
+    def check_adequacy(
+        self,
+        source_text: str,
+        translated_text: str,
+        threshold: float = 0.45,
+    ) -> Dict[str, Any]:
+        """Cross-lingual adequacy check using BGE-M3 sentence embeddings.
+
+        Surface gates (Myanmar ratio, n-gram loops) cannot see *meaning* errors —
+        a fluent chapter can still drop a sentence, invert a clause, or hallucinate
+        content ("sky bridge", "French world") and still score 100/100. BGE-M3
+        embeds source and translation into a shared multilingual space, so cosine
+        similarity between an English sentence and its Myanmar rendering measures
+        adequacy directly.
+
+        For every source sentence we take its best-matching target sentence; a low
+        best-match means the content is missing, mistranslated, or meaning-flipped.
+        Target sentences with no good source match are likely hallucinations.
+
+        Returns dict: {'checked', 'score', 'issues', 'threshold'}. When the
+        embedder is unavailable the gate degrades to a no-op (checked=False) so it
+        never blocks a run.
+        """
+        result: Dict[str, Any] = {
+            "checked": False, "score": 1.0, "issues": [], "threshold": threshold,
+        }
+        embedder = self.adequacy_embedder
+        if embedder is None:
+            return result
+
+        src_sents = self._split_source_sentences(source_text or "")
+        tgt_sents = self._split_target_sentences(translated_text or "")
+        if not src_sents or not tgt_sents:
+            return result
+
+        try:
+            import numpy as np
+            src_emb = np.asarray(embedder.encode(src_sents))
+            tgt_emb = np.asarray(embedder.encode(tgt_sents))
+            if src_emb.size == 0 or tgt_emb.size == 0:
+                return result
+            # Embeddings are L2-normalized, so the dot product is cosine similarity.
+            sim = src_emb @ tgt_emb.T  # shape: [n_src, n_tgt]
+        except Exception as e:  # pragma: no cover - runtime/model errors
+            logger.debug(f"Adequacy check failed (non-fatal): {e}")
+            return result
+
+        issues: List[Dict[str, Any]] = []
+
+        # Source sentences poorly covered = omission / mistranslation / meaning-flip.
+        src_best = sim.max(axis=1)
+        for i, best in enumerate(src_best):
+            if best < threshold:
+                issues.append({
+                    "type": "low_adequacy",
+                    "source": src_sents[i][:90],
+                    "best_sim": round(float(best), 3),
+                })
+
+        # Target sentences with no source support = likely hallucination/addition.
+        tgt_best = sim.max(axis=0)
+        for j, best in enumerate(tgt_best):
+            if best < threshold:
+                issues.append({
+                    "type": "possible_hallucination",
+                    "target": tgt_sents[j][:70],
+                    "best_sim": round(float(best), 3),
+                })
+
+        result["checked"] = True
+        result["score"] = round(float(src_best.mean()), 3)
+        result["issues"] = issues
+        return result
 
     def check_chapter(
         self,

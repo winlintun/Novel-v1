@@ -186,6 +186,64 @@ class TestChecker(unittest.TestCase):
         self.assertEqual(len(issues), 1)
         self.assertEqual(issues[0]['type'], 'target_missing')
 
+    # ── Adequacy gate (BGE-M3) — uses a stub embedder so no model is loaded ──
+
+    def _stub_embedder(self, table):
+        """Return an embedder whose vectors are controlled by substring matches."""
+        import numpy as np
+
+        class StubEmb:
+            def encode(self_inner, texts):
+                out = []
+                for t in texts:
+                    vec = next((v for k, v in table.items() if k in t), [0.0, 0.0, 1.0])
+                    out.append(vec)
+                a = np.array(out, dtype=float)
+                a /= np.linalg.norm(a, axis=1, keepdims=True)
+                return a
+
+        return StubEmb()
+
+    def test_adequacy_faithful_translation_has_no_issues(self):
+        self.checker._adequacy_embedder = self._stub_embedder(
+            {'village': [1, 0, 0], 'ရွာ': [1, 0, 0], 'eagle': [0, 1, 0], 'ငှက်': [0, 1, 0]}
+        )
+        r = self.checker.check_adequacy(
+            "The village was quiet. A baby eagle flew.",
+            "ရွာ တိတ်ဆိတ်သည်။ ငှက် ပျံသည်။",
+        )
+        self.assertTrue(r['checked'])
+        self.assertEqual(r['issues'], [])
+        self.assertGreaterEqual(r['score'], 0.9)
+
+    def test_adequacy_flags_omission(self):
+        self.checker._adequacy_embedder = self._stub_embedder(
+            {'village': [1, 0, 0], 'ရွာ': [1, 0, 0], 'eagle': [0, 1, 0], 'ငှက်': [0, 1, 0]}
+        )
+        r = self.checker.check_adequacy(
+            "The village was quiet. A baby eagle flew.",
+            "ရွာ တိတ်ဆိတ်သည်။",  # eagle sentence dropped
+        )
+        types = [i['type'] for i in r['issues']]
+        self.assertIn('low_adequacy', types)
+
+    def test_adequacy_flags_hallucination(self):
+        self.checker._adequacy_embedder = self._stub_embedder(
+            {'village': [1, 0, 0], 'ရွာ': [1, 0, 0]}
+        )
+        r = self.checker.check_adequacy(
+            "The village was quiet.",
+            "ရွာ တိတ်ဆိတ်သည်။ sky bridge ပေါ်မှာ။",  # unsupported addition
+        )
+        types = [i['type'] for i in r['issues']]
+        self.assertIn('possible_hallucination', types)
+
+    def test_adequacy_disabled_when_embedder_unavailable(self):
+        self.checker._adequacy_embedder = None  # simulate missing model/deps
+        r = self.checker.check_adequacy("anything", "ဘာမဆို")
+        self.assertFalse(r['checked'])
+        self.assertEqual(r['issues'], [])
+
     def test_check_markdown_formatting(self):
         """Test markdown preservation check."""
         original = "# Chapter 1\n**Bold**"
