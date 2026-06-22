@@ -311,6 +311,29 @@ class MemoryManager:
         summary = self.context_memory.get("summary", "")
         return self._sanitize_for_prompt(summary)
 
+    def begin_chapter(self, chapter_num: int) -> None:
+        """Scope memory to the chapter about to be translated.
+
+        The restored "summary" must describe *previous* chapters only. On
+        restore we load the latest snapshot's summary, which — when (re)translating
+        a chapter that already has a snapshot — is the chapter's OWN opening text
+        (``_generate_summary_from_text`` copies the first sentences verbatim).
+        Injecting that as "CHAPTER SUMMARY" makes the small model echo the opening
+        back into its output, duplicating it across chunk boundaries.
+
+        Drop the summary whenever it does not come from a strictly-earlier chapter
+        (self-referential or future), so a chapter is never seeded with its own text.
+        """
+        if not chapter_num:
+            return
+        summary_chapter = self.context_memory.get("current_chapter", 0) or 0
+        if self.context_memory.get("summary") and summary_chapter >= chapter_num:
+            logger.info(
+                f"Dropping self-referential summary (from chapter {summary_chapter}) "
+                f"while translating chapter {chapter_num} to prevent context echo."
+            )
+            self.context_memory["summary"] = ""
+
     # -------------------------------------------------------------------------
     # Character Voice Registry
     # -------------------------------------------------------------------------
@@ -1218,6 +1241,7 @@ class MemoryManager:
     def update_chapter_context(self, chapter_num: int, translated_text: str = "", summary: str = "", source_text: str = "") -> None:
         """Update context after chapter translation."""
         active_chars: list = []
+        events: list = []
         chapter_id = f"chapter_{self.novel_id}_{chapter_num:04d}"
         chapter = self.chapter_repo.get_by_id(chapter_id)
         if not chapter:

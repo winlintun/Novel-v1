@@ -154,6 +154,38 @@ class TestChecker(unittest.TestCase):
         self.assertGreater(len(issues), 0)
         self.assertEqual(issues[0]['type'], 'untranslated_term')
 
+    def test_target_missing_not_flagged_when_term_absent_from_chunk(self):
+        """A verified name absent from this chunk's source must NOT be flagged.
+
+        Regression: the old check reported one 'target_missing' issue per
+        verified character/place term for every chunk that didn't mention it.
+        """
+        self.mock_memory.get_all_terms.return_value = [
+            {'source': 'Bai Xiaochun', 'target': 'ဘိုင်',
+             'category': 'character', 'verified': True}
+        ]
+
+        source_chunk = "The village was quiet that morning."
+        translated = "ကျေးရွာက တိတ်ဆိတ်နေသည်။"
+        issues = self.checker.check_glossary_consistency(translated, source_text=source_chunk)
+
+        self.assertEqual(issues, [])
+
+    def test_target_missing_flagged_when_source_present_target_absent(self):
+        """A verified name present in the source but missing its approved
+        spelling in the translation SHOULD be flagged as 'target_missing'."""
+        self.mock_memory.get_all_terms.return_value = [
+            {'source': 'Bai Xiaochun', 'target': 'ဘိုင်',
+             'category': 'character', 'verified': True}
+        ]
+
+        source_chunk = "Bai Xiaochun left the village."
+        translated = "someone left"  # approved target spelling missing
+        issues = self.checker.check_glossary_consistency(translated, source_text=source_chunk)
+
+        self.assertEqual(len(issues), 1)
+        self.assertEqual(issues[0]['type'], 'target_missing')
+
     def test_check_markdown_formatting(self):
         """Test markdown preservation check."""
         original = "# Chapter 1\n**Bold**"

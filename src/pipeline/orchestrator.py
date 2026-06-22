@@ -632,6 +632,15 @@ class TranslationPipeline:
                 chapter_num = int(m.group(1))
             self._current_chapter = chapter_num
 
+            # Scope memory to this chapter: drop any restored summary that is
+            # self-referential (the chapter's own prior output) so the translator
+            # doesn't echo the opening back into the text. See begin_chapter().
+            if self.memory_manager and chapter_num:
+                try:
+                    self.memory_manager.begin_chapter(chapter_num)
+                except Exception as e:
+                    self.logger.warning(f"begin_chapter scoping failed (non-fatal): {e}")
+
             # Preprocess
             chunks = self._preprocess(text, chapter_label)
 
@@ -1422,7 +1431,10 @@ class TranslationPipeline:
                                 self.config.models.translator
                 self.logger.info(f"  Refiner model: {refiner_model}")
                 t2 = time.time()
-                translated_chunk = self.refiner.refine_paragraph(translated_chunk)
+                refined_chunk = self.refiner.refine_paragraph(translated_chunk)
+                translated_chunk = self._accept_post_edit(
+                    translated_chunk, refined_chunk, "Refine", i + 1
+                )
                 self._report({
                     "type": "chunk_refined",
                     "chunk_index": i + 1,
@@ -1434,7 +1446,10 @@ class TranslationPipeline:
             if self.config.translation_pipeline.use_reflection:
                 self.logger.info(f"Step 4/7: Reflecting on chunk {i+1}/{total}...")
                 t3 = time.time()
-                translated_chunk = self.reflection_agent.reflect_and_improve(translated_chunk, chunk)
+                reflected_chunk = self.reflection_agent.reflect_and_improve(translated_chunk, chunk)
+                translated_chunk = self._accept_post_edit(
+                    translated_chunk, reflected_chunk, "Reflect", i + 1
+                )
                 self._report({
                     "type": "chunk_reflected",
                     "chunk_index": i + 1,
@@ -1514,6 +1529,25 @@ class TranslationPipeline:
                         f"from chunk {i+1} quality issues (score={quality_score})"
                     )
 
+            # Stage 5a: Model Collapse Detection (runs BEFORE the rejection gate
+            # below so a collapsed/leaked chunk is actually rejected — not saved
+            # and checkpointed. Checkpoints are only kept for accepted chunks, so
+            # rejecting here means the chunk is re-translated on the next resume.)
+            collapse_issues = self.checker.check_model_collapse(translated_chunk)
+            if collapse_issues:
+                self.logger.warning(f"Model collapse detected in chunk {i+1}: {collapse_issues}")
+                # Foreign-script leakage or self-annotation = unusable output.
+                if any('self-annotation' in ci or 'Vietnamese' in ci for ci in collapse_issues):
+                    self.logger.warning(f"Severe model collapse in chunk {i+1} — marking for retry")
+                    quality_score = 0
+                    quality_passed = False
+            self._report({
+                "type": "chunk_collapse_check",
+                "chunk_index": i + 1,
+                "total_chunks": total,
+                "collapse_issues": collapse_issues,
+            })
+
             # Save rejected chunks for future training data
             is_rejected = quality_score < 70 or mm_ratio < 0.7
             if is_rejected:
@@ -1575,7 +1609,7 @@ class TranslationPipeline:
 
             # Stage 5: Consistency Check
             self.logger.info(f"Step 6/7: Checking consistency for chunk {i+1}/{total}...")
-            consistency_issues = self.checker.check_glossary_consistency(translated_chunk)
+            consistency_issues = self.checker.check_glossary_consistency(translated_chunk, source_text=chunk)
             cons_count = len(consistency_issues) if consistency_issues else 0
             if cons_count:
                 self.logger.warning(f"Found {cons_count} consistency issues")
@@ -1586,21 +1620,6 @@ class TranslationPipeline:
                 "issue_count": cons_count,
             })
 
-            # Stage 5a: Model Collapse Detection
-            collapse_issues = self.checker.check_model_collapse(translated_chunk)
-            if collapse_issues:
-                self.logger.warning(f"Model collapse detected: {collapse_issues}")
-                # If collapse is severe, trigger re-translation
-                if any('self-annotation' in ci or 'Vietnamese' in ci for ci in collapse_issues):
-                    self.logger.warning(f"Severe model collapse in chunk {i+1} — marking for retry")
-                    quality_score = 0
-                    quality_passed = False
-            self._report({
-                "type": "chunk_collapse_check",
-                "chunk_index": i + 1,
-                "total_chunks": total,
-                "collapse_issues": collapse_issues,
-            })
 
             # Stage 5b: Fiction Editor — literary humanization (if enabled)
             use_fe = getattr(self.config.translation_pipeline, 'use_fiction_editor', False)
@@ -1780,6 +1799,50 @@ class TranslationPipeline:
             rolling_context = get_rolling_context(translated_chunk, max_context_tokens=400)
 
         return translated, chunk_metrics
+
+    def _accept_post_edit(self, before: str, after: str, stage: str, chunk_idx: int) -> str:
+        """Guard a refine/reflect edit against content loss and script leakage.
+
+        The refine and reflect stages re-run an already-good translation back
+        through a small LLM, which can silently drop sentences, truncate, or
+        introduce foreign-script leakage. We accept the edited text only when it
+        preserves the bulk of the content and does not degrade the Myanmar
+        ratio; otherwise we keep the pre-edit translation. Without this guard the
+        full pipeline could drop 41-91% of content (see CLAUDE.md).
+
+        Returns the text to keep (``after`` if safe, else ``before``).
+        """
+        b = (before or "").strip()
+        a = (after or "").strip()
+
+        # Empty / collapsed output -> reject.
+        if not a:
+            self.logger.warning(
+                f"{stage} chunk {chunk_idx} produced empty output; "
+                f"keeping pre-edit translation."
+            )
+            return before
+
+        # Content-loss guard: reject if the edit shrinks the text by >40%.
+        if b and len(a) < 0.6 * len(b):
+            self.logger.warning(
+                f"{stage} chunk {chunk_idx} dropped "
+                f"{100 * (1 - len(a) / len(b)):.0f}% of content "
+                f"({len(b)}->{len(a)} chars); keeping pre-edit translation."
+            )
+            return before
+
+        # Leakage guard: reject if the edit materially lowers the Myanmar ratio.
+        before_ratio = self._calc_myanmar_ratio(b) if b else 0.0
+        after_ratio = self._calc_myanmar_ratio(a)
+        if after_ratio < 0.5 or after_ratio < before_ratio - 0.15:
+            self.logger.warning(
+                f"{stage} chunk {chunk_idx} lowered Myanmar ratio "
+                f"{before_ratio:.0%}->{after_ratio:.0%}; keeping pre-edit translation."
+            )
+            return before
+
+        return after
 
     @staticmethod
     def _calc_myanmar_ratio(text: str) -> float:
@@ -2073,28 +2136,43 @@ class TranslationPipeline:
         """
         input_path = Path(input_path)
 
-        # Determine output path (strip lang/ subdir like en/ or zh/)
-        if str(input_path).startswith(INPUT_DIR):
-            relative = input_path.relative_to(INPUT_DIR)
-            # Strip language subdirectory (en/, zh/) from output path
-            parts = list(relative.parts)
-            if len(parts) >= 2 and parts[1] in ("en", "zh", "mm"):
-                parts.pop(1)
-            relative = Path(*parts)
+        # Extract chapter number from the input filename.
+        import re
+        chapter_num = None
+        m = re.search(r'(\d+)', input_path.stem)
+        if m:
+            chapter_num = int(m.group(1))
+
+        # Determine output path. The canonical layout is
+        #   data/output/{novel}/{novel}_chapter_NNNN.mm.md
+        # which is exactly what VersionManager._get_chapter_file() and the
+        # --rebuild-meta scanner expect. Building it from the novel name +
+        # chapter number (rather than mirroring the input filename) keeps the
+        # saved file, version snapshots, and cumulative meta in sync — the
+        # previous code mirrored the input path and silently broke snapshots.
+        if self._current_novel and chapter_num is not None:
+            output_path = (
+                Path(OUTPUT_DIR)
+                / self._current_novel
+                / f"{self._current_novel}_chapter_{chapter_num:04d}.mm.md"
+            )
         else:
-            relative = Path(input_path.name)
-        output_path = Path(OUTPUT_DIR) / relative
-        output_path = output_path.with_suffix('.mm.md')
+            # Fallback: mirror the input path under OUTPUT_DIR (strip lang/
+            # subdir like en/ or zh/). Use Path-based containment so Windows
+            # back-slashes don't defeat a string startswith() against the
+            # forward-slash INPUT_DIR constant.
+            try:
+                relative = input_path.resolve().relative_to(Path(INPUT_DIR).resolve())
+                parts = list(relative.parts)
+                if len(parts) >= 2 and parts[1] in ("en", "zh", "mm"):
+                    parts.pop(1)
+                relative = Path(*parts)
+            except ValueError:
+                relative = Path(input_path.name)
+            output_path = (Path(OUTPUT_DIR) / relative).with_suffix('.mm.md')
 
         # Ensure directory exists
         output_path.parent.mkdir(parents=True, exist_ok=True)
-
-        # Extract chapter number from filename
-        import re
-        chapter_num = None
-        m = re.search(r'(\d+)', output_path.stem)
-        if m:
-            chapter_num = int(m.group(1))
 
         # --- Run translation validation before saving ---
         if source_text:
