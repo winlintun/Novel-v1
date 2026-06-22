@@ -276,16 +276,43 @@ class TranslationPipeline:
     _MODEL_MAX_TEMPERATURE = {"padauk-gemma": 0.2}
 
     def _effective_temperature(self, model: str) -> float:
-        """Resolve sampling temperature, enforcing per-model hard ceilings.
+        """Resolve sampling temperature, auto-selecting model-specific values.
 
-        The configured value lives in `processing.temperature` (a shared default
-        of 0.35). For padauk-gemma that exceeds the documented ≤0.2 limit and
-        corrupts Myanmar output, so we clamp it here — structurally, so a stray
-        config value can never re-break the constraint.
+        Priority:
+        1. Model-specific config section (e.g. settings.yaml models.padauk_gemma.temperature)
+        2. Shared processing.temperature default
+        3. Per-model hard ceiling (clamp down if exceeded)
         """
-        temp = float(getattr(self.config.processing, 'temperature', 0.3))
+        # Step 1: try to find a model-specific config section
+        model_lower = (model or "").lower()
+        model_sections = []
+        try:
+            models_cfg = self.config.models
+            for attr in dir(models_cfg):
+                if attr.startswith('_'):
+                    continue
+                val = getattr(models_cfg, attr)
+                if isinstance(val, dict) and 'name' in val:
+                    model_sections.append(val)
+        except Exception:
+            pass
+
+        section_temp = None
+        for section in model_sections:
+            if section.get('name', '').lower() == model_lower:
+                section_temp = section.get('temperature')
+                if section_temp is not None:
+                    break
+
+        # Step 2: resolve base temperature
+        if section_temp is not None:
+            temp = float(section_temp)
+        else:
+            temp = float(getattr(self.config.processing, 'temperature', 0.3))
+
+        # Step 3: enforce per-model hard ceiling
         for prefix, ceiling in self._MODEL_MAX_TEMPERATURE.items():
-            if prefix in (model or "").lower() and temp > ceiling:
+            if prefix in model_lower and temp > ceiling:
                 self.logger.warning(
                     "Clamping temperature %.2f -> %.2f for model '%s' "
                     "(hard ceiling; higher values corrupt Myanmar output).",
@@ -399,6 +426,7 @@ class TranslationPipeline:
                     embedding_model=rag_config.get('embedding_model', 'models/bge-m3'),
                     embedding_device=rag_config.get('embedding_device', 'cpu'),
                     min_similarity=rag_config.get('min_similarity', 0.3),
+                    collection_name=rag_config.get('collection', 'alignment_pairs'),
                 )
                 self.logger.info(f"RAG Retriever initialized: chroma={chroma_path}, db={db_path}")
 
@@ -515,7 +543,8 @@ class TranslationPipeline:
             from src.agents.checker import Checker
             self._checker = Checker(
                 memory_manager=self.memory_manager,
-                config=self.config.dict()
+                config=self.config.dict(),
+                ollama_client=self.ollama_client_checker,
             )
         return self._checker
 
@@ -653,6 +682,30 @@ class TranslationPipeline:
 
             # Postprocess
             result_text = self._postprocess(translated_chunks)
+
+            # Deterministic glossary enforcement — replace any source term that
+            # leaked verbatim into the Myanmar output with its approved target.
+            # Safe (Latin-script leakage only) and independent of model compliance.
+            try:
+                from src.utils.glossary_enforcer import enforce_glossary, enforce_variants
+                terms = self.memory_manager.get_all_terms()
+                result_text, n_enforced = enforce_glossary(result_text, text, terms)
+                if n_enforced:
+                    self.logger.info(
+                        f"Glossary enforcement: replaced {n_enforced} leaked "
+                        f"source-term occurrence(s) with canonical target(s)"
+                    )
+                # Normalise known Myanmar variant spellings to canonical (e.g.
+                # ပိုင်ရှောင်ချီ → ပိုင်ရှောင်ချန်း) so names are identical everywhere.
+                variants = self.memory_manager.get_variant_map()
+                result_text, n_var = enforce_variants(result_text, variants)
+                if n_var:
+                    self.logger.info(
+                        f"Variant normalisation: snapped {n_var} variant spelling(s) "
+                        f"to canonical glossary target(s)"
+                    )
+            except Exception as e:
+                self.logger.warning(f"Glossary enforcement skipped (non-fatal): {e}")
 
             # Stage 6: QA Validation — final quality gate on assembled chapter
             # Runs after postprocessing so it checks the full, clean output
@@ -1531,6 +1584,22 @@ class TranslationPipeline:
                 "chunk_index": i + 1,
                 "total_chunks": total,
                 "issue_count": cons_count,
+            })
+
+            # Stage 5a: Model Collapse Detection
+            collapse_issues = self.checker.check_model_collapse(translated_chunk)
+            if collapse_issues:
+                self.logger.warning(f"Model collapse detected: {collapse_issues}")
+                # If collapse is severe, trigger re-translation
+                if any('self-annotation' in ci or 'Vietnamese' in ci for ci in collapse_issues):
+                    self.logger.warning(f"Severe model collapse in chunk {i+1} — marking for retry")
+                    quality_score = 0
+                    quality_passed = False
+            self._report({
+                "type": "chunk_collapse_check",
+                "chunk_index": i + 1,
+                "total_chunks": total,
+                "collapse_issues": collapse_issues,
             })
 
             # Stage 5b: Fiction Editor — literary humanization (if enabled)

@@ -14,6 +14,11 @@ from collections import deque
 
 logger = logging.getLogger(__name__)
 
+# Sentinel limit for "fetch every term" reads (promotion, review, full-glossary
+# export). The repo's get_terms_by_novel defaults to limit=100, which silently
+# truncates these operations; a novel can legitimately have thousands of terms.
+ALL_TERMS_LIMIT = 1_000_000
+
 
 def _make_novel_id(novel_name: str) -> str:
     """Generate a sanitized, consistent novel_id from a novel name/slug.
@@ -837,7 +842,12 @@ class MemoryManager:
 
     def get_pending_terms(self) -> List[Dict[str, Any]]:
         """Get all pending terms for review."""
-        terms = self.glossary_repo.get_terms_by_novel(self.novel_id, status='pending')
+        # limit=None → fetch ALL pending. The repo defaults to limit=100, which
+        # silently truncates promotion/review to the first 100 terms (a novel can
+        # have thousands of pending terms).
+        terms = self.glossary_repo.get_terms_by_novel(
+            self.novel_id, status='pending', limit=ALL_TERMS_LIMIT
+        )
         return [
             {
                 "source": t['source_term'],
@@ -856,7 +866,9 @@ class MemoryManager:
         Returns:
             Number of terms promoted to glossary
         """
-        pending = self.glossary_repo.get_terms_by_novel(self.novel_id, status='pending')
+        pending = self.glossary_repo.get_terms_by_novel(
+            self.novel_id, status='pending', limit=ALL_TERMS_LIMIT
+        )
         if not pending:
             logger.info("No pending terms to approve")
             return 0
@@ -890,7 +902,9 @@ class MemoryManager:
         Returns:
             Number of terms promoted
         """
-        pending = self.glossary_repo.get_terms_by_novel(self.novel_id, status='pending')
+        pending = self.glossary_repo.get_terms_by_novel(
+            self.novel_id, status='pending', limit=ALL_TERMS_LIMIT
+        )
         if not pending:
             return 0
 
@@ -930,7 +944,9 @@ class MemoryManager:
         Returns:
             Number of terms auto-approved
         """
-        pending = self.glossary_repo.get_terms_by_novel(self.novel_id, status='pending')
+        pending = self.glossary_repo.get_terms_by_novel(
+            self.novel_id, status='pending', limit=ALL_TERMS_LIMIT
+        )
         if not pending:
             return 0
 
@@ -982,13 +998,16 @@ class MemoryManager:
         logger.info(f"Auto-approved {promoted_count}/{len(to_approve)} terms by confidence (threshold={confidence_threshold})")
         self._invalidate_cache()
         return promoted_count
-    def get_all_memory_for_prompt(self, scene_tone: str = "") -> Dict[str, str]:
+    def get_all_memory_for_prompt(self, scene_tone: str = "", source_text: str = "") -> Dict[str, str]:
         """Get all memory tiers formatted for prompts.
 
         Args:
             scene_tone: Optional scene tone for voice selection
                         ("formal", "casual", "hostile", "pleading", "intimate").
                         When empty, emits all variants (legacy behavior).
+            source_text: Current chunk source text. When provided, the glossary
+                        is filtered to terms that actually appear in this chunk
+                        (text-aware injection) instead of a fixed top-N.
         """
         current_chapter = self.context_memory.get("current_chapter", 0)
         if scene_tone:
@@ -1000,7 +1019,7 @@ class MemoryManager:
         else:
             voices = self.get_character_voices(active_only=True, current_chapter=current_chapter)
         return {
-            "glossary": self.get_glossary_for_prompt(),
+            "glossary": self.get_glossary_for_prompt(source_text=source_text),
             "context": self.get_context_buffer(),
             "rules": self.get_session_rules(),
             "summary": self.get_summary(),
@@ -1062,7 +1081,9 @@ class MemoryManager:
 
     def get_all_terms(self) -> List[Dict[str, Any]]:
         """Get all glossary terms including global xianxia terms."""
-        terms = self.glossary_repo.get_terms_by_novel(self.novel_id, include_global=True)
+        terms = self.glossary_repo.get_terms_by_novel(
+            self.novel_id, include_global=True, limit=ALL_TERMS_LIMIT
+        )
         return [
             {
                 "id": t["id"], "source": t["source_term"], "target": t["target_term"],
@@ -1071,6 +1092,19 @@ class MemoryManager:
                 "scope": t.get("scope", "novel"),
             }
             for t in terms
+        ]
+
+    def get_variant_map(self) -> List[Dict[str, Any]]:
+        """Return [{variant_text, target}] for this novel's approved terms.
+
+        Feeds the deterministic glossary enforcer so known misspellings of a
+        canonical term are normalised in the final output.
+        """
+        rows = self.glossary_repo.get_variant_map(self.novel_id)
+        return [
+            {"variant_text": r["variant_text"], "target": r["target_term"]}
+            for r in rows
+            if r.get("variant_text") and r.get("target_term")
         ]
 
     def get_global_terms(self, status: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -1085,30 +1119,101 @@ class MemoryManager:
             for t in terms
         ]
 
-    def get_glossary_for_prompt(self, limit: int = 20) -> str:
-        """Get formatted glossary for prompt injection (SQL or JSON).
+    def get_glossary_for_prompt(self, limit: int = 20, source_text: str = "") -> str:
+        """Get formatted glossary for prompt injection.
 
-        Cached within a chapter — glossary does not change between chunks.
+        When ``source_text`` is provided, returns a *text-aware* glossary: only
+        terms whose source actually appears in this chunk are injected (plus a
+        small top-N fallback when nothing matches). This is far more relevant
+        than a fixed chapter-wide top-20 — a chunk about Bai Xiaochun gets his
+        canonical spelling instead of 20 arbitrary terms.
+
+        When ``source_text`` is empty, returns the legacy cached top-N glossary.
         Cache is invalidated by add_term(), update_term(), and promote methods.
         """
+        # Text-aware path — never cached (selection varies per chunk).
+        if source_text:
+            return self._build_text_aware_glossary(source_text, limit)
+
         if self._glossary_prompt_cache is not None:
             return self._glossary_prompt_cache
 
         terms = self.glossary_repo.get_terms_for_prompt(self.novel_id, limit)
-
         if not terms:
             self._glossary_prompt_cache = "No glossary entries yet."
             return self._glossary_prompt_cache
 
-        lines = ["GLOSSARY (Use these exact translations):"]
+        self._glossary_prompt_cache = self._format_glossary_lines(terms)
+        return self._glossary_prompt_cache
+
+    def _build_text_aware_glossary(self, source_text: str, limit: int) -> str:
+        """Select approved terms whose source token appears in ``source_text``.
+
+        Ranking: character terms first (name consistency is the highest-value
+        job), then longer source terms before shorter ones (more specific /
+        less likely to be an incidental substring). Falls back to the legacy
+        top-N when the chunk contains no known terms so canonical names are
+        still injected for continuity.
+        """
+        all_terms = self.glossary_repo.get_terms_by_novel(
+            self.novel_id, status='approved',
+            include_global=True, limit=ALL_TERMS_LIMIT,
+        )
+        if not all_terms:
+            return "No glossary entries yet."
+
+        src_lower = source_text.lower()
+        present = []
+        seen: set = set()
+        for t in all_terms:
+            s = (t.get('source_term') or '').strip()
+            key = s.lower()
+            if len(s) < 2 or key in seen:
+                continue
+            if key in src_lower:
+                seen.add(key)
+                present.append(t)
+
+        if not present:
+            # Nothing matched — inject the canonical top-N so names stay stable.
+            return self._format_glossary_lines(
+                self.glossary_repo.get_terms_for_prompt(self.novel_id, limit)
+            )
+
+        present.sort(
+            key=lambda t: (
+                0 if t.get('category') == 'character' else 1,
+                -len(t.get('source_term') or ''),
+            )
+        )
+        if limit and limit > 0:
+            present = present[:limit]
+        return self._format_glossary_lines(present)
+
+    def _format_glossary_lines(self, terms: List[Dict[str, Any]]) -> str:
+        """Render glossary rows into the prompt block (characters emphasized)."""
+        character_lines = []
+        other_lines = []
         for term in terms:
-            verified = "✓" if term.get("verified") else "○"
+            is_verified = term.get("verified", term.get("status") == "approved")
+            verified = "✓" if is_verified else "○"
             source = self._sanitize_for_prompt(term.get("source") or term.get("source_term", ""))
             target = self._sanitize_for_prompt(term.get("target") or term.get("target_term", ""))
             category = self._sanitize_for_prompt(term.get('category', 'general'))
-            lines.append(f"  [{verified}] {source} = {target} ({category})")
-        self._glossary_prompt_cache = "\n".join(lines)
-        return self._glossary_prompt_cache
+            entry = f"  [{verified}] {source} = {target} ({category})"
+            if category == 'character':
+                character_lines.append(entry)
+            else:
+                other_lines.append(entry)
+
+        lines = []
+        if character_lines:
+            lines.append("CRITICAL — Character names are REQUIRED. Every occurrence of these names MUST use the EXACT spelling below. NO variants, NO alternatives:")
+            lines.extend(character_lines)
+            lines.append("")
+        lines.append("GLOSSARY (Use these exact translations for all other terms):")
+        lines.extend(other_lines)
+        return "\n".join(lines)
 
     def update_chapter_context(self, chapter_num: int, translated_text: str = "", summary: str = "", source_text: str = "") -> None:
         """Update context after chapter translation."""

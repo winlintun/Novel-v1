@@ -291,6 +291,23 @@ class GlossaryRepository:
         )
         return [dict(r) for r in rows]
 
+    def get_variant_map(self, novel_id: str) -> list[dict]:
+        """All (variant_text → canonical target) pairs for a novel's approved terms.
+
+        Used by the deterministic glossary enforcer to normalise known misspellings
+        of a term (e.g. a model rendering Bai Xiaochun as ပိုင်ရှောင်ချီ instead of
+        the canonical ပိုင်ရှောင်ချန်း) in the final output.
+        """
+        rows = self.db.fetchall(
+            """SELECT tv.variant_text, gt.target_term, gt.source_term, gt.category
+               FROM term_variants tv
+               JOIN glossary_terms gt ON tv.term_id = gt.id
+               WHERE (gt.novel_id = ? OR gt.scope = 'global')
+                 AND gt.status = 'approved'""",
+            (novel_id,),
+        )
+        return [dict(r) for r in rows]
+
     def delete_variants(self, term_id: str) -> int:
         """Delete all variants for a term. Returns count deleted."""
         cur = self.db.execute("DELETE FROM term_variants WHERE term_id = ?", (term_id,))

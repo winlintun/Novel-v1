@@ -26,7 +26,7 @@ class TestTranslator(unittest.TestCase):
 
         # Default memory mock return
         self.mock_memory.get_all_memory_for_prompt.return_value = {
-            'glossary': 'GLOSSARY: 主角=ဇော်ဂျီ',
+            'glossary': 'GLOSSARY: 主角="အဓိကနေရာ၊ မင်းသားနေရာ"',
             'context': 'No previous context.',
             'rules': 'No session rules.',
             'summary': ''
@@ -40,7 +40,7 @@ class TestTranslator(unittest.TestCase):
         prompt = self.translator.build_prompt(text)
 
         self.assertIn("GLOSSARY", prompt)
-        self.assertIn("ဇော်ဂျီ", prompt)
+        self.assertIn("အဓိကနေရာ", prompt)
         self.assertIn("你好", prompt)
 
     def test_translate_paragraph(self):

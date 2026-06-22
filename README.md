@@ -165,7 +165,18 @@ The alignment pipeline:
 1. Pairs source chapters with existing `.mm.md` translations
 2. Runs BGE-M3 embeddings + DP sentence alignment (1:1 pairs)
 3. Validates pairs with 16 quality checks
-4. Populates SQLite RAG database → used during translation for few-shot examples
+4. Populates **both** RAG stores — SQLite `translation_pairs` (keyword fallback)
+   and the ChromaDB `alignment_pairs` collection in `data/chroma/` (semantic search)
+
+After running, confirm the semantic index isn't empty:
+
+```bash
+python -c "import chromadb; c=chromadb.PersistentClient(path='data/chroma'); print([(x.name, x.count()) for x in c.list_collections()])"
+```
+
+If `alignment_pairs` shows `0` but SQLite already has pairs, backfill Chroma from
+them instead of re-aligning: `python tools/backfill_chroma.py`. See
+[Dataset Alignment Pipeline](#-dataset-alignment-pipeline-rag-data-preparation) for details.
 
 **Without this step**, the LLM translates each chunk from scratch with no reference examples — terminology and name consistency will suffer.
 
@@ -304,6 +315,13 @@ python tools/run_dataset_alignment.py --novel <name>
 python tools/run_dataset_alignment.py --all
 python tools/run_dataset_alignment.py --novel <name> --skip-validators
 python tools/run_dataset_alignment.py --novel <name> --no-rag
+
+# Backfill the ChromaDB semantic index from existing SQLite pairs
+python tools/backfill_chroma.py --novel <name>
+
+# Verify both RAG stores
+python tools/verify_rag.py
+python -c "import chromadb; c=chromadb.PersistentClient(path='data/chroma'); print([(x.name, x.count()) for x in c.list_collections()])"
 ```
 
 ### Quality & Review
@@ -452,7 +470,59 @@ python tools/run_dataset_alignment.py --novel <name> --min-similarity 0.6
 2. **Pair**: Matches with target `.mm.md` files from `data/output/<name>/`
 3. **Align**: DP sentence alignment with BGE-M3 embeddings
 4. **Validate**: 2 quality checks (omission ratio, inflation ratio)
-5. **Ingest**: Populates `data/novel_v1_dataset.db` → `translation_pairs` table
+5. **Ingest**: Populates **two** stores read by `RAGRetriever`:
+   - `data/novel_v1_dataset.db` → `translation_pairs` table (SQLite keyword fallback)
+   - `data/chroma/` → `alignment_pairs` collection (ChromaDB semantic search, BGE-M3 1024-dim)
+
+### The Two RAG Stores
+
+`RAGRetriever` (`src/data/rag_retriever.py`) queries ChromaDB first and falls back
+to SQLite when the best semantic match is weak or Chroma is empty:
+
+| Store | Path | Role | Built by |
+|---|---|---|---|
+| ChromaDB | `data/chroma/` (collection `alignment_pairs`) | Semantic similarity (BGE-M3) | alignment pipeline / backfill |
+| SQLite | `data/novel_v1_dataset.db` (`translation_pairs`) | Keyword-overlap fallback | alignment pipeline |
+
+Config lives under the `rag:` key in `config/settings.yaml` (`chroma_path`,
+`db_path`, `top_k`, `min_score`, `min_similarity`, `embedding_model: models/bge-m3`).
+
+> **Requirement for the semantic half:** `chromadb` + `sentence-transformers`
+> installed and the full BGE-M3 weights present at `models/bge-m3` (~2.2 GB). If
+> the model can't load, the Chroma ingest is silently skipped (no crash) and RAG
+> degrades to the SQLite keyword fallback — few-shot examples become much less relevant.
+
+### Backfill ChromaDB From Existing SQLite Pairs
+
+If `translation_pairs` already has rows but the Chroma `alignment_pairs` collection
+is empty (e.g. the pairs were aligned by an older build that predated Chroma
+ingestion), don't re-run the expensive alignment — embed the existing pairs
+directly:
+
+```bash
+# Embed every usable pair in translation_pairs into Chroma
+python tools/backfill_chroma.py
+
+# Limit to one novel, tune batch size
+python tools/backfill_chroma.py --novel a-will-eternal --batch-size 256
+```
+
+The backfill is **idempotent** (upserts by SQLite id, so it's safe to re-run /
+resume after an interruption). Embedding is CPU-bound — budget roughly an hour
+per ~80k pairs on CPU. Progress + ETA are logged.
+
+### Verify The RAG Stores
+
+```bash
+# SQLite pair-quality summary (Myanmar-ratio distribution)
+python tools/verify_rag.py
+
+# ChromaDB collection counts — alignment_pairs should be NON-zero
+python -c "import chromadb; c=chromadb.PersistentClient(path='data/chroma'); print([(x.name, x.count()) for x in c.list_collections()])"
+```
+
+If `alignment_pairs` shows `0`, the semantic index is empty — run the backfill
+(or a fresh `run_dataset_alignment.py`) above.
 
 ### Data Flow
 
@@ -463,11 +533,14 @@ python tools/run_dataset_alignment.py --novel <name> --min-similarity 0.6
    ↓
 3. DP alignment creates 1:1 sentence pairs
    ↓
-4. Pairs inserted into data/novel_v1_dataset.db (translation_pairs table)
+4. Pairs written to BOTH stores:
+     - data/novel_v1_dataset.db (translation_pairs, keyword fallback)
+     - data/chroma/ (alignment_pairs, BGE-M3 semantic index)
    ↓
 5. python -m src.main --novel <name> --chapter N
    ↓
-6. RAGRetriever finds relevant pairs → injected into translator prompt
+6. RAGRetriever queries Chroma first (semantic) → SQLite fallback
+   → top-k relevant pairs injected into translator prompt
    ↓
 7. Better terminology, name, and register consistency
 ```

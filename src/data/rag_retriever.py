@@ -87,12 +87,17 @@ class RAGRetriever:
         embedding_model: str = "models/bge-m3",
         embedding_device: str = "cpu",
         min_similarity: float = 0.3,
+        collection_name: str = "alignment_pairs",
     ):
         self.chroma_path = chroma_path
         self.db_path = db_path
         self.top_k = top_k
         self.min_score = min_score
         self.novel_filter = novel_filter
+        # Chroma collection to query. The paragraph-level index
+        # ('alignment_paragraphs') matches translation chunk granularity far
+        # better than the original sentence-level 'alignment_pairs'.
+        self.collection_name = collection_name
         # If Chroma's best semantic match is below this, fall back to SQLite
         # keyword retrieval. The corpus is sentence-level while translation
         # queries are paragraph-chunks, so Chroma cosine is often weak — SQLite
@@ -150,11 +155,11 @@ class RAGRetriever:
             # causes "embedding function already exists" conflict error (ERR-072).
             try:
                 self._chroma_collection = self._chroma_client.get_collection(
-                    name="alignment_pairs",
+                    name=self.collection_name,
                 )
             except (ValueError, ChromaNotFoundError):
                 # Try fallback collection names
-                fallback_names = ["translations"]
+                fallback_names = ["alignment_pairs", "translations"]
                 for fb_name in fallback_names:
                     try:
                         self._chroma_collection = self._chroma_client.get_collection(
@@ -339,18 +344,18 @@ class RAGRetriever:
             if query_vec is None:
                 return []
 
-            # auto_score is stored as a string in metadata, but ChromaDB coerces
-            # it for numeric comparisons, so $gte works correctly.
-            conditions = [{"auto_score": {"$gte": self.min_score}}]
-            if novel_filter:
-                # ChromaDB 1.x does NOT support $regex. The collection has a
-                # dedicated 'novel' metadata field, so match it exactly.
-                conditions.append({"novel": {"$eq": novel_filter}})
-            where_clause = conditions[0] if len(conditions) == 1 else {"$and": conditions}
+            # NOTE: auto_score is stored as a STRING ('4.356') in metadata.
+            # ChromaDB does NOT coerce strings for numeric ops, so a
+            # `{"auto_score": {"$gte": 2.5}}` filter silently matches ZERO docs
+            # and disables Chroma entirely (every query fell back to SQLite).
+            # We therefore filter by score in Python below, after parsing it to
+            # float, and keep only the string-equality `novel` filter in `where`.
+            where_clause = {"novel": {"$eq": novel_filter}} if novel_filter else None
 
+            # Over-fetch so the post-query min_score filter still leaves top_k.
             results = self._chroma_collection.query(
                 query_embeddings=[query_vec],
-                n_results=top_k * 2,
+                n_results=top_k * 4,
                 where=where_clause,
                 include=["metadatas", "documents", "distances"],
             )
@@ -374,6 +379,10 @@ class RAGRetriever:
                         score = float(metadata.get("auto_score", 0.0))
                     except (TypeError, ValueError):
                         score = 0.0
+                    # Quality gate, applied in Python because the metadata value
+                    # is a string (see note above).
+                    if score < self.min_score:
+                        continue
                     examples.append(TranslationExample(
                         en_text=results["documents"][0][i],
                         my_text=metadata.get("my_text", ""),

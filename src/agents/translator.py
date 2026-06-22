@@ -136,8 +136,10 @@ class Translator(BaseAgent):
             text: Source text to translate
             rolling_context: Tail of previous translated chunk (Myanmar, ≤400 tokens)
         """
-        # Get all memory context
-        mem = self.memory.get_all_memory_for_prompt()
+        # Get all memory context. Pass the chunk text so the glossary is filtered
+        # to terms that actually appear here (text-aware injection) rather than a
+        # fixed chapter-wide top-20.
+        mem = self.memory.get_all_memory_for_prompt(source_text=text)
         glossary_text = mem['glossary'] if mem['glossary'] else ""
 
         # Use custom template from config if available
@@ -505,6 +507,32 @@ Myanmar Translation:"""
         self.memory.push_to_buffer(translated)
 
         return translated
+
+    def back_translate(self, mm_text: str) -> str:
+        """
+        Back-translate Myanmar text to English using the chat template.
+
+        Args:
+            mm_text: Myanmar (Burmese) text to back-translate
+
+        Returns:
+            English translation of the Myanmar text
+        """
+        prompt = f"""Translate the following Myanmar (Burmese) text to English.
+Output ONLY the English translation. No explanations, no notes, no Myanmar text.
+
+Myanmar text:
+{mm_text}
+
+English translation:"""
+        system_prompt = "You are a Myanmar-to-English translator. Output ONLY English. Never include the original Myanmar text."
+
+        raw = self.ollama.chat(
+            prompt=prompt,
+            system_prompt=system_prompt
+        )
+        result = (raw or "").strip()
+        return result
 
     def translate_chunks(
         self,
