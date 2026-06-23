@@ -219,9 +219,28 @@ class Translator(BaseAgent):
             Formatted string with translation examples, or empty string if none found
         """
         try:
+            # Glossary-aware retrieval (F3): pass the current novel's approved
+            # glossary source terms so the retriever boosts examples that share
+            # vocabulary with this novel. The model then sees human translations
+            # of *its* terminology (names, sects, cultivation terms), not just
+            # any xianxia paragraph — improving term consistency, not just style.
+            glossary_sources: list = []
+            try:
+                all_terms = self.memory.get_all_terms()
+                glossary_sources = [
+                    t.get("source", "") for t in all_terms
+                    if t.get("source") and t.get("verified")
+                ]
+            except Exception:
+                pass  # glossary unavailable — retrieve without bias (unchanged behavior)
+
+            # Retrieve a LARGER candidate pool than we inject, so the selection
+            # step below can enforce a dialogue+descriptive mix and bias toward
+            # compressed (transcreated) examples rather than taking raw top-k.
             examples = self.rag_retriever.retrieve_similar(
                 query_text=source_text,
-                top_k=self.rag_top_k,
+                top_k=max(self.rag_top_k * 3, 9),
+                glossary_sources=glossary_sources or None,
             )
 
             # The retriever owns the similarity decision: it returns Chroma
@@ -258,6 +277,9 @@ class Translator(BaseAgent):
                 logger.info("RAG: 0 examples — no usable match (Chroma + SQLite both empty)")
                 return ""
 
+            # Select from the pool: balanced dialogue+descriptive mix, compression-biased.
+            examples = self._select_rag_examples(examples, n=self.rag_top_k)
+
             top_sim = max(e.similarity for e in examples)
             logger.info(
                 "RAG: %d example(s) injected (top sim %.2f)", len(examples), top_sim,
@@ -285,6 +307,49 @@ class Translator(BaseAgent):
         except Exception as e:
             logger.warning(f"RAG retrieval failed: {e}")
             return ""
+
+    @staticmethod
+    def _select_rag_examples(candidates: list, n: int) -> list:
+        """Pick `n` few-shot examples from a candidate pool.
+
+        Beyond raw similarity, we want the injected set to (a) include BOTH a
+        dialogue and a descriptive example (so the model sees both registers) and
+        (b) lean toward COMPRESSED human translations — pairs where the Myanmar
+        uses fewer tokens per English word demonstrate the transcreation/
+        compression the model fails at. Relevance still dominates; compression is
+        a mild tie-breaker so an irrelevant-but-short example can't crowd in.
+        """
+        import re as _re
+        if len(candidates) <= n:
+            return candidates
+
+        def mm_tokens(t: str) -> int:
+            return len(_re.findall(r'[က-႟]+', t or ""))
+
+        def en_words(t: str) -> int:
+            return max(1, len((t or "").split()))
+
+        def is_dialogue(ex) -> bool:
+            return any(q in (ex.en_text or "") for q in '"“”')
+
+        def compression(ex) -> float:
+            # mm tokens per en word; lower = more compressed = better demonstration
+            return mm_tokens(ex.my_text) / en_words(ex.en_text)
+
+        # Relevance-first ranking with a small compression bonus (weight 0.05 keeps
+        # cosine [0..1] dominant; compression typically ~1, so the nudge is gentle).
+        ranked = sorted(candidates, key=lambda e: e.similarity - 0.05 * compression(e), reverse=True)
+        chosen = list(ranked[:n])
+
+        # Guarantee a register mix when the pool actually contains both.
+        def ensure(pred):
+            if any(pred(e) for e in candidates) and not any(pred(e) for e in chosen):
+                extra = next((e for e in ranked if pred(e) and e not in chosen), None)
+                if extra:
+                    chosen[-1] = extra  # drop the least-relevant pick for the missing type
+        ensure(is_dialogue)
+        ensure(lambda e: not is_dialogue(e))
+        return chosen
 
     def _detect_scene_type(self, text: str, lang: str = "chinese") -> str:
         """Detect dominant scene type from source text for dynamic rule injection.
@@ -357,10 +422,20 @@ class Translator(BaseAgent):
         scene_type = self._detect_scene_type(paragraph, lang=lang_key)
         system_prompt = self.get_system_prompt(lang_key, scene_type=scene_type)
 
-        # First attempt
+        # First attempt. Size the output ceiling generously up front (≈ 3× the
+        # source token estimate, floored at 2048 and capped at the retry budget)
+        # so a genuinely long chunk does not hit the token limit and force the
+        # expensive truncation re-generation below. num_predict is a MAX, not a
+        # target — the model still stops at its stop token — so a high ceiling is
+        # free. (Note: this does not suppress a re-sample retry when the model
+        # stops mid-sentence well under the ceiling; that is looks_truncated's
+        # job, not the budget's.)
+        src_tokens = max(1, int(len(paragraph) * 1.5))
+        first_num_predict = min(self.retry_num_predict, max(2048, src_tokens * 3))
         raw = self.ollama.chat(
             prompt=prompt,
-            system_prompt=system_prompt
+            system_prompt=system_prompt,
+            num_predict=first_num_predict,
         )
 
         # Handle empty response (model collapse)

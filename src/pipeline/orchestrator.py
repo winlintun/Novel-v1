@@ -147,7 +147,8 @@ class TranslationPipeline:
         duration: float,
         chapter_num: Optional[int],
         total_chunks: int,
-        avg_score: float
+        avg_score: float,
+        avg_adequacy: Optional[float] = None,
     ) -> None:
         """Write a detailed completion report to logs directory.
         
@@ -200,6 +201,7 @@ class TranslationPipeline:
                 "-" * 40,
                 f"Total Chunks:  {total_chunks}",
                 f"Avg Quality:   {avg_score:.1f}/100",
+                f"Avg Adequacy:  {f'{avg_adequacy:.2f} (BGE-M3 cross-lingual, 0-1)' if avg_adequacy is not None else 'n/a'}",
                 f"Duration:      {duration_str} ({duration:.1f}s)",
                 "",
                 "=" * 60,
@@ -467,8 +469,12 @@ class TranslationPipeline:
                 self._feedback_loop = FeedbackLoop(
                     db_path=rag_config.get('feedback_db', 'data/novel_v1_dataset.db'),
                     chroma_path=rag_config.get('feedback_chroma', 'data/chroma_db'),
+                    chroma_collection=rag_config.get('collection', 'alignment_paragraphs'),
+                    embedding_model=rag_config.get('embedding_model', 'models/bge-m3'),
+                    embedding_device=rag_config.get('embedding_device', 'cpu'),
                     min_score=rag_config.get('feedback_min_score', 3.0),
                     min_myanmar_ratio=rag_config.get('feedback_min_myanmar_ratio', 0.70),
+                    min_adequacy=rag_config.get('min_adequacy', 0.45),
                 )
                 self.logger.info(f"Feedback Loop initialized: {rag_config.get('feedback_db')}")
             else:
@@ -798,6 +804,23 @@ class TranslationPipeline:
 
             duration = time.time() - start_time
 
+            # Aggregate the per-chunk adequacy results (BGE-M3) computed during
+            # _translate_chunks. This replaces a second whole-chapter embedding
+            # pass in _validate_translation — the chunk-level numbers already
+            # cover every sentence, so re-embedding the chapter was pure waste.
+            adq_scores = [
+                m["adequacy_score"] for m in chunk_metrics
+                if m.get("adequacy_score") is not None
+            ] if chunk_metrics else []
+            avg_adequacy = round(sum(adq_scores) / len(adq_scores), 3) if adq_scores else None
+            adequacy_summary = {
+                "checked": bool(adq_scores),
+                "score": avg_adequacy,
+                "chunks_scored": len(adq_scores),
+                "low": sum(m.get("adequacy_low", 0) or 0 for m in chunk_metrics) if chunk_metrics else 0,
+                "halluc": sum(m.get("adequacy_halluc", 0) or 0 for m in chunk_metrics) if chunk_metrics else 0,
+            }
+
             # Save output
             output_path = self._save_output(filepath, result_text, extra_meta={
                 "duration_seconds": round(duration, 1),
@@ -810,7 +833,8 @@ class TranslationPipeline:
                 "avg_quality_score": round(
                     sum(m["quality_score"] for m in chunk_metrics) / len(chunk_metrics), 1
                 ) if chunk_metrics else None,
-            }, source_text=text)
+                "avg_adequacy_score": avg_adequacy,
+            }, source_text=text, adequacy_summary=adequacy_summary)
 
             # Auto-review: generate quality report after saving
             try:
@@ -875,12 +899,13 @@ class TranslationPipeline:
                 "type": "summary",
                 "total_chunks": len(chunk_metrics),
                 "avg_score": avg_score,
+                "avg_adequacy": avg_adequacy,
                 "total_time": duration,
                 "output_path": str(output_path),
                 "file_size": len(result_text.encode('utf-8')),
                 "issues_total": total_issues,
             })
-            
+
             # Generate completion report
             self._write_completion_report(
                 filepath=filepath,
@@ -888,7 +913,8 @@ class TranslationPipeline:
                 duration=duration,
                 chapter_num=chapter_num,
                 total_chunks=len(chunk_metrics),
-                avg_score=avg_score
+                avg_score=avg_score,
+                avg_adequacy=avg_adequacy,
             )
 
             # Log to model registry
@@ -1260,6 +1286,63 @@ class TranslationPipeline:
         )
         return optimal
 
+    def _produce_chunk_translation(
+        self, chunk: str, rolling_context: str, i: int, total: int
+    ) -> str:
+        """Run the translation stages (translate → optional refine → optional
+        reflect) for a single chunk and return the candidate Myanmar text.
+
+        Extracted from the chunk loop so the adequacy retry can re-run the full
+        produce path — not just raw translation — and keep the best candidate.
+        """
+        # Stage 1: Translation with rolling context
+        t1 = time.time()
+        translated_chunk = self.translator.translate_paragraph(
+            chunk, rolling_context=rolling_context
+        )
+        self._report({
+            "type": "chunk_translated",
+            "chunk_index": i + 1,
+            "total_chunks": total,
+            "duration": time.time() - t1,
+        })
+
+        # Stage 2: Refinement (if enabled and not skipped)
+        if self.config.translation_pipeline.mode in ('full', 'lite', 'two_stage'):
+            self.logger.info(f"Step 3/7: Refining chunk {i+1}/{total}...")
+            refiner_model = getattr(self.config.models, 'refiner', None) or \
+                            getattr(self.config.models, 'editor', None) or \
+                            self.config.models.translator
+            self.logger.info(f"  Refiner model: {refiner_model}")
+            t2 = time.time()
+            refined_chunk = self.refiner.refine_paragraph(translated_chunk)
+            translated_chunk = self._accept_post_edit(
+                translated_chunk, refined_chunk, "Refine", i + 1
+            )
+            self._report({
+                "type": "chunk_refined",
+                "chunk_index": i + 1,
+                "total_chunks": total,
+                "duration": time.time() - t2,
+            })
+
+        # Stage 3: Reflection (if enabled)
+        if self.config.translation_pipeline.use_reflection:
+            self.logger.info(f"Step 4/7: Reflecting on chunk {i+1}/{total}...")
+            t3 = time.time()
+            reflected_chunk = self.reflection_agent.reflect_and_improve(translated_chunk, chunk)
+            translated_chunk = self._accept_post_edit(
+                translated_chunk, reflected_chunk, "Reflect", i + 1
+            )
+            self._report({
+                "type": "chunk_reflected",
+                "chunk_index": i + 1,
+                "total_chunks": total,
+                "duration": time.time() - t3,
+            })
+
+        return translated_chunk
+
     def _translate_chunks(
         self,
         chunks: List[str],
@@ -1279,6 +1362,11 @@ class TranslationPipeline:
             Tuple of (translated chunks list, list of per-chunk quality metrics)
         """
         from src.utils.chunker import get_rolling_context, estimate_tokens
+        from src.utils.postprocessor import (
+            detect_latin_in_myanmar,
+            detect_placeholder_marks,
+            detect_classifier_errors,
+        )
 
         translated = []
         chunk_metrics = []
@@ -1403,7 +1491,7 @@ class TranslationPipeline:
                 )
                 # Reduce rolling context to fit
                 if rolling_context:
-                    rolling_context = get_rolling_context(rolling_context, max_context_tokens=200)
+                    rolling_context = get_rolling_context(rolling_context, max_context_tokens=200, min_paragraphs=1)
                     est_context = estimate_tokens(rolling_context)
 
             translator_model = self.config.models.translator
@@ -1411,65 +1499,165 @@ class TranslationPipeline:
                            f"[model={translator_model}, {len(chunk)} chars, "
                            f"est {est_chunk} tokens, ctx: {len(rolling_context)} chars]")
 
-            # Stage 1: Translation with rolling context
-            t1 = time.time()
-            translated_chunk = self.translator.translate_paragraph(
-                chunk, rolling_context=rolling_context
+            # Stages 1-3 + quality + adequacy, wrapped in a bounded adequacy retry.
+            # The adequacy gate runs UNSAMPLED on every chunk: the Myanmar-ratio
+            # and fluency gates structurally cannot see meaning errors — a fluent
+            # chunk can still drop a sentence, invert a clause, or hallucinate
+            # content and still score ~100. BGE-M3 embeds the source chunk and its
+            # translation into a shared space, so cosine similarity measures
+            # adequacy directly. When adequacy_action is 'retry'/'block' a
+            # low-adequacy chunk is re-translated up to adequacy_max_retries
+            # (hard-capped — NO HANGING) and the best-scoring candidate is kept;
+            # 'block' additionally routes a still-low chunk into the rejection gate.
+            tp = self.config.translation_pipeline
+            adq_enabled = getattr(tp, 'use_adequacy_gate', False)
+            adq_action = getattr(tp, 'adequacy_action', 'warn')
+            adq_min = getattr(tp, 'adequacy_min_score', 0.45)
+            adq_max_retries = getattr(tp, 'adequacy_max_retries', 1) if adq_action in ('retry', 'block') else 0
+
+            def _adq_key(c: Dict[str, Any]) -> tuple:
+                # Prefer a candidate with NO deterministic hard defect (Latin
+                # fused into Myanmar) first, then by adequacy. None adequacy =
+                # "can't tell" → treat as 1.0 so we never prefer an unmeasurable
+                # candidate over a measured-good one or loop pointlessly.
+                base = c["adq_score"] if c["adq_score"] is not None else 1.0
+                return (0 if c.get("hard_defect") else 1, base)
+
+            best: Optional[Dict[str, Any]] = None
+            zero_mm_abort = False
+            for attempt in range(adq_max_retries + 1):
+                if attempt > 0:
+                    prev = best["adq_score"] if best and best.get("adq_score") is not None else float('nan')
+                    self.logger.warning(
+                        f"Adequacy retry {attempt}/{adq_max_retries} for chunk "
+                        f"{i+1}/{total} (best so far {prev:.2f} < {adq_min})"
+                    )
+
+                translated_chunk = self._produce_chunk_translation(chunk, rolling_context, i, total)
+
+                # Stage 4: Quality Check (includes paragraph coverage when source is available)
+                self.logger.info(f"Step 5/7: Checking quality for chunk {i+1}/{total}...")
+                quality_result = self.myanmar_checker.check_quality(translated_chunk, source_text=chunk)
+                quality_score = quality_result.get("score", 0)
+                quality_passed = quality_result.get("passed", False)
+                quality_issues = len(quality_result.get("issues", []))
+                mm_ratio = self._calc_myanmar_ratio(translated_chunk)
+
+                # Per-chunk cross-lingual adequacy (BGE-M3), unsampled.
+                adq_score = None
+                adq_low = 0
+                adq_halluc = 0
+                if adq_enabled:
+                    try:
+                        adq = self.checker.check_adequacy(chunk, translated_chunk)
+                        if adq.get('checked'):
+                            adq_score = adq['score']
+                            adq_low = sum(1 for x in adq['issues'] if x['type'] == 'low_adequacy')
+                            adq_halluc = sum(1 for x in adq['issues'] if x['type'] == 'possible_hallucination')
+                            self.logger.info(
+                                f"Adequacy (chunk {i+1}/{total}, attempt {attempt+1}): "
+                                f"score {adq_score:.2f}, {adq_low} weak source sentence(s), "
+                                f"{adq_halluc} possible hallucination(s)"
+                            )
+                    except Exception as e:
+                        self.logger.debug(f"Per-chunk adequacy failed (non-fatal): {e}")
+
+                # Deterministic hard-defect checks (shift-left from chapter-level
+                # validation) — decoding/semantic failures the fluency/ratio gates
+                # miss: (1) Latin fused into a Myanmar cluster ('ဟan'); (2) an
+                # unresolved-token placeholder ('??' for a name like Bai Xiaochun);
+                # (3) a wrong noun→classifier pairing (village + ကျောင်း). Detect
+                # them HERE so a defective candidate is retried (when retrying) and
+                # a surviving defect is rejected (skips checkpointing + abort count).
+                # NOTE: rejection does NOT drop the chunk from this run's output —
+                # the best-effort text is still stitched into result_text so
+                # content isn't lost (HARD CONSTRAINT 2); the chapter validation
+                # flags it. Repetition loops are already caught
+                # per-chunk by check_model_collapse; the 4-gram chapter check is
+                # left at chapter level because it false-positives on common
+                # particles (e.g. 'သည်' ×10 is normal Myanmar).
+                latin_leak = detect_latin_in_myanmar(translated_chunk)
+                placeholders = detect_placeholder_marks(translated_chunk)
+                classifier_errs = detect_classifier_errors(translated_chunk)
+                defects: List[str] = []
+                if latin_leak:
+                    defects.append(f"latin-in-myanmar {latin_leak[:5]}")
+                if placeholders:
+                    defects.append(f"placeholder {placeholders[:5]}")
+                if classifier_errs:
+                    defects.append(f"classifier {classifier_errs[:3]}")
+                hard_defect = bool(defects)
+                if hard_defect:
+                    self.logger.warning(
+                        f"Hard defect in chunk {i+1}/{total} (attempt {attempt+1}): "
+                        f"{'; '.join(defects)} — will retry/reject."
+                    )
+
+                candidate = {
+                    "translated_chunk": translated_chunk,
+                    "quality_result": quality_result,
+                    "quality_score": quality_score,
+                    "quality_passed": quality_passed,
+                    "quality_issues": quality_issues,
+                    "mm_ratio": mm_ratio,
+                    "adq_score": adq_score,
+                    "adq_low": adq_low,
+                    "adq_halluc": adq_halluc,
+                    "hard_defect": hard_defect,
+                    "defects": defects,
+                }
+                if best is None or _adq_key(candidate) > _adq_key(best):
+                    best = candidate
+
+                # Zero Myanmar ratio = model not outputting Myanmar at all. No
+                # point retrying for adequacy — abort after committing metrics.
+                if mm_ratio < 0.01:
+                    zero_mm_abort = True
+                    break
+
+                # Stop once adequacy is acceptable (or unmeasurable) AND the
+                # candidate is free of deterministic corruption.
+                adq_ok = adq_score is None or adq_score >= adq_min
+                if adq_ok and not hard_defect:
+                    break
+
+            # Adopt the best candidate for the rest of the per-chunk pipeline.
+            translated_chunk = best["translated_chunk"]
+            quality_result = best["quality_result"]
+            quality_score = best["quality_score"]
+            quality_passed = best["quality_passed"]
+            quality_issues = best["quality_issues"]
+            mm_ratio = best["mm_ratio"]
+            adq_score = best["adq_score"]
+            adq_low = best["adq_low"]
+            adq_halluc = best["adq_halluc"]
+            # 'block' mode could not lift this chunk above threshold → route it
+            # into the rejection gate below (not checkpointed; counts toward abort).
+            adq_blocked = (
+                adq_action == 'block' and adq_score is not None and adq_score < adq_min
             )
-            self._report({
-                "type": "chunk_translated",
-                "chunk_index": i + 1,
-                "total_chunks": total,
-                "duration": time.time() - t1,
-            })
-
-            # Stage 2: Refinement (if enabled and not skipped)
-            if self.config.translation_pipeline.mode in ('full', 'lite', 'two_stage'):
-                self.logger.info(f"Step 3/7: Refining chunk {i+1}/{total}...")
-                refiner_model = getattr(self.config.models, 'refiner', None) or \
-                                getattr(self.config.models, 'editor', None) or \
-                                self.config.models.translator
-                self.logger.info(f"  Refiner model: {refiner_model}")
-                t2 = time.time()
-                refined_chunk = self.refiner.refine_paragraph(translated_chunk)
-                translated_chunk = self._accept_post_edit(
-                    translated_chunk, refined_chunk, "Refine", i + 1
+            if adq_blocked:
+                self.logger.warning(
+                    f"Adequacy BLOCK: chunk {i+1}/{total} still below threshold "
+                    f"({adq_score:.2f} < {adq_min}) after {adq_max_retries} retr"
+                    f"{'y' if adq_max_retries == 1 else 'ies'} — rejecting chunk."
                 )
-                self._report({
-                    "type": "chunk_refined",
-                    "chunk_index": i + 1,
-                    "total_chunks": total,
-                    "duration": time.time() - t2,
-                })
-
-            # Stage 3: Reflection (if enabled)
-            if self.config.translation_pipeline.use_reflection:
-                self.logger.info(f"Step 4/7: Reflecting on chunk {i+1}/{total}...")
-                t3 = time.time()
-                reflected_chunk = self.reflection_agent.reflect_and_improve(translated_chunk, chunk)
-                translated_chunk = self._accept_post_edit(
-                    translated_chunk, reflected_chunk, "Reflect", i + 1
+            # A deterministic hard defect (Latin fused into Myanmar) that survived
+            # all retries rejects the chunk regardless of adequacy_action: it is
+            # not checkpointed and counts toward early-abort. (The best-effort
+            # text still reaches this run's output so content isn't dropped; the
+            # chapter-level validation surfaces it as a CRITICAL issue.)
+            defect_block = best.get("hard_defect", False)
+            if defect_block:
+                self.logger.warning(
+                    f"Hard-defect BLOCK: chunk {i+1}/{total} still has "
+                    f"{best.get('defects', [])} after retries "
+                    f"— rejecting chunk (not checkpointed; flagged at chapter validation)."
                 )
-                self._report({
-                    "type": "chunk_reflected",
-                    "chunk_index": i + 1,
-                    "total_chunks": total,
-                    "duration": time.time() - t3,
-                })
-
-            # Stage 4: Quality Check (includes paragraph coverage when source is available)
-            self.logger.info(f"Step 5/7: Checking quality for chunk {i+1}/{total}...")
-            quality_result = self.myanmar_checker.check_quality(translated_chunk, source_text=chunk)
-            quality_score = quality_result.get("score", 0)
-            quality_passed = quality_result.get("passed", False)
-            quality_issues = len(quality_result.get("issues", []))
-
-            # Calculate Myanmar ratio for display
-            mm_ratio = self._calc_myanmar_ratio(translated_chunk)
 
             # CRITICAL: Zero Myanmar ratio = model not outputting Myanmar at all
             # Abort immediately to save API costs on remaining chunks
-            if mm_ratio < 0.01:
+            if zero_mm_abort or mm_ratio < 0.01:
                 self.logger.critical(
                     f"CRITICAL: Chunk {i+1}/{total} has 0% Myanmar ratio. "
                     f"Model is not outputting Myanmar. Aborting pipeline."
@@ -1493,6 +1681,7 @@ class TranslationPipeline:
                 "passed": quality_passed,
                 "issue_count": quality_issues,
                 "myanmar_ratio": mm_ratio,
+                "adequacy_score": adq_score,
             })
 
             # Adaptive feedback: inject correction rules from low-scoring chunks
@@ -1548,8 +1737,12 @@ class TranslationPipeline:
                 "collapse_issues": collapse_issues,
             })
 
-            # Save rejected chunks for future training data
-            is_rejected = quality_score < 70 or mm_ratio < 0.7
+            # Save rejected chunks for future training data. A chunk is rejected
+            # on low fluency score, low Myanmar ratio, persistently low adequacy
+            # ('block' mode), OR a surviving deterministic hard defect (Latin
+            # fused into Myanmar). Rejected chunks are not checkpointed
+            # (re-translated on resume) and count toward early-abort.
+            is_rejected = quality_score < 70 or mm_ratio < 0.7 or adq_blocked or defect_block
             if is_rejected:
                 consecutive_failures += 1
                 try:
@@ -1566,7 +1759,10 @@ class TranslationPipeline:
                     )
                     FileHandler.write_text(
                         str(rejected_dir / f"chunk_{i+1:03d}_{ts}_reason.txt"),
-                        f"quality={quality_score}\nmm_ratio={mm_ratio:.2f}"
+                        f"quality={quality_score}\nmm_ratio={mm_ratio:.2f}\n"
+                        f"adequacy={adq_score if adq_score is not None else 'n/a'}\n"
+                        f"adequacy_blocked={adq_blocked}\n"
+                        f"hard_defect={defect_block} {best.get('defects', [])}"
                     )
                     self.logger.info(
                         f"Rejected chunk {i+1} saved to {rejected_dir} "
@@ -1730,6 +1926,9 @@ class TranslationPipeline:
                     "quality_passed": quality_passed,
                     "myanmar_ratio": mm_ratio,
                     "issues": total_issues,
+                    "adequacy_score": adq_score,
+                    "adequacy_low": adq_low,
+                    "adequacy_halluc": adq_halluc,
                     "timed_out": True,
                 })
                 self._shutdown_requested = True
@@ -1741,6 +1940,9 @@ class TranslationPipeline:
                 "quality_passed": quality_passed,
                 "myanmar_ratio": mm_ratio,
                 "issues": total_issues,
+                "adequacy_score": adq_score,
+                "adequacy_low": adq_low,
+                "adequacy_halluc": adq_halluc,
             })
 
             # Feedback Loop: ingest high-quality pairs back to database
@@ -1762,9 +1964,11 @@ class TranslationPipeline:
                 except Exception as e:
                     self.logger.debug(f"Feedback loop failed (non-fatal): {e}")
 
+            adq_str = f", Adequacy: {adq_score:.2f}" if adq_score is not None else ""
             self.logger.info(
                 f"✓ Chunk {i+1}/{total} complete in {chunk_duration:.0f}s. "
-                f"Quality: {quality_score}, Ratio: {mm_ratio:.1%}, Issues: {total_issues}"
+                f"Quality: {quality_score}, Ratio: {mm_ratio:.1%}, "
+                f"Issues: {total_issues}{adq_str}"
             )
 
             # Write orchestration checkpoint to session_memory.json (report.md §6)
@@ -1900,6 +2104,17 @@ class TranslationPipeline:
         except Exception as e:
             self.logger.debug(f"Character name normalization skipped: {e}")
 
+        # Scene-aware register normalization (opt-in via output.literary_narration):
+        # rewrite colloquial markers (ရဲ့→၏, အဲဒီ→ထို) in NARRATION only, leaving
+        # dialogue colloquial. Off by default to preserve the documented Reviewer-B
+        # modernization rule; enabled in settings.yaml for literary-register novels.
+        try:
+            if getattr(self.config.output, 'literary_narration', False):
+                from src.utils.postprocessor import normalize_register
+                text = normalize_register(text)
+        except Exception as e:
+            self.logger.debug(f"Register normalization skipped: {e}")
+
         self._report({
             "type": "postprocess",
             "dedup_removed": max(0, before_count - after_count),
@@ -2019,7 +2234,7 @@ class TranslationPipeline:
         else:
             return 'narration'
 
-    def _validate_translation(self, source_text: str, translated_text: str, chapter_num: int) -> dict:
+    def _validate_translation(self, source_text: str, translated_text: str, chapter_num: int, adequacy_summary: Optional[Dict[str, Any]] = None) -> dict:
         """Validate translation quality before saving.
         
         Checks:
@@ -2121,40 +2336,35 @@ class TranslationPipeline:
                 f"Repetition detected: {ngram_detail}"
             )
 
-        # Cross-lingual adequacy gate (BGE-M3) — opt-in via
-        # translation_pipeline.use_adequacy_gate. Surfaces meaning-level errors
-        # (omission, hallucination, meaning-flip) that surface checks miss.
-        # Reported as warnings only for now (non-blocking); promote to issues or
-        # a retry trigger once thresholds are tuned on real chapters.
-        if getattr(self.config.translation_pipeline, 'use_adequacy_gate', False):
-            try:
-                adq = self.checker.check_adequacy(source_text, translated_text)
-                if adq.get('checked'):
-                    low = [i for i in adq['issues'] if i['type'] == 'low_adequacy']
-                    halluc = [i for i in adq['issues'] if i['type'] == 'possible_hallucination']
-                    self.logger.info(
-                        f"Adequacy gate: chapter score {adq['score']:.2f}, "
-                        f"{len(low)} weak source sentence(s), "
-                        f"{len(halluc)} possible hallucination(s)"
-                    )
-                    if low:
-                        report['warnings'].append(
-                            f"Adequacy: {len(low)} source sentence(s) weakly covered "
-                            f"(score {adq['score']:.2f}); e.g. \"{low[0]['source']}\" "
-                            f"(sim {low[0]['best_sim']})"
-                        )
-                    if halluc:
-                        report['warnings'].append(
-                            f"Adequacy: {len(halluc)} target sentence(s) possibly "
-                            f"hallucinated; e.g. \"{halluc[0]['target']}\" "
-                            f"(sim {halluc[0]['best_sim']})"
-                        )
-            except Exception as e:
-                self.logger.debug(f"Adequacy gate failed (non-fatal): {e}")
+        # Cross-lingual adequacy (BGE-M3) — surfaced from the per-chunk scores
+        # already computed during _translate_chunks (adequacy_summary), NOT a
+        # second whole-chapter embedding pass. The chunk-level numbers cover
+        # every sentence, so re-embedding the chapter here was redundant work.
+        # Non-blocking at the chapter level: blocking/retry is enforced per chunk
+        # via translation_pipeline.adequacy_action.
+        if adequacy_summary and adequacy_summary.get('checked'):
+            score = adequacy_summary.get('score')
+            low = adequacy_summary.get('low', 0)
+            halluc = adequacy_summary.get('halluc', 0)
+            score_str = f"{score:.2f}" if score is not None else "n/a"
+            self.logger.info(
+                f"Adequacy (chapter avg over {adequacy_summary.get('chunks_scored', 0)} "
+                f"chunk(s)): score {score_str}, {low} weak source sentence(s), "
+                f"{halluc} possible hallucination(s)"
+            )
+            if low:
+                report['warnings'].append(
+                    f"Adequacy: {low} source sentence(s) weakly covered "
+                    f"(chapter avg score {score_str})"
+                )
+            if halluc:
+                report['warnings'].append(
+                    f"Adequacy: {halluc} target sentence(s) possibly hallucinated"
+                )
 
         return report
 
-    def _save_output(self, input_path: str, text: str, extra_meta: Optional[Dict[str, Any]] = None, source_text: str = "") -> Path:
+    def _save_output(self, input_path: str, text: str, extra_meta: Optional[Dict[str, Any]] = None, source_text: str = "", adequacy_summary: Optional[Dict[str, Any]] = None) -> Path:
         """Save translated output and update per-novel cumulative meta.json.
         
         Args:
@@ -2207,7 +2417,7 @@ class TranslationPipeline:
 
         # --- Run translation validation before saving ---
         if source_text:
-            validation = self._validate_translation(source_text, text, chapter_num or 0)
+            validation = self._validate_translation(source_text, text, chapter_num or 0, adequacy_summary=adequacy_summary)
             if validation['issues']:
                 for issue in validation['issues']:
                     self.logger.warning(f"Chapter {chapter_num} validation issue: {issue}")

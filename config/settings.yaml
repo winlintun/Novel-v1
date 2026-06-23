@@ -33,7 +33,7 @@ models:
   refiner: padauk-gemma:q8_0
   retry_num_predict: 4096
   timeout: 300
-  translator: llamax3-8b.q4:latest  # change model
+  translator: padauk-gemma:q8_0  # change model
   use_gpu: true
   gemma_4_e4b:
     name: gemma-4-e4b-it:q8_0
@@ -59,6 +59,10 @@ output:
   add_translator_notes: false
   format: markdown
   preserve_formatting: true
+  # Scene-aware register normalization: rewrites colloquial markers (ရဲ့→၏,
+  # အဲဒီ→ထို) in NARRATION only; dialogue stays colloquial. Matches the literary
+  # register of the human corpus for xianxia/wuxia.
+  literary_narration: true
 paths:
   books_dir: books
   context_memory_file: ""   # DB-only — stored in context_snapshots table
@@ -103,6 +107,16 @@ translation_pipeline:
   use_reflection: false
   use_fiction_editor: false
   use_syntax_editor: false
+  use_adequacy_gate: true
+  # What to do when a chunk's BGE-M3 adequacy score < adequacy_min_score:
+  #   warn  — record only (score shown in report/logs)
+  #   retry — re-translate up to adequacy_max_retries, keep the best-scoring
+  #           candidate (strictly a quality win; never aborts a run)
+  #   block — retry, then reject a still-low chunk (not checkpointed, counts
+  #           toward the 3-consecutive-failure early abort)
+  adequacy_action: retry
+  adequacy_min_score: 0.45
+  adequacy_max_retries: 1
   syntax_editor_model: models/mig-burmese-llm
   syntax_editor_device: auto
   stage1_model: gemma4-e4b-it:q8_0
@@ -122,7 +136,14 @@ rag:
   feedback_chroma: data/chroma
   feedback_min_score: 3.0
   feedback_min_myanmar_ratio: 0.70
-  top_k: 3
+  # BGE-M3 cross-lingual adequacy gate for feedback ingestion (F2). Pairs with
+  # adequacy below this are rejected even if the fluency heuristic passes —
+  # prevents meaning-incomplete pairs (dropped sentences, hallucinations) from
+  # polluting the RAG corpus. 0.45 matches the per-chunk adequacy threshold.
+  min_adequacy: 0.45
+  top_k: 3            # 3 few-shot examples (5 crowded the 8B model's prompt and
+                      # hurt overall coherence); still selected from a larger pool,
+                      # balanced dialogue+descriptive, compression-biased
   min_score: 2.5
   min_similarity: 0.3
   # Drop retrieved examples whose source is a near-exact match for the text being

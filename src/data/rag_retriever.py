@@ -256,16 +256,27 @@ class RAGRetriever:
         query_text: str,
         top_k: Optional[int] = None,
         novel_filter: Optional[str] = None,
+        glossary_sources: Optional[list] = None,
     ) -> list[TranslationExample]:
         """
         Retrieve similar translation examples for the given source text.
         
         Priority: ChromaDB semantic search > SQLite novel-specific > SQLite general
+
+        Glossary-aware bias (F3): when ``glossary_sources`` is provided (a list
+        of English source terms from the current novel's approved glossary),
+        retrieved examples are re-ranked with a gentle boost for each glossary
+        term that appears in the example's EN text. This pushes examples that
+        share vocabulary with the current novel ahead of generic ones, so the
+        model sees human translations of *your* terminology — not just any
+        xianxia paragraph. Boost: +0.10 per matching term, capped at +0.30 so
+        it nudges rather than overrides semantic relevance.
         
         Args:
             query_text: English source text to find similar examples for
             top_k: Number of examples to retrieve (overrides constructor default)
             novel_filter: Filter by novel slug (e.g., "eternal-sacred-king")
+            glossary_sources: List of English glossary source terms to bias toward
             
         Returns:
             List of TranslationExample objects sorted by relevance
@@ -280,14 +291,45 @@ class RAGRetriever:
             # Keep Chroma results only if at least one clears the usefulness bar.
             # Otherwise fall through to SQLite — sentence-level corpus vs
             # paragraph-chunk queries makes Chroma cosine weak, and SQLite
-            # keyword/entity overlap often yields more relevant examples.
+            # word-overlap then provides more useful, entity-matched examples.
             if chroma_examples and max(e.similarity for e in chroma_examples) >= self.min_similarity:
-                return chroma_examples
+                return self._apply_glossary_boost(chroma_examples, glossary_sources)
 
         # Fallback to SQLite keyword retrieval. Prefer it when Chroma was weak;
         # only fall back to the weak Chroma results if SQLite finds nothing.
         sqlite_examples = self._retrieve_from_sqlite(query_text, k, novel)
-        return sqlite_examples or chroma_examples
+        examples = sqlite_examples or chroma_examples
+        return self._apply_glossary_boost(examples, glossary_sources)
+
+    @staticmethod
+    def _apply_glossary_boost(
+        examples: list, glossary_sources: Optional[list]
+    ) -> list:
+        """Re-rank examples with a boost for glossary-term matches (F3).
+
+        For each example, count how many glossary source terms appear in its
+        EN text. Add ``0.10 * match_count`` to the similarity score (capped at
+        +0.30 total). Re-sort. This is a gentle nudge — it changes the ORDER of
+        examples but does not add or remove any, so the candidate pool from the
+        retriever is preserved.
+
+        Returns the examples unchanged when ``glossary_sources`` is empty/None.
+        """
+        if not glossary_sources or not examples:
+            return examples
+
+        # Normalize glossary terms once (lowercase, length >= 3 to avoid noise)
+        terms = {t.lower().strip() for t in glossary_sources if t and len(t.strip()) >= 3}
+        if not terms:
+            return examples
+
+        def boosted(ex) -> float:
+            en_lower = ex.en_text.lower()
+            matches = sum(1 for t in terms if t in en_lower)
+            # Cap the boost at +0.30 so it nudges, not overrides, semantic relevance
+            return ex.similarity + min(0.10 * matches, 0.30)
+
+        return sorted(examples, key=boosted, reverse=True)
 
     def _verify_chroma(self) -> bool:
         """One-time BGE-M3 verification: load embedder, run health query.

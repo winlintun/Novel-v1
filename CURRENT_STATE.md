@@ -5,9 +5,33 @@
 ---
 
 ## Last Updated
-- Date: 2026-06-20
-- Last task completed: Translate a-will-eternal1 ch4, review quality, fix issues
+- Date: 2026-06-24
+- Last task completed: RAG feedback cycle repair + adequacy-gated ingestion + glossary-aware retrieval (F1-F3)
 - Git commit: HEAD `5497aa7` (working tree dirty — this session's changes, not yet committed)
+
+## Session Summary (2026-06-24 — RAG feedback cycle repair + adequacy gate + glossary-aware retrieval)
+- ✅ **F1 ChromaDB ingestion re-enabled** — `FeedbackLoop._init_chroma` now connects to the `alignment_paragraphs` collection (was hard-disabled with `_chroma_collection = None`). Ingestion embeds EN text with BGE-M3 (reuses the retriever's process-wide embedder cache, no double model load) and upserts with metadata. The virtuous cycle is alive: chapter N's verified translations become chapter N+1's RAG examples. Confirmed 0→migration-ready on real DB.
+- ✅ **F2 BGE-M3 adequacy gate** — `FeedbackLoop._check_adequacy()` computes cross-lingual cosine similarity (EN sentences vs MM sentences, mean of per-source best matches). `rate_and_ingest` now requires adequacy ≥ `min_adequacy` (0.45) IN ADDITION to the fluency heuristic score. Rejects fluently-Myanmar but meaning-incomplete pairs (dropped sentences, hallucinations) that the heuristic misses — directly addresses `long_term_memory` lesson #2. New `adequacy_score` column in `translation_pairs` (additive, idempotent migration, verified on real DB).
+- ✅ **F3 Glossary-aware retrieval bias** — `RAGRetriever.retrieve_similar` accepts `glossary_sources` (the current novel's approved glossary EN terms). `_apply_glossary_boost` adds +0.10 per matching term (capped +0.30, case-insensitive, 3-char min noise filter) and re-ranks. The translator fetches `memory.get_all_terms()` (verified only) and passes them through. Model now sees human translations of *its* terminology, not just generic xianxia paragraphs — improving term consistency.
+- ✅ **Config wiring** — `rag.min_adequacy: 0.45` added to `settings.yaml`; orchestrator `feedback_loop` property passes `chroma_collection`, `embedding_model`, `embedding_device`, `min_adequacy` from config.
+- 🧪 **Tests** — 14 new tests in `tests/test_rag_feedback.py`. Full suite: **520 passed, 2 skipped, 0 failures**. Lint clean on all modified files.
+- 📋 **Review** — Reviewer A (architecture) + Reviewer B (quality) both PASS. FINAL_STATUS: READY_TO_COMMIT.
+
+## Session Summary (2026-06-24 — chapter-linked + relationship-aware glossary generation)
+- ✅ **F1 Schema v4** — `glossary_terms` gained `chapter_first_seen` + `chapter_last_seen` INTEGER columns (additive, idempotent `migrate_to_v4()`). Verified on real DB.
+- ✅ **F2 Chapter linkage** — `add_pending_term` now writes `chapter_first_seen`/`chapter_last_seen` on new inserts; `get_pending_terms()` returns the **real** chapter (was hardcoded `0`).
+- ✅ **F3 Relationship extraction prompts** — both `GLOSSARY_EXTRACTION_PROMPT` and `CROSS_LINGUAL_GLOSSARY_PROMPT` now emit a `relationships[]` array with all 18 valid `relation_type` values from `glossary_taxonomy.RELATION_TYPES`.
+- ✅ **F4 Dedup-on-rerun + relationship edges** — `save_to_pending` skips any term already in approved OR pending (re-runs only save NEW terms, per user requirement); `save_relationships` creates `term_relationships` edges via `MemoryManager.add_relationship` gateway (Modular Boundaries respected). `add_pending_term` existing-term path changed from "update" to "skip".
+- ✅ **F5 --auto-approve-threshold flag** — high-confidence terms (≥ threshold) saved as `status='approved'` so they're **immediately injectable** by the translator (fixes the "pending terms invisible" gap). Default 0.0=off. Recommended 0.85 for `--from-mm`, 0.9+ for monolingual EN.
+- ✅ **F6 RELATIONSHIPS injection block** — `_build_text_aware_glossary` appends up to 5 worldbuilding edges among present terms (e.g. "Bai Xiaochun member_of Azure Origin Sect") — anchors the model on established connections per chunk.
+- ✅ **F7 Chapter-aware ranking** — text-aware glossary sort now prefers terms introduced in earlier chapters (established worldbuilding) over brand-new ones.
+- ✅ **F8 Character annotation** — character glossary lines show `since ch.N` when `chapter_first_seen` is known, signalling "recurring character, keep spelling stable."
+- ✅ **Modular boundary fix** — `save_relationships` routes through new `MemoryManager.add_relationship()` gateway method instead of reaching into `glossary_repo` directly.
+- 🧪 **Tests** — 16 new tests (10 in `test_glossary_generator.py`, 6 in `test_memory_sql.py`). Full suite: **506 passed, 2 skipped, 0 failures**. Lint: `ruff --select=E,F --ignore=E501` clean on all 6 modified source files.
+- 📋 **Review** — Reviewer A (architecture) + Reviewer B (Myanmar quality) both PASS. FINAL_STATUS: READY_TO_COMMIT.
+
+## In Progress
+- None
 
 ## Session Summary (2026-06-20 — back_translate, similarity reviewer check, use_syntax_editor=false)
 - ✅ **`use_syntax_editor: false`** — `config/settings.yaml` changed to `false` (Pydantic default already `False`)

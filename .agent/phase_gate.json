@@ -1,41 +1,14 @@
 {
   "current_phase": "DOC",
-  "task": "Ch1 padauk-gemma translation + quality review + fix 7 critical issues",
-  "feature_type": 1,
+  "task": "RAG feedback cycle repair + adequacy-gated ingestion + glossary-aware retrieval (F1-F3)",
+  "feature_type": 2,
   "phases": {
-    "PLAN": {
-      "status": "DONE",
-      "runner": "Agent",
-      "requires_human": false
-    },
-    "BUILD": {
-      "status": "DONE",
-      "runner": "Agent",
-      "requires_human": false
-    },
-    "TEST": {
-      "status": "DONE",
-      "runner": "Agent",
-      "requires_human": false
-    },
-    "VERIFY": {
-      "status": "DONE",
-      "runner": "Agent",
-      "requires_human": false,
-      "score": 100,
-      "retry_count": 0
-    },
-    "AUDIT": {
-      "status": "DONE",
-      "runner": "Agent",
-      "requires_human": false
-    },
-    "DOC": {
-      "status": "DONE",
-      "runner": "Agent",
-      "requires_human": false,
-      "skippable": false
-    }
+    "PLAN": { "status": "DONE", "runner": "Agent", "requires_human": true },
+    "BUILD": { "status": "DONE", "runner": "Agent", "requires_human": false },
+    "TEST": { "status": "DONE", "runner": "Agent", "requires_human": false },
+    "VERIFY": { "status": "DONE", "runner": "Agent", "requires_human": false, "score": null, "retry_count": 0 },
+    "AUDIT": { "status": "DONE", "runner": "Agent", "requires_human": false },
+    "DOC": { "status": "DONE", "runner": "Agent", "requires_human": false, "skippable": false }
   },
-  "updated_at": "2026-06-20T04:15:00Z"
+  "updated_at": "2026-06-24T02:00:00Z"
 }

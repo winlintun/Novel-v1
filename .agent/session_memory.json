@@ -1,38 +1,34 @@
 ﻿{
-  "session_id": "2026-06-20-003",
-  "started_at": "2026-06-20T04:10:00Z",
-  "task": "Translate a-will-eternal1 chapter 1 with padauk-gemma, review quality, fix issues",
-  "current_step": "Complete",
-  "last_action": "Post-implementation fixes — glossary terms, hallucinated term corrections, output direct fixes",
-  "next_action": "User to review changes and commit",
+  "session_id": "2026-06-24-002",
+  "started_at": "2026-06-24T01:00:00Z",
+  "task": "RAG feedback cycle repair + adequacy-gated ingestion + glossary-aware retrieval (F1-F3)",
+  "current_step": "Complete — post-implementation review PASSED, READY_TO_COMMIT",
+  "last_action": "Implemented 3 fixes: F1 re-enabled ChromaDB ingestion in FeedbackLoop (BGE-M3 embed + upsert), F2 wired BGE-M3 adequacy gate into feedback scoring (rejects meaning-incomplete pairs), F3 glossary-aware retrieval bias (boosts examples sharing novel's glossary terms)",
+  "next_action": "User to review changes and request commit",
   "open_files": [
-    "src/utils/postprocessor.py",
-    "src/db/global_terms_seed.py",
-    "src/agents/prompts/en_mm_rules.py",
-    "src/agents/prompts/system_prompts.py",
-    "data/output/a-will-eternal_chapter_001.mm.md"
+    "src/data/feedback_loop.py",
+    "src/data/rag_retriever.py",
+    "src/agents/translator.py",
+    "src/pipeline/orchestrator.py",
+    "config/settings.yaml",
+    "tests/test_rag_feedback.py",
+    "plan.md"
   ],
   "pending_decisions": [],
   "session_errors": [],
   "changes_made": {
-    "src/utils/postprocessor.py": "Expanded HALLUCINATED_TERM_CORRECTIONS: added ဉာဏ်ထက်မြတ်သူ→လိမ္မာပါးမာသူ, ထာ၀ရအသက်ရှည်ခြင်းလမ်းစဉ်→နတ်ကျင့်ခြင်းလမ်းစဉ်, ခေါင်းညှိတ်ပေး→ပုတ်ပေး, လေးတစ်ကောင်→သိုးကျားငယ်လေး, အခိုက်အတန့်→အခြေနေ, ဒီအိစ့်ဝုဒ်→အီးစ်ဝုဒ်, နင့်လမ်းစဉ်→မင်းလမ်းစဉ်, နွမ်းနယ်→လွမ်းဆွတ်",
-    "src/db/global_terms_seed.py": "Added immortal cultivation (နတ်ကျင့်ခြင်း), immortal (နတ်သား), become an immortal (နတ်သားဖြစ်ခြင်း), living forever (ထာဝရအသက်ရှည်ခြင်း), quick-witted (လိမ္မာပါးမာ)",
-    "src/agents/prompts/en_mm_rules.py": "Added standard_terms (Immortal Cultivation, Immortal, Become an Immortal, Living Forever, Quick-witted, Baby Eagle, Eastwood Mountain Range) + vocabulary precision entries for immortal_cultivation_not_eternal_life, quick_witted_not_superior, patted_shoulder_not_nodded, baby_eagle_not_just_bird",
-    "data/output/a-will-eternal_chapter_001.mm.md": "Fixed 7 translation errors directly: ဒီအိစ့်ဝုဒ်→အီးစ်ဝုဒ်, ဉာဏ်ထက်မြတ်သူ→လိမ္မာပါးမာသူ, ထာ၀ရအသက်ရှည်ခြင်းလမ်းစဉ်→နတ်ကျင့်ခြင်းလမ်းစဉ်, နွမ်းနယ်→လွမ်းဆွတ်, တောက်ပလာခဲ့လေတော့တယ်→တောက်ပလာခဲ့လေသည်, နတ်ဖြစ်ဖို့→နတ်သားဖြစ်ဖို့, လေးတစ်ကောင်→သိုးကျားငယ်လေး, အခိုက်အတန့်→အခြေနေ, နင့်လမ်းစဉ်→မင်းလမ်းစဉ်, ခေါင်းညှိတ်ပေး→ပုတ်ပေး"
+    "src/data/feedback_loop.py": "F1: _init_chroma re-enabled (get_or_create_collection + BGE-M3 embed for upsert); F2: _check_adequacy method (BGE-M3 cross-lingual cosine), adequacy gate in rate_and_ingest (rejects < min_adequacy), adequacy_score column added to translation_pairs (idempotent migration), _embed_for_ingest helper, reuses _get_query_embedder cache",
+    "src/data/rag_retriever.py": "F3: retrieve_similar accepts glossary_sources param; _apply_glossary_boost static method (boost +0.10/term, capped +0.30, case-insensitive, 3-char min filter)",
+    "src/agents/translator.py": "F3: _build_rag_examples fetches novel's approved glossary source terms from memory.get_all_terms() and passes to retrieve_similar",
+    "src/pipeline/orchestrator.py": "Wired new FeedbackLoop params (chroma_collection, embedding_model, embedding_device, min_adequacy) through feedback_loop property from rag config",
+    "config/settings.yaml": "Added rag.min_adequacy: 0.45",
+    "tests/test_rag_feedback.py": "14 new tests: ChromaDB connection, adequacy column migration + idempotency, low-adequacy rejection, high-adequacy acceptance, score persistence, boost reordering, cap, no-boost-without-glossary, short-term filter, case-insensitive, kwarg acceptance, config wiring"
   },
   "review_status": {
     "reviewer_a": "PASS",
-    "reviewer_b": "PASS_WITH_MINOR_ISSUES",
+    "reviewer_b": "PASS",
     "final_status": "READY_TO_COMMIT"
   },
   "commit_hash": null,
-  "last_checkpoint": {
-    "chapter": 1,
-    "chunk_index": 3,
-    "total_chunks": 3,
-    "stage": "translate",
-    "timestamp": "2026-06-20T03:40:04.723521",
-    "quality_score": 100,
-    "myanmar_ratio": 0.983
-  }
+  "last_checkpoint": null
 }
