@@ -246,6 +246,15 @@ def create_parser() -> argparse.ArgumentParser:
         help="Generate initial glossary (chapters 1-5) then stop for human review. Run --approve-glossary after reviewing."
     )
     utility_group.add_argument(
+        "--auto-approve-threshold",
+        type=float,
+        default=0.0,
+        dest="auto_approve_threshold",
+        help="Glossary terms with confidence >= this are saved as 'approved' (immediately "
+             "usable by the translator) instead of 'pending'. 0.0 = off (all pending). "
+             "Recommended: 0.85 with --from-mm, 0.9+ for monolingual EN extraction."
+    )
+    utility_group.add_argument(
         "--test",
         action="store_true",
         help="Run test translation with sample file"
@@ -404,7 +413,7 @@ def validate_arguments(args: argparse.Namespace) -> None:
     # Check for required arguments when not running utility commands
     # --generate-glossary --novel X is a standalone command (no chapter required)
     versioning_commands = [args.versions, args.rollback, args.diff, args.preview_sync, args.create_sync_job, args.execute_sync, args.list_sync_jobs, args.audit_log]
-    utility_commands = [args.ui, args.test, args.generate_glossary, getattr(args, 'init_glossary', False), args.approve_glossary, args.view_file, args.review_file, args.auto_promote, args.stats, getattr(args, 'compare_models', None), getattr(args, 'compare_human', False), getattr(args, 'rate_rejected', False), getattr(args, 'finetune', False)] + versioning_commands
+    utility_commands = [args.ui, args.test, args.generate_glossary, getattr(args, 'init_glossary', False), getattr(args, 'from_mm', False), args.approve_glossary, args.view_file, args.review_file, args.auto_promote, args.stats, getattr(args, 'compare_models', None), getattr(args, 'compare_human', False), getattr(args, 'rate_rejected', False), getattr(args, 'finetune', False)] + versioning_commands
 
     if not any(utility_commands):
         if not args.novel and not args.input_file:

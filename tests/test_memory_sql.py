@@ -137,3 +137,77 @@ class TestMemoryManagerSQLBackend:
         assert sql_term == json_term == "စွမ်းအင်"
 
         mm_sql.close()
+
+    def test_add_pending_term_writes_chapter(self, db_path):
+        """add_pending_term records chapter_first_seen in the DB (F2)."""
+        mm = MemoryManager(novel_name="chap-test", db_path=db_path, auto_seed_global=False)
+        ok = mm.add_pending_term("Hero", "သူရဲကောင်း", "character", chapter=5, confidence=0.9)
+        assert ok is True
+        row = mm.glossary_repo.get_term_by_source(mm.novel_id, "Hero")
+        assert row is not None
+        assert row["chapter_first_seen"] == 5
+        assert row["chapter_last_seen"] == 5
+        mm.close()
+
+    def test_add_pending_term_dedup_skip_on_rerun(self, db_path):
+        """Re-extracting an existing term skips it (dedup-on-rerun, F4)."""
+        mm = MemoryManager(novel_name="dedup-test", db_path=db_path, auto_seed_global=False)
+        first = mm.add_pending_term("Sword", "ကျား", "item", chapter=1, confidence=0.9)
+        assert first is True
+        # Re-run: term already exists in pending → skipped (returns False)
+        second = mm.add_pending_term("Sword", "ကျား", "item", chapter=2, confidence=0.95)
+        assert second is False
+        # chapter_first_seen should NOT have changed (was 1, still 1)
+        row = mm.glossary_repo.get_term_by_source(mm.novel_id, "Sword")
+        assert row["chapter_first_seen"] == 1
+        mm.close()
+
+    def test_add_pending_term_auto_approve(self, db_path):
+        """approved=True saves with status='approved' (F5)."""
+        mm = MemoryManager(novel_name="approve-test", db_path=db_path, auto_seed_global=False)
+        ok = mm.add_pending_term("Spirit", "ဝိညာဉ်", "concept", chapter=1, approved=True)
+        assert ok is True
+        row = mm.glossary_repo.get_term_by_source(mm.novel_id, "Spirit")
+        assert row["status"] == "approved"
+        assert row["enforcement_level"] == "hard"
+        mm.close()
+
+    def test_get_pending_terms_returns_real_chapter(self, db_path):
+        """get_pending_terms returns the real chapter_first_seen, not 0 (F2)."""
+        mm = MemoryManager(novel_name="pending-chap-test", db_path=db_path, auto_seed_global=False)
+        mm.add_pending_term("Dragon", "နဂါး", "creature", chapter=7, confidence=0.8)
+        pending = mm.get_pending_terms()
+        dragon = [t for t in pending if t["source"] == "Dragon"]
+        assert len(dragon) == 1
+        assert dragon[0]["chapter_first_seen"] == 7
+        mm.close()
+
+    def test_text_aware_glossary_includes_relationships(self, db_path):
+        """_build_text_aware_glossary appends a RELATIONSHIPS block (F6)."""
+        mm = MemoryManager(novel_name="rel-test", db_path=db_path, auto_seed_global=False)
+        # Add + approve two terms
+        mm.add_pending_term("Bai Xiaochun", "ဘိုင်ရှောင်ချန်", "character", chapter=1, approved=True)
+        mm.add_pending_term("Azure Sect", "အေးဇင်းဂိုဏ်း", "organization", chapter=1, approved=True)
+        # Create a relationship edge
+        src = mm.glossary_repo.get_term_by_source(mm.novel_id, "Bai Xiaochun")
+        dst = mm.glossary_repo.get_term_by_source(mm.novel_id, "Azure Sect")
+        mm.glossary_repo.add_relationship(
+            mm.novel_id, src["id"], dst["id"], "member_of", add_inverse=False
+        )
+        # Inject glossary for a chunk that mentions both terms
+        block = mm.get_glossary_for_prompt(
+            limit=10, source_text="Bai Xiaochun walked to Azure Sect."
+        )
+        assert "RELATIONSHIPS" in block
+        assert "member_of" in block
+        mm.close()
+
+    def test_character_glossary_shows_since_chapter(self, db_path):
+        """Character glossary lines show 'since ch.N' annotation (F8)."""
+        mm = MemoryManager(novel_name="since-test", db_path=db_path, auto_seed_global=False)
+        mm.add_pending_term("Recurring Hero", "သူရဲကောင်း", "character", chapter=1, approved=True)
+        block = mm.get_glossary_for_prompt(
+            limit=10, source_text="Recurring Hero appeared."
+        )
+        assert "since ch.1" in block
+        mm.close()

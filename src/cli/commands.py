@@ -447,7 +447,16 @@ def run_glossary_generation(args: argparse.Namespace) -> int:
             temperature=0.1,
         )
         memory = MemoryManager(novel_name=args.novel)
-        generator = GlossaryGenerator(client, memory, config.dict())
+        auto_approve_threshold = getattr(args, 'auto_approve_threshold', 0.0) or 0.0
+        generator = GlossaryGenerator(
+            client, memory, config.dict(),
+            auto_approve_threshold=auto_approve_threshold,
+        )
+        if auto_approve_threshold > 0.0:
+            logger.info(
+                f"Auto-approve enabled: terms with confidence >= {auto_approve_threshold} "
+                f"will be saved as 'approved' (immediately usable by translator)"
+            )
 
         def process_chapter(chapter_info):
             """Process a single chapter - thread worker function."""

@@ -8,7 +8,7 @@ from src.db.connection import DatabaseConnection
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 CREATE_TABLES = """
 -- novels
@@ -35,6 +35,8 @@ CREATE TABLE IF NOT EXISTS glossary_terms (
     confidence REAL NOT NULL DEFAULT 0.0,
     usage_count INTEGER NOT NULL DEFAULT 0,
     scope TEXT NOT NULL DEFAULT 'novel',
+    chapter_first_seen INTEGER,
+    chapter_last_seen INTEGER,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     reviewed_at TEXT,
     FOREIGN KEY (novel_id) REFERENCES novels(id) ON DELETE CASCADE
@@ -202,6 +204,7 @@ class SchemaManager:
         # Run migrations for existing databases
         self.migrate_to_v2()
         self.migrate_to_v3()
+        self.migrate_to_v4()
 
     def drop_all(self) -> None:
         """Drop all tables (DANGEROUS — for testing only)."""
@@ -322,4 +325,47 @@ class SchemaManager:
 
         if not applied:
             logger.info("Schema v3: subtype + term_relationships already present")
+        return applied
+
+    def migrate_to_v4(self) -> bool:
+        """Add chapter_first_seen / chapter_last_seen columns to glossary_terms (v3→v4).
+
+        Lets glossary generation record which chapter introduced each term and
+        which chapter last re-saw it, so the translator can rank established
+        worldbuilding terms ahead of brand-new ones.
+
+        Idempotent: returns True if anything was applied, False if already at v4.
+        Additive ALTER — existing rows back-fill to NULL (handled downstream:
+        callers treat NULL chapter as "no data, skip annotation").
+        """
+        applied = False
+
+        if not self.table_exists("glossary_terms"):
+            columns = []
+        else:
+            columns = self.db.fetchall("PRAGMA table_info(glossary_terms)")
+        col_names = {c["name"] for c in columns}
+
+        if columns and "chapter_first_seen" not in col_names:
+            self.db.execute(
+                "ALTER TABLE glossary_terms ADD COLUMN chapter_first_seen INTEGER"
+            )
+            applied = True
+            logger.info("Schema v4: added glossary_terms.chapter_first_seen column")
+
+        if columns and "chapter_last_seen" not in col_names:
+            self.db.execute(
+                "ALTER TABLE glossary_terms ADD COLUMN chapter_last_seen INTEGER"
+            )
+            applied = True
+            logger.info("Schema v4: added glossary_terms.chapter_last_seen column")
+
+        if applied or "chapter_first_seen" in col_names:
+            self.db.execute(
+                "CREATE INDEX IF NOT EXISTS idx_glossary_chapter_first "
+                "ON glossary_terms(chapter_first_seen)"
+            )
+
+        if not applied and columns:
+            logger.info("Schema v4: chapter columns already present")
         return applied

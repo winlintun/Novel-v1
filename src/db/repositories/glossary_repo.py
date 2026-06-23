@@ -27,7 +27,9 @@ class GlossaryRepository:
                  enforcement_level: str = "soft", context_condition: Optional[str] = None,
                  confidence: float = 0.0, scope: str = "novel",
                  variants: Optional[list[str]] = None,
-                 subtype: Optional[str] = None) -> dict:
+                 subtype: Optional[str] = None,
+                 chapter_first_seen: Optional[int] = None,
+                 chapter_last_seen: Optional[int] = None) -> dict:
         """Insert a new glossary term.
 
         Args:
@@ -45,6 +47,10 @@ class GlossaryRepository:
             variants: Optional list of alternate spellings/variants
             subtype: Fine-grained label under the coarse category (e.g.
                 "mountain", "sect_master"). If None, derived from `category`.
+            chapter_first_seen: Chapter number where this term was first
+                extracted. NULL = unknown (legacy/global terms).
+            chapter_last_seen: Chapter number where this term was last
+                re-encountered during re-extraction. NULL = unknown.
         """
         from src.glossary_taxonomy import normalize_category
 
@@ -64,10 +70,12 @@ class GlossaryRepository:
         self.db.execute(
             """INSERT INTO glossary_terms
                (id, novel_id, source_term, target_term, canonical_form, category, subtype,
-                status, enforcement_level, context_condition, confidence, usage_count, scope, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)""",
+                status, enforcement_level, context_condition, confidence, usage_count, scope,
+                chapter_first_seen, chapter_last_seen, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)""",
             (term_id, novel_id, source_term, target_term, source_term, category, subtype,
-             status, enforcement_level, context_condition, confidence, scope, now),
+             status, enforcement_level, context_condition, confidence, scope,
+             chapter_first_seen, chapter_last_seen, now),
         )
         
         # Add variants if provided
@@ -228,8 +236,9 @@ class GlossaryRepository:
 
     def update_term(self, term_id: str, **kwargs) -> Optional[dict]:
         """Update term fields."""
-        allowed = {"target_term", "canonical_form", "category", "status",
-                   "enforcement_level", "context_condition", "confidence", "usage_count", "reviewed_at"}
+        allowed = {"target_term", "canonical_form", "category", "subtype", "status",
+                    "enforcement_level", "context_condition", "confidence", "usage_count",
+                    "reviewed_at", "chapter_first_seen", "chapter_last_seen"}
         updates = {k: v for k, v in kwargs.items() if k in allowed}
         if not updates:
             return self.get_term(term_id)

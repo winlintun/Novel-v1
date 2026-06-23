@@ -806,36 +806,33 @@ class MemoryManager:
         chapter: int = 0,
         confidence: float = 0.0,
         subtype: Optional[str] = None,
+        approved: bool = False,
     ) -> bool:
-        """Add a term to the novel-specific pending glossary for review.
+        """Add a term to the novel-specific glossary for review.
 
-        If the term already exists in pending, increments its chapter
-        appearance count, updates the last-seen chapter, and updates
-        the target if a better suggestion is available.
+        Dedup-on-rerun policy: if the term already exists (in the approved
+        glossary OR in pending), it is SKIPPED — no update, no re-save. Only
+        terms that do NOT yet exist in the glossary are saved. This makes
+        ``--generate-glossary`` re-runs idempotent: re-running over the same
+        chapters adds only newly-discovered terms and leaves existing ones
+        untouched (preserving any human review edits).
+
+        Args:
+            approved: When True (e.g. high-confidence auto-approve), save with
+                status='approved' so the term is immediately injectable by the
+                translator. Otherwise status='pending' for human review.
         
         Validates that the target contains Myanmar text before accepting
         (skips validation for placeholder targets like 【?term?】).
         """
-        # Check for duplicates in approved glossary
+        # Check for duplicates in approved glossary — skip
         if self.get_term(source):
             return False
 
-        # Check if already in pending
+        # Check if already in pending — skip (dedup-on-rerun: do NOT update)
         existing = self.glossary_repo.get_term_by_source(self.novel_id, source)
         if existing:
-            usage_count = existing.get('usage_count', 0) + 1
-            update_fields: dict = {'usage_count': usage_count}
-            # Update target if new one is better (not a placeholder)
-            if target and "【?" not in target and existing.get('target_term') != target:
-                update_fields['target_term'] = target
-            if confidence > existing.get('confidence', 0):
-                update_fields['confidence'] = confidence
-            self.glossary_repo.update_term(
-                existing['id'],
-                **update_fields,
-            )
-            logger.debug(f"Updated pending term chapter count: {source} (usage_count={usage_count})")
-            return True
+            return False
 
         # Reject blank/whitespace targets outright — they would create an orphan
         # glossary row with no translation (the validation below only runs for a
@@ -850,17 +847,26 @@ class MemoryManager:
                 logger.warning(f"Rejected non-Myanmar pending target for '{source}': '{target}'")
                 return False
 
+        status = 'approved' if approved else 'pending'
+        enforcement = 'hard' if approved else 'soft'
+        chapter_val = chapter if chapter and chapter > 0 else None
         self.glossary_repo.add_term(
             novel_id=self.novel_id,
             source_term=source,
             target_term=target,
             category=category,
-            status='pending',
-            enforcement_level='soft',
+            status=status,
+            enforcement_level=enforcement,
             confidence=confidence,
             subtype=subtype,
+            chapter_first_seen=chapter_val,
+            chapter_last_seen=chapter_val,
         )
-        logger.info(f"Added pending glossary term: {source} -> {target} (confidence={confidence})")
+        label = "approved" if approved else "pending"
+        logger.info(
+            f"Added {label} glossary term: {source} -> {target} "
+            f"(confidence={confidence}, chapter={chapter_val})"
+        )
         return True
 
     def get_pending_terms(self) -> List[Dict[str, Any]]:
@@ -876,7 +882,8 @@ class MemoryManager:
                 "source": t['source_term'],
                 "target": t['target_term'],
                 "category": t['category'],
-                "chapter_first_seen": 0,
+                "chapter_first_seen": t.get('chapter_first_seen') or 0,
+                "chapter_last_seen": t.get('chapter_last_seen') or 0,
                 "status": "pending",
                 "confidence": t.get('confidence', 0.7)
             }
@@ -1042,7 +1049,12 @@ class MemoryManager:
         else:
             voices = self.get_character_voices(active_only=True, current_chapter=current_chapter)
         return {
-            "glossary": self.get_glossary_for_prompt(source_text=source_text),
+            # Cap text-aware glossary at 8 terms/chunk (was 20). With a large
+            # novel glossary, injecting 20 hard term-constraints crowds an 8B
+            # model's prompt and degrades overall coherence (content loss,
+            # mangled spellings) more than it helps — the top few text-matched
+            # names (e.g. Bai Xiaochun, Eastwood) carry the value.
+            "glossary": self.get_glossary_for_prompt(limit=8, source_text=source_text),
             "context": self.get_context_buffer(),
             "rules": self.get_session_rules(),
             "summary": self.get_summary(),
@@ -1130,6 +1142,31 @@ class MemoryManager:
             if r.get("variant_text") and r.get("target_term")
         ]
 
+    def add_relationship(
+        self,
+        src_source: str,
+        dst_source: str,
+        relation_type: str,
+        confidence: float = 1.0,
+        add_inverse: bool = False,
+    ) -> bool:
+        """Create a relationship edge between two terms (by source string).
+
+        Gateway method — callers (e.g. GlossaryGenerator) pass English source
+        strings, not term_ids. MemoryManager resolves them and delegates to the
+        repo. Returns True if the edge was created, False if either endpoint
+        was not found or the relation_type was invalid.
+        """
+        src_term = self.glossary_repo.get_term_by_source(self.novel_id, src_source)
+        dst_term = self.glossary_repo.get_term_by_source(self.novel_id, dst_source)
+        if not src_term or not dst_term:
+            return False
+        new_id = self.glossary_repo.add_relationship(
+            self.novel_id, src_term["id"], dst_term["id"],
+            relation_type, confidence, add_inverse,
+        )
+        return new_id is not None
+
     def get_global_terms(self, status: Optional[str] = None) -> List[Dict[str, Any]]:
         """Get global xianxia terms."""
         terms = self.glossary_repo.get_global_terms(status=status)
@@ -1172,11 +1209,18 @@ class MemoryManager:
     def _build_text_aware_glossary(self, source_text: str, limit: int) -> str:
         """Select approved terms whose source token appears in ``source_text``.
 
-        Ranking: character terms first (name consistency is the highest-value
-        job), then longer source terms before shorter ones (more specific /
-        less likely to be an incidental substring). Falls back to the legacy
-        top-N when the chunk contains no known terms so canonical names are
-        still injected for continuity.
+        Ranking (F7 — chapter-aware): character terms first (name consistency
+        is the highest-value job), then by chapter_first_seen ASC (terms
+        introduced in earlier chapters are established worldbuilding and carry
+        cross-chapter consistency weight), then longer source terms before
+        shorter ones (more specific / less likely to be an incidental
+        substring). Falls back to the legacy top-N when the chunk contains no
+        known terms so canonical names are still injected for continuity.
+
+        After the glossary block, appends a RELATIONSHIPS block (F6) listing up
+        to 5 worldbuilding edges among the present terms (e.g. "Bai Xiaochun
+        member_of Azure Origin Sect") so the model is anchored on the novel's
+        established connections, not guessing per chunk.
         """
         all_terms = self.glossary_repo.get_terms_by_novel(
             self.novel_id, status='approved',
@@ -1199,22 +1243,89 @@ class MemoryManager:
 
         if not present:
             # Nothing matched — inject the canonical top-N so names stay stable.
-            return self._format_glossary_lines(
-                self.glossary_repo.get_terms_for_prompt(self.novel_id, limit)
+            terms = self.glossary_repo.get_terms_for_prompt(self.novel_id, limit)
+            glossary_block = self._format_glossary_lines(terms)
+            rel_block = self._build_relationships_block(
+                {t["id"]: t for t in terms}, max_edges=5
             )
+            return glossary_block + rel_block
 
-        present.sort(
-            key=lambda t: (
-                0 if t.get('category') == 'character' else 1,
-                -len(t.get('source_term') or ''),
-            )
-        )
+        # F7 — chapter-aware sort: characters first, then earlier-introduced
+        # terms (established worldbuilding), then longer (more specific) source.
+        def _sort_key(t):
+            is_char = 0 if t.get('category') == 'character' else 1
+            ch = t.get('chapter_first_seen')
+            ch_rank = ch if ch else 999999  # NULL/unknown → ranked last
+            return (is_char, ch_rank, -len(t.get('source_term') or ''))
+
+        present.sort(key=_sort_key)
         if limit and limit > 0:
             present = present[:limit]
-        return self._format_glossary_lines(present)
+        glossary_block = self._format_glossary_lines(present)
+        rel_block = self._build_relationships_block(
+            {t["id"]: t for t in present}, max_edges=5
+        )
+        return glossary_block + rel_block
+
+    def _build_relationships_block(
+        self, present_by_id: Dict[str, Dict[str, Any]], max_edges: int = 5
+    ) -> str:
+        """Build the RELATIONSHIPS prompt block for terms present in the chunk.
+
+        Only edges where BOTH endpoints are in ``present_by_id`` are included
+        (otherwise the model sees a term it wasn't given — confusing). Capped at
+        ``max_edges`` to respect the 8B-model prompt budget (signal is scarce).
+        Returns "" (empty) when there are no qualifying edges.
+        """
+        if not present_by_id:
+            return ""
+        edges = []
+        seen_pairs: set = set()
+        for term_id, term in present_by_id.items():
+            try:
+                related = self.glossary_repo.get_related_terms(term_id)
+            except Exception:
+                continue
+            for r in related:
+                dst_id = r.get("id")
+                rtype = r.get("relation_type", "")
+                if not dst_id or not rtype or dst_id not in present_by_id:
+                    continue
+                # Dedup both directions of the same edge
+                pair_key = (frozenset((term_id, dst_id)), rtype)
+                if pair_key in seen_pairs:
+                    continue
+                seen_pairs.add(pair_key)
+                src_term = present_by_id[term_id]
+                dst_term = present_by_id[dst_id]
+                src_label = self._sanitize_for_prompt(
+                    src_term.get("source_term") or src_term.get("source", "")
+                )
+                dst_label = self._sanitize_for_prompt(
+                    dst_term.get("source_term") or dst_term.get("source", "")
+                )
+                src_cat = self._sanitize_for_prompt(src_term.get("category", ""))
+                dst_cat = self._sanitize_for_prompt(dst_term.get("category", ""))
+                edges.append(
+                    f"  {src_label} ({src_cat}) — {rtype} → {dst_label} ({dst_cat})"
+                )
+                if len(edges) >= max_edges:
+                    break
+            if len(edges) >= max_edges:
+                break
+        if not edges:
+            return ""
+        lines = ["", "RELATIONSHIPS (use these connections for consistent worldbuilding):"]
+        lines.extend(edges)
+        return "\n".join(lines) + "\n"
 
     def _format_glossary_lines(self, terms: List[Dict[str, Any]]) -> str:
-        """Render glossary rows into the prompt block (characters emphasized)."""
+        """Render glossary rows into the prompt block (characters emphasized).
+
+        F8 — character lines append a `since ch.N` annotation when
+        chapter_first_seen is known, signalling to the model that this is a
+        recurring character whose spelling must stay stable across chapters.
+        """
         character_lines = []
         other_lines = []
         for term in terms:
@@ -1225,6 +1336,9 @@ class MemoryManager:
             category = self._sanitize_for_prompt(term.get('category', 'general'))
             entry = f"  [{verified}] {source} = {target} ({category})"
             if category == 'character':
+                ch = term.get("chapter_first_seen")
+                if ch and int(ch) > 0:
+                    entry += f", since ch.{int(ch)}"
                 character_lines.append(entry)
             else:
                 other_lines.append(entry)

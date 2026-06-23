@@ -79,8 +79,40 @@ Return ONLY valid JSON. No markdown fences. No explanation. No preamble.
       "subtype": "specific kind, see SUBTYPE list below (or omit if unsure)",
       "confidence": 0.85
     }}
+  ],
+  "relationships": [
+    {{
+      "src": "Exact source string of a term from the terms array above",
+      "dst": "Exact source string of another term from the terms array above",
+      "relation_type": "one of the RELATION TYPES listed below",
+      "confidence": 0.9
+    }}
   ]
 }}
+
+## RELATIONSHIPS (worldbuilding edges between extracted terms)
+Only emit a relationship when BOTH endpoints appear in the `terms` array above
+(use their exact `source` strings). relation_type MUST be one of these values:
+- located_in     : place located_in larger place; character located_in place
+- part_of        : generic containment (region part_of country)
+- ruled_by       : kingdom ruled_by king
+- rules          : king rules kingdom (inverse of ruled_by)
+- capital_of     : city capital_of kingdom
+- member_of      : character member_of sect/clan
+- heads          : patriarch heads clan; sect_master heads sect
+- subordinate_to : peak_master subordinate_to sect_master
+- master_of      : character master_of disciple
+- disciple_of    : character disciple_of master
+- parent_of      : character parent_of character
+- child_of       : character child_of character
+- sibling_of     : character sibling_of character
+- spouse_of      : character spouse_of character
+- ally_of        : character ally_of character
+- enemy_of       : character enemy_of character
+- owns           : character owns item
+- wields         : character wields weapon/technique
+- located_at     : character located_at place
+If no relationships are evident, emit an empty array: "relationships": []
 
 ## SUBTYPE (fine-grained kind under the coarse category)
 - place    : empire, dynasty, kingdom, country, region, province, prefecture, district,
@@ -106,7 +138,7 @@ Return ONLY valid JSON. No markdown fences. No explanation. No preamble.
 
 ## FALLBACK
 If no terms found, return EXACTLY:
-{{"extraction_meta": {{"schema_version": "3.2.1", "source_language": "{source_lang}", "total_terms_found": 0}}, "terms": []}}
+{{"extraction_meta": {{"schema_version": "3.2.1", "source_language": "{source_lang}", "total_terms_found": 0}}, "terms": [], "relationships": []}}
 
 SOURCE LANGUAGE: {source_lang}
 
@@ -156,11 +188,24 @@ Return ONLY valid JSON. No markdown. No explanation.
       "category": "character|location|organization|item_artifact|technique|power_level|cultivation_concept|title_honorific",
       "confidence": 0.85
     }}
+  ],
+  "relationships": [
+    {{
+      "src": "Exact English source string of a term from the terms array above",
+      "dst": "Exact English source string of another term from the terms array above",
+      "relation_type": "located_in|part_of|ruled_by|rules|capital_of|member_of|heads|subordinate_to|master_of|disciple_of|parent_of|child_of|sibling_of|spouse_of|ally_of|enemy_of|owns|wields|located_at",
+      "confidence": 0.9
+    }}
   ]
 }}
 
+## RELATIONSHIPS
+Only emit a relationship when BOTH endpoints appear in the `terms` array above
+(use their exact English `source` strings). If no relationships are evident,
+emit an empty array: "relationships": []
+
 ## FALLBACK
-If no terms found: {{"extraction_meta": {{"schema_version": "3.2.1", "source_language": "English", "total_terms_found": 0}}, "terms": []}}
+If no terms found: {{"extraction_meta": {{"schema_version": "3.2.1", "source_language": "English", "total_terms_found": 0}}, "terms": [], "relationships": []}}
 
 ENGLISH TEXT:
 {en_text}
@@ -187,26 +232,48 @@ class GlossaryGenerator(BaseAgent):
         self,
         ollama_client: Optional[OllamaClient] = None,
         memory_manager: Optional[MemoryManager] = None,
-        config: Optional[Dict[str, Any]] = None
+        config: Optional[Dict[str, Any]] = None,
+        auto_approve_threshold: float = 0.0,
     ):
         super().__init__(ollama_client, memory_manager, config)
+        # Terms with confidence >= this are saved as 'approved' (immediately
+        # injectable by the translator) instead of 'pending'. 0.0 = off (all
+        # pending, human must review). Recommended: 0.85 for --from-mm (targets
+        # pulled verbatim from existing translation), 0.9+ for monolingual EN.
+        self.auto_approve_threshold = auto_approve_threshold
 
-    def extract_terms(self, text: str, source_lang: str = "Chinese") -> List[Dict[str, Any]]:
-        """
-        Extract terms from a block of text using the new v3.2.1 schema.
+    def _extract_from_window(
+        self, text: str, source_lang: str = "Chinese"
+    ) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+        """Extract terms AND relationships from one text window.
+
+        Returns (terms, relationships). Both are empty lists on any failure
+        (the caller proceeds safely — NO CRASHES rule).
         """
         prompt = GLOSSARY_EXTRACTION_PROMPT.format(
             source_lang=source_lang,
-            text=text[:4000] # Limit to 4000 chars for context window
+            text=text[:4000],  # Limit to 4000 chars for context window
         )
-
         try:
             response = self.client.chat(prompt=prompt, format="json")
             data = extract_json_from_response(response)
-            return data.get("terms", [])
+            terms = data.get("terms", []) or []
+            relationships = data.get("relationships", []) or []
+            return terms, relationships
         except Exception as e:
             self.log_error(f"Term extraction failed: {e}")
-            return []
+            return [], []
+
+    def extract_terms(self, text: str, source_lang: str = "Chinese") -> List[Dict[str, Any]]:
+        """Extract terms from a block of text (v3.2.1 schema).
+
+        Backward-compatible wrapper around _extract_from_window that returns
+        only the terms list (relationships are ignored here — use
+        _extract_from_file / generate_from_chapter for relationship-aware
+        extraction).
+        """
+        terms, _ = self._extract_from_window(text, source_lang)
+        return terms
 
     def _iter_windows(self, content: str) -> List[str]:
         """Split content into overlapping windows for full-coverage extraction.
@@ -246,7 +313,7 @@ class GlossaryGenerator(BaseAgent):
                 # first WINDOW_SIZE chars. extract_terms() already truncates to
                 # 4000 chars and handles its own errors per call.
                 for window in self._iter_windows(content):
-                    terms = self.extract_terms(window, source_lang)
+                    terms, _rels = self._extract_from_window(window, source_lang)
                     for term in terms:
                         source = term.get("source") or term.get("source_term")
                         if source and source not in all_terms:
@@ -257,79 +324,180 @@ class GlossaryGenerator(BaseAgent):
 
         return list(all_terms.values())
 
-    def save_to_pending(self, terms: List[Dict[str, Any]], chapter_num: int = 0):
+    def _extract_from_file(
+        self, file_path: str, source_lang: str = "Chinese"
+    ) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+        """Extract deduplicated terms + relationships from one file.
+
+        Sliding-window scan with per-source dedup on terms and per-(src,dst,
+        relation) dedup on relationships. Returns (terms, relationships).
         """
-        Save extracted terms to the database as pending glossary entries.
-        Checks for duplicates against: approved glossary + existing pending terms.
+        all_terms: Dict[str, Dict[str, Any]] = {}
+        all_rels: Dict[tuple, Dict[str, Any]] = {}
+        try:
+            with open(file_path, 'r', encoding='utf-8-sig') as f:
+                content = f.read()
+        except Exception as e:
+            self.log_error(f"Error reading {file_path}: {e}")
+            return [], []
+
+        for window in self._iter_windows(content):
+            terms, rels = self._extract_from_window(window, source_lang)
+            for term in terms:
+                src = term.get("source") or term.get("source_term")
+                if src and src not in all_terms:
+                    all_terms[src] = term
+            for rel in rels:
+                src = rel.get("src", "")
+                dst = rel.get("dst", "")
+                rtype = rel.get("relation_type", "")
+                if src and dst and rtype:
+                    key = (src.lower(), dst.lower(), rtype)
+                    if key not in all_rels:
+                        all_rels[key] = rel
+        return list(all_terms.values()), list(all_rels.values())
+
+    def save_to_pending(self, terms: List[Dict[str, Any]], chapter_num: int = 0) -> int:
+        """Save extracted terms to the database.
+
+        Dedup-on-rerun: a term that already exists in the approved glossary OR
+        in pending is SKIPPED (not updated) — only terms that do NOT yet exist
+        are saved. This makes ``--generate-glossary`` re-runs idempotent.
+
+        Auto-approve: when self.auto_approve_threshold > 0 and a term's
+        confidence >= threshold (and target is valid Myanmar, not a
+        placeholder), the term is saved with status='approved' so it is
+        immediately injectable by the translator. Lower-confidence terms stay
+        'pending' for human review.
+
+        Returns the number of terms actually saved (new only).
         """
-        # Load existing pending terms to check for duplicates
+        # Load existing pending + approved terms to skip duplicates up-front
+        # (fast path — avoids a DB round-trip per term).
         existing_pending = self.memory.get_pending_terms()
         existing_sources = {t.get("source", "").lower() for t in existing_pending if t.get("source")}
-        
-        # Also get approved glossary terms
+
         approved_terms = self.memory.get_all_terms()
         approved_sources = {t.get("source", "").lower() for t in approved_terms if t.get("source")}
-        
+
         saved_count = 0
         skipped_duplicates = 0
-        
         placeholder_count = 0
+        auto_approved_count = 0
+
         for term in terms:
             source = term.get("source") or term.get("source_term", "")
             target = term.get("target") or term.get("target_term", "")
             category = term.get("category", "item")
             subtype = term.get("subtype") or None
             confidence = float(term.get("confidence", 0.0))
-            
-            # Skip invalid terms (empty)
+
+            # Skip invalid terms (empty source/target)
             if not source or not target:
                 continue
             if "【?term?】" in target:
                 placeholder_count += 1
                 continue
-            
+
             source_lower = source.lower()
-            
-            # Check for duplicates
+
+            # Dedup-on-rerun: skip if already approved OR already pending
             if source_lower in approved_sources:
                 skipped_duplicates += 1
                 continue
             if source_lower in existing_sources:
                 skipped_duplicates += 1
                 continue
-            
-            # Add to pending
-            self.memory.add_pending_term(
+
+            # Auto-approve high-confidence terms so they're immediately usable
+            # by the translator. Placeholder targets are never auto-approved.
+            do_auto_approve = (
+                self.auto_approve_threshold > 0.0
+                and confidence >= self.auto_approve_threshold
+            )
+
+            ok = self.memory.add_pending_term(
                 source=source,
                 target=target,
                 category=category,
                 chapter=chapter_num,
                 confidence=confidence,
                 subtype=subtype,
+                approved=do_auto_approve,
             )
-            existing_sources.add(source_lower)  # Track to avoid duplicates within this run
-            saved_count += 1
+            if ok:
+                existing_sources.add(source_lower)  # avoid intra-run dups
+                saved_count += 1
+                if do_auto_approve:
+                    auto_approved_count += 1
+            # If add_pending_term returned False (e.g. failed Myanmar validation),
+            # it was rejected — not a duplicate, just filtered.
 
         self.log_info(
-            f"Saved {saved_count} terms, skipped {skipped_duplicates} duplicates, "
-            f"{placeholder_count} placeholders."
+            f"Saved {saved_count} new terms ({auto_approved_count} auto-approved, "
+            f"{saved_count - auto_approved_count} pending), "
+            f"skipped {skipped_duplicates} duplicates, {placeholder_count} placeholders."
         )
+        return saved_count
+
+    def save_relationships(
+        self, relationships: List[Dict[str, Any]], chapter_num: int = 0
+    ) -> int:
+        """Create term_relationships edges for extracted relationships.
+
+        Routes through MemoryManager.add_relationship (the data-layer gateway)
+        so the generator never touches the glossary repo directly — Modular
+        Boundaries rule. Edges whose endpoints cannot be resolved (the term
+        was filtered as placeholder/duplicate/non-Myanmar) are skipped. Unknown
+        relation_types are rejected inside add_relationship.
+
+        Returns the number of edges created.
+        """
+        if not relationships:
+            return 0
+
+        created = 0
+        skipped = 0
+        for rel in relationships:
+            src = rel.get("src", "")
+            dst = rel.get("dst", "")
+            rtype = rel.get("relation_type", "")
+            confidence = float(rel.get("confidence", 1.0))
+            if not src or not dst or not rtype:
+                skipped += 1
+                continue
+
+            ok = self.memory.add_relationship(
+                src_source=src,
+                dst_source=dst,
+                relation_type=rtype,
+                confidence=confidence,
+                add_inverse=True,
+            )
+            if ok:
+                created += 1
+            else:
+                skipped += 1  # endpoint missing / invalid relation / duplicate
+
+        self.log_info(
+            f"Relationships: created {created} edges, skipped {skipped} "
+            f"(endpoint missing / invalid relation / duplicate)."
+        )
+        return created
 
     def generate_from_chapter(self, chapter_file: str, chapter_num: int = 0) -> int:
-        """
-        Generate glossary terms from a single chapter file.
+        """Generate glossary terms + relationships from a single chapter file.
         
         Args:
             chapter_file: Path to the chapter file
-            chapter_num: Chapter number for logging
+            chapter_num: Chapter number for logging + chapter_first_seen
             
         Returns:
-            Number of terms extracted
+            Number of NEW terms saved (dedup-skipped terms are not counted)
         """
         try:
             logger.info(f"Reading chapter {chapter_num}: {chapter_file}")
 
-            # Read the chapter file
             with open(chapter_file, 'r', encoding='utf-8-sig') as f:
                 content = f.read()
 
@@ -345,38 +513,40 @@ class GlossaryGenerator(BaseAgent):
 
             logger.info(f"Processing chapter {chapter_num} ({source_lang}, {len(content)} chars)...")
 
-            # Process this file
-            terms = self.process_files([chapter_file], source_lang)
+            # Relationship-aware extraction (sliding window + dedup)
+            terms, relationships = self._extract_from_file(chapter_file, source_lang)
 
-            # Save to pending
+            saved = 0
             if terms:
-                self.save_to_pending(terms, chapter_num)
-                logger.info(f"✅ Chapter {chapter_num}: Extracted {len(terms)} terms")
-            else:
-                logger.info(f"⚠️ Chapter {chapter_num}: No terms found")
+                saved = self.save_to_pending(terms, chapter_num)
+            if relationships:
+                self.save_relationships(relationships, chapter_num)
 
-            return len(terms)
+            logger.info(
+                f"✅ Chapter {chapter_num}: {saved} new terms saved, "
+                f"{len(relationships)} relationships found"
+            )
+            return saved
 
         except Exception as e:
             logger.error(f"❌ Failed to process chapter {chapter_num}: {e}")
             return 0
 
     def generate_from_pair(self, en_file: str, mm_file: str, chapter_num: int = 0) -> int:
-        """
-        Generate glossary terms by pairing English source with Myanmar translation.
+        """Generate glossary terms + relationships from an EN↔MM chapter pair.
+
         Reads both files and asks the model to identify named entities in the
-        English text and find their corresponding Myanmar equivalents.
+        English text, find their Myanmar equivalents in the translation, and
+        extract worldbuilding relationships between them.
 
         Args:
             en_file: Path to the English source chapter
             mm_file: Path to the Myanmar translation chapter
-            chapter_num: Chapter number for logging
+            chapter_num: Chapter number for logging + chapter_first_seen
 
         Returns:
-            Number of terms extracted
+            Number of NEW terms saved (dedup-skipped terms are not counted)
         """
-        # Uses module-level constant: CROSS_LINGUAL_GLOSSARY_PROMPT
-
         try:
             logger.info(f"Reading chapter {chapter_num}: EN={en_file} MM={mm_file}")
 
@@ -394,21 +564,27 @@ class GlossaryGenerator(BaseAgent):
                 mm_text=mm_content[:2500],
             )
 
+            terms: List[Dict[str, Any]] = []
+            relationships: List[Dict[str, Any]] = []
             try:
                 response = self.client.chat(prompt=prompt, format="json")
                 data = extract_json_from_response(response)
-                terms = data.get("terms", [])
+                terms = data.get("terms", []) or []
+                relationships = data.get("relationships", []) or []
             except Exception as e:
                 logger.error(f"Term extraction failed for chapter {chapter_num}: {e}")
-                terms = []
 
+            saved = 0
             if terms:
-                self.save_to_pending(terms, chapter_num)
-                logger.info(f"✅ Chapter {chapter_num}: Extracted {len(terms)} terms from EN↔MM pair")
-            else:
-                logger.info(f"⚠️ Chapter {chapter_num}: No terms found")
+                saved = self.save_to_pending(terms, chapter_num)
+            if relationships:
+                self.save_relationships(relationships, chapter_num)
 
-            return len(terms)
+            logger.info(
+                f"✅ Chapter {chapter_num}: {saved} new terms saved, "
+                f"{len(relationships)} relationships found (EN↔MM pair)"
+            )
+            return saved
 
         except Exception as e:
             logger.error(f"❌ Failed to process chapter {chapter_num}: {e}")
