@@ -4,6 +4,41 @@ AI-powered English/Chinese → Myanmar novel translation system using local LLMs
 
 ---
 
+## 🚀 Quickstart: from corpus to fine-tuned model in 5 commands
+
+Train the model to translate **like your human translator**, using your aligned
+`data/input/<novel>/{en,mm}` corpus. Steps 1–2 and 4–5 run on your PC (no GPU);
+step 3 runs on a free Colab T4 or a rented cloud GPU. Full details:
+[`docs/CLOUD_TRAINING.md`](docs/CLOUD_TRAINING.md).
+
+```bash
+# 1. Install dependencies (includes chrF metric + alignment)
+pip install -r requirements.txt
+
+# 2. Build the ChatML training set (BGE-M3 align → quality-filter → chapter split)
+python scripts/build_finetune_dataset.py --run-alignment --min-similarity 0.70
+
+# 3. [CLOUD GPU] QLoRA fine-tune on the padauk-gemma base, export a GGUF
+#    pip install unsloth "trl>=0.11" "datasets>=2.20"
+python scripts/train_lora_cloud.py \
+    --base-model unsloth/gemma-4-E4B-it \
+    --train data/finetune/train.jsonl --val data/finetune/val.jsonl \
+    --out models/adapters/en-my-lora --epochs 2 --gguf q4_k_m
+
+# 4. Load the fine-tuned GGUF into Ollama (Modelfile: FROM ./en-my.Q4_K_M.gguf)
+ollama create en-my-translator -f Modelfile
+
+# 5. Measure how close it is to the human translation (chrF; higher = closer)
+python -m src.utils.translation_eval \
+    --hyp data/output/a-will-eternal --ref data/input/a-will-eternal/mm
+```
+
+> Just want to translate with the existing model? Jump to
+> [First-Run Setup](#-first-run-setup-guide). Want a free quality boost without
+> training? Enable [QE re-ranking](#-better-output-qe-re-ranking-evaluation--fine-tuning).
+
+---
+
 ## ⚡ Interactive Launchers (No Manual Commands)
 
 Don't want to type long `python -m src.main --novel ... --chapter ...` commands? Two menu-driven helper scripts do it for you — they discover your novels/chapters, build the command, and run it.
@@ -597,6 +632,113 @@ Score ≤ 49  → STOP (alert user)
 ### Fluency Scorer (7 Dimensions)
 
 Lexical Diversity → Particle Diversity → Sentence Flow → Syllable Richness → Paragraph Rhythm → Punctuation Health → Repetition Penalty
+
+---
+
+## 🎓 Better Output: QE Re-ranking, Evaluation & Fine-tuning
+
+The goal: make the local model translate **like the human translator**. This is a
+measure → improve → re-measure loop. The pieces below stack — use them in order.
+
+### 1. QE Re-ranking (best-of-N) — free quality, no training
+
+A local model is stochastic: re-sampling a chunk gives outputs of different
+quality. Instead of taking one shot, sample N candidates (varying only the
+*seed*, so the Myanmar-safe temperature is unchanged) and keep the best one,
+scored by fluency + hard-defect penalties (placeholders, leakage, truncation,
+repetition loops, length deficiency).
+
+Enable it in `config/settings.yaml`:
+
+```yaml
+rerank:
+  enabled: true        # OFF by default — it multiplies generation cost by N
+  num_candidates: 3    # 2–4 is sensible
+  seed_base: 1234
+```
+
+Then translate normally (`python -m src.main --novel a-will-eternal --chapter 5`).
+It triples generation time but measurably lifts quality. Turn it off to go back
+to single-shot.
+
+### 2. Measure closeness to human — chrF evaluation
+
+You have the human translations, so you can score how close the model gets, using
+**chrF** (character n-gram F-score — the right metric for Myanmar, which has no
+reliable word boundaries). Install the metric once:
+
+```bash
+pip install sacrebleu     # already in requirements.txt
+```
+
+Compare a directory (or single file) of model output against the human `mm/`:
+
+```bash
+python -m src.utils.translation_eval \
+    --hyp data/output/a-will-eternal \
+    --ref data/input/a-will-eternal/mm
+```
+
+```
+Pairs evaluated : 20
+Corpus chrF     : 61.3
+Mean chapter chrF: 60.8
+Lowest-scoring chapters (likely needing attention):
+  ch.14: 51.2
+  ...
+```
+
+**Reading the number:** identical text = 100; two *unrelated* Myanmar chapters
+score ~54 (shared particles/common words = the floor). So a good literary
+translation lands clearly above ~54 — realistically **58–68** against a single
+human reference (literary translation has large, legitimate word-choice variation,
+so 100 is neither achievable nor the goal). Use `--chrf-plus` for chrF++ (adds
+word n-grams; only meaningful where text is reliably word-tokenized).
+
+### 3. Build the fine-tuning dataset (local, no GPU)
+
+Turn your aligned `en/` + `mm/` corpus into a ChatML training set. This drives the
+existing BGE-M3 alignment, applies the pair-quality filter, and splits **by
+chapter** so held-out test chapters never leak into training:
+
+```bash
+python scripts/build_finetune_dataset.py --run-alignment --min-similarity 0.70
+# → data/finetune/{train,val,test}.jsonl
+
+python scripts/train_lora_cloud.py --dry-run   # validate the dataset, no GPU
+```
+
+Options: `--holdout 30` (test chapters per novel), `--novels a-will-eternal …`
+(subset), `--min-similarity` (lower = more but noisier pairs).
+
+### 4. Fine-tune the LoRA in the cloud, run it on your PC
+
+An AMD RX 580 / older GPU can't train (ROCm/bitsandbytes don't support it), so
+**train in the cloud** (free Colab T4 or a rented 24 GB GPU) and **run inference
+locally**. The Ollama `padauk-gemma` is a LoRA on `unsloth/gemma-4-E4B-it`
+(Gemma 3n E4B), so we train on that same base with **Unsloth**:
+
+```bash
+# on the cloud GPU box
+pip install unsloth "trl>=0.11" "datasets>=2.20"
+python scripts/train_lora_cloud.py \
+    --base-model unsloth/gemma-4-E4B-it \
+    --train data/finetune/train.jsonl --val data/finetune/val.jsonl \
+    --out models/adapters/en-my-lora --epochs 2 --gguf q4_k_m
+```
+
+Download the exported GGUF, then on your PC:
+
+```bash
+ollama create en-my-translator -f Modelfile   # FROM ./en-my.Q4_K_M.gguf, temperature 0.2
+```
+
+Point `config/settings.yaml` `models:` at `en-my-translator`, re-run the chrF eval
+from step 2, and confirm the score went up. Stack QE re-ranking (step 1) on top
+for a further bump.
+
+📖 **Full walkthrough:** [`docs/CLOUD_TRAINING.md`](docs/CLOUD_TRAINING.md) — provider
+setup, exact commands, GGUF export, and the baseline → fine-tune → re-measure table.
 
 ---
 

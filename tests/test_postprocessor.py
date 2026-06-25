@@ -23,7 +23,111 @@ from src.utils.postprocessor import (
     check_sentence_completion,
     detect_ngram_repetition,
     check_source_aligned_ordinals,
+    detect_latin_in_myanmar,
+    detect_placeholder_marks,
+    detect_classifier_errors,
+    fix_double_terminator_punct,
+    normalize_register,
+    normalize_character_names,
 )
+
+
+class TestNameNormalizationSnapping(unittest.TestCase):
+    """Small models drop/garble a final name syllable; the fuzzy normalizer must
+    snap near-misses to the glossary canonical WITHOUT corrupting a longer name
+    that contains a shorter one as a substring."""
+
+    GLOSSARY = [
+        {"source_term": "Bai Xiaochun", "target_term": "ပိုင်ရှောင်ချန်း", "category": "character"},
+        {"source_term": "Xiaochun", "target_term": "ရှောင်ချန်း", "category": "character"},
+    ]
+
+    def test_snaps_dropped_syllable_variant(self):
+        # ပိုင်ရှောင်ချီ (final syllable wrong) → canonical, both occurrences,
+        # including the one glued to ၏ with no space.
+        t = "နာမည်ကား ပိုင်ရှောင်ချီ ဖြစ်သည်။ ပိုင်ရှောင်ချီ၏ပုခုံးကို ပုတ်သည်။"
+        out = normalize_character_names(t, self.GLOSSARY)
+        self.assertNotIn("ပိုင်ရှောင်ချီ", out)
+        self.assertEqual(out.count("ပိုင်ရှောင်ချန်း"), 2)
+
+    def test_short_form_does_not_corrupt_full_name(self):
+        # The short-form (ရှောင်ချန်း) pass must NOT rewrite the middle of the
+        # already-correct full name (ပိုင်ရှောင်ချန်း → ပိုရှောင်ချန်း).
+        t = "ပိုင်ရှောင်ချန်း သည် လာသည်။"
+        out = normalize_character_names(t, self.GLOSSARY)
+        self.assertIn("ပိုင်ရှောင်ချန်း", out)
+        self.assertNotIn("ပိုရှောင်", out)
+
+    def test_no_false_snap_on_unrelated_text(self):
+        t = "ရွာသားများသည် ကျေးရွာထဲ၌ နေထိုင်ကြသည်။"
+        self.assertEqual(normalize_character_names(t, self.GLOSSARY), t)
+
+
+class TestRegisterNormalization(unittest.TestCase):
+    """Scene-aware register normalization: literary in narration, colloquial in
+    dialogue (quoted spans untouched)."""
+
+    def test_narration_colloquial_to_literary(self):
+        out = normalize_register("အဲဒီလူငယ်သည် သူ့ရဲ့ ဝတ်စုံကို ဝတ်ထားသည်။")
+        self.assertIn("ထိုလူငယ်", out)     # အဲဒီ → ထို
+        self.assertIn("သူ၏", out)          # သူ့ရဲ့ → သူ၏
+        self.assertNotIn("အဲဒီ", out)
+        self.assertNotIn("ရဲ့", out)
+
+    def test_dialogue_preserved(self):
+        # Colloquial markers INSIDE quotes (dialogue) must stay colloquial.
+        src = '"မင်းရဲ့ အဲဒီ စကား မှန်တယ်" ဟု သူပြောသည်။'
+        out = normalize_register(src)
+        self.assertIn("မင်းရဲ့ အဲဒီ", out)   # quote untouched
+        # ...but the narration tag after the quote has no colloquial markers here.
+
+    def test_mixed_line_only_narration_changes(self):
+        src = 'ထိုနေရာတွင် “အဲဒီဟာ ငါ့ရဲ့ ဟာ” ဟု အဲဒီလူက ဆိုသည်။'
+        out = normalize_register(src)
+        self.assertIn("“အဲဒီဟာ ငါ့ရဲ့ ဟာ”", out)  # dialogue verbatim
+        self.assertIn("ထိုလူက", out)               # narration အဲဒီ → ထို
+
+    def test_idempotent_and_empty(self):
+        s = "အဲဒီရွာသားများသည် သူ့ရဲ့ အိမ်သို့ ပြန်သည်။"
+        once = normalize_register(s)
+        self.assertEqual(normalize_register(once), once)
+        self.assertEqual(normalize_register(""), "")
+
+
+class TestDeterministicDefectDetectors(unittest.TestCase):
+    """Latin-in-Myanmar, placeholder, and classifier hard-defect detectors,
+    plus the ။!/။? terminator cleanup — all driven by real ch1 output bugs."""
+
+    def test_latin_in_myanmar_fused(self):
+        self.assertTrue(detect_latin_in_myanmar("ဖြစ်နေဟan ခံစားရသည်"))      # 'ဟan'
+        self.assertFalse(detect_latin_in_myanmar("သူ့နာမည်မှာ ပိုင်ရှောင်ချန်း"))
+        self.assertFalse(detect_latin_in_myanmar("Bai Xiaochun သည်"))        # space-separated
+
+    def test_placeholder_marks(self):
+        self.assertTrue(detect_placeholder_marks("သူ့နာမည်မှာ ?? ဟု"))        # the '??' name bug
+        self.assertTrue(detect_placeholder_marks("text <unk> more"))
+        self.assertFalse(detect_placeholder_marks("ပုံမှန် မေးခွန်း? ဟုတ်လား"))  # single ? is fine
+
+    def test_classifier_errors(self):
+        # village wrongly counted with ကျောင်း (school/building classifier)
+        self.assertTrue(detect_classifier_errors("ကျေးရွာလေးတစ်ကျောင်းရှိသည်"))
+        self.assertFalse(detect_classifier_errors("ရွာငယ်လေးတစ်ရွာ ရှိသည်"))   # correct
+        self.assertFalse(detect_classifier_errors("ရွာမှာ ဘုန်းကြီးကျောင်း ရှိသည်"))  # no FP across space
+
+    def test_fix_double_terminator_punct(self):
+        self.assertEqual(fix_double_terminator_punct("အရမ်းလွမ်းမှာပါ။!"), "အရမ်းလွမ်းမှာပါ!")
+        self.assertEqual(fix_double_terminator_punct("ဟုတ်လား။?"), "ဟုတ်လား?")
+        self.assertEqual(fix_double_terminator_punct("ပြီးပါပြီ။"), "ပြီးပါပြီ။")  # untouched
+
+    def test_fix_foreign_punctuation_preserves_myanmar(self):
+        from src.utils.postprocessor import fix_foreign_punctuation
+        # Arabic comma (U+060C) leaked in the real output → Myanmar ၊ (U+104A)
+        out = fix_foreign_punctuation("ကြုံလာသည်ဖြစ်စေ، ရှေ့ဆက်သည်။")
+        self.assertNotIn("،", out)          # arabic comma gone
+        self.assertIn("၊", out)             # replaced with myanmar ၊
+        # Legit Myanmar punctuation must be preserved untouched
+        keep = "စာပိုဒ်၊ နောက်ထပ်။"
+        self.assertEqual(fix_foreign_punctuation(keep), keep)
 
 
 class TestStripReasoningTags(unittest.TestCase):

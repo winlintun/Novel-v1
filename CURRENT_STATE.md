@@ -6,8 +6,46 @@
 
 ## Last Updated
 - Date: 2026-06-24
-- Last task completed: RAG feedback cycle repair + adequacy-gated ingestion + glossary-aware retrieval (F1-F3)
-- Git commit: HEAD `5497aa7` (working tree dirty — this session's changes, not yet committed)
+- Last task completed: Novel path/slug refactor — canonical slug util + tolerant I/O + DB reconciliation (multi-novel input support)
+- Git commit: HEAD `5497aa7` (working tree dirty — this session's refactor, not yet committed)
+
+## Session Summary (2026-06-24 — Novel path/slug refactor, multi-novel input support)
+- ✅ **Root cause — 3-way novel_id/slug drift.** Three independent functions
+  (`memory_manager._make_novel_id`, `version_manager._get_or_create_novel`,
+  `flask_app._slug_to_novel_id`) plus raw-folder-name I/O produced **four
+  different keys** for one novel. Folder `Daoist Master of Qing Xuan` (spaces +
+  caps) was unmappable → output paths with spaces, broken version lookups,
+  glossary never reattaching (AGENTS.md lesson #3).
+- ✅ **Fix 1 — canonical slug util** (`src/utils/novel_slug.py`): `slugify_novel`
+  (lower; `[^a-z0-9]+`→`-`; collapse; strip), `novel_id_from_name`
+  (`novel_<slug>`), `resolve_novel_input_dir` (exact → slug → scan-root
+  match), `is_canonical_novel_dir` (rejects dotfolders).
+- ✅ **Fix 2 — three divergent functions unified** to delegate to the util:
+  MemoryManager + VersionManager now mint the SAME id for the same novel.
+- ✅ **Fix 3 — orchestrator never writes spaces.** `_save_output` builds the
+  output dir, file stem and meta.json name from `slugify_novel`; checkpoint
+  dirs under `data/working/` slugified too. Input resolution (`_find_chapter_file`,
+  `translate_*`) is slug-tolerant via `resolve_novel_input_dir`.
+- ✅ **Fix 4 — VersionManager file paths slugified** internally
+  (`_get_chapter_file`, `_copy_to_versions`, `_scan_files_for_term`) so
+  snapshots/lookups match the slug output dir the orchestrator writes.
+- ✅ **Fix 5 — output scanners skip dotfolders** in `diagnose.py`,
+  `dataset_alignment/pipeline.py`, `scripts/translate.py`,
+  `web/flask_app.py` (the source of the phantom `novel_.versions` DB row).
+  `run_rebuild_meta` uses slug for output dir + meta name.
+- ✅ **Fix 6 — DB reconciliation** (`scripts/reconcile_novel_ids.py`,
+  idempotent, `--apply`): deleted phantom `novel_.versions` row; renamed
+  `novel_global_xianxia`→`novel_global_xianxia_terms`; **moved 2458 glossary
+  child rows** from the orphan `novel_a_will-eternal` (legacy, no input
+  folder) into the on-disk `novel_a_will_eternal1` so the pipeline finally
+  reads the rich glossary. Handles `chapters` UNIQUE(novel_id,chapter_num)
+  by deleting colliding source rows.
+- 🧪 **Tests** — 19 new in `tests/test_novel_slug.py`. Full suite:
+  **539 passed, 2 skipped** (was 520; +19 new, 0 regressions).
+- 🧹 **Lint** — `ruff --select=E,F --ignore=E501` clean on all 11 touched
+  files.
+- ⚠️ **Not committed** — per top-level instruction not to commit without an
+  explicit user request. Phase gate held at AUDIT pending commit decision.
 
 ## Session Summary (2026-06-24 — RAG feedback cycle repair + adequacy gate + glossary-aware retrieval)
 - ✅ **F1 ChromaDB ingestion re-enabled** — `FeedbackLoop._init_chroma` now connects to the `alignment_paragraphs` collection (was hard-disabled with `_chroma_collection = None`). Ingestion embeds EN text with BGE-M3 (reuses the retriever's process-wide embedder cache, no double model load) and upserts with metadata. The virtuous cycle is alive: chapter N's verified translations become chapter N+1's RAG examples. Confirmed 0→migration-ready on real DB.

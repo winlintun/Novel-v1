@@ -159,6 +159,18 @@ rag:
   embedding_model: models/bge-m3
   embedding_device: cpu
 
+# ── QE Re-ranking (best-of-N) ───────────────────────────────────────────────
+# Sample multiple candidate translations per chunk and keep the best one under a
+# reference-free quality estimator (fluency + hard-defect penalties: placeholders,
+# leakage, truncation, degenerate loops, length deficiency). The single biggest
+# quality lever for a stochastic local model — but it multiplies generation cost
+# by num_candidates, so it is OFF by default. Candidates differ only by sampling
+# SEED (temperature is left at its Myanmar-safe value), so quality is preserved.
+rerank:
+  enabled: false
+  num_candidates: 3   # candidates sampled per chunk when enabled (2–4 is sensible)
+  seed_base: 1234     # candidate i uses seed_base + i (reproducible)
+
 # ── Dataset Alignment Pipeline ──────────────────────────────────────────────
 # Processes parallel EN/MM chapter files → creates aligned sentence pairs → populates RAG DB
 alignment_pipeline:

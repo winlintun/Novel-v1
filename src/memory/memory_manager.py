@@ -21,15 +21,17 @@ ALL_TERMS_LIMIT = 1_000_000
 
 
 def _make_novel_id(novel_name: str) -> str:
-    """Generate a sanitized, consistent novel_id from a novel name/slug.
+    """Generate a canonical, consistent novel_id from a novel name/slug.
 
-    (Previously imported from src.db.sync_external, which is no longer used.)
+    Thin delegate to `src.utils.novel_slug.novel_id_from_name` — the single
+    source of truth shared by MemoryManager, VersionManager and the Flask web
+    UI. Lowercases the name and cleans every non ``[\\w-]`` char so a folder
+    like "Daoist Master of Qing Xuan" yields `novel_daoist_master_of_qing_xuan`
+    instead of the earlier case-preserving `novel_Daoist_Master_of_Qing_Xuan`
+    that never matched rows written by VersionManager.
     """
-    safe = (
-        novel_name.replace('/', '_').replace('\\', '_')
-        .replace(' ', '_').replace('-', '_')
-    )
-    return f"novel_{safe}"
+    from src.utils.novel_slug import novel_id_from_name
+    return novel_id_from_name(novel_name)
 
 
 class MemoryManager:
@@ -1250,17 +1252,12 @@ class MemoryManager:
             )
             return glossary_block + rel_block
 
-        # F7 — chapter-aware sort: characters first, then earlier-introduced
-        # terms (established worldbuilding), then longer (more specific) source.
-        def _sort_key(t):
-            is_char = 0 if t.get('category') == 'character' else 1
-            ch = t.get('chapter_first_seen')
-            ch_rank = ch if ch else 999999  # NULL/unknown → ranked last
-            return (is_char, ch_rank, -len(t.get('source_term') or ''))
-
-        present.sort(key=_sort_key)
-        if limit and limit > 0:
-            present = present[:limit]
+        # F7 — relevance + chapter-aware ranking: characters first, then the terms
+        # this chunk actually leans on (in-chunk frequency), then earlier-introduced
+        # (established worldbuilding), then longer (more specific) source. This keeps
+        # the most chunk-relevant terms when more match than the budget allows.
+        from src.utils.glossary_ranking import rank_terms_by_relevance
+        present = rank_terms_by_relevance(source_text, present, limit)
         glossary_block = self._format_glossary_lines(present)
         rel_block = self._build_relationships_block(
             {t["id"]: t for t in present}, max_edges=5

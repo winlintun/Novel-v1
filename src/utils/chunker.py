@@ -72,20 +72,39 @@ def smart_chunk(text: str, max_tokens: int = 1500) -> List[str]:
 def get_rolling_context(
     prev_chunk: str,
     max_context_tokens: int = 400,
+    min_paragraphs: int = 2,
+    hard_ceiling_tokens: int = 1200,
 ) -> str:
     """
     Extract the tail of the previous chunk as rolling context.
 
-    Takes as many complete paragraphs from the END of prev_chunk
-    as fit within max_context_tokens. Never truncates mid-paragraph.
+    Takes complete paragraphs from the END of prev_chunk, never truncating
+    mid-paragraph. Guarantees at least ``min_paragraphs`` of tail context even
+    when a single paragraph exceeds the soft token budget, then keeps adding
+    more while they fit within ``max_context_tokens`` — but never lets the total
+    exceed ``hard_ceiling_tokens`` (the floor yields to the ceiling).
+
+    The floor matters: without it, a chunk that ends with a short line (e.g.
+    "His name was Bai Xiaochun." → ~36 chars) passed almost nothing forward,
+    because the larger preceding narration paragraph alone overflowed the budget
+    and was dropped — starving the next chunk of speaker identity, honorifics,
+    and tone, a direct cause of register drift across boundaries.
+
+    The ceiling matters too: ``max_context_tokens`` is a *soft* budget the floor
+    may exceed, so without a hard cap a pathologically long tail paragraph could
+    push the next chunk past the model's context window. The ceiling bounds that
+    (it is always ≥ one real chunk, so the floor is honored in practice).
 
     Args:
-        prev_chunk:         The fully translated previous chunk (Myanmar text).
-        max_context_tokens: Token budget for context. Default 400.
+        prev_chunk:          The fully translated previous chunk (Myanmar text).
+        max_context_tokens:  Soft token budget. Default 400.
+        min_paragraphs:      Floor of trailing paragraphs always carried when
+                             they fit under the hard ceiling. Default 2.
+        hard_ceiling_tokens: Absolute cap the result never exceeds (≥ 1 chunk).
+                             Default 1200.
 
     Returns:
-        String of complete paragraphs (≤ max_context_tokens).
-        Empty string if this is the first chunk.
+        String of complete paragraphs. Empty string if this is the first chunk.
     """
     if not prev_chunk:
         return ""
@@ -100,7 +119,14 @@ def get_rolling_context(
 
     for para in reversed(paragraphs):
         para_tokens = int(len(para) * 1.5)
-        if total_tokens + para_tokens > max_context_tokens:
+        # Hard ceiling always wins (except the very first/most-recent paragraph,
+        # which is always carried) — never blow the model context window.
+        if context and total_tokens + para_tokens > hard_ceiling_tokens:
+            break
+        over_budget = total_tokens + para_tokens > max_context_tokens
+        # Once the floor is met AND we are over the soft budget, stop; this forces
+        # the floor for normal-sized paragraphs but yields to the ceiling above.
+        if over_budget and len(context) >= min_paragraphs:
             break
         context.insert(0, para)
         total_tokens += para_tokens

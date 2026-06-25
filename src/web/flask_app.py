@@ -237,7 +237,7 @@ def get_novels() -> list:
     novels = []
     if input_dir.exists():
         for novel_dir in input_dir.iterdir():
-            if novel_dir.is_dir():
+            if novel_dir.is_dir() and not novel_dir.name.startswith('.'):
                 chapters = list(novel_dir.glob("*.md"))
                 novels.append({
                     'name': novel_dir.name,
@@ -249,7 +249,8 @@ def get_novels() -> list:
 
 def get_translated_chapters(novel_name: str) -> list:
     """Get list of translated chapters for a novel"""
-    output_dir = Path(app.config['OUTPUT_FOLDER']) / novel_name
+    from src.utils.novel_slug import slugify_novel
+    output_dir = Path(app.config['OUTPUT_FOLDER']) / slugify_novel(novel_name)
     translated = []
     if output_dir.exists():
         for f in output_dir.glob("*.mm.md"):
@@ -402,7 +403,9 @@ def index():
         translated += len(translated_chapters)
 
         # Load meta.json to get model info
-        meta_path = Path(app.config['OUTPUT_FOLDER']) / novel['name'] / f"{novel['name']}.mm.meta.json"
+        from src.utils.novel_slug import slugify_novel
+        _slug = slugify_novel(novel['name'])
+        meta_path = Path(app.config['OUTPUT_FOLDER']) / _slug / f"{_slug}.mm.meta.json"
         if meta_path.exists():
             try:
                 with open(meta_path, 'r', encoding='utf-8-sig') as f:
@@ -782,7 +785,9 @@ def reader():
 
             # Load chapter metadata from meta.json
             if selected_novel:
-                meta_path = Path(app.config['OUTPUT_FOLDER']) / selected_novel / f"{selected_novel}.mm.meta.json"
+                from src.utils.novel_slug import slugify_novel
+                _sel_slug = slugify_novel(selected_novel)
+                meta_path = Path(app.config['OUTPUT_FOLDER']) / _sel_slug / f"{_sel_slug}.mm.meta.json"
                 if meta_path.exists():
                     try:
                         with open(meta_path, 'r', encoding='utf-8-sig') as f:
@@ -891,7 +896,8 @@ def api_progress():
             # Still in progress — fall back to file-age heuristic if chunk info missing
             novel = data.get('novel', '')
             if novel and not data.get('current_chunk'):
-                output_dir = Path("data/output") / novel
+                from src.utils.novel_slug import slugify_novel
+                output_dir = Path("data/output") / slugify_novel(novel)
                 if output_dir.exists():
                     output_files = sorted(
                         output_dir.glob("*.mm.md"),

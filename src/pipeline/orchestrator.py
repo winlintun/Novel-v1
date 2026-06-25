@@ -24,6 +24,7 @@ from datetime import datetime
 
 from src.config import AppConfig
 from src.utils.progress_logger import ProgressLogger
+from src.utils.novel_slug import slugify_novel
 
 # Constants
 INPUT_DIR = "data/input"
@@ -1017,7 +1018,8 @@ class TranslationPipeline:
         chapter_file = self._find_chapter_file(novel, chapter)
 
         if not chapter_file:
-            novel_dir = Path(INPUT_DIR) / novel
+            from src.utils.novel_slug import resolve_novel_input_dir
+            novel_dir = resolve_novel_input_dir(Path(INPUT_DIR), novel) or (Path(INPUT_DIR) / novel)
             attempted = [
                 f"{chapter:03d}.md",
                 f"{chapter:04d}.md",
@@ -1099,9 +1101,15 @@ class TranslationPipeline:
         """
         base_dir = Path(INPUT_DIR) / novel
         if not base_dir.is_dir():
-            # Check common typo: data/intput/ instead of data/input/
-            typo_dir = Path("data/intput") / novel
-            if typo_dir.is_dir():
+            # Slug-tolerant resolution: accept either the raw folder name
+            # ("Daoist Master of Qing Xuan") or its slug form wherever the
+            # user passed it, so a spaces-in-name novel is found either way.
+            from src.utils.novel_slug import resolve_novel_input_dir
+            resolved = resolve_novel_input_dir(Path(INPUT_DIR), novel)
+            if resolved and resolved.is_dir():
+                base_dir = resolved
+            elif (typo_dir := Path("data/intput") / novel).is_dir():
+                # Check common typo: data/intput/ instead of data/input/
                 base_dir = typo_dir
             else:
                 return None
@@ -1115,24 +1123,34 @@ class TranslationPipeline:
         for novel_dir in search_dirs:
             if not novel_dir.is_dir():
                 continue
+            # Prefer the real folder name on disk for the file-stem prefix —
+            # the passed `novel` may be the slug while files use the raw name.
+            stem = novel_dir.parent.name if novel_dir.name in ("en", "mm") else novel_dir.name
             patterns = [
-                novel_dir / f"{novel}_chapter_{chapter:04d}.md",
-                novel_dir / f"{novel}_chapter_{chapter:03d}.md",
+                novel_dir / f"{stem}_chapter_{chapter:04d}.md",
+                novel_dir / f"{stem}_chapter_{chapter:03d}.md",
                 novel_dir / f"{chapter:03d}.md",
                 novel_dir / f"{chapter:04d}.md",
-                novel_dir / f"{novel}_{chapter:03d}.md",
-                novel_dir / f"{novel}_{chapter:04d}.md",
+                novel_dir / f"{stem}_{chapter:03d}.md",
+                novel_dir / f"{stem}_{chapter:04d}.md",
+                novel_dir / f"chapter_{chapter:04d}.md",
+                novel_dir / f"chapter_{chapter:03d}.md",
+                novel_dir / f"chapter-{chapter:04d}.md",
+                novel_dir / f"chapter-{chapter:03d}.md",
             ]
             for p in patterns:
                 if p.exists():
                     return p
 
-            # Fallback: glob for any file containing "chapter_{chapter}" 
-            # (handles mismatched novel name prefix, e.g. dir=a-will-eternal1 but file=a-will-eternal_chapter_001.md)
+            # Fallback: glob for any file containing "chapter{sep}{chapter}"
+            # (handles mismatched novel name prefix AND dash/underscore separators,
+            # e.g. dir=a-will-eternal1 but file=a-will-eternal_chapter_001.md,
+            # or chapter-0001.md with a dash).
             for padded in (f"{chapter:04d}", f"{chapter:03d}", f"{chapter}"):
-                matches = sorted(novel_dir.glob(f"*chapter_{padded}.md"))
-                if matches:
-                    return matches[0]
+                for sep in ("_", "-"):
+                    matches = sorted(novel_dir.glob(f"*chapter{sep}{padded}.md"))
+                    if matches:
+                        return matches[0]
 
         return None
 
@@ -1148,7 +1166,8 @@ class TranslationPipeline:
         """
         # If no chapters specified, find all available
         if not chapters:
-            novel_dir = Path(INPUT_DIR) / novel
+            from src.utils.novel_slug import resolve_novel_input_dir
+            novel_dir = resolve_novel_input_dir(Path(INPUT_DIR), novel) or (Path(INPUT_DIR) / novel)
             if not novel_dir.exists():
                 return [{
                     "success": False,
@@ -1376,7 +1395,7 @@ class TranslationPipeline:
 
         # Clean up old-format flat checkpoints (pre-per-chapter directory format)
         if self._current_novel:
-            old_dir = Path("data/working") / self._current_novel
+            old_dir = Path("data/working") / slugify_novel(self._current_novel or "unknown")
             if old_dir.exists():
                 for old_cp in old_dir.glob("ch*_checkpoint.txt"):
                     try:
@@ -1391,7 +1410,7 @@ class TranslationPipeline:
         # Try to resume from checkpoints (2.1: chunk-level resume)
         last_completed = -1
         if self._current_novel and self._current_chapter is not None:
-            checkpoint_dir = Path("data/working") / self._current_novel / f"chapter_{self._current_chapter:04d}"
+            checkpoint_dir = Path("data/working") / slugify_novel(self._current_novel or "unknown") / f"chapter_{self._current_chapter:04d}"
             if checkpoint_dir.exists():
                 existing = sorted(checkpoint_dir.glob("ch*_checkpoint.txt"))
                 valid_checkpoints = []
@@ -1889,7 +1908,7 @@ class TranslationPipeline:
                 try:
                     if self._current_novel and self._current_chapter is not None:
                         from src.utils.file_handler import FileHandler
-                        checkpoint_dir = Path("data/working") / self._current_novel / f"chapter_{self._current_chapter:04d}"
+                        checkpoint_dir = Path("data/working") / slugify_novel(self._current_novel or "unknown") / f"chapter_{self._current_chapter:04d}"
                         checkpoint_dir.mkdir(parents=True, exist_ok=True)
                         checkpoint_path = checkpoint_dir / f"ch{i+1:03d}_checkpoint.txt"
                         FileHandler.write_text(str(checkpoint_path), translated_chunk)
@@ -2205,9 +2224,12 @@ class TranslationPipeline:
         
         Returns scene type string for use in build_linguistic_context().
         """
-        # Count dialogue lines (quotes)
+        # Count dialogue lines (quotes). Openers must include curly quotes:
+        # Myanmar dialogue is rendered with “…” (U+201C), and the old tuple was
+        # three identical ASCII quotes (U+0022), so curly-quoted dialogue counted
+        # as 0 — misclassifying dialogue-heavy scenes as 'narration'.
         dialogue_lines = len([line for line in text.split('\n')
-                              if line.strip().startswith(('"', '"', '"'))])
+                              if line.strip().startswith(('"', '“', '‘', '「'))])
         
         # Count action indicators
         action_keywords = ['strike', 'attack', 'fight', 'kill', 'sword', 'slash',
@@ -2392,10 +2414,19 @@ class TranslationPipeline:
         # saved file, version snapshots, and cumulative meta in sync — the
         # previous code mirrored the input path and silently broke snapshots.
         if self._current_novel and chapter_num is not None:
+            # Output dir + file stem use the canonical SLUG, never the raw
+            # folder name. A novel folder like "Daoist Master of Qing Xuan"
+            # would otherwise produce an output path with spaces, breaking
+            # VersionManager lookups, glossary sync, the web UI, --rebuild-meta
+            # and the benchmark scanner. `self._current_novel` stays the raw
+            # folder name (used for input discovery + DB name lookup); only the
+            # on-disk artifacts are slugified.
+            from src.utils.novel_slug import slugify_novel
+            novel_slug = slugify_novel(self._current_novel)
             output_path = (
                 Path(OUTPUT_DIR)
-                / self._current_novel
-                / f"{self._current_novel}_chapter_{chapter_num:04d}.mm.md"
+                / novel_slug
+                / f"{novel_slug}_chapter_{chapter_num:04d}.mm.md"
             )
         else:
             # Fallback: mirror the input path under OUTPUT_DIR (strip lang/
@@ -2452,7 +2483,9 @@ class TranslationPipeline:
         # Single file: data/output/{novel}/{novel}.mm.meta.json
         # Updated cumulatively with each chapter translation
         if self._current_novel:
-            novel_meta_path = output_path.parent / f"{self._current_novel}.mm.meta.json"
+            from src.utils.novel_slug import slugify_novel
+            novel_slug = slugify_novel(self._current_novel)
+            novel_meta_path = output_path.parent / f"{novel_slug}.mm.meta.json"
 
             # Load existing meta if it exists
             existing_meta = {}
@@ -2483,7 +2516,7 @@ class TranslationPipeline:
             # Update cumulative meta
             chapters_meta = existing_meta.get("chapters", {})
             chapters_meta[str(chapter_num)] = chapter_entry
-            existing_meta["novel"] = self._current_novel
+            existing_meta["novel"] = slugify_novel(self._current_novel)
             existing_meta["last_updated"] = datetime.now().isoformat()
             existing_meta["total_chapters"] = len(chapters_meta)
             existing_meta["chapters"] = chapters_meta

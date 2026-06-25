@@ -1,34 +1,41 @@
 ﻿{
-  "session_id": "2026-06-24-002",
-  "started_at": "2026-06-24T01:00:00Z",
-  "task": "RAG feedback cycle repair + adequacy-gated ingestion + glossary-aware retrieval (F1-F3)",
-  "current_step": "Complete — post-implementation review PASSED, READY_TO_COMMIT",
-  "last_action": "Implemented 3 fixes: F1 re-enabled ChromaDB ingestion in FeedbackLoop (BGE-M3 embed + upsert), F2 wired BGE-M3 adequacy gate into feedback scoring (rejects meaning-incomplete pairs), F3 glossary-aware retrieval bias (boosts examples sharing novel's glossary terms)",
-  "next_action": "User to review changes and request commit",
+  "session_id": "2026-06-24-003",
+  "started_at": "2026-06-24T03:30:00Z",
+  "task": "Novel path/slug refactor — canonical slug util + tolerant I/O + DB reconciliation (multi-novel input support)",
+  "current_step": "Implementation complete — post-implementation review pending",
+  "last_action": "Added src/utils/novel_slug.py (canonical slugify_novel/novel_id_from_name/resolve_novel_input_dir); wired memory_manager._make_novel_id + version_manager._get_or_create_novel to it; orchestrator _save_output now writes slug paths (no spaces); input resolution slug-tolerant; dotfolder skipped in scanners (diagnose/dataset_alignment/translate/flask_app); scripts/reconcile_novel_ids.py applied — deleted phantom novel_.versions row, renamed novel_global_xianxia->novel_global_xianxia_terms, reparented 2458 glossary rows from orphan novel_a_will_eternal into on-disk novel_a_will_eternal1",
+  "next_action": "Run Gemini post-implementation review workflow; user decides on commit",
   "open_files": [
-    "src/data/feedback_loop.py",
-    "src/data/rag_retriever.py",
-    "src/agents/translator.py",
+    "src/utils/novel_slug.py",
+    "tests/test_novel_slug.py",
+    "scripts/reconcile_novel_ids.py",
+    "plan.md",
+    "src/memory/memory_manager.py",
+    "src/memory/version_manager.py",
     "src/pipeline/orchestrator.py",
-    "config/settings.yaml",
-    "tests/test_rag_feedback.py",
-    "plan.md"
+    "src/web/flask_app.py",
+    "src/cli/commands.py",
+    "diagnose.py",
+    "scripts/translate.py",
+    "src/dataset_alignment/pipeline.py"
   ],
   "pending_decisions": [],
   "session_errors": [],
   "changes_made": {
-    "src/data/feedback_loop.py": "F1: _init_chroma re-enabled (get_or_create_collection + BGE-M3 embed for upsert); F2: _check_adequacy method (BGE-M3 cross-lingual cosine), adequacy gate in rate_and_ingest (rejects < min_adequacy), adequacy_score column added to translation_pairs (idempotent migration), _embed_for_ingest helper, reuses _get_query_embedder cache",
-    "src/data/rag_retriever.py": "F3: retrieve_similar accepts glossary_sources param; _apply_glossary_boost static method (boost +0.10/term, capped +0.30, case-insensitive, 3-char min filter)",
-    "src/agents/translator.py": "F3: _build_rag_examples fetches novel's approved glossary source terms from memory.get_all_terms() and passes to retrieve_similar",
-    "src/pipeline/orchestrator.py": "Wired new FeedbackLoop params (chroma_collection, embedding_model, embedding_device, min_adequacy) through feedback_loop property from rag config",
-    "config/settings.yaml": "Added rag.min_adequacy: 0.45",
-    "tests/test_rag_feedback.py": "14 new tests: ChromaDB connection, adequacy column migration + idempotency, low-adequacy rejection, high-adequacy acceptance, score persistence, boost reordering, cap, no-boost-without-glossary, short-term filter, case-insensitive, kwarg acceptance, config wiring"
+    "src/utils/novel_slug.py": "NEW single source of truth: slugify_novel (lower, [^a-z0-9]+->'-', collapse, strip), novel_id_from_slug/_from_name (novel_<slug>), resolve_novel_input_dir (exact->slug->scan root), is_canonical_novel_dir (rejects dotfolders)",
+    "src/memory/memory_manager.py": "_make_novel_id now delegates to novel_id_from_name (lowercases + canonicalizes; was case-preserving -> broke VersionManager row matches)",
+    "src/memory/version_manager.py": "_get_or_create_novel uses novel_id_from_name with novel_ prefix + INSERT OR IGNORE; _get_chapter_file/_copy_to_versions/_scan_files_for_term slugify the novel_name for OUTPUT file paths (no spaces)",
+    "src/pipeline/orchestrator.py": "_save_output builds output dir + meta file from slugify_novel(self._current_novel); meta 'novel' key = slug; _find_chapter_file/translate_chapter/translate_novel resolve input via resolve_novel_input_dir; checkpoint dirs use slug; filename stem prefix from on-disk dir name",
+    "src/web/flask_app.py": "get_novels skips dotfolder dirs; get_translated_chapters + both meta_path reads + progress fallback output_dir all slugify the novel name before joining data/output",
+    "src/cli/commands.py": "run_rebuild_meta + glossary-gen search_roots use resolve_novel_input_dir + slugify_novel for output dir + meta file",
+    "scripts/translate.py": "list_novels skips dotfolders",
+    "scripts/reconcile_novel_ids.py": "NEW idempotent DB repair: deletes phantom dotfolder novel rows, canonicalizes ids, merges on-disk-orphan sibling pairs (a-will-eternal -> a-will-eternal1), handles chapters UNIQUE(novel_id,chapter_num) collisions, --apply flag",
+    "diagnose.py": "get_novel_dirs skips dotfolders; uses novel_id_from_name + slugify_novel for DB id + meta path",
+    "src/dataset_alignment/pipeline.py": "input novel listing skips dotfolders",
+    "tests/test_novel_slug.py": "NEW 19 tests: slugify idempotency/spaces/caps/dots; novel_id MemoryManager<->VersionManager match contract; resolve_novel_input_dir raw<->slug both directions; dotfolder filter; orchestrator output path has no spaces",
+    "plan.md": "Full refactor plan (this task)"
   },
-  "review_status": {
-    "reviewer_a": "PASS",
-    "reviewer_b": "PASS",
-    "final_status": "READY_TO_COMMIT"
-  },
+  "review_status": {},
   "commit_hash": null,
-  "last_checkpoint": null
+  "db_migration_applied": "reconcile_novel_ids.py --apply: 1 phantom deleted, 1 rename, 1 orphan merge (+2458 child rows reparented); idempotent re-run reports nothing"
 }

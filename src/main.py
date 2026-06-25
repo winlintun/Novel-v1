@@ -162,7 +162,11 @@ def main() -> int:
     # the glossary and STOPS. A --chapter-range/--chapter only scopes which
     # chapters are scanned for terms — it does NOT also trigger translation.
     # To translate, run a separate command without --generate-glossary.
-    if args.generate_glossary or getattr(args, 'init_glossary', False):
+    # --from-mm only makes sense as glossary extraction (it reads EN↔MM pairs),
+    # so treat it as implying glossary generation when used on its own.
+    if (args.generate_glossary
+            or getattr(args, 'init_glossary', False)
+            or getattr(args, 'from_mm', False)):
         return run_glossary_generation(args)
 
     # ── Translation commands ──

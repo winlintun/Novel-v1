@@ -110,6 +110,16 @@ class Translator(BaseAgent):
             'retry_num_predict', _TRUNCATION_RETRY_TOKENS
         )
 
+        # QE re-ranking (best-of-N). OFF by default — it multiplies generation cost
+        # by num_candidates. When enabled, each chunk is sampled num_candidates
+        # times (varying only the seed, so Myanmar-safe temperature is unchanged)
+        # and the best output is chosen by src.utils.qe_rerank. See settings.yaml
+        # `rerank:`.
+        rerank_cfg = self.config.get('rerank', {})
+        self.rerank_enabled = bool(rerank_cfg.get('enabled', False))
+        self.rerank_candidates = max(1, int(rerank_cfg.get('num_candidates', 3)))
+        self.rerank_seed_base = int(rerank_cfg.get('seed_base', 1234))
+
     def get_system_prompt(self, source_lang: str = "english", scene_type: str = "narration") -> str:
         """Get system prompt based on source language (chinese or english).
 
@@ -391,6 +401,54 @@ class Translator(BaseAgent):
             return "action"
         return "narration"
 
+    def _best_of_n(
+        self,
+        paragraph: str,
+        prompt: str,
+        system_prompt: str,
+        num_predict: int,
+        chapter_num: int,
+    ) -> tuple[str, str]:
+        """Sample ``rerank_candidates`` translations and return the best one.
+
+        Diversity comes from varying the per-call seed at the SAME temperature, so
+        Myanmar output quality (which degrades above temp 0.2) is preserved. The
+        winner is chosen by :func:`qe_rerank.generate_and_select` using fluency +
+        hard-defect penalties (placeholders, leakage, truncation, loops, length).
+
+        Returns ``(translated, raw)`` where both are the chosen *cleaned* text
+        (``raw`` is kept aligned for the existing downstream retry logic). Falls
+        back to a reinforced single-shot generation if every candidate is empty.
+        """
+        from src.utils.qe_rerank import generate_and_select
+
+        def _gen(i: int) -> str:
+            raw_i = self.ollama.chat(
+                prompt=prompt,
+                system_prompt=system_prompt,
+                num_predict=num_predict,
+                seed=self.rerank_seed_base + i,
+            )
+            return clean_output(raw_i)
+
+        sel = generate_and_select(paragraph, _gen, n=self.rerank_candidates)
+        best = sel.get("best", "")
+        if best and best.strip():
+            logger.info(
+                f"QE best-of-{self.rerank_candidates}: chose candidate "
+                f"{sel['best_index']} (chapter {chapter_num})"
+            )
+            return best, best
+
+        # Every candidate empty — reinforced single-shot fallback (model collapse).
+        logger.warning(
+            f"QE best-of-N produced no usable output (chapter {chapter_num}); "
+            f"retrying with reinforced prompt..."
+        )
+        retry_system = system_prompt + "\n\nIMPORTANT: You must provide a translation. Do not return an empty response."
+        raw = self.ollama.chat(prompt=prompt, system_prompt=retry_system, num_predict=num_predict)
+        return clean_output(raw), raw
+
     def translate_paragraph(
         self,
         paragraph: str,
@@ -432,23 +490,29 @@ class Translator(BaseAgent):
         # job, not the budget's.)
         src_tokens = max(1, int(len(paragraph) * 1.5))
         first_num_predict = min(self.retry_num_predict, max(2048, src_tokens * 3))
-        raw = self.ollama.chat(
-            prompt=prompt,
-            system_prompt=system_prompt,
-            num_predict=first_num_predict,
-        )
-
-        # Handle empty response (model collapse)
-        if not raw or not raw.strip():
-            logger.warning(f"Empty response from model in chapter {chapter_num}. Retrying with reinforced prompt...")
-            retry_system = system_prompt + "\n\nIMPORTANT: You must provide a translation. Do not return an empty response."
+        if self.rerank_enabled and self.rerank_candidates > 1:
+            # Sample N candidates (varying seed) and keep the best under QE scoring.
+            translated, raw = self._best_of_n(
+                paragraph, prompt, system_prompt, first_num_predict, chapter_num
+            )
+        else:
             raw = self.ollama.chat(
                 prompt=prompt,
-                system_prompt=retry_system
+                system_prompt=system_prompt,
+                num_predict=first_num_predict,
             )
 
-        # Clean output
-        translated = clean_output(raw)
+            # Handle empty response (model collapse)
+            if not raw or not raw.strip():
+                logger.warning(f"Empty response from model in chapter {chapter_num}. Retrying with reinforced prompt...")
+                retry_system = system_prompt + "\n\nIMPORTANT: You must provide a translation. Do not return an empty response."
+                raw = self.ollama.chat(
+                    prompt=prompt,
+                    system_prompt=retry_system
+                )
+
+            # Clean output
+            translated = clean_output(raw)
 
         # ── Truncation detection + retry ──
         # If the model stopped mid-sentence (hit its token limit), the tail of the

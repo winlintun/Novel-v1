@@ -516,3 +516,25 @@ STEP 6: SESSION UPDATE
 10. Never create a file in `src/` not listed in the architecture tree without a PLAN phase.
 ---
 
+## 🎯 TRANSLATION QUALITY LESSONS (hard-won — do not re-learn)
+
+1. **PROMPT BUDGET IS SCARCE on the 8B local model — subtract, don't add.**
+   Stacking signal into the prompt (glossary terms, RAG examples, rule blocks,
+   collocations) past ~3–4 strong cues *degrades* overall coherence (content
+   loss, garbled spellings, dialogue slips) even while it fixes individual terms.
+   Measured: auto-review fell 98→95→93 as each layer was added; de-crowding
+   (glossary injection 20→8/chunk, RAG 5→3) recovered it. Defaults reflect this —
+   `rag.top_k: 3`, glossary injection capped at 8/chunk in
+   `MemoryManager.get_all_memory_for_prompt`. **The durable path to human-like
+   output is fine-tuning on the 83k-pair corpus, NOT a heavier prompt.**
+2. **The auto-review score is NOT a quality gauge.** It is fluency/ratio-based and
+   has scored corrupted output 100/100 while missing register mixing, mid-syllable
+   Latin leaks, and content loss. Verify the actual *text* (and the BGE-M3 adequacy
+   score), not the headline number.
+3. **Glossary novel_id must match the translated slug.** The slug `a-will-eternal1`
+   resolves to novel_id `novel_a_will_eternal1`; the rich glossary lived under the
+   sibling `novel_a_will_eternal` (no trailing 1), so the pipeline read an empty
+   glossary and mangled every name. Before blaming the model for bad names/places,
+   confirm the glossary actually exists under the resolved novel_id.
+---
+

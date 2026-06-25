@@ -52,7 +52,7 @@ def _repo_root() -> Path:
 def list_novels(input_dir: Path) -> list[str]:
     if not input_dir.is_dir():
         return []
-    return sorted(p.name for p in input_dir.iterdir() if p.is_dir())
+    return sorted(p.name for p in input_dir.iterdir() if p.is_dir() and not p.name.startswith('.'))
 
 
 def list_chapters(novel_dir: Path) -> list[int]:

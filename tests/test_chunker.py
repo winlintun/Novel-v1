@@ -86,13 +86,41 @@ class TestSmartChunk(unittest.TestCase):
 
 class TestRollingContext(unittest.TestCase):
 
-    def test_rolling_context_respects_token_budget(self):
-        """Context must not exceed max_context_tokens."""
-        big_chunk = "\n\n".join(["word " * 200 for _ in range(10)])
-        context = get_rolling_context(big_chunk, max_context_tokens=400)
-        estimated = estimate_tokens(context)
-        self.assertLessEqual(estimated, 400,
-            f"Rolling context estimated at {estimated} tokens, exceeds 400 budget")
+    def test_rolling_context_floor_overrides_budget(self):
+        """The min-paragraph floor is honored when paragraphs exceed the soft
+        budget but still fit under the hard ceiling (prevents starvation)."""
+        # ~300 tok each (200 chars): 2 → 600 tok > 400 soft budget, < 1200 ceiling.
+        chunk = "\n\n".join(["w" * 200 for _ in range(6)])
+        context = get_rolling_context(chunk, max_context_tokens=400, min_paragraphs=2)
+        self.assertEqual(context.count("\n\n") + 1, 2,
+            "floor must force min_paragraphs when over soft budget but under ceiling")
+
+    def test_rolling_context_hard_ceiling_bounds_floor(self):
+        """The hard ceiling caps total context even against the floor — a
+        pathologically long tail can't blow the model window."""
+        # ~1500 tok each (1000 chars): a single one already exceeds the 1200
+        # ceiling, so only the most-recent paragraph is carried despite floor=2.
+        chunk = "\n\n".join(["w" * 1000 for _ in range(4)])
+        context = get_rolling_context(
+            chunk, max_context_tokens=400, min_paragraphs=2, hard_ceiling_tokens=1200)
+        self.assertEqual(context.count("\n\n") + 1, 1, "ceiling must override floor")
+        self.assertLessEqual(estimate_tokens(context), 1200 + int(1000 * 1.5))
+
+    def test_rolling_context_budget_caps_beyond_floor(self):
+        """Beyond the floor, the soft budget still limits paragraph count."""
+        chunk = "\n\n".join([f"para{i} " * 5 for i in range(10)])  # ~45 tok each
+        context = get_rolling_context(chunk, max_context_tokens=200, min_paragraphs=2)
+        n = context.count("\n\n") + 1
+        # budget 200 / ~45 tok per para → floor 2, then a couple more fit: ~4.
+        self.assertEqual(n, 4, f"expected budget to cap at 4 paragraphs, got {n}")
+
+    def test_rolling_context_short_tail_carries_preceding_paragraph(self):
+        """Regression: a chunk ending in a short line must still pass the larger
+        preceding paragraph forward (the 36-char starvation bug)."""
+        prev = ("x" * 600) + "\n\n" + "His name was Bai."  # 900 tok + 25 tok < ceiling
+        context = get_rolling_context(prev, max_context_tokens=400)
+        self.assertIn("x" * 100, context)   # big preceding paragraph carried
+        self.assertIn("His name was Bai.", context)
 
     def test_empty_chunk_returns_empty_context(self):
         """Empty input must return empty string."""

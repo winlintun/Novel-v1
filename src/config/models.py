@@ -179,6 +179,29 @@ class TranslationPipelineConfig(BaseModel):
         default=False,
         description="Whether to use mig-burmese-llm for Myanmar syntax checking/editing"
     )
+    use_adequacy_gate: bool = Field(
+        default=False,
+        description="Whether to run the BGE-M3 cross-lingual adequacy gate (flags omission/hallucination/meaning-flip as warnings)"
+    )
+    adequacy_action: Literal["warn", "retry", "block"] = Field(
+        default="warn",
+        description=(
+            "What to do when a chunk's adequacy score is below adequacy_min_score. "
+            "'warn': record only (default). 'retry': re-translate up to adequacy_max_retries "
+            "and keep the best-scoring candidate. 'block': retry, then reject the chunk if "
+            "still below threshold (not checkpointed, counts toward early-abort)."
+        )
+    )
+    adequacy_min_score: float = Field(
+        default=0.45,
+        ge=0.0, le=1.0,
+        description="Per-chunk adequacy score (0-1) below which a chunk is considered low-adequacy"
+    )
+    adequacy_max_retries: int = Field(
+        default=1,
+        ge=0, le=5,
+        description="Hard cap on adequacy-triggered re-translations per chunk (NO HANGING: bounded)"
+    )
     syntax_editor_model: str = Field(
         default="models/mig-burmese-llm",
         description="Path to HuggingFace model for Myanmar syntax editing"
@@ -273,6 +296,14 @@ class OutputConfig(BaseModel):
     add_translator_notes: bool = Field(
         default=False,
         description="Whether to add translator notes"
+    )
+    literary_narration: bool = Field(
+        default=False,
+        description=(
+            "Scene-aware register normalization: rewrite colloquial markers "
+            "(ရဲ့→၏, အဲဒီ→ထို) in NARRATION only (dialogue untouched). Off by "
+            "default to preserve the modernization rule; enable for literary novels."
+        )
     )
 
 

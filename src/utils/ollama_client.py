@@ -285,6 +285,7 @@ class OllamaClient:
         model: Optional[str] = None,
         num_predict: Optional[int] = None,
         format: Optional[str] = None,
+        seed: Optional[int] = None,
     ) -> str:
         """
         Send chat request to Ollama with retry + timeout + typed exceptions.
@@ -323,6 +324,12 @@ class OllamaClient:
                     "repeat_penalty": self.repeat_penalty,
                     "timeout": int(self.timeout),  # explicitly enforce timeout per AGENTS.md
                 }
+
+                # Per-call seed lets QE re-ranking draw DIFFERENT samples at the
+                # SAME (Myanmar-safe) temperature — diversity without the quality
+                # loss that raising temperature causes for padauk-gemma.
+                if seed is not None:
+                    options["seed"] = int(seed)
 
                 # Add GPU configuration if enabled
                 if self.use_gpu:

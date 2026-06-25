@@ -26,6 +26,9 @@ scikit-learn>=1.5.0
 evaluate>=0.4.0
 bert-score>=0.3.13
 
+# Translation quality evaluation (chrF vs human reference)
+sacrebleu>=2.4.0
+
 # Testing
 pytest>=7.0.0
 pytest-cov>=4.0.0

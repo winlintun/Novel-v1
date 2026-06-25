@@ -74,7 +74,7 @@ def run_alignment_pipeline(
     else:
         input_dir = cfg.input_dir
         novels_to_process = sorted(
-            d.name for d in input_dir.iterdir() if d.is_dir()
+            d.name for d in input_dir.iterdir() if d.is_dir() and not d.name.startswith('.')
         )
         if not novels_to_process:
             logger.warning(f"No novel directories found in {input_dir}")

@@ -139,6 +139,23 @@ def _check_latin_leakage(text: str) -> CheckResult:
                            f"{total_words} words — excessive English", "CRITICAL")
 
 
+def _check_latin_in_myanmar(text: str) -> CheckResult:
+    """Q3b: Latin letters fused into a Myanmar cluster = decoding corruption.
+
+    Zero-tolerance, unlike the word-count Latin check which treats up to a few
+    "words" as acceptable: a single 'ဟan' (the syllable 'ဟန်' with a Latin
+    fragment) is a defect, not noise. This is what let a corrupted chunk score
+    100/100 — the fused fragment counted as 1 word and passed the ≤5 threshold.
+    """
+    from src.utils.postprocessor import detect_latin_in_myanmar
+    frags = detect_latin_in_myanmar(text)
+    if not frags:
+        return CheckResult("Latin-in-Myanmar", True, 0, "No fused Latin fragments")
+    sample = ', '.join(list(dict.fromkeys(frags))[:5])
+    return CheckResult("Latin-in-Myanmar", False, 15,
+                       f"{len(frags)} fused fragment(s): {sample}", "CRITICAL")
+
+
 def _check_markdown_structure(text: str, expected_chapter: Optional[int] = None) -> List[CheckResult]:
     """Q4: Markdown structure check."""
     results = []
@@ -280,18 +297,34 @@ def _check_particle_repetition(text: str) -> CheckResult:
                        ", ".join(details), "CRITICAL")
 
 
+# Dialogue spans (straight, curly double/single, CJK corner brackets). Register
+# checking must exclude these: Burmese fiction *deliberately* keeps narration
+# formal (သည်/၏/သော) and dialogue colloquial (တယ်/ဘူး/မယ်/ရဲ့), so a whole-text
+# mix is the intended style, not a defect — see postprocessor.normalize_register.
+_QUOTED_SPAN_RE = re.compile(r'"[^"]*"|“[^”]*”|‘[^’]*’|「[^」]*」')
+
+
 def _check_register_consistency(text: str) -> CheckResult:
-    """L4: Register consistency check."""
-    formal = re.findall(r'(သည်|၏|သော|ဖြင့်)', text)
-    colloquial = re.findall(r'(တယ်|ဘူး|မယ်|ရဲ့)', text)
-    if not formal or not colloquial:
-        return CheckResult("Register Consistency", True, 0, "Single register — consistent")
-    # Both formal and colloquial detected = potential mixing
+    """L4: Register consistency check — NARRATION only.
+
+    Old behaviour counted formal vs colloquial particles across the whole text
+    and flagged any balanced mix. That fired on every dialogue-rich chapter,
+    because colloquial speech inside quotes is correct, not drift. We now strip
+    quoted dialogue and only flag genuine register drift *within narration*, and
+    require a meaningful sample of both registers before judging.
+    """
+    narration = _QUOTED_SPAN_RE.sub(' ', text)
+    formal = re.findall(r'(သည်|၏|သော|ဖြင့်)', narration)
+    colloquial = re.findall(r'(တယ်|ဘူး|မယ်|ရဲ့)', narration)
+    # Need enough of BOTH registers in narration to call it drift (avoids noise
+    # from an occasional colloquial aside / free-indirect speech).
+    if len(formal) < 3 or len(colloquial) < 3:
+        return CheckResult("Register Consistency", True, 0, "Narration register consistent")
     ratio = min(len(formal), len(colloquial)) / max(len(formal), len(colloquial), 1)
-    if ratio > 0.5:
+    if ratio > 0.6:
         return CheckResult("Register Consistency", False, 10,
-                           f"Mixed registers: {len(formal)} formal + {len(colloquial)} casual particles", "WARNING")
-    return CheckResult("Register Consistency", True, 0, "Register appears consistent")
+                           f"Narration mixes registers: {len(formal)} formal + {len(colloquial)} colloquial particles", "WARNING")
+    return CheckResult("Register Consistency", True, 0, "Narration register consistent")
 
 
 def _check_sentence_enders(text: str) -> CheckResult:
@@ -327,7 +360,10 @@ def _check_sentence_enders(text: str) -> CheckResult:
             continue
         # Even if it ends with quotes, check if there's a formal ender inside the quotes
         clean_line = line.rstrip('"\'\u201d\u201c ')
-        if not clean_line.endswith(('\u104B', '!', '?')):
+        # Accept the ellipsis (\u2026 / ...) as a complete ending: trailing-off dialogue
+        # ("\u1012\u102b\u1015\u1031\u1019\u101a\u1037\u103a\u2026") is intentional, not truncation. Kept consistent with
+        # postprocessor.looks_truncated, whose _COMPLETE_ENDINGS includes '\u2026'.
+        if not clean_line.endswith(('\u104B', '!', '?', '\u2026', '...')):
             unended += 1
 
     if unended <= 3:
@@ -428,6 +464,33 @@ def _check_repetition_loop(text: str, n: int = 3) -> CheckResult:
                        f"No loop (top {n}-gram x{top_count}, {repeat_ratio:.0%} repeats)")
 
 
+def _check_compression_degeneration(text: str) -> CheckResult:
+    """Degeneration sentinel via zlib compression ratio (model-loop detector).
+
+    Catches *non-exact* repetition loops — paraphrased or drifting repeats — that
+    the exact n-gram / paragraph-duplication checks miss. Highly compressible
+    output is a hallmark of a small model stuck looping.
+    """
+    from src.utils.postprocessor import detect_compression_degeneration
+    r = detect_compression_degeneration(text)
+    if not r["checked"]:
+        return CheckResult("Compression Degeneration", True, 0, "Too short to assess")
+    if r["severe"]:
+        return CheckResult(
+            "Compression Degeneration", False, 40,
+            f"Pathologically compressible ({r['ratio']:.0%}) — model looping",
+            "CRITICAL",
+        )
+    if r["degenerate"]:
+        return CheckResult(
+            "Compression Degeneration", False, 12,
+            f"Highly compressible ({r['ratio']:.0%}) — repetitive output",
+            "WARNING",
+        )
+    return CheckResult("Compression Degeneration", True, 0,
+                       f"Healthy redundancy ({r['ratio']:.0%})")
+
+
 def _check_source_coverage(text: str, source_text: str) -> CheckResult:
     """Compare output size against the source to catch dropped content.
 
@@ -462,6 +525,38 @@ def _check_source_coverage(text: str, source_text: str) -> CheckResult:
         )
     return CheckResult("Source Coverage", True, 0,
                        f"Output {ratio:.0%} of source size ({out} vs {src} chars)")
+
+
+def _check_semantic_coverage(text: str, source_text: str) -> CheckResult:
+    """Sentence-level content-loss check via BGE-M3 embedding alignment.
+
+    Unlike Source Coverage (character ratio), this names the *specific* source
+    sentences with no adequate Myanmar rendering — true dropped/mistranslated
+    content. Degrades to a no-op INFO pass when the embedder is unavailable
+    (CI), so it never blocks a run.
+    """
+    from src.utils.content_alignment import find_dropped_content
+    r = find_dropped_content(source_text, text)
+    if not r["checked"]:
+        return CheckResult("Semantic Coverage", True, 0,
+                           "Embedder unavailable — skipped", "INFO")
+    cov = r["coverage"]
+    n_drop = len(r["dropped"])
+    if cov >= 0.85:
+        return CheckResult("Semantic Coverage", True, 0,
+                           f"{cov:.0%} of source sentences covered")
+    sample = "; ".join(d["source"] for d in r["dropped"][:3])
+    if cov < 0.65:
+        return CheckResult(
+            "Semantic Coverage", False, 30,
+            f"{cov:.0%} coverage — {n_drop} source sentence(s) dropped/mistranslated: {sample}",
+            "CRITICAL",
+        )
+    return CheckResult(
+        "Semantic Coverage", False, 12,
+        f"{cov:.0%} coverage — {n_drop} source sentence(s) weakly covered: {sample}",
+        "WARNING",
+    )
 
 
 # ── Fluency Score (Custom Burmese Heuristic) ──────────────────────
@@ -605,6 +700,7 @@ def review_translation(
     for r in _check_foreign_scripts(text):
         report.add_check(r)
     report.add_check(_check_latin_leakage(text))
+    report.add_check(_check_latin_in_myanmar(text))
     for r in _check_markdown_structure(text, chapter):
         report.add_check(r)
     report.add_check(_check_content_completeness(text))
@@ -618,8 +714,10 @@ def review_translation(
     report.add_check(_check_sentence_enders(text))
     report.add_check(_check_paragraph_duplication(text))
     report.add_check(_check_repetition_loop(text))
+    report.add_check(_check_compression_degeneration(text))
     if source_text:
         report.add_check(_check_source_coverage(text, source_text))
+        report.add_check(_check_semantic_coverage(text, source_text))
 
     # Generate TODO items
     if report.critical_fixes:

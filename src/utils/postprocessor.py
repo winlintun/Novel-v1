@@ -661,6 +661,11 @@ def normalize_character_names(text: str, glossary_terms: list[dict]) -> str:
     if not char_terms:
         return text
 
+    # Normalize longer names first: a full name (ပိုင်ရှောင်ချန်း) must be fixed
+    # before its short form (ရှောင်ချန်း), or the short-form pass can partially
+    # rewrite the middle of the full name and corrupt it.
+    char_terms.sort(key=lambda st: len(st[1]), reverse=True)
+
     for source, target in char_terms:
         target_present = target in text
         # Previously: `if target not in text: continue` — this disabled normalization
@@ -674,11 +679,18 @@ def normalize_character_names(text: str, glossary_terms: list[dict]) -> str:
             continue
         variant_threshold = 0.70 if target_present else 0.75
 
-        # Find all Myanmar sequences of similar length to the target
-        # that appear in similar grammatical positions (before particles)
+        # Find all Myanmar sequences of similar length to the target that appear
+        # in similar grammatical positions (before particles). The capture window
+        # is intentionally wider than ±1 char: a small model drops/garbles a final
+        # syllable (e.g. ပိုင်ရှောင်ချီ for ပိုင်ရှောင်ချန်း, a 2-char gap) which a
+        # ±1 window never even captured. We widen to ~±one syllable and let the
+        # SequenceMatcher threshold below — the real precision guard — reject
+        # genuine non-matches.
         expected_len = len(target)
+        lo = max(3, expected_len - 4)
+        hi = expected_len + 2
         pattern = re.compile(
-            rf'([\u1000-\u109F]{{{expected_len-1},{expected_len+1}}})\s*(?:သည်|က|မှာ|ကို|၏|ပြော|ကြည့်|ရပ်|သွား|လာ|\s|။)',
+            rf'(?:^|[\s"\u201C\u201D\u201E\u104A\u104B\u104C\u104D\u104E\u104F(])([\u1000-\u1049\u1050-\u109F]{{{lo},{hi}}})\s*(?:သည်|က|မှာ|ကို|၏|ပြော|ကြည့်|ရပ်|သွား|လာ|\s|။)',
             re.MULTILINE
         )
 
@@ -908,9 +920,16 @@ def check_content_completeness(source: str, translation: str) -> dict:
     def count_paragraphs(text: str) -> int:
         return len([p.strip() for p in text.split('\n\n') if p.strip()])
     
+    # Dialogue openers. NOTE: the three literals here used to all be the ASCII
+    # straight quote (U+0022), so curly-quoted Myanmar dialogue ("…") was never
+    # counted — undercounting trans_dialogues to ~0 and falsely failing the
+    # completeness gate. Match the same opener set the rest of the module uses
+    # (see _QUOTED_SPAN): straight, curly double/single, and CJK corner bracket.
+    _DIALOGUE_OPENERS = ('"', '“', '‘', '「')
+
     def count_dialogues(text: str) -> int:
         return len([line.strip() for line in text.split('\n')
-                    if line.strip().startswith(('"', '"', '"'))])
+                    if line.strip().startswith(_DIALOGUE_OPENERS)])
     
     src_paras = count_paragraphs(source)
     trans_paras = count_paragraphs(translation)
@@ -974,6 +993,75 @@ def check_latin_script(text: str) -> list[dict]:
                 })
     
     return issues
+
+
+_LATIN_IN_MYANMAR_PATTERN = re.compile(
+    r'[က-႟]+[A-Za-z]+|[A-Za-z]+[က-႟]+'
+)
+
+
+def detect_latin_in_myanmar(text: str) -> list[str]:
+    """Detect Latin letters fused directly to a Myanmar cluster (no space).
+
+    This is the signature of decoding/postprocessing corruption — e.g. the
+    syllable 'ဟန်' emitted as 'ဟ' + Latin 'an' ('ဟan'). It is deliberately
+    distinct from a free-standing romanized proper noun (which is space-
+    delimited and may be legitimate): we match ONLY Latin runs glued straight
+    onto Myanmar, so a real name on its own does not trip it.
+
+    The word-count Latin check tolerates a handful of "words" and so scores
+    'ဟan' as acceptable; this returns it as a hard defect.
+
+    Returns the list of offending fragments (e.g. ['ဟan']); empty if clean.
+    """
+    if not text:
+        return []
+    return _LATIN_IN_MYANMAR_PATTERN.findall(text)
+
+
+# Placeholder marks a model emits when it cannot resolve a token (most often a
+# cross-lingual name like "Bai Xiaochun" → "??"). These are never valid Myanmar
+# prose, so their presence is a hard defect.
+_PLACEHOLDER_PATTERN = re.compile(r'\?{2,}|？{2,}|【\?+】|<unk>|\bUNK\b')
+
+
+def detect_placeholder_marks(text: str) -> list[str]:
+    """Detect unresolved-token placeholders (e.g. '??', '？？', '<unk>').
+
+    The model emits these when it cannot resolve a token on the fly — typically
+    a proper noun it failed to transliterate. They must never survive into final
+    output, so this is treated as a hard defect (retry, then reject).
+    """
+    if not text:
+        return []
+    return _PLACEHOLDER_PATTERN.findall(text)
+
+
+# Noun → numeral-classifier combinations that are semantically wrong. Burmese
+# uses noun-specific classifiers; pairing a village (ရွာ/ကျေးရွာ) with ကျောင်း
+# (the classifier for schools/monasteries/buildings) is a decoding error — the
+# observed bug "ကျေးရွာလေးတစ်ကျောင်း" (should be …တစ်ရွာ). Patterns are tight
+# (\S{0,8}, no spaces) so a legitimately co-occurring noun+building across a
+# space is not flagged. Each entry: (label, compiled_pattern, correct_form).
+_CLASSIFIER_ERROR_RULES = [
+    ("village", re.compile(r'(?:ကျေးရွာ|ရွာ)\S{0,8}ကျောင်း'), "…တစ်ရွာ"),
+]
+
+
+def detect_classifier_errors(text: str) -> list[str]:
+    """Detect semantically wrong noun→numeral-classifier pairings.
+
+    Returns a list of '<label>: <matched fragment> (use <correct>)' strings;
+    empty if clean. Deliberately conservative (a tiny curated rule set with
+    tight, space-free windows) to avoid false-positive rejections.
+    """
+    if not text:
+        return []
+    out: list[str] = []
+    for label, pat, correct in _CLASSIFIER_ERROR_RULES:
+        for m in pat.finditer(text):
+            out.append(f"{label}: '{m.group()}' (use {correct})")
+    return out
 
 
 def check_particle_repetition(text: str, max_per_paragraph: int = 2) -> list[dict]:
@@ -1111,6 +1199,50 @@ def detect_ngram_repetition(text: str, n: int = 4, max_repeats: int = 3) -> dict
         "has_repetition": len(repeated) > 0,
         "repeated_ngrams": repeated,
     }
+
+
+def detect_compression_degeneration(text: str, min_chars: int = 200) -> dict:
+    """Flag degenerate / looping output via its zlib compression ratio.
+
+    Coherent prose carries moderate redundancy and compresses to roughly 30–60%
+    of its original size. When a small model falls into a repetition loop — even
+    a *paraphrased* or drifting one that exact n-gram counting misses — the
+    output becomes far more compressible. A very low ratio is therefore a strong,
+    cheap degeneration signal that complements :func:`detect_ngram_repetition`
+    (exact loops) and the fluency TTR check.
+
+    ratio = compressed_bytes / original_bytes (lower = more repetitive).
+
+    Thresholds are deliberately VERY conservative. Myanmar UTF-8 is byte-heavy
+    and naturally redundant: real Burmese prose measures ~0.33 and *falls further
+    on longer text* (zlib's dictionary grows), so a tight threshold would falsely
+    flag good chapters. A genuine degenerate loop, by contrast, sits near ~0.02–
+    0.10. We therefore only fire on the egregious case and leave mild/partial
+    repetition to :func:`detect_ngram_repetition` and the fluency TTR check, which
+    catch it without the length sensitivity.
+
+    Returns ``{'checked', 'ratio', 'degenerate', 'severe', 'chars'}``.
+    ``checked`` is False for text shorter than ``min_chars`` (ratio is unreliable
+    on tiny inputs because the zlib header dominates).
+    """
+    import zlib
+
+    body = text.strip() if text else ""
+    n = len(body)
+    if n < min_chars:
+        return {"checked": False, "ratio": 1.0, "degenerate": False,
+                "severe": False, "chars": n}
+
+    raw = body.encode("utf-8")
+    comp = zlib.compress(raw, 6)
+    ratio = len(comp) / max(len(raw), 1)
+
+    # < 0.10 ≈ pathological loop; 0.10–0.15 ≈ strongly repetitive. Natural Myanmar
+    # prose (~0.33, lower for long chapters) stays comfortably clear of both.
+    severe = ratio < 0.10
+    degenerate = ratio < 0.15
+    return {"checked": True, "ratio": round(ratio, 3), "degenerate": degenerate,
+            "severe": severe, "chars": n}
 
 
 def check_source_aligned_ordinals(source: str, translation: str) -> list[dict]:
@@ -1440,6 +1572,79 @@ def _arabic_to_myanmar_num(num: int) -> str:
     return ''.join(mm_digits[int(d)] for d in str(num))
 
 
+def fix_foreign_punctuation(text: str) -> str:
+    """Replace/strip Arabic-block punctuation the model occasionally leaks.
+
+    NOTE: the Myanmar little-section mark ၊ (U+104A) and section mark ။ (U+104B)
+    are CORRECT Myanmar punctuation and must be preserved. The leak we fix is the
+    Arabic comma ، (U+060C) and friends (Arabic block U+0600–U+06FF), which look
+    similar but are foreign. ، / ؛ map to the Myanmar comma ၊; other stray Arabic
+    punctuation is dropped.
+    """
+    if not text:
+        return text
+    text = text.replace('،', '၊').replace('؛', '၊')   # Arabic comma/semicolon → Myanmar ၊
+    text = re.sub(r'[؀-ۿ]', '', text)          # drop any remaining Arabic-block chars
+    return text
+
+
+def fix_double_terminator_punct(text: str) -> str:
+    """Drop a Myanmar sentence terminator (။/၊) wedged against ! or ?.
+
+    The model often emits "…မှာပါ။!" (literary terminator + exclamation), a
+    register/punctuation artifact. The intended mark is the ! or ? alone, so we
+    keep that and drop the adjacent ။/၊ on either side.
+    """
+    if not text:
+        return text
+    text = re.sub(r'[။၊]\s*([!?！？])', r'\1', text)   # ။! → !
+    text = re.sub(r'([!?！？])\s*[။၊]', r'\1', text)   # !။ → !
+    return text
+
+
+# Quoted spans = dialogue; register normalization must skip them (characters
+# speak colloquially). Handles straight and curly double quotes + single curly.
+_QUOTED_SPAN = re.compile(r'"[^"]*"|“[^”]*”|‘[^’]*’|「[^」]*」')
+
+# Narration-only colloquial → literary swaps. Composes AFTER replace_archaic_words
+# (which globally modernizes ထို→အဲဒီ): in narration we swap back to the literary
+# register the human corpus uses, while dialogue keeps the modern colloquial forms.
+_NARRATION_LITERARY_SUBS = [
+    ("သူ့ရဲ့", "သူ၏"),    # colloquial possessive → literary (drop redundant ့)
+    ("သူမရဲ့", "သူမ၏"),
+    ("ရဲ့", "၏"),          # generic possessive particle
+    ("အဲဒီ", "ထို"),       # demonstrative "that"
+]
+
+
+def _literary_narration(segment: str) -> str:
+    for old, new in _NARRATION_LITERARY_SUBS:
+        segment = segment.replace(old, new)
+    return segment
+
+
+def normalize_register(text: str) -> str:
+    """Push NARRATION toward literary register; leave DIALOGUE untouched.
+
+    The model leaks colloquial markers (ရဲ့, အဲဒီ) into literary narration, which
+    breaks the historical tone of the human corpus. We rewrite those markers to
+    their literary forms (၏, ထို) ONLY outside quoted spans, so characters still
+    speak colloquially in dialogue. Scene-aware and deliberately conservative (a
+    small curated map, no risky sentence-final တယ်→သည် surgery) to avoid
+    grammatical damage. Idempotent.
+    """
+    if not text:
+        return text
+    out: list[str] = []
+    last = 0
+    for m in _QUOTED_SPAN.finditer(text):
+        out.append(_literary_narration(text[last:m.start()]))  # narration before quote
+        out.append(m.group())                                   # dialogue verbatim
+        last = m.end()
+    out.append(_literary_narration(text[last:]))
+    return ''.join(out)
+
+
 def clean_output(raw: str, aggressive: bool = False, chapter: int = 0) -> str:
     """
     Full postprocessing pipeline. Apply in order:
@@ -1496,6 +1701,12 @@ def clean_output(raw: str, aggressive: bool = False, chapter: int = 0) -> str:
 
     # Fix degraded placeholders
     text = fix_degraded_placeholders(text)
+
+    # Drop "။!"/"။?" terminator-vs-punctuation artifacts
+    text = fix_double_terminator_punct(text)
+
+    # Replace/strip leaked Arabic-block punctuation (، → ၊); preserves Myanmar ၊/။
+    text = fix_foreign_punctuation(text)
 
     # Replace English loanwords transliterated into Myanmar + delete hallucinations
     text = replace_loanwords(text)

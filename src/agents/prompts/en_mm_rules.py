@@ -466,6 +466,24 @@ CULTURAL_RULES = {
     "english_idioms": {
         "rule": "Never translate English idioms literally. Find Myanmar equivalent.",
         "examples": [
+            # ── Narrative collocations the model hallucinated on (human-corpus
+            # ground truth from the A Will Eternal ch1 reference). Distinctive
+            # keywords only, to avoid over-firing on common words. ──
+            {
+                "en": "washed so many times",
+                "wrong_mm": "ဆပ်ပေးခဲ့ / ထပ်ခါထပ်ခါ လျှော်",
+                "correct_mm": "ဖန်တရာတေအောင် လျှော်ထား",
+            },
+            {
+                "en": "shrugged helplessly",
+                "wrong_mm": "ဘေးကင်းစွာ လက်လျှော့",
+                "correct_mm": "ဘာတတ်နိုင်သလဲဆိုသည့်အမူအရာဖြင့် ပခုံးတွန့်ပြ",
+            },
+            {
+                "en": "patted him kindly on the shoulder",
+                "wrong_mm": "ပခုံးကို ခေါက်ပေး / ထိုး",
+                "correct_mm": "ပုခုံးကို ဖြည်းညင်းစွာ ပုတ်ပေး",
+            },
             {
                 "en": "It takes two to tango",
                 "wrong_mm": "တင်းဂိုကခုန်ဖို့ နှစ်ယောက်လိုတယ်",
@@ -1012,7 +1030,6 @@ EN_FROM_CHINESE_RULES = {
             "Cultivation": "ကျင့်ကြံ",
             "Cultivator": "ကျင့်ကြံသူ",
             "Mortal": "သေမျိုး",
-            "Immortal": "မြတ်စွာ",
             "Heavenly Dao": "ကောင်းကင်တရား",
             "Karma": "ကမ္မ",
             "Prohibition": "တားမြစ်",

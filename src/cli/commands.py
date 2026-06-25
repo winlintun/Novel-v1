@@ -348,6 +348,7 @@ def run_glossary_generation(args: argparse.Namespace) -> int:
     logger = setup_logging()
 
     try:
+        from src.utils.novel_slug import resolve_novel_input_dir
         config = load_config(args.config)
 
         if not args.novel:
@@ -363,7 +364,7 @@ def run_glossary_generation(args: argparse.Namespace) -> int:
             # Handle --all flag for glossary generation (like translation does)
             if getattr(args, 'all', False):
                 # Discover all chapters in the input folder
-                novel_dir = Path(INPUT_DIR) / args.novel
+                novel_dir = resolve_novel_input_dir(Path(INPUT_DIR), args.novel) or (Path(INPUT_DIR) / args.novel)
                 en_dir = novel_dir / "en"
                 if en_dir.is_dir():
                     chapters = _discover_chapters(en_dir)
@@ -383,9 +384,10 @@ def run_glossary_generation(args: argparse.Namespace) -> int:
         from_mm = getattr(args, 'from_mm', False)
         chapter_files = []  # list of (chapter_num, en_file) or (chapter_num, en_file, mm_file)
         for chapter_num in chapters:
+            _novel_dir = resolve_novel_input_dir(Path(INPUT_DIR), args.novel) or (Path(INPUT_DIR) / args.novel)
             search_roots = [
-                Path(INPUT_DIR) / args.novel / "en",
-                Path(INPUT_DIR) / args.novel,
+                _novel_dir / "en",
+                _novel_dir,
             ]
             # Use orchestrator's finder if already loaded, otherwise inline
             from src.pipeline.orchestrator import TranslationPipeline
@@ -1218,7 +1220,9 @@ def run_rebuild_meta(args: argparse.Namespace) -> int:
         logger.error("--novel is required for --rebuild-meta")
         return 1
         
-    output_dir = Path("data/output") / args.novel
+    from src.utils.novel_slug import slugify_novel
+    novel_slug = slugify_novel(args.novel)
+    output_dir = Path("data/output") / novel_slug
     if not output_dir.exists():
         logger.error(f"Output directory {output_dir} does not exist.")
         return 1
@@ -1261,7 +1265,7 @@ def run_rebuild_meta(args: argparse.Namespace) -> int:
     }
     
     # Write single cumulative meta file
-    meta_file = output_dir / f"{args.novel}.mm.meta.json"
+    meta_file = output_dir / f"{novel_slug}.mm.meta.json"
     try:
         with open(meta_file, 'w', encoding='utf-8') as f:
             json.dump(cumulative_meta, f, indent=2, ensure_ascii=False)

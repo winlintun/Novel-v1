@@ -622,12 +622,20 @@ class VersionManager:
 
         Tries multiple zero-padding formats (3-digit and 4-digit) to handle
         mismatches between orchestrator save path and version manager lookup.
+
+        The output directory and file stem use the canonical slug
+        (`slugify_novel(novel_name)`), never the raw folder name — the
+        orchestrator writes to the slug path, so the lookup must agree. A
+        spaces-in-name novel (e.g. "Daoist Master of Qing Xuan") would never
+        resolve here otherwise.
         """
+        from src.utils.novel_slug import slugify_novel
+        slug = slugify_novel(novel_name)
         patterns = [
-            self.output_dir / novel_name / f"{novel_name}_chapter_{chapter_num:04d}.mm.md",
-            self.output_dir / novel_name / f"{novel_name}_chapter_{chapter_num:03d}.mm.md",
-            self.output_dir / novel_name / f"{chapter_num:04d}.mm.md",
-            self.output_dir / novel_name / f"{chapter_num:03d}.mm.md",
+            self.output_dir / slug / f"{slug}_chapter_{chapter_num:04d}.mm.md",
+            self.output_dir / slug / f"{slug}_chapter_{chapter_num:03d}.mm.md",
+            self.output_dir / slug / f"{chapter_num:04d}.mm.md",
+            self.output_dir / slug / f"{chapter_num:03d}.mm.md",
         ]
         for p in patterns:
             if p.exists():
@@ -636,18 +644,26 @@ class VersionManager:
         return patterns[0]
 
     def _get_or_create_novel(self, novel_name: str) -> str:
-        """Get novel ID, creating if necessary."""
+        """Get novel ID, creating if necessary.
+
+        Uses the canonical `novel_id_from_name` so a VersionManager-created row
+        matches the MemoryManager-created row for the same novel (the old code
+        minted a hyphenated, un-prefixed id like `daoist-master-of-qing-xuan`
+        that never matched MemoryManager's `novel_daoist_master_of_qing_xuan`,
+        silently breaking glossary reattachment — AGENTS.md lesson #3).
+        """
+        from src.utils.novel_slug import novel_id_from_name
         novel_id = self._get_novel_id(novel_name)
         if novel_id:
             return novel_id
 
-        # Create new novel record
-        slug = re.sub(r'[^\w\-]', '-', novel_name.lower())
+        # Create new novel record with the canonical novel_id.
+        novel_id = novel_id_from_name(novel_name)
         self.db.execute(
-            "INSERT INTO novels (id, name, source_language) VALUES (?, ?, ?)",
-            (slug, novel_name, "chinese"),
+            "INSERT OR IGNORE INTO novels (id, name, source_language) VALUES (?, ?, ?)",
+            (novel_id, novel_name, "chinese"),
         )
-        return slug
+        return novel_id
 
     def _get_novel_id(self, novel_name: str) -> Optional[str]:
         """Get novel ID by name."""
@@ -662,16 +678,19 @@ class VersionManager:
 
     def _copy_to_versions(self, source: Path, novel_name: str, chapter_num: int) -> Path:
         """Copy a chapter file to the versions directory."""
+        from src.utils.novel_slug import slugify_novel
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")  # Include microseconds for uniqueness
-        filename = f"{novel_name}_{chapter_num:04d}_{timestamp}.mm.md"
+        slug = slugify_novel(novel_name)
+        filename = f"{slug}_{chapter_num:04d}_{timestamp}.mm.md"
         dest = self.versions_dir / filename
         shutil.copy2(source, dest)
         return dest
 
     def _scan_files_for_term(self, novel_name: str, term: str) -> list[dict]:
         """Scan all chapter files for a term."""
+        from src.utils.novel_slug import slugify_novel
         matches = []
-        novel_dir = self.output_dir / novel_name
+        novel_dir = self.output_dir / slugify_novel(novel_name)
         if not novel_dir.exists():
             return matches
 
