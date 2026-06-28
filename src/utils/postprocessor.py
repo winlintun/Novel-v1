@@ -1674,6 +1674,13 @@ def clean_output(raw: str, aggressive: bool = False, chapter: int = 0) -> str:
     Returns:
         Cleaned text
     """
+    # Defensive: the model can return None/empty (empty completion, failed
+    # auto-fallback). Never crash here \u2014 an empty string is a valid "no output"
+    # that downstream empty/truncation guards already handle.
+    if not raw:
+        return ""
+    if not isinstance(raw, str):
+        raw = str(raw)
     text = raw.replace('\ufeff', '')
     text = strip_reasoning_tags(text)
     text = strip_reasoning_process(text)

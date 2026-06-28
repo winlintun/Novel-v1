@@ -120,6 +120,23 @@ class Translator(BaseAgent):
         self.rerank_candidates = max(1, int(rerank_cfg.get('num_candidates', 3)))
         self.rerank_seed_base = int(rerank_cfg.get('seed_base', 1234))
 
+        # Secondary-model fallback for per-chunk model collapse. When the primary
+        # translator returns empty twice (e.g. a completion-only model with no
+        # chat template intermittently yielding empty output, as translategemma
+        # does), re-translate that single chunk with a known chat-capable model
+        # (the refiner/editor/checker, typically padauk-gemma) instead of emitting
+        # a blank chunk. Resolved once here; only used when it differs from the
+        # primary so we never "fall back" to the same failing model.
+        models_cfg = self.config.get('models', {}) if self.config else {}
+        primary_model = getattr(self.ollama, 'model', '') if self.ollama else ''
+        self._fallback_model = (
+            models_cfg.get('refiner')
+            or models_cfg.get('editor')
+            or models_cfg.get('checker')
+        )
+        if not self._fallback_model or self._fallback_model == primary_model:
+            self._fallback_model = None
+
     def get_system_prompt(self, source_lang: str = "english", scene_type: str = "narration") -> str:
         """Get system prompt based on source language (chinese or english).
 
@@ -506,10 +523,44 @@ class Translator(BaseAgent):
             if not raw or not raw.strip():
                 logger.warning(f"Empty response from model in chapter {chapter_num}. Retrying with reinforced prompt...")
                 retry_system = system_prompt + "\n\nIMPORTANT: You must provide a translation. Do not return an empty response."
-                raw = self.ollama.chat(
+                retry_raw = self.ollama.chat(
                     prompt=prompt,
                     system_prompt=retry_system
                 )
+                # The retry can also come back empty/None — keep whatever is
+                # non-empty so we never pass None downstream to clean_output.
+                raw = retry_raw or raw or ""
+
+                # Still empty after two tries → the primary model has collapsed on
+                # this chunk. Rather than blanking it, re-translate the single chunk
+                # with a chat-capable secondary model (e.g. padauk-gemma).
+                if not raw.strip() and self._fallback_model:
+                    logger.warning(
+                        f"Primary translator collapsed (empty x2) on a chunk in "
+                        f"chapter {chapter_num}; falling back to secondary model "
+                        f"'{self._fallback_model}'."
+                    )
+                    try:
+                        fb_raw = self.ollama.chat(
+                            prompt=prompt,
+                            system_prompt=retry_system,
+                            model=self._fallback_model,
+                            num_predict=first_num_predict,
+                        )
+                    except Exception as e:
+                        logger.warning(
+                            f"Secondary-model fallback raised in chapter {chapter_num}: {e}"
+                        )
+                        fb_raw = ""
+                    if fb_raw and fb_raw.strip():
+                        logger.info(
+                            f"Secondary model '{self._fallback_model}' recovered the "
+                            f"collapsed chunk in chapter {chapter_num}."
+                        )
+                        raw = fb_raw
+
+                if not raw.strip():
+                    logger.warning(f"Model returned empty response twice in chapter {chapter_num}; continuing with empty output.")
 
             # Clean output
             translated = clean_output(raw)

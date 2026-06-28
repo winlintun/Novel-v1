@@ -73,8 +73,13 @@ class OllamaClient:
         self.main_gpu = main_gpu
         self._is_connected = False
 
-        # Configure ollama client
-        self.client = ollama.Client(host=base_url)
+        # Configure ollama client. The timeout is passed THROUGH to the
+        # underlying httpx client (ollama.Client forwards **kwargs to httpx) so
+        # generation requests are actually bounded — NO HANGING REQUESTS rule.
+        # Note: a "timeout" key inside the per-request `options` dict is ignored
+        # by Ollama (options is the model-runtime namespace: num_ctx, temperature,
+        # ...), so the request timeout MUST be set here on the client.
+        self.client = ollama.Client(host=base_url, timeout=timeout)
         self._is_connected = True
 
         # Log GPU configuration
@@ -308,8 +313,27 @@ class OllamaClient:
         for attempt in range(self.max_retries):
             try:
                 # Adjust options based on model
-                is_gemma = "gemma" in effective_model.lower()
-                is_padauk = "padauk" in effective_model.lower()
+                model_lower = effective_model.lower()
+                is_gemma = "gemma" in model_lower
+                is_padauk = "padauk" in model_lower
+                # Reasoning models (DeepSeek-R1, QwQ, *-thinking) emit a long
+                # <think>...</think> block BEFORE the answer. With the normal
+                # 1024-token budget the reasoning alone can exhaust num_predict
+                # and truncate the actual translation, so give them more room.
+                # (The <think> block is stripped later by postprocessor.clean_output.)
+                is_reasoning = any(
+                    marker in model_lower
+                    for marker in ("deepseek-r1", "-r1", "qwq", "thinking", "reasoning")
+                )
+
+                # Pick a model-appropriate output budget. Reasoning models need
+                # the most; gemma/padauk get a generous default; others 1024.
+                if is_reasoning:
+                    default_num_predict = 4096
+                elif is_gemma or is_padauk:
+                    default_num_predict = 2048
+                else:
+                    default_num_predict = 1024
 
                 # Use configurable num_ctx (default 8192 per need_fix.md)
                 # and keep_alive (default 10m per need_fix.md)
@@ -317,12 +341,15 @@ class OllamaClient:
                     "temperature": self.temperature,
                     # Per-call override lets callers raise the token budget on a
                     # truncation retry; otherwise use the model-appropriate default.
-                    "num_predict": num_predict if num_predict else (2048 if is_gemma or is_padauk else 1024),
+                    "num_predict": num_predict if num_predict else default_num_predict,
                     "num_ctx": self.num_ctx,
                     "top_p": self.top_p,
                     "top_k": self.top_k,
                     "repeat_penalty": self.repeat_penalty,
-                    "timeout": int(self.timeout),  # explicitly enforce timeout per AGENTS.md
+                    # NOTE: request timeout is enforced on the httpx client in
+                    # __init__ (ollama.Client(timeout=...)). A "timeout" key here
+                    # would be an ignored no-op — Ollama treats `options` as the
+                    # model-runtime namespace only.
                 }
 
                 # Per-call seed lets QE re-ranking draw DIFFERENT samples at the
@@ -358,7 +385,9 @@ class OllamaClient:
                     )
                     # Parse response: handles both dict (old) and object (ollama>=0.5)
                     raw_response = self._extract_generate_response(response)
-                    return raw_response
+                    # Honor the -> str contract: extraction can yield None on an
+                    # empty completion; callers must never receive None.
+                    return raw_response or ""
                 else:
                     messages = []
                     if system_prompt:
@@ -396,7 +425,8 @@ class OllamaClient:
                         if raw_content:
                             logger.info(f"Auto-fallback to /api/generate succeeded for {effective_model}")
 
-                    return raw_content
+                    # Honor the -> str contract: never return None.
+                    return raw_content or ""
 
             except (ConnectionError, ConnectionAbortedError, ConnectionRefusedError) as e:
                 # Do NOT retry connection failures — raise immediately
