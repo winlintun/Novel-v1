@@ -11,23 +11,29 @@
 model_roles:
   checker:
   - padauk-gemma:q8_0
+  - qwen3.5:9b
   glossary_sync:
   - padauk-gemma:q8_0
+  - qwen3.5:9b
   qa_final:
   - padauk-gemma:q8_0
+  - qwen3.5:9b
   refiner:
   - padauk-gemma:q8_0
   - sailor2-20b
   - yxchia/seallms-v3-7b:Q4_K_M
+  - qwen3.5:9b
   translator:
   - padauk-gemma:q8_0
   - gemma4-e4b-it:q8_0
+  - qwen3.5:9b
+  - qwen3.6:27b
 models:
   checker: padauk-gemma:q8_0
   editor: padauk-gemma:q8_0
   gpu_layers: -1
   main_gpu: 0
-  num_ctx: 8192  # must exceed largest assembled prompt (system+glossary+context+chunk); 8192 was too small for 14B models
+  num_ctx: 16384  # must exceed largest assembled prompt (system+glossary+context+chunk); 8192 was too small for 14B models
   ollama_base_url: http://localhost:11434
   provider: ollama
   refiner: padauk-gemma:q8_0
@@ -35,8 +41,8 @@ models:
   # Big models (14-20B) overflow the ~7GB Vulkan VRAM and get split onto CPU,
   # dropping generation to ~1-3 tok/s. 600s timed them out mid-chunk (empty
   # output). 1800s lets a CPU-split chunk finish — at the cost of 10-25 min/chunk.
-  timeout: 1800
-  translator: gemma4-e4b-it:q8_0  # change model (ch1 benchmark: 100% Myanmar, zero leakage, fits VRAM)
+  timeout: 600
+  translator: qwen3.5-9b:latest  # change model (ch1 benchmark: 100% Myanmar, zero leakage, fits VRAM)
   use_gpu: true
   gemma_4_e4b:
     name: gemma-4-e4b-it:q8_0
@@ -52,6 +58,26 @@ models:
     max_tokens: 4096
     chunk_size: 800
     repeat_penalty: 1.5
+  qwen3_5_9b:
+    name: qwen3.5:9b
+    temperature: 0.25
+    max_tokens: 4096
+    chunk_size: 1200
+    repeat_penalty: 1.25
+    top_k: 40
+    top_p: 0.95
+    num_ctx: 16384
+    timeout: 600
+  qwen3_6_27b:
+    name: qwen3.6:27b
+    temperature: 0.2
+    max_tokens: 8192
+    chunk_size: 1500
+    repeat_penalty: 1.2
+    top_k: 20
+    top_p: 0.90
+    num_ctx: 32768
+    timeout: 900
 myanmar_readability:
   block_on_fail: false
   enabled: true
@@ -76,10 +102,10 @@ paths:
   templates_dir: templates
 processing:
   chunk_size: 1200
-  chunk_timeout: 3600  # per-chunk wall-clock cap; must exceed request_timeout (= 2*timeout) so a slow CPU-split big model isn't killed early
+  chunk_timeout: 1800  # per-chunk wall-clock cap; must exceed request_timeout (= 2*timeout) so a slow CPU-split big model isn't killed early
   max_retries: 2
   repeat_penalty: 1.3
-  request_timeout: 1800
+  request_timeout: 600
   stream: true
   temperature: 0.3
   top_k: 40
@@ -400,10 +426,33 @@ model_presets:
       repeat_penalty: 1.2
       chunk_size: 2000
       vram_gb: 11
+    qwen3-5-9b:
+      name: qwen3.5:9b
+      display_name: Qwen 3.5 9B (Fast Myanmar)
+      description: 9B dense. 201 languages, multimodal. Fits 8GB GPU at Q4. Best value for translation.
+      category: myanmar
+      temperature: 0.25
+      max_tokens: 4096
+      repeat_penalty: 1.25
+      chunk_size: 1200
+      vram_gb: 6
+    qwen3-6-27b:
+      name: qwen3.6:27b
+      display_name: Qwen 3.6 27B (Premium)
+      description: 27B dense. SWE-bench 77.2%, beats Qwen3.5-397B on coding. Needs 24GB GPU.
+      category: premium
+      temperature: 0.2
+      max_tokens: 8192
+      repeat_penalty: 1.2
+      chunk_size: 1500
+      vram_gb: 17
   categories:
     myanmar:
       label: "🇲🇲 Myanmar Translation Models"
       description: "Models proven to output quality Myanmar text"
+    premium:
+      label: "💎 Premium Translation Models"
+      description: "High-quality models requiring 16GB+ VRAM"
     pivot:
       label: "🌉 Pivot Models (CN→EN)"
       description: "For Chinese to English translation (Stage 1 only)"
