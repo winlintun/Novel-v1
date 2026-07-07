@@ -30,6 +30,12 @@ from src.agents.prompts.en_mm_rules import (
     build_rewriter_prompt,
 )
 
+# Model-aware prompt builder — per-model optimized prompts
+from src.agents.prompts.model_prompts import (
+    build_prompt_for_model,
+    detect_model_family,
+)
+
 # Re-export surface for `from src.agents.prompts import ...`. Listed in __all__
 # so the re-exports above are not flagged as unused imports (F401).
 __all__ = [
@@ -49,4 +55,6 @@ __all__ = [
     "EN_CULTURAL_RULES",
     "build_en_context",
     "build_rewriter_prompt",
+    "build_prompt_for_model",
+    "detect_model_family",
 ]

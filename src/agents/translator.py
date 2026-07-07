@@ -16,6 +16,7 @@ from src.utils.cultural_injector import build_cultural_injection
 from src.agents.base_agent import BaseAgent
 from src.agents.prompts import (
     TRANSLATOR_SYSTEM_PROMPT,
+    build_prompt_for_model,
 )
 
 
@@ -137,8 +138,17 @@ class Translator(BaseAgent):
         if not self._fallback_model or self._fallback_model == primary_model:
             self._fallback_model = None
 
+        # Model family tracking — set by get_system_prompt() on first call.
+        # Used to handle model-specific behavior (e.g. TranslateGemma no-system-role).
+        self._model_family = ""
+        self._model_notes = ""
+
     def get_system_prompt(self, source_lang: str = "english", scene_type: str = "narration") -> str:
         """Get system prompt based on source language (chinese or english).
+
+        Uses model_prompts.build_prompt_for_model() to get the correct prompt
+        for the active Ollama model. Each model family (gemma4, padauk, qwen,
+        sailor2, translategemma) gets a prompt tuned to its architecture.
 
         Args:
             source_lang: Source language ("chinese" or "english")
@@ -149,12 +159,15 @@ class Translator(BaseAgent):
             return self._custom_system_prompt
         model_name = getattr(self.ollama, 'model', '') if self.ollama else ''
         genre = self.config.get('project', {}).get('novel_genre', '') if self.config else ''
-        return get_language_prompt(
-            source_lang,
-            model_name=model_name,
+        prompt_info = build_prompt_for_model(
+            model_name,
+            source_lang=source_lang,
             scene_type=scene_type,
             genre=genre,
         )
+        self._model_family = prompt_info["family"]
+        self._model_notes = prompt_info["notes"]
+        return prompt_info["system_prompt"]
 
     def build_prompt(self, text: str, rolling_context: str = "") -> str:
         """Build translation prompt with memory context and rolling translation context.
@@ -471,6 +484,7 @@ class Translator(BaseAgent):
         paragraph: str,
         chapter_num: int = 0,
         rolling_context: str = "",
+        defect_hint: Optional[str] = None,
     ) -> str:
         """
         Translate a single paragraph with English detection and retry.
@@ -479,12 +493,30 @@ class Translator(BaseAgent):
             paragraph: Source text paragraph (Chinese or English)
             chapter_num: Current chapter number for logging
             rolling_context: Tail of previous translated chunk (≤400 tokens)
+            defect_hint: Optional reminder text from the orchestrator describing
+                a decoding defect in a previous attempt of this same chunk
+                (e.g. Latin fused into Myanmar). When set, the hint is appended
+                to the user prompt so the retry avoids the same defect class.
+                When None, the prompt is unchanged (preserves the pre-defect-
+                framework behavior).
             
         Returns:
             Myanmar translation
         """
         # Build prompt with context
         prompt = self.build_prompt(paragraph, rolling_context=rolling_context)
+        if defect_hint:
+            # Append the defect reminder AFTER the main prompt so it's the last
+            # instruction the model attends to. Kept short and imperative per
+            # AGENTS.md lesson #1 (prompt budget is scarce on the 8B model).
+            prompt = prompt + "\n\n" + defect_hint
+
+        # Disable thinking mode for Qwen 3.x models — they emit <think> blocks
+        # that consume the token budget before any translation appears.
+        # /no_think is the documented Qwen 3 method to suppress reasoning output.
+        model_name = getattr(self.ollama, 'model', '') if self.ollama else ''
+        if 'qwen3' in model_name.lower():
+            prompt = prompt + "\n/no_think"
 
         # Select correct system prompt based on source language
         source_lang = self.config.get('project', {}).get('source_language', 'chinese')
