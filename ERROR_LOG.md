@@ -1,8 +1,42 @@
 # Error Log & Fix Record
 
-> **Purpose**: Track all runtime errors encountered and their fixes for AI agent reference.
+> **Purpose**: Track all runtime errors encountered and fixes for AI agent reference.
 > **Updated**: Auto-updated by AI agents after fixing errors
 > **Format**: Chronological log with error details, root cause, and fix verification
+
+---
+
+### SESSION (2026-07-08): BGE-M3 model loading hang during quality check
+**Scope**: `src/dataset_alignment/embedder.py`, `src/agents/checker.py`
+**Status**: UNCOMMITTED. Files compile cleanly.
+**Verification**: `python -m py_compile src/dataset_alignment/embedder.py src/agents/checker.py` — OK.
+
+- **ERR-101 — Translation program appears to hang at "Step 5/7: Checking quality"**: The adequacy gate (`use_adequacy_gate: true` in settings.yaml) triggers the first-time BGE-M3 model load via `Checker.adequacy_embedder` → `BGEEmbedder()` → `SentenceTransformer()`. This 2.2GB model load takes 30-120+ seconds on CPU but had **zero logging**, so from the user's perspective the program appeared to hang silently after "Step 5/7: Checking quality for chunk 1/2...". The log also showed "Loading SentenceTransformer model from models/bge-m3" which was the only indicator. *Fix*: Added `logger.info()` before and after the model load in `BGEEmbedder.model` property (with timing), and in `Checker.adequacy_embedder` property (initialization message). Now users see clear progress: "Loading BGE-M3 embedding model... (first use, may take 30-120s)..." followed by "BGE-M3 model loaded in X.Xs".
+
+---
+
+### SESSION (2026-06-28): Chapter-file discovery — hyphen separator not matched by glossary-gen path
+**Scope**: `src/cli/commands.py` (`_discover_chapters`), `tests/test_workflow_routing.py`
+**Status**: UNCOMMITTED (working tree dirty). Touched-file tests + lint verified.
+**Verification**: `pytest tests/test_workflow_routing.py -v --tb=short` → 16 passed (11 pre-existing + 5 new); `ruff check --select=E,F --ignore=E501 src/cli/commands.py tests/test_workflow_routing.py` → clean.
+
+- **ERR-097 — `_discover_chapters` in `commands.py` silently returned 0 chapters for hyphen-separated file names**: the helper used two `re.match` patterns that hard-coded the underscore (`r".+_chapter_(\d+)"`, `r"chapter_(\d+)"`) and a third pattern anchored at the stem start (`r"(\d+)"`) which never fired for `chapter-NNNN.md` stems (they start with `c`, not a digit). Result: `--generate-glossary --all` against a novel whose files are `chapter-0001.md` (hyphen, e.g. `data/input/daoist-master-of-fqing-xuan/en/`) silently discovered 0 chapters. The sibling `TranslationPipeline._discover_chapters` in `orchestrator.py:1083` already used the correct pattern `(?:chapter[\s_-]*)?(\d{3,4})$`. *Fix*: replaced the body of `commands._discover_chapters` with the same canonical regex (handles `_`, `-`, space + anchors the number at the stem end so `chapter-0001_review` is not hijacked). 5 regression tests in `tests/test_workflow_routing.py::TestChapterDiscovery` cover hyphen-only / underscore-only / mixed / standalone-numeric / suffix-no-hijack.
+- **Note (not a bug)** — the "Chapter 76 / 125 not found" warnings in `logs/translation_20260628_155114.log` lines 1-32 were CORRECT: chapters 76 and 125 genuinely don't exist on disk in `data/input/daoist-master-of-fqing-xuan/en/` (verified via `dir`). The pipeline warned and skipped them while processing 1022/1024 chapters.
+
+---
+
+### SESSION (2026-06-28): Defect-driven retry framework + chapter-end validate pass=False fix
+**Scope**: `src/utils/defect_hints.py` (NEW), `src/utils/postprocessor.py` (+`strip_latin_in_myanmar`, +`collapse_repetition_loops`), `src/pipeline/orchestrator.py` (retry loop hint wiring + defect-block strip + pass=False fix), `src/agents/translator.py` (defect_hint param), `tests/test_defect_hints.py` (NEW), `tests/test_translator.py` (+3 tests)
+**Status**: UNCOMMITTED. Touched+adjacent tests + lint verified.
+**Verification**: `pytest tests/test_defect_hints.py tests/test_translator.py tests/test_postprocessor.py tests/test_workflow_routing.py -v --tb=short` → 137 passed. `ruff check --select=E,F --ignore=E501` clean on all 6 modified files. Regression against `eternal-sacred-king_chapter_0001mm.md` real-file quality check confirmed strip + placeholder-cleanup leave file readable (Latin 1→0, placeholder 4→0, Myanmar ratio preserved 99.27%).
+
+- **ERR-098 — adequacy-retry loop repeated the same decoding defect on every attempt (no signal to the model)**: the orchestrator's `_translate_chunks` retry loop called `_produce_chunk_translation(chunk, rolling_context, i, total)` with identical inputs on every attempt — so whatever defect the model emitted on attempt 1 (Latin fused into Myanmar, placeholder, repetition, language leakage, Indic-script leak, wrong classifier), the model produced the same defect class on attempt 2 with no instruction to change behaviour. Verified from `logs/translation_20260628_134722.log`: chunk 12 attempt 1 emitted `ကြည့်နေဟan`, attempt 2 emitted `ဖြစ်နေဟan` (same defect family). *Fix*: new `src/utils/defect_hints.py` — a registry of 6 defect classes (latin_in_myanmar, placeholder, classifier, repetition_loop, language_leakage, indic_script_leak), each with a short imperative reminder the orchestrator appends to the translator's NEXT retry attempt. `build_defect_hint(defects)` parses the orchestrator's detector strings to canonical keys; returns None for empty/unknown (preserves existing path). Translator `translate_paragraph(..., defect_hint: Optional[str] = None)` appends it after the base prompt so it's the last instruction the model attends to. Default None keeps every existing call site unchanged. New defect classes can be added by extending `REGISTRY` without orchestrator edits. Model-agnostic and novel-agnostic.
+
+- **ERR-099 — `_validate_translation` did not set `report['pass'] = False` on n-gram repetition**: orchestrator.py:2402 `if ngram_result['has_repetition']` was appending the issue to `report['issues']` but NOT setting `report['pass'] = False`, unlike every other check (content_loss, ordinal, latin_script, source_aligned_ordinals). Result: chapter 1 of `eternal-sacred-king` was logged with "Repetition detected: 'ောက်' ×103" but still saved as `pass=True`. *Fix*: added `report['pass'] = False` before the issue-append, matching the pattern used elsewhere. Covered by regression test `test_validate_translation_sets_pass_false_on_ngram_repetition`.
+
+- **ERR-100 (SURFACED, NOT FIXED — pre-existing false-positive)** — `detect_ngram_repetition` (postprocessor.py:1232) treats any 4-gram appearing ≥3 times as repetition. For Myanmar literary text, common particles (`ောက်`, `သည်။`, `ောင်`, `ကို `) naturally appear 50-100+ times per long chapter — the function flags GOOD chapters as collapsed. Verified: `data/output/eternal-sacred-king_chapter_0001.mm.md` showed `ောက် ×103` but with NO consecutive 12-char repeats (sliding 16-char window analysis: max-consecutive is 0 at n=12/16/20/30/50). The chapter is fine. Now that ERR-099 sets `pass=False`, this false positive becomes a BLOCKER for saving legitimate chapters. *Scheduled for follow-up*: switch `detect_ngram_repetition` from raw-count to consecutive-window heuristic (collapse is the same phrase repeated back-to-back, not the same 4-char fragment scattered).
+
+- **Output cleanup applied to existing file** — `data/output/eternal-sacred-king_chapter_0001.mm.md`: stripped 1 glued-Latin fragment (`ဖြစ်နေဟan`) and normalized 4 `??` placeholders to `【?name?】` using the new `strip_latin_in_myanmar` helper. Backup at `eternal-sacred-king_chapter_0001.mm.md.bak`.
 
 ---
 

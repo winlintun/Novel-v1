@@ -568,6 +568,15 @@
       "prevention": "Strengthen register rule in prompts",
       "times_seen": 1,
       "last_seen": "2026-06-20"
+    },
+    {
+      "id": "ERR-101",
+      "error_type": "BGEModelLoadHang",
+      "trigger": "First-time BGE-M3 model load during adequacy gate blocks for 30-120s with no logging, appearing as program hang",
+      "solution": "Added logging before/after model load in BGEEmbedder.model and Checker.adequacy_embedder properties",
+      "prevention": "Always log progress for long-running operations (model loads, file I/O). Use timing logs to help diagnose performance issues.",
+      "times_seen": 1,
+      "last_seen": "2026-07-08"
     }
   ]
 }

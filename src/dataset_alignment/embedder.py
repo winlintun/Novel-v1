@@ -1,11 +1,15 @@
 """BGE-M3 multilingual embedder with disk caching for RAG ingestion."""
 
 import hashlib
+import logging
+import time
 from typing import Optional
 
 import numpy as np
 
 from src.dataset_alignment.config import get_alignment_config
+
+logger = logging.getLogger(__name__)
 
 
 class BGEEmbedder:
@@ -29,6 +33,11 @@ class BGEEmbedder:
     @property
     def model(self):
         if self._model is None:
+            logger.info(
+                "Loading BGE-M3 embedding model from %s (first use, may take 30-120s)...",
+                self.model_name,
+            )
+            t0 = time.time()
             try:
                 from sentence_transformers import SentenceTransformer
                 self._model = SentenceTransformer(
@@ -36,6 +45,8 @@ class BGEEmbedder:
                 )
             except Exception as e:
                 raise RuntimeError(f"Failed to load BGE-M3: {e}")
+            elapsed = time.time() - t0
+            logger.info("BGE-M3 model loaded in %.1fs", elapsed)
         return self._model
 
     def encode(self, texts: list[str]) -> np.ndarray:

@@ -5,9 +5,79 @@
 ---
 
 ## Last Updated
-- Date: 2026-06-24
-- Last task completed: Novel path/slug refactor — canonical slug util + tolerant I/O + DB reconciliation (multi-novel input support)
-- Git commit: HEAD `5497aa7` (working tree dirty — this session's refactor, not yet committed)
+- Date: 2026-07-08
+- Last task completed: Fixed BGE-M3 model loading hang during quality check
+- Git commit: pending
+
+## Session Summary (2026-07-08 — BGE-M3 model loading hang fix)
+- ✅ **Task** — Fix translation program appearing to hang during quality check step
+- ✅ **Root cause** — First-time BGE-M3 model load at `embedder.py:34` was blocking (30-120s) with **no logging**, appearing as a program hang. The adequacy gate (`use_adequacy_gate: true`) triggers this load on the first chunk's quality check.
+- ✅ **Fix** — Added logging to `BGEEmbedder.model` property and `Checker.adequacy_embedder` property:
+  - `embedder.py`: Added `logger.info("Loading BGE-M3 embedding model...")` before load, `logger.info("BGE-M3 model loaded in %.1fs")` after
+  - `checker.py`: Added `logger.info("Initializing BGE-M3 adequacy embedder...")` on first access
+- ✅ **Files modified**:
+  - `src/dataset_alignment/embedder.py` — Added logging import, logger, and timing
+  - `src/agents/checker.py` — Added initialization log message
+- ✅ **Verification** — Both files compile cleanly (`py_compile`)
+- 📋 **Status** — Fix implemented, awaiting user verification
+
+## Session Summary (2026-07-08 — model prompt analysis & output review)
+- ✅ **Task** — Review all model outputs in `data/output/a-will-eternal/` and identify why some models fail and what prompt fixes are needed.
+- ✅ **Models reviewed** — padauk-gemma, gemma4, translategemma, qwen3.5-9b, sailor2-20b, qwen3.6-27b
+- ✅ **Root causes identified**:
+  - qwen3.5-9b: thinking mode leak (`` blocks, internal reasoning leaked, infinite repetition loop)
+  - sailor2-20b: persona override too weak (English words leaked, Myanmar ratio only 36-40%)
+  - translategemma: code block contamination (``` wrapping, empty parentheses)
+  - qwen3.6-27b: hardware limitation (27B model too large, Ollama timeout)
+  - padauk-gemma: works well (99.4% Myanmar ratio, quality 85/100), minor particle overuse
+  - gemma4: works well, minor `${}` template leak
+- ✅ **Prompt architecture validated** — `model_prompts.py` correctly dispatches model-specific prompts. No prompt rewrite needed.
+- ✅ **Fixes needed** (postprocessor, not prompt):
+  1. Add `` block stripper for qwen3.5
+  2. Add code block stripper for translategemma
+  3. Add `${}` template stripper for gemma4
+  4. Strengthen sailor2 persona override
+  5. Add particle normalization (က x4 → က x2 max)
+- 📋 **Review** — Reviewer A (architecture) + Reviewer B (Myanmar quality) both PASS. FINAL_STATUS: READY_TO_COMMIT.
+- ⚠️ **Not committed** — analysis only, no code changes.
+
+## Session Summary (2026-07-07 — model-aware prompts)
+- ✅ **Root cause** — all EN→MM models were getting the same 13K-char prompt regardless of capabilities. Qwen3.5-9b (16K context) was overwhelmed causing truncated output, English leakage, and HTTP 500 crashes.
+- ✅ **Fix** — rewrote `model_prompts.py` with 6 model-specific prompt builders based on model_detail.md:
+  - Gemma4: full detailed prompt (5.4K chars, 128K context, thinking disabled)
+  - Padauk: concise CUSTOM_PADAUK prompt (7.1K chars, degrades with long instructions)
+  - TranslateGemma: no system role, single user message per Google guide
+  - Qwen3.5/3.6: SHORT prompt (4K chars, prevents Chinese drift and truncation)
+  - Sailor2: SHORT prompt + persona override (4.2K chars, NOT Sailor2)
+  - Generic: same as Gemma4
+- ✅ **qwen3.5-9b fix verified** — old prompt 13,274 chars → new prompt 4,056 chars (-70%). Fits in 16K context window.
+- ✅ **All models tested** — detect_model_family, build_prompt_for_model, validate_myanmar_output all pass.
+- 🧪 **Tests** — 626 passed, 2 pre-existing failures (unrelated).
+- 📋 **Review** — Reviewer A (architecture) + Reviewer B (Myanmar quality) both PASS. FINAL_STATUS: READY_TO_COMMIT.
+- ✅ **Committed and pushed** — commit 0e8bbdb.
+
+## Session Summary (2026-06-28 — defect-driven retry framework)
+- ✅ **Root cause** — the adequacy-retry loop in `_translate_chunks` re-ran the translator with identical inputs every attempt, so whatever defect the model emitted on attempt 1 (Latin fused into Myanmar, placeholder, repetition, language leakage, Indic-script leak, wrong classifier) was repeated on attempt 2. Verified from `logs/translation_20260628_134722.log`: chunk 12 attempt 1 emitted `ကြည့်နေဟan`, attempt 2 emitted `ဖြစ်နေဟan` (same class of defect with NO signal to the model to avoid it).
+- ✅ **Design decision — defect class drives the retry, NOT the model.** New `src/utils/defect_hints.py` registry covers 6 defect classes (latin_in_myanmar, placeholder, classifier, repetition_loop, language_leakage, indic_script_leak). New defect classes can be added by extending `REGISTRY` — no orchestrator change required. The same reminders help padauk-gemma, qwen2.5, gemma, and future fine-tuned adapters that exhibit the same family of decoding errors.
+- ✅ **Part A — deferral registry** (`src/utils/defect_hints.py`): `DefectHint` dataclass per class (defect_type, reminder, strip_fn). `build_defect_hint(defects)` parses orchestrator's hyphen format ("latin-in-myanmar ['ဟan']") and returns composite reminder; returns None for empty/unknown → existing path unchanged.
+- ✅ **Part B — Orchestrator wiring** (`src/pipeline/orchestrator.py`): retry loop now builds `defect_hint = build_defect_hint(best.get("defects", []))` and passes it to `_produce_chunk_translation(chunk, rolling_context, i, total, defect_hint=defect_hint)`. When a chunk's hard-defect survives all retries, the rejected-but-stitched text is cleaned via `strip_defects` so the saved chapter isn't visibly broken (HARD CONSTRAINT 2: never drop content — chunk still flagged in chapter validation).
+- ✅ **Part C — Translator accepts defect_hint** (`src/agents/translator.py:469`): `translate_paragraph(..., defect_hint: Optional[str] = None)` appends it to the user prompt AFTER base prompt so it's the last instruction the model attends to. Default `None` preserves all existing call sites unchanged.
+- ✅ **Part D — Strip helpers** (`src/utils/postprocessor.py`): added `strip_latin_in_myanmar` (drops Latin tail glued to Myanmar consonant — preserves Myanmar stem) and `collapse_repetition_loops` (collapses consecutive identical Myanmar phrase repeats to one instance; runs to fixed point in ≤5 passes; does NOT touch natural particle repetition — verified against real files).
+- ✅ **Bug fix found in review** — `_validate_translation` (orchestrator.py:2402) was adding `Repetition detected` to `report['issues']` but did NOT set `report['pass'] = False`. This is why chapter 1's log showed "Repetition detected: 'ောက်' ×103" but the chapter was still saved. Fixed: now sets `report['pass'] = False` like every other check does.
+- ⚠️ **Pre-existing false-positive discovered (NOT fixed in this commit)** — `detect_ngram_repetition` (postprocessor.py:1232) treats any 4-gram appearing ≥3 times as repetition. For Myanmar literary text, common particles (`ောက်`, `သည်။`, `ောင်`, `ကို `) appear 50-100+ times per long chapter NATURALLY — the function flags GOOD chapters as collapsed. Verified: `data/output/eternal-sacred-king_chapter_0001.mm.md` showed `ောက် ×103` but with NO consecutive 12-char repeats (chapter is fine). Fix scheduled for a follow-up — switch to consecutive-window heuristic instead of raw count.
+- 🧹 **Real output cleanup** — applied the new strip helpers to `data/output/eternal-sacred-king_chapter_0001.mm.md`: 1 glued-Latin fragment (`ဖြစ်နေဟan`) removed, 4 `??` placeholders normalized to `【?name?】`. Backup at `.bak`.
+- 🧪 **Tests** — 23 new in `tests/test_defect_hints.py` (classification, build, strip routing, strip_fn exception safety); 3 new in `tests/test_translator.py` (defect_hint None keeps prompt unchanged / set appends to end / existing leakage-retry path unaffected). 6 end-to-end regression tests against the failing ch1 chunks (mock translator returns dirty→clean). Touched+adjacent suite: **137 passed**, 0 regressions.
+- 🧹 **Lint** — `ruff --select=E,F --ignore=E501` clean on `defect_hints.py`, `postprocessor.py`, `orchestrator.py`, `translator.py`, `test_defect_hints.py`, `test_translator.py`.
+- 📋 **Review** — Reviewer A (architecture) + Reviewer B (Myanmar quality) both PASS. FINAL_STATUS: READY_TO_COMMIT.
+- ⚠️ **Not committed** — per top-level instruction.
+
+## Session Summary (2026-06-28 — chapter-file discovery separator fix)
+- ✅ **Root cause** — `src/cli/commands.py::_discover_chapters` only matched `_chapter_` (underscore) regex; for `chapter-NNNN.md` (hyphen) novels like `daoist-master-of-fqing-xuan`, `--generate-glossary --all` silently discovered 0 chapters. Verified: tmpdir test with `chapter-0001.md`, `chapter-0002.md`, `novel_chapter_0003.md` returned only `[3]` from the old function vs `[1, 2, 3]` from the orchestrator's `_discover_chapters`.
+- ✅ **Fix** — replaced the function body with the canonical pattern from `TranslationPipeline._discover_chapters` (orchestrator.py:1083): `re.search(r'(?:chapter[\s_-]*)?(\d{3,4})$', stem)` accepts underscore, hyphen, and space separators; anchored at stem end so auxiliary suffixes (`chapter-0001_review`) don't hijack discovery.
+- ✅ **Latent issue ruled out** — the original "Chapter 76/125 not found" WARNING in `translation_20260628_155114.log` was CORRECT behavior: those chapters genuinely don't exist on disk (user's novel has gaps). Pipeline correctly warned + skipped them while processing the remaining 1022/1024 chapters.
+- 🧪 **Tests** — 5 new in `tests/test_workflow_routing.py::TestChapterDiscovery`: hyphen-only, underscore-only, mixed, standalone-numeric, suffix-no-hijack. Full file: **16 passed**. Lint: `ruff --select=E,F --ignore=E501` clean on `commands.py` + test file.
+- 📋 **Review** — Reviewer A (architecture) + Reviewer B (Myanmar quality) both PASS. FINAL_STATUS: READY_TO_COMMIT.
+- ⚠️ **Not committed** — per top-level instruction. Phase gate held at AUDIT pending explicit user commit request.
 
 ## Session Summary (2026-06-24 — Novel path/slug refactor, multi-novel input support)
 - ✅ **Root cause — 3-way novel_id/slug drift.** Three independent functions

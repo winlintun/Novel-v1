@@ -385,6 +385,7 @@ English translation:"""
         as None — so we never retry a broken import on every chunk.
         """
         if self._adequacy_embedder is _UNSET:
+            logger.info("Initializing BGE-M3 adequacy embedder (first chunk only)...")
             try:
                 from src.dataset_alignment.embedder import BGEEmbedder
                 self._adequacy_embedder = BGEEmbedder()

@@ -1,6 +1,24 @@
 {
-  "last_updated": "2026-06-16T10:00:00Z",
+  "last_updated": "2026-07-08T12:35:00Z",
   "lessons": [
+    {
+      "date": "2026-07-08",
+      "context": "BGE-M3 model loading hang during quality check",
+      "lesson": "First-time ML model loads (SentenceTransformer, PyTorch, etc.) can block for 30-120+ seconds with NO logging, appearing as a program hang. The BGE-M3 adequacy gate triggers this load on the first chunk's quality check. Users see 'Step 5/7: Checking quality' then nothing for minutes. RAG retriever had this logging ('Loading BGE-M3 query embedder (first use, may take a minute)...') but the adequacy gate's independent load path did not.",
+      "action": "Always add progress logging for model loads and long-running operations. Use timing logs (time.time() before/after) to help diagnose performance issues. Log at INFO level for user-facing operations."
+    },
+    {
+      "date": "2026-07-08",
+      "context": "Model prompt analysis — reviewing all output files for a-will-eternal",
+      "lesson": "Prompt system is architecturally correct but failures are OUTPUT FORMATTING issues, not prompt issues. qwen3.5-9b leaks thinking blocks (``), translategemma wraps in code blocks (```), gemma4 leaks ${} template vars. The fix is POSTPROCESSOR, not prompt rewrite. Sailor2 persona override needs to be stronger (model ignores weak instructions).",
+      "action": "Add postprocessor strips: (1) `` blocks for qwen3, (2) ``` blocks for translategemma, (3) ${} templates for gemma4. Strengthen sailor2 prompt with explicit 'NEVER output English' instruction."
+    },
+    {
+      "date": "2026-07-07",
+      "context": "qwen3.5-9b translation failure — truncated output, English leakage, HTTP 500",
+      "lesson": "Prompt budget is SCARCE on small models. Qwen3.5-9b with 16K context got a 13K-char prompt (full ENGLISH_TRANSLATOR_SYSTEM_PROMPT + rules + patch) which overwhelmed it. Result: truncated output, 856 English words in Myanmar output, format crashes. Fixed by creating SHORT prompt (4K chars) with only essential rules. Each model family needs a differently-sized prompt tuned to its context window.",
+      "action": "Always check prompt size vs model context window. For 9B models: max 4K chars system prompt. For 27B models: max 8K chars. For 128K+ models (Gemma4): full prompt OK."
+    },
     {
       "date": "2026-06-16",
       "context": "EN→MM quality review a-will-eternal1 Chapter 1",
@@ -72,6 +90,26 @@
     "padauk-gemma:q8_0": {
       "avg_quality_score": 82.0,
       "chapters_tested": 35
+    },
+    "gemma4-e4b-it:q8_0": {
+      "avg_quality_score": 85.0,
+      "chapters_tested": 1,
+      "notes": "Clean output, minor ${} template leak"
+    },
+    "qwen3.5-9b:latest": {
+      "avg_quality_score": 0,
+      "chapters_tested": 1,
+      "notes": "BROKEN: thinking leak, infinite repetition loop, debug output leaked"
+    },
+    "sailor2-20b-chat.q4:latest": {
+      "avg_quality_score": 0,
+      "chapters_tested": 1,
+      "notes": "REJECTED: English words, Myanmar ratio only 36-40%"
+    },
+    "translategemma-simple:latest": {
+      "avg_quality_score": 0,
+      "chapters_tested": 1,
+      "notes": "PARTIAL: code block contamination, empty parentheses"
     }
   }
 }
