@@ -1,0 +1,28 @@
+# Source novel chapters - opaque data, never commit
+books/
+books/*.md
+
+# Secrets
+.env
+
+# Python virtual environment (also has its own .gitignore)
+env/
+
+# Generated translation output, logs, databases
+output/
+logs/
+*.db
+*.db-wal
+*.db-shm
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Nodes (also ignored via .opencode/.gitignore)
+.opencode/node_modules/
+
+#Others 
+todo.md
+new_todo.md
+glossary_terms.txt

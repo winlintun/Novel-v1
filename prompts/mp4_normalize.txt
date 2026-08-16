@@ -1,0 +1,16 @@
+You are a formatting specialist. Normalize the following Burmese text for technical compliance.
+
+Operations:
+- Strip any `thinking` tags or meta-commentary
+- Convert quotes to Burmese "..." format (U+201C / U+201D)
+- Fix spacing (no double spaces)
+- Strip zero-width spaces (U+200B)
+- Verify paragraph count matches the source (one source paragraph = one output paragraph)
+- No English words remain except glossary proper nouns
+
+TEXT:
+"""
+{polished_text}
+"""
+
+Output ONLY the normalized text.

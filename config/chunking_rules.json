@@ -1,0 +1,50 @@
+{
+  "version": "1.0",
+  "strategy": "scene_based",
+  "parameters": {
+    "max_paragraphs_per_chunk": 5,
+    "min_paragraphs_per_chunk": 2,
+    "overlap_paragraphs": 1,
+    "max_chunk_tokens_estimate": 1500
+  },
+  "scene_break_indicators": [
+    "---",
+    "\n\n\n",
+    "# ",
+    "## "
+  ],
+  "dialogue_preservation": {
+    "enabled": true,
+    "rule": "Consecutive dialogue paragraphs by same or alternating speakers must remain in same chunk",
+    "max_consecutive_dialogue": 6,
+    "overflow_action": "split_at_speaker_change"
+  },
+  "paragraph_types": {
+    "dialogue": {
+      "pattern": "^\"",
+      "weight": 1.0
+    },
+    "narration": {
+      "pattern": "^[^\"]",
+      "weight": 1.0
+    },
+    "mixed": {
+      "threshold": 0.3,
+      "description": "If dialogue lines / total lines > 0.3, classify as mixed"
+    }
+  },
+  "chunk_types": {
+    "dialogue-heavy": {
+      "dialogue_ratio": "> 0.6",
+      "few_shot_category": "dialogue"
+    },
+    "narration-heavy": {
+      "dialogue_ratio": "< 0.2",
+      "few_shot_category": "narration"
+    },
+    "mixed": {
+      "dialogue_ratio": "0.2 - 0.6",
+      "few_shot_category": "mixed"
+    }
+  }
+}

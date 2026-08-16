@@ -1,0 +1,172 @@
+{
+  "version": "1.0",
+  "auto_fix_enabled": true,
+  "max_auto_fix_per_chunk": 10,
+    "priorities": [
+      "R-GLOSS-01", "R-GLOSS-02", "R-GLOSS-03", "R-GLOSS-04",
+      "R-STRUCT-04", "R-FORBID-03", "R-FORBID-04", "R-FORBID-05", "R-STYLE-01", "R-STYLE-02", "R-STYLE-03",
+      "R-STRUCT-01", "R-STRUCT-02", "R-FORMAT-01", "R-FORMAT-04", "R-CTX-01"
+    ],
+  "rules": [
+    {
+      "id": "R-GLOSS-01",
+      "enabled": true,
+      "severity": "fatal",
+      "scope": "global",
+      "enforcement": "verify",
+      "regex": "",
+      "replacement": "",
+      "description": "Exact glossary term usage (Verifier scans against glossary index)"
+    },
+    {
+      "id": "R-GLOSS-02",
+      "enabled": true,
+      "severity": "fatal",
+      "scope": "global",
+      "enforcement": "verify",
+      "regex": "",
+      "replacement": "",
+      "description": "Locked terms immutable - cannot vary even with context"
+    },
+    {
+      "id": "R-GLOSS-03",
+      "enabled": true,
+      "severity": "warning",
+      "scope": "global",
+      "enforcement": "verify",
+      "regex": "",
+      "replacement": "",
+      "description": "New term detection: proper noun not in glossary -> flag, add to pending_glossary.json"
+    },
+    {
+      "id": "R-GLOSS-04",
+      "enabled": true,
+      "severity": "error",
+      "scope": "global",
+      "enforcement": "verify",
+      "regex": "",
+      "replacement": "",
+      "description": "Alias resolution: use canonical Burmese from glossary, not literal translation"
+    },
+    {
+      "id": "R-STYLE-01",
+      "enabled": true,
+      "severity": "error",
+      "scope": "narration_only",
+      "enforcement": "verify",
+      "regex": "",
+      "replacement": "",
+      "description": "Narration is literary Burmese; spoken particles forbidden in narration"
+    },
+    {
+      "id": "R-STYLE-02",
+      "enabled": true,
+      "severity": "error",
+      "scope": "dialogue_only",
+      "enforcement": "verify",
+      "regex": "",
+      "replacement": "",
+      "description": "Dialogue uses spoken register (နော်/လေ/ပါ/တယ်/လား)"
+    },
+    {
+      "id": "R-STYLE-03",
+      "enabled": true,
+      "severity": "error",
+      "scope": "character_specific",
+      "enforcement": "verify",
+      "regex": "",
+      "replacement": "",
+      "description": "Character voice consistency via ContextBuffer active speakers"
+    },
+    {
+      "id": "R-STRUCT-01",
+      "enabled": true,
+      "severity": "error",
+      "scope": "global",
+      "enforcement": "verify",
+      "regex": "",
+      "replacement": "",
+      "description": "Scene breaks preserved"
+    },
+    {
+      "id": "R-STRUCT-02",
+      "enabled": true,
+      "severity": "error",
+      "scope": "global",
+      "enforcement": "verify",
+      "regex": "",
+      "replacement": "",
+      "description": "One source paragraph = one output paragraph"
+    },
+    {
+      "id": "R-STRUCT-04",
+      "enabled": true,
+      "severity": "fatal",
+      "scope": "global",
+      "enforcement": "verify",
+      "regex": "",
+      "replacement": "",
+      "description": "Overlap paragraphs character-identical to previous chunk"
+    },
+    {
+      "id": "R-FORMAT-01",
+      "enabled": true,
+      "severity": "error",
+      "scope": "global",
+      "enforcement": "verify",
+      "regex": "\\\"",
+      "replacement": "",
+      "description": "No straight ASCII quotes; use Burmese quotes \u201c/\u201d"
+    },
+    {
+      "id": "R-FORMAT-04",
+      "enabled": true,
+      "severity": "fatal",
+      "scope": "global",
+      "enforcement": "auto",
+      "regex": "\u200b",
+      "replacement": "",
+      "description": "Strip zero-width spaces (U+200B)"
+    },
+    {
+      "id": "R-FORBID-03",
+      "enabled": true,
+      "severity": "fatal",
+      "scope": "global",
+      "enforcement": "verify",
+      "regex": "[A-Za-z]{2,}",
+      "replacement": "",
+      "description": "Zero untranslated English fragments (glossary-aware)"
+    },
+    {
+      "id": "R-FORBID-04",
+      "enabled": true,
+      "severity": "error",
+      "scope": "global",
+      "enforcement": "verify",
+      "regex": "",
+      "replacement": "",
+      "description": "No mixed literary/spoken register in the same sentence"
+    },
+    {
+      "id": "R-FORBID-05",
+      "enabled": true,
+      "severity": "fatal",
+      "scope": "global",
+      "enforcement": "verify",
+      "regex": "",
+      "replacement": "",
+      "description": "No foreign script (Thai/Bengali/Devanagari/Hangul) in output"
+    },
+    {
+      "id": "R-CTX-01",
+      "enabled": true,
+      "severity": "error",
+      "scope": "global",
+      "enforcement": "verify",
+      "regex": "",
+      "replacement": "",
+      "description": "Context buffer pronoun/speaker continuity"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+# Core pipeline + MCP client access
+requests>=2.31.0
+python-dotenv>=1.0.0
+
+# Optional: faster glossary matching (regex fallback built-in)
+flashtext>=2.5.0
+
+# Tests
+pytest>=8.0

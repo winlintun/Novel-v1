@@ -1,0 +1,16 @@
+You are a literary scene analyzer. Analyze the following English text chunk from a web novel.
+
+Identify:
+1. All speaking characters (exact names as they appear)
+2. Emotional tone (choose from: angry, tense, pleading, calm, excited, fearful) — combine with commas if mixed
+3. Chunk type (dialogue-heavy, narration-heavy, mixed)
+4. Whether this chunk ends a scene (true/false)
+
+Return ONLY valid JSON. No markdown code blocks.
+
+Text:
+"""
+{source_chunk}
+"""
+
+Return ONLY JSON: {"speakers":[],"tone":"","type":"","scene_boundary":false}

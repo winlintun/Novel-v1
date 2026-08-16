@@ -1,0 +1,1768 @@
+{
+  "version": "2.0",
+  "last_updated": "2026-08-09",
+  "novel_title": "My House of Horrors",
+  "original_title": "我有一座恐怖屋",
+  "myanmar_title": "ကျွန်တော်မှာ ကြောက်စရာသရဲအိမ်တစ်လုံးရှိတယ်",
+  "author": "I Fix Air-Conditioner (我会修空调)",
+  "source_language": "zh",
+  "target_language": "my",
+  "loanword_allowlist": ["HP", "NPC", "QQ", "ID", "Level"],
+  "total_entries": 116,
+  "categories": {
+    "main_characters": {
+      "category_name": "Main Characters",
+      "myanmar_category_name": "အဓိကဇာတ်ကောင်များ",
+      "description": "Core characters who drive the plot",
+      "entries": [
+        {
+          "term": "Chen Ge",
+          "translation": "ချန်ဂီ",
+          "original_name": "陈歌",
+          "category": "character",
+          "gender": "male",
+          "formality": "informal",
+          "first_appearance_chapter": 1,
+          "locked": true,
+          "aliases": [
+            "Chen Ge",
+            "ChenGe",
+            "Boss Chen",
+            "Boss",
+            "President of Ghost Stories Society",
+            "Door Pusher of Haunted House"
+          ],
+          "pronoun_dialogue": "ငါ",
+          "pronoun_to_elders": "ကျွန်တော်",
+          "particles": [
+            "ကွာ",
+            "ဗျာ",
+            "ပဲ"
+          ],
+          "role": "Main Protagonist",
+          "notes": "Owner of Chen Ge's Haunted House. Uses ငါ with peers, ကျွန်တော် with Uncle Xu. Pragmatic, stubborn, secretly emotional about parents."
+        },
+        {
+          "term": "Zhang Ya",
+          "translation": "ကျန်းယာ",
+          "original_name": "张雅",
+          "category": "character",
+          "gender": "female",
+          "formality": "polite",
+          "first_appearance_chapter": 1,
+          "locked": true,
+          "aliases": [
+            "Zhang Ya"
+          ],
+          "pronoun_dialogue": "ကျွန်မ",
+          "particles": [
+            "နော်",
+            "လေ",
+            "ပါ"
+          ],
+          "role": "Main Female Lead (Specter)",
+          "notes": "Top Red Specter → Demon God. Has twisted, obsessive love for Chen Ge. Later becomes his shadow."
+        },
+        {
+          "term": "Xu Wan",
+          "translation": "ရှောင်ဝမ်",
+          "original_name": "徐婉",
+          "category": "character",
+          "gender": "female",
+          "formality": "polite",
+          "first_appearance_chapter": 1,
+          "locked": true,
+          "aliases": [
+            "Xiao Wan",
+            "Xu Wan",
+            "Wan"
+          ],
+          "pronoun_dialogue": "ကျွန်မ",
+          "particles": [
+            "နော်",
+            "လေ",
+            "ပါ"
+          ],
+          "role": "Main Supporting Character (Living)",
+          "notes": "Ghost makeup artist at haunted house. Loyal, feisty, polite to boss."
+        },
+        {
+          "term": "Xu Yin",
+          "translation": "ရှူယင်",
+          "original_name": "许音",
+          "category": "character",
+          "gender": "male",
+          "formality": "formal",
+          "first_appearance_chapter": 1,
+          "locked": true,
+          "aliases": [
+            "Xu Yin"
+          ],
+          "pronoun_dialogue": "ကျွန်တော်",
+          "particles": [
+            "ပါ",
+            "ဗျာ"
+          ],
+          "role": "Major Specter Ally",
+          "notes": "Special-type Red Specter. Catchphrase: 'နာတယ်'. Pain empowerment."
+        },
+        {
+          "term": "Doctor Gao",
+          "translation": "ဒေါက်တာကောင်း",
+          "original_name": "高医生 / 高铭",
+          "category": "character",
+          "gender": "male",
+          "formality": "formal",
+          "first_appearance_chapter": 1,
+          "locked": true,
+          "aliases": [
+            "Doctor Gao",
+            "Gao Ming",
+            "No.10 of Ghost Stories Society"
+          ],
+          "pronoun_dialogue": "ကျွန်တော်",
+          "particles": [
+            "ပါ",
+            "ဗျာ"
+          ],
+          "role": "Major Antagonist turned Ally",
+          "notes": "Former president of Ghost Stories Society. Forensic doctor. Eventually Demon God."
+        },
+        {
+          "term": "Men Nan",
+          "translation": "မန့်နန်း",
+          "original_name": "门楠",
+          "category": "character",
+          "gender": "male",
+          "formality": "informal",
+          "first_appearance_chapter": 1,
+          "locked": true,
+          "aliases": [
+            "Men Nan"
+          ],
+          "pronoun_dialogue": "ငါ",
+          "particles": [
+            "ကွာ",
+            "ပဲ"
+          ],
+          "role": "Major Supporting Character",
+          "notes": "Child with three personalities. Door-pusher of Third Sick Hall."
+        },
+        {
+          "term": "Bai Qiulin",
+          "translation": "ဘိုင်ချူလင်",
+          "original_name": "白秋林",
+          "category": "character",
+          "gender": "male",
+          "formality": "informal",
+          "first_appearance_chapter": 1,
+          "locked": true,
+          "aliases": [
+            "Bai Qiulin"
+          ],
+          "pronoun_dialogue": "ငါ",
+          "particles": [
+            "ကွာ",
+            "ပဲ"
+          ],
+          "role": "Major Specter Ally",
+          "notes": "Former gambler, Red Specter. Friendly but cruel in battle."
+        },
+        {
+          "term": "Yan Danian",
+          "translation": "ယန်ဒါနီရန်",
+          "original_name": "闫大年",
+          "category": "character",
+          "gender": "male",
+          "formality": "informal",
+          "first_appearance_chapter": 1,
+          "locked": true,
+          "aliases": [
+            "Yan Danian"
+          ],
+          "pronoun_dialogue": "ငါ",
+          "particles": [
+            "ကွာ",
+            "ပဲ"
+          ],
+          "role": "Major Specter Ally",
+          "notes": "Failed comic artist. Strongest below Red Specter rank. Soul Painting ability."
+        },
+        {
+          "term": "The Shadow",
+          "translation": "အရိပ်",
+          "original_name": "影子",
+          "category": "character",
+          "gender": "neutral",
+          "formality": "informal",
+          "first_appearance_chapter": 1,
+          "locked": true,
+          "aliases": [
+            "The Shadow",
+            "Shadow"
+          ],
+          "pronoun_dialogue": "ငါ",
+          "particles": [
+            "ကွာ"
+          ],
+          "role": "Major Antagonist",
+          "notes": "Chen Ge's separated shadow. Greater Red Specter level. Deceased."
+        },
+        {
+          "term": "Hospital Director",
+          "translation": "ဆေးရုံအုပ်ကြီး",
+          "original_name": "院长",
+          "category": "character",
+          "gender": "male",
+          "formality": "formal",
+          "first_appearance_chapter": 1,
+          "locked": true,
+          "aliases": [
+            "Hospital Director",
+            "Director"
+          ],
+          "pronoun_dialogue": "ကျွန်တော်",
+          "particles": [
+            "ပါ"
+          ],
+          "role": "Final Antagonist",
+          "notes": "Ultimate villain. Demon God. Built Cursed Hospital."
+        },
+        {
+          "term": "The Painter",
+          "translation": "ပန်းချီဆရာ",
+          "original_name": "画家",
+          "category": "character",
+          "gender": "male",
+          "formality": "formal",
+          "first_appearance_chapter": 1,
+          "locked": true,
+          "aliases": [
+            "The Painter",
+            "Painter"
+          ],
+          "pronoun_dialogue": "ကျွန်တော်",
+          "particles": [
+            "ပါ"
+          ],
+          "role": "Major Antagonist turned Ally",
+          "notes": "Demon God. Soul painting abilities."
+        },
+        {
+          "term": "Zhang Wenyu",
+          "translation": "ကျန်းဝမ်ယု",
+          "original_name": "张文宇",
+          "category": "character",
+          "gender": "male",
+          "formality": "formal",
+          "first_appearance_chapter": 1,
+          "locked": true,
+          "aliases": [
+            "Zhang Wenyu"
+          ],
+          "pronoun_dialogue": "ကျွန်တော်",
+          "particles": [
+            "ပါ"
+          ],
+          "role": "Major Specter",
+          "notes": "Red Specter → Demon God. Connected to suicides."
+        },
+        {
+          "term": "Ghost Fetus",
+          "translation": "သရဲသန္ဓေ",
+          "original_name": "冥胎",
+          "category": "character",
+          "gender": "neutral",
+          "formality": "neutral",
+          "first_appearance_chapter": 1,
+          "locked": true,
+          "aliases": [
+            "Ghost Fetus",
+            "Ming Tai"
+          ],
+          "pronoun_dialogue": "ငါ",
+          "particles": [
+            "ပဲ"
+          ],
+          "role": "Major Antagonist",
+          "notes": "Demon God level. Another aspect of Chen Ge. Deceased."
+        },
+        {
+          "term": "Xiao Bu",
+          "translation": "ရှောင်ပု",
+          "original_name": "小布",
+          "category": "character",
+          "gender": "female",
+          "formality": "polite",
+          "first_appearance_chapter": 1,
+          "locked": true,
+          "aliases": [
+            "Xiao Bu"
+          ],
+          "pronoun_dialogue": "ကျွန်မ",
+          "particles": [
+            "နော်",
+            "လေ"
+          ],
+          "role": "Door Pusher of Li Wan City",
+          "notes": "Top Red Specter. Door-pusher of Li Wan City."
+        },
+        {
+          "term": "Chen Xiao",
+          "translation": "ချန်ရှော့",
+          "original_name": "陈枭",
+          "category": "character",
+          "gender": "male",
+          "formality": "formal",
+          "first_appearance_chapter": 1,
+          "locked": true,
+          "aliases": [
+            "Chen Xiao"
+          ],
+          "pronoun_dialogue": "ကျွန်တော်",
+          "particles": [
+            "ပါ"
+          ],
+          "role": "Supporting Character (Chen Ge's Father)",
+          "notes": "Chen Ge's father. Good side became Blood City Will."
+        },
+        {
+          "term": "Xu Meng",
+          "translation": "ရှူမင်",
+          "original_name": "徐梦",
+          "category": "character",
+          "gender": "female",
+          "formality": "polite",
+          "first_appearance_chapter": 1,
+          "locked": true,
+          "aliases": [
+            "Xu Meng"
+          ],
+          "pronoun_dialogue": "ကျွန်မ",
+          "particles": [
+            "နော်",
+            "ပါ"
+          ],
+          "role": "Supporting Character (Chen Ge's Mother)",
+          "notes": "Chen Ge's mother. Disappeared."
+        }
+      ],
+      "entry_count": 16
+    },
+    "supporting_characters": {
+      "category_name": "Supporting Characters",
+      "myanmar_category_name": "အထောက်အကူပြုဇာတ်ကောင်များ",
+      "description": "Secondary characters and minor allies/antagonists",
+      "entries": [
+        {
+          "term": "Zhou",
+          "translation": "လောင်ကျိုး",
+          "original_name": "老周",
+          "category": "character",
+          "gender": "male",
+          "formality": "informal",
+          "first_appearance_chapter": 1,
+          "locked": true,
+          "aliases": [
+            "Zhou",
+            "Lao Zhou"
+          ],
+          "pronoun_dialogue": "ငါ",
+          "particles": [
+            "ကွာ"
+          ],
+          "role": "Supporting Specter Ally",
+          "notes": "Baleful Specter. Former unlucky salesman."
+        },
+        {
+          "term": "Duan Yue",
+          "translation": "ဒွမ်ယွဲ့",
+          "original_name": "段月",
+          "category": "character",
+          "gender": "female",
+          "formality": "polite",
+          "first_appearance_chapter": 1,
+          "locked": true,
+          "aliases": [
+            "Duan Yue"
+          ],
+          "pronoun_dialogue": "ကျွန်မ",
+          "particles": [
+            "နော်"
+          ],
+          "role": "Supporting Specter Ally",
+          "notes": "Baleful Specter. Zhou's romantic partner."
+        },
+        {
+          "term": "Chen Yalin",
+          "translation": "ချန်ယာလင်",
+          "original_name": "陈雅琳 / 笔仙",
+          "category": "character",
+          "gender": "female",
+          "formality": "polite",
+          "first_appearance_chapter": 1,
+          "locked": true,
+          "aliases": [
+            "Chen Yalin",
+            "Pen Spirit"
+          ],
+          "pronoun_dialogue": "ကျွန်မ",
+          "particles": [
+            "နော်",
+            "ပါ"
+          ],
+          "role": "Supporting Specter Ally",
+          "notes": "Pen Spirit. Daily divination ability."
+        },
+        {
+          "term": "Luo Ruoyu",
+          "translation": "လိုရော့ယွီ",
+          "original_name": "罗若雨",
+          "category": "character",
+          "gender": "female",
+          "formality": "polite",
+          "first_appearance_chapter": 1,
+          "locked": true,
+          "aliases": [
+            "Luo Ruoyu"
+          ],
+          "pronoun_dialogue": "ကျွန်မ",
+          "particles": [
+            "နော်",
+            "ပါ"
+          ],
+          "role": "Supporting Specter Ally",
+          "notes": "Guardian spirit of New Century Park."
+        },
+        {
+          "term": "Gu Feiyu",
+          "translation": "ဂူဖေးယု",
+          "original_name": "顾飞宇",
+          "category": "character",
+          "gender": "male",
+          "formality": "informal",
+          "first_appearance_chapter": 1,
+          "locked": true,
+          "aliases": [
+            "Gu Feiyu"
+          ],
+          "pronoun_dialogue": "ငါ",
+          "particles": [
+            "ကွာ"
+          ],
+          "role": "Supporting Living Character",
+          "notes": "Living staff member. Brave but easily frightened."
+        },
+        {
+          "term": "Captain Yan",
+          "translation": "ရန်ကပ္ပတိန်",
+          "original_name": "颜队长",
+          "category": "character",
+          "gender": "male",
+          "formality": "formal",
+          "first_appearance_chapter": 1,
+          "locked": true,
+          "aliases": [
+            "Captain Yan",
+            "Yan"
+          ],
+          "pronoun_dialogue": "ကျွန်တော်",
+          "particles": [
+            "ပါ",
+            "ဗျာ"
+          ],
+          "role": "Supporting Living Character",
+          "notes": "Police captain. Key human world ally."
+        },
+        {
+          "term": "Director Luo",
+          "translation": "လိုဒါရိုက်တာ",
+          "original_name": "罗董",
+          "category": "character",
+          "gender": "male",
+          "formality": "formal",
+          "first_appearance_chapter": 1,
+          "locked": true,
+          "aliases": [
+            "Director Luo"
+          ],
+          "pronoun_dialogue": "ကျွန်တော်",
+          "particles": [
+            "ပါ"
+          ],
+          "role": "Supporting Living Character",
+          "notes": "Director of New Century Park. Father of Luo Ruoyu."
+        },
+        {
+          "term": "Xu Shu",
+          "translation": "ရှူရှူ",
+          "original_name": "徐叔",
+          "category": "character",
+          "gender": "male",
+          "formality": "informal",
+          "first_appearance_chapter": 1,
+          "locked": true,
+          "aliases": [
+            "Uncle Xu",
+            "Xu Shu"
+          ],
+          "pronoun_dialogue": "ငါ",
+          "particles": [
+            "ကွာ",
+            "ဗျာ"
+          ],
+          "role": "Supporting Living Character",
+          "notes": "Park administrator. Gruff but supportive. Same as Uncle Xu in Chapter 1."
+        },
+        {
+          "term": "Tao Ming",
+          "translation": "တောင်မင်",
+          "original_name": "陶明",
+          "category": "character",
+          "gender": "male",
+          "formality": "informal",
+          "first_appearance_chapter": 1,
+          "locked": true,
+          "aliases": [
+            "Tao Ming"
+          ],
+          "pronoun_dialogue": "ငါ",
+          "particles": [
+            "ကွာ"
+          ],
+          "role": "Supporting Living Character",
+          "notes": "Employee who resigns in Chapter 1."
+        },
+        {
+          "term": "Xiao Wei",
+          "translation": "ရှောင်ဝေ",
+          "original_name": "肖伟",
+          "category": "character",
+          "gender": "male",
+          "formality": "informal",
+          "first_appearance_chapter": 1,
+          "locked": true,
+          "aliases": [
+            "Xiao Wei",
+            "XiaoWei"
+          ],
+          "pronoun_dialogue": "ငါ",
+          "particles": [
+            "ကွာ"
+          ],
+          "role": "Supporting Living Character",
+          "notes": "Employee who resigns in Chapter 1."
+        },
+        {
+          "term": "Scissors",
+          "translation": "ကတ်ကြေး",
+          "original_name": "剪刀",
+          "category": "character",
+          "gender": "male",
+          "formality": "informal",
+          "first_appearance_chapter": 1,
+          "locked": true,
+          "aliases": [
+            "Scissors"
+          ],
+          "pronoun_dialogue": "ငါ",
+          "particles": [
+            "ကွာ"
+          ],
+          "role": "Supporting Living Character",
+          "notes": "Living staff member."
+        },
+        {
+          "term": "Zhang Jingjiu",
+          "translation": "ကျန်းကျင့်ကျိုး",
+          "original_name": "张敬酒",
+          "category": "character",
+          "gender": "male",
+          "formality": "informal",
+          "first_appearance_chapter": 1,
+          "locked": true,
+          "aliases": [
+            "Zhang Jingjiu"
+          ],
+          "pronoun_dialogue": "ငါ",
+          "particles": [
+            "ကွာ"
+          ],
+          "role": "Supporting Living Character",
+          "notes": "Living staff member."
+        },
+        {
+          "term": "Qu Changlin",
+          "translation": "ချူချန်လင်",
+          "original_name": "曲长林",
+          "category": "character",
+          "gender": "male",
+          "formality": "informal",
+          "first_appearance_chapter": 1,
+          "locked": true,
+          "aliases": [
+            "Qu Changlin"
+          ],
+          "pronoun_dialogue": "ငါ",
+          "particles": [
+            "ကွာ"
+          ],
+          "role": "Supporting Living Character",
+          "notes": "Living staff member."
+        },
+        {
+          "term": "Wu Jinpeng",
+          "translation": "ဝူကျင်းဖောင်",
+          "original_name": "武金鹏",
+          "category": "character",
+          "gender": "male",
+          "formality": "informal",
+          "first_appearance_chapter": 1,
+          "locked": true,
+          "aliases": [
+            "Wu Jinpeng"
+          ],
+          "pronoun_dialogue": "ငါ",
+          "particles": [
+            "ကွာ"
+          ],
+          "role": "Supporting Living Character",
+          "notes": "Living staff member."
+        },
+        {
+          "term": "Fan Yu",
+          "translation": "ဖန်ယု",
+          "original_name": "范郁",
+          "category": "character",
+          "gender": "male",
+          "formality": "informal",
+          "first_appearance_chapter": 1,
+          "locked": true,
+          "aliases": [
+            "Fan Yu"
+          ],
+          "pronoun_dialogue": "ငါ",
+          "particles": [
+            "ကွာ"
+          ],
+          "role": "Supporting Living Character",
+          "notes": "Student who can see ghosts."
+        },
+        {
+          "term": "Zhu Xiu",
+          "translation": "ကျူရွှယ်",
+          "original_name": "朱秀",
+          "category": "character",
+          "gender": "female",
+          "formality": "informal",
+          "first_appearance_chapter": 1,
+          "locked": true,
+          "aliases": [
+            "Zhu Xiu"
+          ],
+          "pronoun_dialogue": "ငါ",
+          "particles": [
+            "ကွာ"
+          ],
+          "role": "Antagonist",
+          "notes": "Forced Zhang Ya to jump. Ghost Stories Society No.11."
+        },
+        {
+          "term": "Han Bao'er",
+          "translation": "ဟန်ဘောင်အာ",
+          "original_name": "韩宝儿",
+          "category": "character",
+          "gender": "female",
+          "formality": "informal",
+          "first_appearance_chapter": 1,
+          "locked": true,
+          "aliases": [
+            "Han Bao'er"
+          ],
+          "pronoun_dialogue": "ငါ",
+          "particles": [
+            "ကွာ"
+          ],
+          "role": "Antagonist",
+          "notes": "Ghost Stories Society member."
+        },
+        {
+          "term": "Kong Xiangming",
+          "translation": "ခုန်ရှန်မင်",
+          "original_name": "孔祥明",
+          "category": "character",
+          "gender": "male",
+          "formality": "informal",
+          "first_appearance_chapter": 1,
+          "locked": true,
+          "aliases": [
+            "Kong Xiangming"
+          ],
+          "pronoun_dialogue": "ငါ",
+          "particles": [
+            "ကွာ"
+          ],
+          "role": "Antagonist",
+          "notes": "Ghost Stories Society member."
+        },
+        {
+          "term": "Wei Wu",
+          "translation": "ဝေဝူ",
+          "original_name": "魏五",
+          "category": "character",
+          "gender": "male",
+          "formality": "informal",
+          "first_appearance_chapter": 1,
+          "locked": true,
+          "aliases": [
+            "Wei Wu"
+          ],
+          "pronoun_dialogue": "ငါ",
+          "particles": [
+            "ကွာ"
+          ],
+          "role": "Antagonist",
+          "notes": "Ghost Stories Society member."
+        },
+        {
+          "term": "Lychee",
+          "translation": "လိုက်ချီ",
+          "original_name": "荔枝",
+          "category": "character",
+          "gender": "female",
+          "formality": "informal",
+          "first_appearance_chapter": 1,
+          "locked": true,
+          "aliases": [
+            "Lychee",
+            "Li Zhi"
+          ],
+          "pronoun_dialogue": "ငါ",
+          "particles": [
+            "ကွာ"
+          ],
+          "role": "Antagonist",
+          "notes": "Ghost Stories Society No.12."
+        },
+        {
+          "term": "Xiong Qing",
+          "translation": "ရှုံချင်",
+          "original_name": "熊青",
+          "category": "character",
+          "gender": "male",
+          "formality": "informal",
+          "first_appearance_chapter": 1,
+          "locked": true,
+          "aliases": [
+            "Xiong Qing"
+          ],
+          "pronoun_dialogue": "ငါ",
+          "particles": [
+            "ကွာ"
+          ],
+          "role": "Antagonist",
+          "notes": "Third Sick Hall Patient No.8. Hemispatial neglect."
+        },
+        {
+          "term": "Wu Fei",
+          "translation": "ဝူဖေ",
+          "original_name": "吴非",
+          "category": "character",
+          "gender": "male",
+          "formality": "informal",
+          "first_appearance_chapter": 1,
+          "locked": true,
+          "aliases": [
+            "Wu Fei"
+          ],
+          "pronoun_dialogue": "ငါ",
+          "particles": [
+            "ကွာ"
+          ],
+          "role": "Antagonist",
+          "notes": "Third Sick Hall Patient No.9. Asperger's syndrome."
+        },
+        {
+          "term": "Devil",
+          "translation": "နတ်ဆိုး",
+          "original_name": "魔鬼 / 十号病人",
+          "category": "character",
+          "gender": "male",
+          "formality": "informal",
+          "first_appearance_chapter": 1,
+          "locked": true,
+          "aliases": [
+            "Devil",
+            "No.10 Patient"
+          ],
+          "pronoun_dialogue": "ငါ",
+          "particles": [
+            "ကွာ"
+          ],
+          "role": "Antagonist",
+          "notes": "Third Sick Hall Patient No.10. Lesch-Nyhan syndrome."
+        }
+      ],
+      "entry_count": 23
+    },
+    "organizations": {
+      "category_name": "Organizations & Factions",
+      "myanmar_category_name": "အဖွဲ့အစည်းများနှင့် အင်အားစုများ",
+      "description": "Major groups, societies, and institutions",
+      "entries": [
+        {
+          "term": "Ghost Stories Society",
+          "translation": "သရဲပုံပြင်အသင်း",
+          "original_name": "怪谈协会",
+          "category": "organization",
+          "locked": true,
+          "aliases": [
+            "Ghost Stories Society",
+            "the Society"
+          ],
+          "notes": "Secret society of supernatural enthusiasts. Chen Ge becomes president (No.13)."
+        },
+        {
+          "term": "Cursed Hospital",
+          "translation": "ကျိန်စာဆေးရုံ",
+          "original_name": "诅咒医院",
+          "category": "organization",
+          "locked": true,
+          "aliases": [
+            "Cursed Hospital"
+          ],
+          "notes": "Ultimate antagonist organization. Built by Hospital Director."
+        },
+        {
+          "term": "Chen Ge's Haunted House",
+          "translation": "ချန်ဂီသရဲအိမ်",
+          "original_name": "九江西郊恐怖屋",
+          "category": "organization",
+          "locked": true,
+          "aliases": [
+            "Chen Ge's Haunted House",
+            "Castle of Nightmares",
+            "Adventure House"
+          ],
+          "notes": "Central setting. Located in New Century Park."
+        },
+        {
+          "term": "New Century Park",
+          "translation": "နယူးစင်တူရီပန်းခြံ",
+          "original_name": "新世纪乐园",
+          "category": "organization",
+          "locked": true,
+          "aliases": [
+            "New Century Park",
+            "the amusement park",
+            "the park"
+          ],
+          "notes": "Amusement park where haunted house is located."
+        },
+        {
+          "term": "Third Sick Hall",
+          "translation": "တတိယအဆောက်အအုံဆေးရုံ",
+          "original_name": "第三病栋",
+          "category": "organization",
+          "locked": true,
+          "aliases": [
+            "Third Sick Hall",
+            "the Third Hall"
+          ],
+          "notes": "3-star scenario. Former psychiatric hospital."
+        },
+        {
+          "term": "Jiujiang Police Department",
+          "translation": "ကျိုကျန်ရဲဌာန",
+          "original_name": "九江市警察局",
+          "category": "organization",
+          "locked": true,
+          "aliases": [
+            "Jiujiang Police Department",
+            "the police"
+          ],
+          "notes": "Police force of Jiujiang City."
+        }
+      ],
+      "entry_count": 6
+    },
+    "locations": {
+      "category_name": "Key Locations",
+      "myanmar_category_name": "အရေးကြီးသောနေရာများ",
+      "description": "Important places, cities, buildings, and special realms",
+      "entries": [
+        {
+          "term": "Jiujiang City",
+          "translation": "ကျိုကျန်မြို့",
+          "original_name": "九江市",
+          "category": "location",
+          "locked": true,
+          "aliases": [
+            "Jiujiang City",
+            "Jiujiang"
+          ],
+          "notes": "Main setting. Divided into Western and Eastern Jiujiang."
+        },
+        {
+          "term": "Western Jiujiang",
+          "translation": "ကျိုကျန်အနောက်ပိုင်း",
+          "original_name": "九江西区",
+          "category": "location",
+          "locked": true,
+          "aliases": [
+            "Western Jiujiang",
+            "West Jiujiang"
+          ],
+          "notes": "Where story begins. Contains haunted house and early scenarios."
+        },
+        {
+          "term": "Eastern Jiujiang",
+          "translation": "ကျိုကျန်အရှေ့ပိုင်း",
+          "original_name": "九江东区",
+          "category": "location",
+          "locked": true,
+          "aliases": [
+            "Eastern Jiujiang",
+            "East Jiujiang"
+          ],
+          "notes": "Contains later-game scenarios including Li Wan City."
+        },
+        {
+          "term": "Li Wan City",
+          "translation": "လီဝမ်မြို့",
+          "original_name": "荔湾镇",
+          "category": "location",
+          "locked": true,
+          "aliases": [
+            "Li Wan City",
+            "Li Wan Ghost Town",
+            "Ghost Town"
+          ],
+          "notes": "3.5-star scenario. Town held in devil's palm."
+        },
+        {
+          "term": "Coffin Village",
+          "translation": "ခေါင်းတလားရွာ",
+          "original_name": "活棺村",
+          "category": "location",
+          "locked": true,
+          "aliases": [
+            "Coffin Village"
+          ],
+          "notes": "3-star hidden scenario. Ancient village with dark customs."
+        },
+        {
+          "term": "Underground Morgue",
+          "translation": "မြေအောက်ရုပ်အလောင်းသိုလှောင်ရုံ",
+          "original_name": "地下尸库",
+          "category": "location",
+          "locked": true,
+          "aliases": [
+            "Underground Morgue",
+            "the Morgue"
+          ],
+          "notes": "3-star scenario under Medical University."
+        },
+        {
+          "term": "School of the Afterlife",
+          "translation": "လွန်ပြီးနောက်ကျောင်း",
+          "original_name": "通灵鬼校",
+          "category": "location",
+          "locked": true,
+          "aliases": [
+            "School of the Afterlife",
+            "Afterlife School"
+          ],
+          "notes": "4-star scenario. Connected to Mu Yang High School."
+        },
+        {
+          "term": "White Dragon Cave Tunnel",
+          "translation": "ဒရယ်ဖြူဂူဥမင်",
+          "original_name": "白龙洞隧道",
+          "category": "location",
+          "locked": true,
+          "aliases": [
+            "White Dragon Cave Tunnel",
+            "the Tunnel"
+          ],
+          "notes": "3-star scenario. Contains mobile door."
+        },
+        {
+          "term": "Blood City",
+          "translation": "သွေးမြို့",
+          "original_name": "血城",
+          "category": "location",
+          "locked": true,
+          "aliases": [
+            "Blood City",
+            "Red City"
+          ],
+          "notes": "World behind the doors. Ruled by Chen Ge's good side."
+        },
+        {
+          "term": "Black Fog",
+          "translation": "အနက်ရောင်မြူ",
+          "original_name": "黑雾",
+          "category": "location",
+          "locked": true,
+          "aliases": [
+            "Black Fog",
+            "the Fog"
+          ],
+          "notes": "Embodiment of despair. Beyond Blood City."
+        },
+        {
+          "term": "Xin Hai Central Hospital",
+          "translation": "ရှင်းဟိုင်းဗဟိုဆေးရုံ",
+          "original_name": "新海中心医院",
+          "category": "location",
+          "locked": true,
+          "aliases": [
+            "Xin Hai Central Hospital",
+            "Xin Hai Hospital"
+          ],
+          "notes": "4-star scenario. Curse game location."
+        },
+        {
+          "term": "Mu Yang High School",
+          "translation": "မူယန်အထက်တန်းကျောင်း",
+          "original_name": "暮阳中学",
+          "category": "location",
+          "locked": true,
+          "aliases": [
+            "Mu Yang High School",
+            "Mu Yang"
+          ],
+          "notes": "2-star scenario. Four side missions."
+        },
+        {
+          "term": "Western Jiujiang's Private Academy",
+          "translation": "ကျိုကျန်အနောက်ပိုင်း ပုဂ္ဂလိကအကယ်ဒမီ",
+          "original_name": "西城私立学院",
+          "category": "location",
+          "locked": true,
+          "aliases": [
+            "Western Jiujiang's Private Academy",
+            "Private Academy"
+          ],
+          "notes": "2-star scenario. Zhang Ya's origin."
+        },
+        {
+          "term": "Hai Ming Apartments",
+          "translation": "ဟိုင်မင်းတိုက်ခန်း",
+          "original_name": "海明公寓",
+          "category": "location",
+          "locked": true,
+          "aliases": [
+            "Hai Ming Apartments"
+          ],
+          "notes": "Location of 'A Room of Three' mission."
+        },
+        {
+          "term": "Fang Hwa Apartments",
+          "translation": "ဖန်ဟွာတိုက်ခန်း",
+          "original_name": "芳华苑小区",
+          "category": "location",
+          "locked": true,
+          "aliases": [
+            "Fang Hwa Apartments"
+          ],
+          "notes": "Location of Xu Yin's affection mission."
+        }
+      ],
+      "entry_count": 15
+    },
+    "power_system": {
+      "category_name": "Power System & Cultivation",
+      "myanmar_category_name": "စွမ်းအားစနစ်နှင့် လေ့ကျင့်ရေး",
+      "description": "Ranks, levels, abilities, and mechanics",
+      "entries": [
+        {
+          "term": "Lingering Spirit",
+          "translation": "ညည်းတွားသရဲ",
+          "original_name": "残念 / 残魂级",
+          "category": "concept",
+          "locked": true,
+          "aliases": [
+            "Lingering Spirit",
+            "Lingering Spirits"
+          ],
+          "notes": "Weakest specters. Limited abilities, bound to location/object."
+        },
+        {
+          "term": "Obsession Spirit",
+          "translation": "စွဲလမ်းဝိညာဉ်",
+          "original_name": "执念",
+          "category": "concept",
+          "locked": true,
+          "aliases": [
+            "Obsession Spirit",
+            "Obsession"
+          ],
+          "notes": "Thought or obsession that refuses to dissipate."
+        },
+        {
+          "term": "Baleful Specter",
+          "translation": "စက်ဆုပ်သရဲ",
+          "original_name": "厉鬼级",
+          "category": "concept",
+          "locked": true,
+          "aliases": [
+            "Baleful Specter",
+            "Baleful Specters"
+          ],
+          "notes": "Can cause harm. Moderate powers. Temporary independence from object."
+        },
+        {
+          "term": "Half-Red Specter",
+          "translation": "တစ်ဝက်အနီရောင်သရဲ",
+          "original_name": "半身红衣",
+          "category": "concept",
+          "locked": true,
+          "aliases": [
+            "Half-Red Specter",
+            "Half Red Specter"
+          ],
+          "notes": "Baleful Specters with Red Specter qualifications. Partial red clothing."
+        },
+        {
+          "term": "Red Specter",
+          "translation": "အနီရောင်သရဲ",
+          "original_name": "红衣级",
+          "category": "concept",
+          "locked": true,
+          "aliases": [
+            "Red Specter",
+            "Red Specters"
+          ],
+          "notes": "Powerful specters with blood-stained clothes. Blood manipulation."
+        },
+        {
+          "term": "Top Red Specter",
+          "translation": "ထိပ်တန်းအနီရောင်သရဲ",
+          "original_name": "顶级红衣",
+          "category": "concept",
+          "locked": true,
+          "aliases": [
+            "Top Red Specter",
+            "Greater Red Specter"
+          ],
+          "notes": "Can easily suppress Ordinary Red Specters."
+        },
+        {
+          "term": "Demon God",
+          "translation": "နတ်ဆိုးနတ်ဘုရား",
+          "original_name": "凶神级",
+          "category": "concept",
+          "locked": true,
+          "aliases": [
+            "Demon God",
+            "Demon Gods"
+          ],
+          "notes": "Beyond specter classification. Highest known rank."
+        },
+        {
+          "term": "Door Pusher",
+          "translation": "တံခါးတွန်းသူ",
+          "original_name": "推门人",
+          "category": "concept",
+          "locked": true,
+          "aliases": [
+            "Door Pusher",
+            "Door Pushers"
+          ],
+          "notes": "Person who pushed open door in their heart after deepest despair."
+        },
+        {
+          "term": "Heart of a Specter",
+          "translation": "သရဲ၏နှလုံး",
+          "original_name": "心",
+          "category": "concept",
+          "locked": true,
+          "aliases": [
+            "Heart",
+            "the Heart"
+          ],
+          "notes": "Formed from peak emotions. Essential for advancing to Red Specter."
+        },
+        {
+          "term": "Scream Factor",
+          "translation": "အော်သံအဆင့်",
+          "original_name": "尖叫指数",
+          "category": "concept",
+          "locked": true,
+          "aliases": [
+            "Scream Factor",
+            "Scream Rating"
+          ],
+          "notes": "Rating system for scenarios. 0-5 stars."
+        },
+        {
+          "term": "Resentment Value",
+          "translation": "မကျေမနပ်တန်ဖိုး",
+          "original_name": "怨念值",
+          "category": "concept",
+          "locked": true,
+          "aliases": [
+            "Resentment Value",
+            "Resentment"
+          ],
+          "notes": "Numerical value representing ghost's resentment."
+        },
+        {
+          "term": "Ghost Favorability",
+          "translation": "သရဲချစ်ကြည်မှု",
+          "original_name": "厉鬼好感度",
+          "category": "concept",
+          "locked": true,
+          "aliases": [
+            "Ghost Favorability",
+            "Favorability"
+          ],
+          "notes": "Relationship level between Chen Ge and specter allies."
+        },
+        {
+          "term": "Blood City Will",
+          "translation": "သွေးမြို့စိတ်",
+          "original_name": "血城意志",
+          "category": "concept",
+          "locked": true,
+          "aliases": [
+            "Blood City Will",
+            "the Will"
+          ],
+          "notes": "Chen Ge's altruistic side. Ruler of Blood City. Source of Black Phone missions."
+        },
+        {
+          "term": "Splitting Experiment",
+          "translation": "ခွဲခြားစမ်းသပ်မှု",
+          "original_name": "分裂实验",
+          "category": "concept",
+          "locked": true,
+          "aliases": [
+            "Splitting Experiment",
+            "the Experiment"
+          ],
+          "notes": "Hospital Director's mad experiments on Chen Ge and his father."
+        },
+        {
+          "term": "Wheel of Fortune",
+          "translation": "ကံကြမ္မာဘီး",
+          "original_name": "转盘抽奖",
+          "category": "concept",
+          "locked": true,
+          "aliases": [
+            "Wheel of Fortune",
+            "the Lottery"
+          ],
+          "notes": "Black Phone's lottery system for random rewards."
+        }
+      ],
+      "entry_count": 15
+    },
+    "key_items": {
+      "category_name": "Key Items & Artifacts",
+      "myanmar_category_name": "အရေးကြီးသောပစ္စည်းများနှင့် ရတနာများ",
+      "description": "Important objects, equipment, and tools",
+      "entries": [
+        {
+          "term": "Black Phone",
+          "translation": "ဖုန်းနက်",
+          "original_name": "黑色手机",
+          "category": "item",
+          "locked": true,
+          "aliases": [
+            "Black Phone",
+            "the Phone",
+            "Phone"
+          ],
+          "notes": "Most important item. Left by Chen Ge's parents. Provides missions and rewards."
+        },
+        {
+          "term": "Cursed Love Letter",
+          "translation": "ကျိန်စာမေတ္တာစာ",
+          "original_name": "被诅咒的情书",
+          "category": "item",
+          "locked": true,
+          "aliases": [
+            "Cursed Love Letter",
+            "Love Letter"
+          ],
+          "notes": "Contains Zhang Ya's ghost. 0.3% drop rate. Burned during Li Wan City arc."
+        },
+        {
+          "term": "The Crying Tape",
+          "translation": "ငိုသံဓာတ်ပြား",
+          "original_name": "哭泣的磁带",
+          "category": "item",
+          "locked": true,
+          "aliases": [
+            "The Crying Tape",
+            "Crying Tape"
+          ],
+          "notes": "Contains Xu Yin's ghost. 3% drop rate."
+        },
+        {
+          "term": "White Valentine's Candy",
+          "translation": "အဖြူရောင်ဗလန်တိုင်းစွမ်းချောကလက်",
+          "original_name": "白色情人节糖果",
+          "category": "item",
+          "locked": true,
+          "aliases": [
+            "White Valentine's Candy",
+            "Valentine's Candy"
+          ],
+          "notes": "Gift from Zhang Ya. 7% drop rate. Summons Zhang Ya."
+        },
+        {
+          "term": "Yan Danian's Comic Book",
+          "translation": "ယန်ဒါနီရန်၏ ကာတွန်းစာအုပ်",
+          "original_name": "闫大年的漫画册",
+          "category": "item",
+          "locked": true,
+          "aliases": [
+            "Yan Danian's Comic Book",
+            "Comic Book"
+          ],
+          "notes": "Contains multiple specters. Limited by page count."
+        },
+        {
+          "term": "Doctor Skull-cracker",
+          "translation": "ဦးခွံခွဲဒေါက်တာ",
+          "original_name": "碎颅医生",
+          "category": "item",
+          "locked": true,
+          "aliases": [
+            "Doctor Skull-cracker",
+            "Skull-cracker"
+          ],
+          "notes": "Weapon/prop Chen Ge carries on missions."
+        },
+        {
+          "term": "Haunted Hearse",
+          "translation": "သရဲအသုဘကား",
+          "original_name": "绝命灵车",
+          "category": "item",
+          "locked": true,
+          "aliases": [
+            "Haunted Hearse",
+            "the Hearse"
+          ],
+          "notes": "2-star scenario used as道具. Carries coffin."
+        },
+        {
+          "term": "Ripper Set",
+          "translation": "ခွဲစိတ်သူအစုံ",
+          "original_name": "开膛手套装",
+          "category": "item",
+          "locked": true,
+          "aliases": [
+            "Ripper Set",
+            "the Set"
+          ],
+          "notes": "Reward from Li Wan City. Fog City Trench Coat, Black Envelope, Lucky Scissors."
+        },
+        {
+          "term": "Phone Number Kissed by the Dead",
+          "translation": "သေသူအနမ်းခံရသော ဖုန်းနံပါတ်",
+          "original_name": "被死者亲吻的电话号码",
+          "category": "item",
+          "locked": true,
+          "aliases": [
+            "Phone Number Kissed by the Dead",
+            "the Phone Number"
+          ],
+          "notes": "0.5% drop rate. Allows contact with Zhang Wenyu."
+        },
+        {
+          "term": "Curse Game Invitation",
+          "translation": "ကျိန်စာဂိမ်းဖိတ်စာ",
+          "original_name": "诅咒游戏邀请函",
+          "category": "item",
+          "locked": true,
+          "aliases": [
+            "Curse Game Invitation",
+            "the Invitation"
+          ],
+          "notes": "Connected to 4-star scenario at Xin Hai Central Hospital."
+        },
+        {
+          "term": "Midnight Ticket Counter",
+          "translation": "သန်းခေါင်ယံလက်မှတ်ရောင်းစင်း",
+          "original_name": "午夜售票台",
+          "category": "item",
+          "locked": true,
+          "aliases": [
+            "Midnight Ticket Counter",
+            "Ticket Counter"
+          ],
+          "notes": "Unique haunted house construct. 1/1000 chance for special visitors."
+        },
+        {
+          "term": "The Ghost's Changing Room",
+          "translation": "သရဲ၏အဝတ်လဲခန်း",
+          "original_name": "鬼屋更衣室",
+          "category": "item",
+          "locked": true,
+          "aliases": [
+            "The Ghost's Changing Room",
+            "Changing Room"
+          ],
+          "notes": "Provides costumes to visitors. 1% chance for extreme experience."
+        },
+        {
+          "term": "The Screaming Door",
+          "translation": "အော်ဟစ်တံခါး",
+          "original_name": "尖叫之门",
+          "category": "item",
+          "locked": true,
+          "aliases": [
+            "The Screaming Door",
+            "Screaming Door"
+          ],
+          "notes": "Pure-black steel door with specter faces. Reward from Maze of Terror."
+        },
+        {
+          "term": "Blue Raincoat",
+          "translation": "အပြာရောင်မိုးကာကို",
+          "original_name": "蓝雨衣",
+          "category": "item",
+          "locked": true,
+          "aliases": [
+            "Blue Raincoat",
+            "the Raincoat"
+          ],
+          "notes": "Bought by mother for child who disappeared at Li Wan City bus stop."
+        }
+      ],
+      "entry_count": 14
+    },
+    "concepts": {
+      "category_name": "Important Concepts",
+      "myanmar_category_name": "အရေးကြီးသောစိတ်ကူးများ",
+      "description": "Core ideas, systems, terms, and lore elements",
+      "entries": [
+        {
+          "term": "Door",
+          "translation": "တံခါး",
+          "original_name": "门",
+          "category": "concept",
+          "locked": true,
+          "aliases": [
+            "Door",
+            "Doors",
+            "the Door"
+          ],
+          "notes": "Mysterious doors connecting human world to Blood City. Only those in deepest despair can push open."
+        },
+        {
+          "term": "Nightmare City",
+          "translation": "အိပ်မက်ဆိုးမြို့",
+          "original_name": "噩梦之城",
+          "category": "concept",
+          "locked": true,
+          "aliases": [
+            "Nightmare City"
+          ],
+          "notes": "Final 5-star task. City built on edge of nightmares. No time limit."
+        },
+        {
+          "term": "Haunted House Staff System",
+          "translation": "သရဲအိမ်ဝန်ထမ်းစနစ်",
+          "original_name": "恐怖屋员工系统",
+          "category": "concept",
+          "locked": true,
+          "aliases": [
+            "Haunted House Staff System",
+            "Staff System"
+          ],
+          "notes": "System categorizing living and non-living staff by roles and capabilities."
+        },
+        {
+          "term": "Ghost Affinity",
+          "translation": "သရဲသဘာဝ",
+          "original_name": "鬼亲和",
+          "category": "concept",
+          "locked": true,
+          "aliases": [
+            "Ghost Affinity"
+          ],
+          "notes": "Yan Danian's ability. Dejected appearance makes others unwilling to bully him."
+        },
+        {
+          "term": "Soul Painting",
+          "translation": "ဝိညာဉ်ပန်းချီ",
+          "original_name": "画魂",
+          "category": "concept",
+          "locked": true,
+          "aliases": [
+            "Soul Painting"
+          ],
+          "notes": "Yan Danian's ability. Can drag witnessed ghosts into his comic."
+        },
+        {
+          "term": "Wish Fulfillment",
+          "translation": "ဆန္ဒပြည့်ခြင်း",
+          "original_name": "许愿",
+          "category": "concept",
+          "locked": true,
+          "aliases": [
+            "Wish Fulfillment",
+            "Wish"
+          ],
+          "notes": "Yan Danian's strongest ability. Whatever he wishes comes true. Destroys one page per use."
+        },
+        {
+          "term": "Imprisonment",
+          "translation": "အကျဉ်းချခြင်း",
+          "original_name": "囚禁",
+          "category": "concept",
+          "locked": true,
+          "aliases": [
+            "Imprisonment"
+          ],
+          "notes": "Doctor Gao's characteristic ability."
+        },
+        {
+          "term": "Transformation",
+          "translation": "အသွင်ပြောင်းခြင်း",
+          "original_name": "变形",
+          "category": "concept",
+          "locked": true,
+          "aliases": [
+            "Transformation"
+          ],
+          "notes": "Doctor Gao's characteristic ability."
+        },
+        {
+          "term": "Suppression",
+          "translation": "ဖိနှိပ်ခြင်း",
+          "original_name": "镇压",
+          "category": "concept",
+          "locked": true,
+          "aliases": [
+            "Suppression"
+          ],
+          "notes": "Doctor Gao's characteristic ability."
+        },
+        {
+          "term": "Rabies",
+          "translation": "ခွေးရူး",
+          "original_name": "狂犬病",
+          "category": "concept",
+          "locked": true,
+          "aliases": [
+            "Rabies"
+          ],
+          "notes": "Black Hound's ability. Can enter living person's body causing loss of sanity."
+        },
+        {
+          "term": "Daily Mission",
+          "translation": "နေ့စဉ်တာဝန်",
+          "original_name": "日常任务",
+          "category": "concept",
+          "locked": true,
+          "aliases": [
+            "Daily Mission",
+            "Daily Missions"
+          ],
+          "notes": "Daily tasks provided by Black Phone."
+        },
+        {
+          "term": "Trial Mission",
+          "translation": "စမ်းသပ်မစ်ရှင်",
+          "original_name": "试炼任务",
+          "category": "concept",
+          "locked": true,
+          "aliases": [
+            "Trial Mission",
+            "Trial Missions"
+          ],
+          "notes": "Scream-factor rated missions from Black Phone."
+        },
+        {
+          "term": "Hidden Mission",
+          "translation": "လျှို့ဝှက်မစ်ရှင်",
+          "original_name": "隐藏任务",
+          "category": "concept",
+          "locked": true,
+          "aliases": [
+            "Hidden Mission",
+            "Hidden Missions"
+          ],
+          "notes": "Secret missions discovered during exploration."
+        }
+      ],
+      "entry_count": 13
+    },
+    "scenarios_missions": {
+      "category_name": "Scenarios & Missions",
+      "myanmar_category_name": "ဇာတ်အိမ်များနှင့် တာဝန်များ",
+      "description": "Haunted house scenarios and Black Phone missions",
+      "entries": [
+        {
+          "term": "Night of the Living Dead",
+          "translation": "သက်ရှိထလသေများ၏ည",
+          "original_name": "僵尸复活夜",
+          "category": "concept",
+          "locked": true,
+          "aliases": [
+            "Night of the Living Dead"
+          ],
+          "notes": "0 Stars. Original scenario. Poor props, bad actors."
+        },
+        {
+          "term": "Minghun",
+          "translation": "မင်ဂွန်",
+          "original_name": "冥婚",
+          "category": "concept",
+          "locked": true,
+          "aliases": [
+            "Minghun",
+            "Ghost Marriage"
+          ],
+          "notes": "1 Star (upgraded from 0.5). Ghost marriage scenario."
+        },
+        {
+          "term": "Murdered by Midnight",
+          "translation": "သန်းခေါင်ယံလူသတ်",
+          "original_name": "午夜逃杀",
+          "category": "concept",
+          "locked": true,
+          "aliases": [
+            "Murdered by Midnight",
+            "Murder by Midnight"
+          ],
+          "notes": "1 Star. First Black Phone mission. Psychotic patient with scissors."
+        },
+        {
+          "term": "A Room of Three",
+          "translation": "သုံးယောက်ခန်း",
+          "original_name": "三个人的房间",
+          "category": "concept",
+          "locked": true,
+          "aliases": [
+            "A Room of Three"
+          ],
+          "notes": "1 Star. Hidden mission at Hai Ming Apartments."
+        },
+        {
+          "term": "The Third Sick Hall",
+          "translation": "တတိယအဆောက်အအုံဆေးရုံ",
+          "original_name": "第三病栋",
+          "category": "concept",
+          "locked": true,
+          "aliases": [
+            "The Third Sick Hall",
+            "Third Sick Hall"
+          ],
+          "notes": "3 Stars. Abandoned psychiatric hospital. Men Nan is door-pusher."
+        },
+        {
+          "term": "Coffin Village",
+          "translation": "ခေါင်းတလားရွာ",
+          "original_name": "活棺村",
+          "category": "concept",
+          "locked": true,
+          "aliases": [
+            "Coffin Village"
+          ],
+          "notes": "3 Stars. Hidden scenario. Ancient village with dark customs."
+        },
+        {
+          "term": "Underground Morgue",
+          "translation": "မြေအောက်ရုပ်အလောင်းသိုလှောင်ရုံ",
+          "original_name": "地下尸库",
+          "category": "concept",
+          "locked": true,
+          "aliases": [
+            "Underground Morgue"
+          ],
+          "notes": "3 Stars. Under Medical University. Doctor Gao is door-pusher."
+        },
+        {
+          "term": "Twin Water Ghosts",
+          "translation": "အမြွှာရေသရဲ",
+          "original_name": "双生水鬼",
+          "category": "concept",
+          "locked": true,
+          "aliases": [
+            "Twin Water Ghosts"
+          ],
+          "notes": "2 Stars. Water-based scenario."
+        },
+        {
+          "term": "End of the Tunnel",
+          "translation": "ဥမင်အဆုံး",
+          "original_name": "隧道深处",
+          "category": "concept",
+          "locked": true,
+          "aliases": [
+            "End of the Tunnel"
+          ],
+          "notes": "3 Stars. White Dragon Cave Tunnel. Mobile door."
+        },
+        {
+          "term": "Li Wan City",
+          "translation": "လီဝမ်မြို့",
+          "original_name": "荔湾镇",
+          "category": "concept",
+          "locked": true,
+          "aliases": [
+            "Li Wan City Mission",
+            "Li Wan Ghost Town Mission"
+          ],
+          "notes": "3.5 Stars. Town held in devil's palm. Xiao Bu is door-pusher."
+        },
+        {
+          "term": "School of the Afterlife",
+          "translation": "လွန်ပြီးနောက်ကျောင်း",
+          "original_name": "通灵鬼校",
+          "category": "concept",
+          "locked": true,
+          "aliases": [
+            "School of the Afterlife Mission"
+          ],
+          "notes": "4 Stars. Connected to Mu Yang High School. The Painter is key figure."
+        },
+        {
+          "term": "Ghost Fetus Mission",
+          "translation": "သရဲသန္ဓေမစ်ရှင်",
+          "original_name": "冥胎任务",
+          "category": "concept",
+          "locked": true,
+          "aliases": [
+            "Ghost Fetus Mission",
+            "the Ghost Fetus"
+          ],
+          "notes": "4 Stars. Hide-and-seek with Chen Ge across multiple doors."
+        },
+        {
+          "term": "The Game of Curse at Xin Hai Central Hospital",
+          "translation": "ရှင်းဟိုင်းဗဟိုဆေးရုံကျိန်စာဂိမ်း",
+          "original_name": "新海中心医院诅咒游戏",
+          "category": "concept",
+          "locked": true,
+          "aliases": [
+            "The Game of Curse",
+            "Curse Game"
+          ],
+          "notes": "4 Stars. Curse and death cycle endlessly."
+        },
+        {
+          "term": "Nightmare City Mission",
+          "translation": "အိပ်မက်ဆိုးမြို့မစ်ရှင်",
+          "original_name": "噩梦之城任务",
+          "category": "concept",
+          "locked": true,
+          "aliases": [
+            "Nightmare City Mission",
+            "the Nightmare City"
+          ],
+          "notes": "5 Stars. Final task. No time limit. Rewards until Black Fog disappears."
+        }
+      ],
+      "entry_count": 14
+    }
+  }
+}

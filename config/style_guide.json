@@ -1,0 +1,74 @@
+{
+  "version": "1.0",
+  "language": "my",
+  "registers": {
+    "narration": {
+      "description": "Literary Burmese for prose narration",
+      "preferred_endings": ["လေသည်", "ရလေသည်", "ခြင်း ဖြစ်သည်", "ကြလေသည်"],
+      "forbidden_endings": ["တယ်", "လား", "ပဲ", "ကွာ", "နော်", "ဗျာ"],
+      "sentence_structure": "flexible, varied length",
+      "pronouns": {
+        "he": "သူ",
+        "she": "သူမ",
+        "it": "ထို",
+        "they": "သူတို့"
+      }
+    },
+    "dialogue_male_informal": {
+      "description": "Spoken Burmese for male characters talking to peers",
+      "pronouns": ["ငါ"],
+      "particles": ["ကွာ", "ဗျာ", "ပဲ", "လား", "တယ်"],
+      "forbidden_in_narration": true
+    },
+    "dialogue_female_polite": {
+      "description": "Spoken Burmese for female characters",
+      "pronouns": ["ကျွန်မ"],
+      "particles": ["နော်", "လေ", "ပါ", "တယ်", "လား"],
+      "forbidden_in_narration": true
+    },
+    "dialogue_male_to_elder": {
+      "description": "Male character speaking respectfully to elder",
+      "pronouns": ["ကျွန်တော်"],
+      "particles": ["ပါ", "ဗျာ", "နော်"],
+      "forbidden_in_narration": true
+    },
+    "internal_monologue": {
+      "description": "Thoughts of characters, between dialogue and narration",
+      "pronouns": ["ငါ", "ကျွန်မ"],
+      "particles": ["ပဲ", "လား"],
+      "endings": ["လေသည်", "ပဲ", "သည်ဟု"],
+      "note": "More intimate than narration, more structured than dialogue"
+    }
+  },
+  "formatting": {
+    "dialogue_quotes": "\"",
+    "paragraph_separator": "\n\n",
+    "scene_break": "\n\n---\n\n",
+    "ellipsis": "…",
+    "em_dash": "——"
+  },
+  "forbidden_patterns": [
+    {
+      "id": "F-001",
+      "pattern": "ဖြစ်သည်",
+      "context": "narration",
+      "severity": "warning",
+      "note": "Overuse of ဖြစ်သည် sounds robotic. Vary with လေသည်."
+    },
+    {
+      "id": "F-002",
+      "pattern": "ငါ ... လေသည်",
+      "context": "dialogue",
+      "severity": "error",
+      "note": "Mixing spoken pronoun ငါ with literary ending လေသည် is forbidden."
+    },
+    {
+      "id": "F-003",
+      "pattern": "[a-zA-Z]+",
+      "context": "final_output",
+      "severity": "fatal",
+      "note": "No English words allowed except glossary terms.",
+      "exceptions": ["glossary_terms", "brands_in_source"]
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "chapter_id": "0001",
+  "scene_id": "sc02",
+  "preceding_summary": "Chen Ge argues with Uncle Xu about rent.",
+  "preceding_chunks": [
+    {
+      "chunk_id": "0001_sc01_ck00",
+      "translated_text": "ချန်ဂီ က ခေါင်းကို ဖြည်းညင်းစွာ ခါယမ်းလိုက်ရင်း သရဲစံအိမ်ရှိရာသို့ ပြန်လာလိုက်လေသည်။",
+      "speakers": ["Chen Ge"],
+      "emotional_tone": "despondent"
+    }
+  ],
+  "active_speakers": {
+    "Chen Ge": {"pronoun": "ငါ", "mood": "determined"},
+    "Xu Wan": {"pronoun": "ကျွန်မ", "mood": "angry"}
+  },
+  "max_preceding_chunks": 2,
+  "max_summary_tokens": 150
+}

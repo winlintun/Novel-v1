@@ -1,0 +1,67 @@
+{
+  "version": "0.1",
+  "novel_title": "Test Novel",
+  "entries": [
+    {
+      "term": "Chen Ge",
+      "translation": "ချန်ဂီ",
+      "original_name": "陈歌",
+      "category": "character",
+      "gender": "male",
+      "formality": "informal",
+      "locked": true,
+      "aliases": ["Chen Ge", "Boss"],
+      "pronoun_dialogue": "ငါ",
+      "particles": ["ကွာ", "ဗျာ"],
+      "my_variants": ["ချန်ဂေါ်"]
+    },
+    {
+      "term": "Xu Wan",
+      "translation": "ရှောင်ဝမ်",
+      "original_name": "徐婉",
+      "category": "character",
+      "gender": "female",
+      "formality": "polite",
+      "locked": true,
+      "aliases": ["Xu Wan", "Xiao Wan"],
+      "pronoun_dialogue": "ကျွန်မ",
+      "particles": ["နော်", "ပါ"],
+      "my_variants": []
+    },
+    {
+      "term": "Uncle Xu",
+      "translation": "အန်ကယ်ရှူ",
+      "original_name": "徐叔",
+      "category": "character",
+      "gender": "male",
+      "formality": "informal",
+      "locked": true,
+      "aliases": ["Uncle Xu", "Xu Shu"],
+      "pronoun_dialogue": "ငါ",
+      "particles": ["ကွာ"],
+      "my_variants": []
+    },
+    {
+      "term": "Haunted House",
+      "translation": "သရဲစံအိမ်",
+      "original_name": "恐怖屋",
+      "category": "place",
+      "locked": true,
+      "aliases": ["Haunted House", "House of Horrors"],
+      "my_variants": ["သရဲအိမ်"]
+    },
+    {
+      "term": "Zhang Ya",
+      "translation": "ကျန်းယာ",
+      "original_name": "张雅",
+      "category": "character",
+      "gender": "female",
+      "formality": "polite",
+      "locked": true,
+      "aliases": ["Zhang Ya"],
+      "pronoun_dialogue": "ကျွန်မ",
+      "particles": ["နော်"],
+      "my_variants": []
+    }
+  ]
+}
